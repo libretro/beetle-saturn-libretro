@@ -19,8 +19,8 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include <mednafen/mednafen.h>
-#include <mednafen/general.h>
+#include "../mednafen.h"
+#include "../general.h"
 
 #include <stdio.h>
 
@@ -41,15 +41,15 @@ enum
 };
 
 static const int32_t DI_Size_Table[8] =
-    {
-        2352, // Audio
-        2048, // MODE1
-        2352, // MODE1 RAW
-        2336, // MODE2
-        2048, // MODE2 Form 1
-        2324, // Mode 2 Form 2
-        2352, // MODE2 RAW
-        2352  // CD-I RAW
+{
+  2352, // Audio
+  2048, // MODE1
+  2352, // MODE1 RAW
+  2336, // MODE2
+  2048, // MODE2 Form 1
+  2324, // MODE2 Form 2
+  2352, // MODE2 RAW
+  2352  // CD-I RAW
 };
 
 CDAccess_CHD::CDAccess_CHD(const std::string &path, bool image_memcache) : NumTracks(0), total_sectors(0)
@@ -68,7 +68,9 @@ bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
 
   if (image_memcache)
   {
-    if ((err = chd_precache(chd)) != CHDERR_NONE)
+    err = chd_precache(chd);
+
+    if (err != CHDERR_NONE)
     {
       log_cb(RETRO_LOG_ERROR, "Failed to pre-cache CHD image: %s", path.c_str());
       return false;
@@ -84,6 +86,7 @@ bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
 
   int plba = -150;
   int numsectors = 0;
+  int chd_offset = 0;
   while (1)
   {
     int tkid = 0, frames = 0, pad = 0, pregap = 0, postgap = 0;
@@ -137,6 +140,7 @@ bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
     plba += Tracks[NumTracks].pregap + Tracks[NumTracks].pregap_dv;
     Tracks[NumTracks].LBA = toc.tracks[NumTracks].lba = plba;
     Tracks[NumTracks].postgap = postgap;
+    Tracks[NumTracks].chd_offset = chd_offset;
     Tracks[NumTracks].sectors = frames - Tracks[NumTracks].pregap_dv;
     Tracks[NumTracks].SubchannelMode = 0;
     Tracks[NumTracks].index[0] = -1;
@@ -164,6 +168,11 @@ bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
 
     plba += frames - Tracks[NumTracks].pregap_dv;
     plba += Tracks[NumTracks].postgap;
+
+    // tracks are padded to a 4-frame boundary in chds, calculate the
+    // next track's offset to generate correct block addresses
+    if (frames % CD_TRACK_PADDING > 0)
+      chd_offset += (frames + (CD_TRACK_PADDING - frames % CD_TRACK_PADDING)) - frames;
 
     numsectors += frames;
     toc.first_track = 1;
@@ -208,78 +217,6 @@ CDAccess_CHD::~CDAccess_CHD()
 
   if (hunkmem)
     free(hunkmem);
-}
-
-bool CDAccess_CHD::Read_CHD_Hunk_RAW(uint8_t *buf, int32_t lba)
-{
-  const chd_header *head = chd_get_header(chd);
-  int cad = lba; // HACK - track->file_offset;
-  int sph = head->hunkbytes / (2352 + 96);
-  int hunknum = cad / sph; //(cad * head->unitbytes) / head->hunkbytes;
-  int hunkofs = cad % sph; //(cad * head->unitbytes) % head->hunkbytes;
-  int err = CHDERR_NONE;
-
-  /* each hunk holds ~8 sectors, optimize when reading contiguous sectors */
-  if (hunknum != oldhunk)
-  {
-    err = chd_read(chd, hunknum, hunkmem);
-    if (err != CHDERR_NONE)
-      log_cb(RETRO_LOG_ERROR, "chd_read_sector failed lba=%d error=%d\n", lba, err);
-    else
-      oldhunk = hunknum;
-  }
-
-  memcpy(buf, hunkmem + hunkofs * (2352 + 96), 2352);
-
-  return err;
-}
-
-bool CDAccess_CHD::Read_CHD_Hunk_M1(uint8_t *buf, int32_t lba)
-{
-  const chd_header *head = chd_get_header(chd);
-  int cad = lba; // HACK - track->file_offset;
-  int sph = head->hunkbytes / (2352 + 96);
-  int hunknum = cad / sph; //(cad * head->unitbytes) / head->hunkbytes;
-  int hunkofs = cad % sph; //(cad * head->unitbytes) % head->hunkbytes;
-  int err = CHDERR_NONE;
-
-  /* each hunk holds ~8 sectors, optimize when reading contiguous sectors */
-  if (hunknum != oldhunk)
-  {
-    err = chd_read(chd, hunknum, hunkmem);
-    if (err != CHDERR_NONE)
-      log_cb(RETRO_LOG_ERROR, "chd_read_sector failed lba=%d error=%d\n", lba, err);
-    else
-      oldhunk = hunknum;
-  }
-
-  memcpy(buf + 16, hunkmem + hunkofs * (2352 + 96), 2048);
-
-  return err;
-}
-
-bool CDAccess_CHD::Read_CHD_Hunk_M2(uint8_t *buf, int32_t lba)
-{
-  const chd_header *head = chd_get_header(chd);
-  int cad = lba; // HACK - track->file_offset;
-  int sph = head->hunkbytes / (2352 + 96);
-  int hunknum = cad / sph; //(cad * head->unitbytes) / head->hunkbytes;
-  int hunkofs = cad % sph; //(cad * head->unitbytes) % head->hunkbytes;
-  int err = CHDERR_NONE;
-
-  /* each hunk holds ~8 sectors, optimize when reading contiguous sectors */
-  if (hunknum != oldhunk)
-  {
-    err = chd_read(chd, hunknum, hunkmem);
-    if (err != CHDERR_NONE)
-      log_cb(RETRO_LOG_ERROR, "chd_read_sector failed lba=%d error=%d\n", lba, err);
-    else
-      oldhunk = hunknum;
-  }
-
-  memcpy(buf + 16, hunkmem + hunkofs * (2352 + 96), 2336);
-
-  return err;
 }
 
 bool CDAccess_CHD::Read_Raw_Sector(uint8_t *buf, int32_t lba)
@@ -360,51 +297,45 @@ bool CDAccess_CHD::Read_Raw_Sector(uint8_t *buf, int32_t lba)
       // TODO: Zero out optional(?) checksum bytes?
       break;
     }
-    printf("Pre/post-gap read, LBA=%d(LBA-track_start_LBA=%d)\n", lba, lba - ct->LBA);
   }
   else
   {
+    const chd_header *head = chd_get_header(chd);
+    int cad                = lba + ct->chd_offset;
+    int hunkid             = (cad * CD_FRAME_SIZE) / head->hunkbytes;
+    int hunkofs            = (cad * CD_FRAME_SIZE) % head->hunkbytes;
+    int err                = CHDERR_NONE;
+
+    /* each hunk holds ~8 sectors, optimize when reading contiguous sectors */
+    if (hunkid != oldhunk)
     {
-      switch (ct->DIFormat)
-      {
+      err = chd_read(chd, hunkid, hunkmem);
+      if (err == CHDERR_NONE)
+        oldhunk = hunkid;
+    }
+
+    if (ct->DIFormat == DI_FORMAT_MODE1 || ct->DIFormat == DI_FORMAT_MODE2) {
+        memcpy(buf + 16, hunkmem + hunkofs, DI_Size_Table[ct->DIFormat]);
+    } else {
+        memcpy(buf, hunkmem + hunkofs, DI_Size_Table[ct->DIFormat]);
+    }
+
+    switch(ct->DIFormat)
+    {
       case DI_FORMAT_AUDIO:
-        Read_CHD_Hunk_RAW(buf, lba);
         if (ct->RawAudioMSBFirst)
           Endian_A16_Swap(buf, 588 * 2);
         break;
 
       case DI_FORMAT_MODE1:
-        Read_CHD_Hunk_M1(buf, lba);
         encode_mode1_sector(lba + 150, buf);
         break;
 
-      case DI_FORMAT_MODE1_RAW:
-      case DI_FORMAT_MODE2_RAW:
-      case DI_FORMAT_CDI_RAW:
-        Read_CHD_Hunk_RAW(buf, lba);
-        break;
-
       case DI_FORMAT_MODE2:
-        Read_CHD_Hunk_M2(buf, lba);
         encode_mode2_sector(lba + 150, buf);
         break;
-
-      // FIXME: M2F1, M2F2, does sub-header come before or after user data(standards say before, but I wonder
-      // about cdrdao...).
-      case DI_FORMAT_MODE2_FORM1:
-        // ct->fp->read(buf + 24, 2048);
-        //encode_mode2_form1_sector(lba + 150, buf);
-        break;
-
-      case DI_FORMAT_MODE2_FORM2:
-        //ct->fp->read(buf + 24, 2324);
-        //encode_mode2_form2_sector(lba + 150, buf);
-        break;
-      }
-
-      //if(ct->SubchannelMode)
-      //   ct->fp->read(buf + 2352, 96);
     }
+
   } // end if audible part of audio track read.
 
   return true;
@@ -433,7 +364,7 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
   }
 
   if (!track_found)
-    throw(MDFN_Error(0, _("Could not find track for sector %u!"), lba));
+    throw(MDFN_Error(0, "Could not find track for sector %u!", lba));
 
   if (lba < Tracks[track].LBA)
     lba_relative = Tracks[track].LBA - 1 - lba;
@@ -453,10 +384,7 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
 
   // Handle pause(D7 of interleaved subchannel byte) bit, should be set to 1 when in pregap or postgap.
   if ((lba < Tracks[track].LBA) || (lba >= Tracks[track].LBA + Tracks[track].sectors))
-  {
-    //printf("pause_or = 0x80 --- %d\n", lba);
     pause_or = 0x80;
-  }
 
   // Handle pregap between audio->data track
   {
@@ -470,10 +398,7 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
     if (pg_offset < -150)
     {
       if ((Tracks[track].subq_control & SUBQ_CTRLF_DATA) && (FirstTrack < track) && !(Tracks[track - 1].subq_control & SUBQ_CTRLF_DATA))
-      {
-        //printf("Pregap part 1 audio->data: lba=%d track_lba=%d\n", lba, Tracks[track].LBA);
         control = Tracks[track - 1].subq_control;
-      }
     }
   }
 
