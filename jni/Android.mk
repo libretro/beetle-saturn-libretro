@@ -9,6 +9,7 @@ NEED_BPP                 := 32
 NEED_DEINTERLACER        := 1
 NEED_THREADING           := 1
 NEED_TREMOR              := 1
+HAVE_CHD                 := 1
 FLAGS                    :=
 
 include $(CORE_DIR)/Makefile.common
