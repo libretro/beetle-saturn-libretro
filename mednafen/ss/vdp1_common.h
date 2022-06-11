@@ -208,7 +208,6 @@ struct VileTex
 template<bool die, unsigned bpp8, bool MSBOn, bool UserClipEn, bool UserClipMode, bool MeshEn, bool GouraudEn, bool HalfFGEn, bool HalfBGEn>
 static INLINE int32 PlotPixel(int32 x, int32 y, uint16 pix, bool transparent, GourauderTheTerrible* g)
 {
- //printf("%d %d %d %d %d %d %d\n", bpp8, die, MeshEn, MSBOn, GouraudEn, HalfFGEn, HalfBGEn);
  static_assert(!MSBOn || (!HalfFGEn && !HalfBGEn), "Table error; sub-optimal template arguments.");
  int32 ret = 0;
  uint16* fbyptr;
@@ -477,7 +476,6 @@ bool SetupDrawLine(int32* const cycle_counter, const bool AA, const bool Texture
 template<bool AA, bool Textured, bool die, unsigned bpp8, bool MSBOn, bool UserClipEn, bool UserClipMode, bool MeshEn, bool ECD, bool SPD, bool GouraudEn, bool HalfFGEn, bool HalfBGEn>
 static int32 DrawLine(bool* need_line_resume)
 {
- //printf("Textured=%d, AA=%d, UserClipEn=%d, UserClipMode=%d, ECD=%d, SPD=%d, GouraudEn=%d\n", Textured, AA, UserClipEn, UserClipMode, ECD, SPD, GouraudEn);
  const uint32 clipo = ((SysClipY & 0x3FF) << 16) | (SysClipX & 0x3FF);
  const uint32 uclipo0 = ((UserClipY0 & 0x3FF) << 16) | (UserClipX0 & 0x3FF);
  const uint32 uclipo1 = ((UserClipY1 & 0x3FF) << 16) | (UserClipX1 & 0x3FF);
@@ -491,12 +489,9 @@ static int32 DrawLine(bool* need_line_resume)
 
   if(Textured)
   {
-   /*ret++;*/
    while(lid.t.IncPending())
    {
     int32 tx = lid.t.DoPendingInc();
-
-    /*ret += (bool)t.IncPending();*/
 
     lid.texel = LineData.tffn(tx);
 

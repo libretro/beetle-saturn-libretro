@@ -33,7 +33,6 @@
 //#include "cart/nlmodem.h"
 #include "cart/rom.h"
 #include "cart/ar4mp.h"
-#include "debug.inc"
 
 
 CartInfo Cart;

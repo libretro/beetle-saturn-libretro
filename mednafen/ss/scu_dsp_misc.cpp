@@ -22,8 +22,6 @@
 #include "ss.h"
 #include "scu.h"
 
-#pragma GCC optimize("Os")
-
 #include "scu_dsp_common.inc"
 
 template<bool looped, unsigned op>

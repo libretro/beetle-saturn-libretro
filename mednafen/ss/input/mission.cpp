@@ -66,8 +66,6 @@ void IODevice_Mission::UpdateInput(const uint8* data, const int32 time_elapsed)
    axes[stick][axis] = (tmp * 255 + 32767) / 65535;
   }
  }
-
- //printf("Update: %02x %02x %02x\n", axes[0][0], axes[0][1], axes[0][2]);
 }
 
 void IODevice_Mission::StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname_prefix)

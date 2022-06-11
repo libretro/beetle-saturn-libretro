@@ -68,7 +68,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp);
 void SMPC_ResetTS(void);
 
 void SMPC_ProcessSlaveOffOn(void);
-int32 SMPC_StartFrame(EmulateSpecStruct* espec);
+int32 SMPC_StartFrame(void);
 void SMPC_EndFrame(EmulateSpecStruct* espec, sscpu_timestamp_t timestamp);
 void SMPC_TransformInput(void);
 void SMPC_UpdateInput(const int32 time_elapsed);

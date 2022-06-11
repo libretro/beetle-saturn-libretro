@@ -195,8 +195,6 @@ uint8 IODevice_Multitap::UpdateBus(const sscpu_timestamp_t timestamp, const uint
      tmp[1] = UASB(timestamp);
      id1 |= ((((tmp[1] >> 3) | (tmp[1] >> 2)) & 1) << 1) | ((((tmp[1] >> 1) | (tmp[1] >> 0)) & 1) << 0);
 
-     //printf("%d, %01x\n", port_counter, id1);
-
      if(id1 == 0xB) // Digital pad
      {
       WR_NYB(0x0);

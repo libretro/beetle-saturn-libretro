@@ -109,8 +109,6 @@ static int32 SpriteResumeBase(const uint16* cmd_data)
    //
    if(!SetupDrawLine(&ret, true, true, mode) || !iter)
    {
-    //
-    //printf("%d:%d -> %d:%d\n", lp[0].x, lp[0].y, lp[1].x, lp[1].y);
     ResumeLine:;
     ret += AdjustDrawTiming(fnptr(&PrimData.need_line_resume));
     if(MDFN_UNLIKELY(PrimData.need_line_resume))
@@ -160,7 +158,6 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
    p[i].x = sign_x_to_s32(13, cmd_data[0x6 + (i << 1)]) + LocalX;
    p[i].y = sign_x_to_s32(13, cmd_data[0x7 + (i << 1)]) + LocalY;
   }
-  //printf("Hrm: %d:%d %d:%d %d:%d %d:%d\n", p[0].x, p[0].y, p[1].x, p[1].y, p[2].x, p[2].y, p[3].x, p[3].y);
  }
  else if(format == FORMAT_NORMAL)
  {
@@ -311,7 +308,6 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
  PrimData.tex_base = tex_base;
  PrimData.need_line_resume = false;
 
- //printf("0x%04x %u %d:%d %d:%d %d:%d %d:%d ---- %d %d\n", mode, format, p[0].x, p[0].y, p[1].x, p[1].y, p[2].x, p[2].y, p[3].x, p[3].y, w >> spr_w_shift_tab[cm], h);
  {
   const bool v_inv = dir & 2;
   int32 tv[2];

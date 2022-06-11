@@ -30,7 +30,6 @@
 #include "../hash/sha256.h"
 #include "../hash/md5.h"
 #include "ss.h"
-#include "debug.inc"
 
 #include "../../disc.h"
 
@@ -42,7 +41,6 @@ extern uint32 IBufferCount;
 
 #include "ss.h"
 #include "sound.h"
-#include "scsp.h" // For debug.inc
 #include "smpc.h"
 #include "cdb.h"
 #include "vdp1.h"
@@ -418,10 +416,7 @@ template<unsigned c>
 static sscpu_timestamp_t SH_DMA_EventHandler(sscpu_timestamp_t et)
 {
  if(et < SH7095_mem_timestamp)
- {
-  //printf("SH-2 DMA %d reschedule %d->%d\n", c, et, SH7095_mem_timestamp);
   return SH7095_mem_timestamp;
- }
 
  // Must come after the (et < SH7095_mem_timestamp) check.
  if(MDFN_UNLIKELY(SH7095_BusLock))
@@ -538,7 +533,7 @@ void SS_SetEventNT(event_list_entry* e, const sscpu_timestamp_t next_timestamp)
 }
 
 // Called from debug.cpp too.
-void ForceEventUpdates(const sscpu_timestamp_t timestamp)
+static void ForceEventUpdates(const sscpu_timestamp_t timestamp)
 {
  for(unsigned c = 0; c < 2; c++)
   CPU[c].ForceInternalEventUpdates();
@@ -600,7 +595,6 @@ static NO_INLINE MDFN_HOT int32 RunLoop(EmulateSpecStruct* espec)
 {
  sscpu_timestamp_t eff_ts = 0;
 
- //printf("%d %d\n", SH7095_mem_timestamp, CPU[0].timestamp);
  do
  {
   SMPC_ProcessSlaveOffOn();
@@ -711,7 +705,7 @@ void Emulate(EmulateSpecStruct* espec_arg)
  espec = espec_arg;
  AllowMidSync = setting_midsync;
 
- cur_clock_div = SMPC_StartFrame(espec);
+ cur_clock_div = SMPC_StartFrame();
  UpdateSMPCInput(0);
  VDP2::StartFrame(espec, cur_clock_div == 61);
  CART_SetCPUClock(EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1), cur_clock_div);
@@ -749,7 +743,6 @@ void Emulate(EmulateSpecStruct* espec_arg)
  for(unsigned c = 0; c < 2; c++)
   CPU[c].AdjustTS(-end_ts);
 
- //printf("B=% 7d M=% 7d S=% 7d\n", SH7095_mem_timestamp, CPU[0].timestamp, CPU[1].timestamp);
  //
  //
  //
@@ -983,19 +976,6 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    // Apply multi-tap state to SMPC
    SMPC_SetMultitap( 0, setting_multitap_port1 );
    SMPC_SetMultitap( 1, setting_multitap_port2 );
-
-   /*for(unsigned vp = 0; vp < 12; vp++)
-   {
-      char buf[64];
-      uint32 sv;
-
-      snprintf(buf, sizeof(buf), "ss.input.port%u.gun_chairs", vp + 1);
-      sv = MDFN_GetSettingUI(buf);
-      SMPC_SetCrosshairsColor(vp, sv);
-   }*/
-   //
-   //
-   //
 
    try { LoadRTC();       } catch(MDFN_Error& e) { if(e.GetErrno() != ENOENT) throw; }
    try { LoadBackupRAM(); } catch(MDFN_Error& e) { if(e.GetErrno() != ENOENT) throw; }

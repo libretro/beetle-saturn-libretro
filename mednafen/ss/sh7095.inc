@@ -637,7 +637,6 @@ sscpu_timestamp_t SH7095::DMA_Update(sscpu_timestamp_t et)
  }
  else if(MDFN_UNLIKELY(ExtHaltDMA))
  {
-  //printf("%s ExtHaltDMA 0x%02x!\n", cpu_name, ExtHaltDMA);
   DMA_Timestamp = et;
   return DMA_Timestamp + 128;
  }
@@ -844,10 +843,6 @@ void SH7095::FRT_WDT_Update(void)
 
  uint32 clocks = timestamp - FRT.lastts;
 
- //if(clocks >= 1000)
- // printf("%u, %d %d\n", clocks, timestamp, FRT.lastts);
- //assert(clocks < 1000);
-
  FRT.lastts = timestamp;
 
  //
@@ -1052,8 +1047,6 @@ INLINE void SH7095::DIVU_S64_S32(void)
   goto Overflow;
 
  quotient = dividend / divisor;
-
- //printf("Divisor=%08x, Dividend=%016llx, Quotient=%016llx\n", divisor, dividend, quotient);
 
  if(quotient == 2147483648LL && divisor < 0 && (dividend % divisor) == 0)	// Ugh, maybe we should just implement it properly the long way...
   goto SkipOVCheck;
@@ -1305,33 +1298,6 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32 A, uint32 V)
    default:
 	break;
 
-#if 0
-   //
-   // SCI registers.
-   //
-   case 0x00:
-	SCI.SMR = V;
-	break;
-
-   case 0x01:
-	SCI.BRR = V;
-	break;
-
-   case 0x02:
-	SCI.SCR = V;
-	RecalcPendingIntPEX();
-	break;
-
-   case 0x03:
-	SCI.TDR = V;
-	break;
-
-   case 0x04:
-	SCI.SSR = (SCI.SSR & ~SCI.SSRM & 0xF8) | (SCI.SSR & 0x06) | (V & 0x01);
-	SCI.SSRM = 0;
-	RecalcPendingIntPEX();
-	break;
-#endif
    //
    // Free-running timer registers.
    //
@@ -1388,33 +1354,6 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32 A, uint32 V)
 	 //
 	 //const uint8 old_TCR = FRT.TCR;
  	 FRT.TCR = V;
-#if 0
-	 //
- 	 // Maybe not worth emulating?:
-	 //
-	 if((old_TCR ^ FRT.TCR) & 3)
-	 {
-	  bool old_cs;
-	  bool clock;
-
-	  if((old_TCR & 0x3) == 3)
-	   old_cs = FRT.FTCI;
-	  else
-	   old_cs = (FRT_WDT_.ClockDivider >> (3 - 1 + ((old_TCR & 0x3) << 1))) & 1;
-
-	  if((V & 0x3) == 3)
-	   clock = (!old_cs && FRT.FTCI);
-	  else
-	  {
-	   bool new_cs = (FRT_WDT_ClockDivider >> (3 - 1 + ((FRT.TCR & 0x3) << 1))) & 1;
-
-	   clock = (old_cs && !new_cs);
-	  }
-
-	  if(clock)
-	   FRT_ClockFRC();
-	 }
-#endif
 	 //
 	 //
 	 //
@@ -1763,35 +1702,6 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
    default:
 	break;
 
-#if 0
-   //
-   // SCI registers.
-   //
-   case 0x00:
-	ret = SCI.SMR;
-	break;
-
-   case 0x01:
-	ret = SCI.BRR;
-	break;
-
-   case 0x02:
-	ret = SCI.SCR;
-	break;
-
-   case 0x03:
-	ret = SCI.TDR;
-	break;
-
-   case 0x04:
-	ret = SCI.SSR;
-	SCI.SSRM = SCI.SSR & 0xF8;
-	break;
-
-   case 0x05:
-	ret = SCI.RDR;
-	break;
-#endif
    //
    // FRT registers.  Some weirdness with 16-bit reads duplicating the lower 8 bits in the upper 8-bits, but the upper 8-bits are masked
    // with the last data written to the FRT area or something...not emulated here.
@@ -2371,7 +2281,6 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	  /*                        */										\
 	  /* Load cache line.       */										\
 	  /*                        */										\
-	  /*printf("Cache load line: %08x\n", A);*/								\
 	  cent->Tag[way_match] = ATM;										\
 	  /* Don't use ATM after this point. */									\
 	  CHECK_EXIT_RESUME();											\
@@ -2688,7 +2597,6 @@ void NO_INLINE SH7095::INTC_Reset(void)
 
 void SH7095::SetNMI(bool level)
 {
- //printf("NMI: %d, %d %d\n", NMILevel, level, (bool)(ICR & 0x100));
  if(NMILevel != level && level == (bool)(ICR & 0x100))
  {
   SetPEX(PEX_NMI);
@@ -2790,25 +2698,6 @@ uint8 INLINE SH7095::GetPendingInt(uint8* vecnum_out)
  //
  //
  //
-#if 0
- {
-  const uint32 sci_ip_tmp = (SCI.SSR & SCI.SCR & 0xC4) | (SCI.SSR & 0x38);
-
-  if(sci_ip_tmp && (tmp_ipr = ((IPRB >> 12) & 0xF)) > ipr)
-  {
-   ipr = tmp_ipr;
-
-   if(sci_ip_tmp & 0x38) // ERI(receive error; ORER, PER, FER)
-    vecnum = (VCRA >> 8) & 0x7F;
-   else if(sci_ip_tmp & 0x40)// RXI(receive data full; RDRF)
-    vecnum = (VCRA >> 0) & 0x7F;
-   else if(sci_ip_tmp & 0x80)// TXI(transmit data empty; TDRE)
-    vecnum = (VCRB >> 8) & 0x7F;
-   else if(sci_ip_tmp & 0x04)// TEI(transmit end; TEND)
-    vecnum = (VCRB >> 0) & 0x7F;
-  }
- }
-#endif
  //
  //
  //
@@ -3429,7 +3318,6 @@ void SH7095::StateAction_SlaveResume(StateMem* sm, const unsigned load, const bo
    }
    assert(ResumePointI >= 0);
   }
-  //printf("State save resume point: %016llx (%d)\n", (unsigned long long)(uintptr_t)ResumePoint, ResumePointI);
 
   if(Resume_cent)
   {
@@ -3480,7 +3368,6 @@ void SH7095::StateAction_SlaveResume(StateMem* sm, const unsigned load, const bo
    ResumePoint = ResumeTableP[DM_Setting][ResumePointI & 511];
    assert(ResumePoint != nullptr);
   }
-  //printf("State load resume point: %016llx (%d)\n", (unsigned long long)(uintptr_t)ResumePoint, ResumePointI);
   Resume_uint16_A &= ~1;
   Resume_uint32_A &= ~3;
   Resume_cent = &Cache[Resume_cent_I & 0x3F];
@@ -3525,7 +3412,6 @@ void SH7095::PostStateLoad(const unsigned state_version, const bool recorded_nee
   //
   // May not cover all cases, needs more testing.
   //
-  //printf("NeedEmuICache=%d, RecordedNeedEmuICache=%d\n", needicache, recorded_needicache);
   //
   //const uint32 old_IBuffer = IBuffer;
   const uint32 A = (PC - 2) & ~3;
@@ -3535,7 +3421,6 @@ void SH7095::PostStateLoad(const unsigned state_version, const bool recorded_nee
   else
    IBuffer = ne16_rbo_be<uint32>(SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);
 
-  //printf("[%s] PC=0x%08x, IBuffer=0x%08x old_IBuffer=0x%08x --- 0x%08x\n", cpu_name, PC, IBuffer, old_IBuffer, ne16_rbo_be<uint32>(SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A));
  }
  //
  //
@@ -4438,79 +4323,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
 	MWrite(4, ea);
  END_BP_OP
 
-
-#if 0
- //
- // TRAPA #imm
- //
- // Saved PC is the address of the instruction after the TRAPA instruction
- //
- BEGIN_BP_OP_DLYIDIF(TRAPA)
-	const unsigned imm = (uint8)instr;
-
-	BP_EXCEPT(EXCEPTION_TRAP, imm);
- END_BP_OP
-
-
- //
- // Illegal Instruction
- //
- BEGIN_BP_OP_DLYIDIF(ILLEGAL)
-	BP_EXCEPT(EXCEPTION_ILLINSTR, VECNUM_ILLINSTR);
- END_BP_OP
-
- //
- // Illegal Slot Instruction
- //
- BEGIN_BP_OP_DLYIDIF(SLOT_ILLEGAL)
-	BP_EXCEPT(EXCEPTION_ILLSLOT, VECNUM_ILLSLOT);
- END_BP_OP
-
- //
- // Pending exception(address error/interrupt)
- //
- BEGIN_BP_OP_DLYIDIF(PSEUDO_EPENDING)
-	#define TPP(x) (Pipe_ID & (1U << ((x) + EPENDING_PEXBITS_SHIFT)))
-
-	if(MDFN_UNLIKELY(TPP(PEX_PSEUDO_EXTHALT)))
-	 return;
-	else if(MDFN_UNLIKELY(TPP(PEX_POWERON) || TPP(PEX_RESET)))
-	{
-         if(TPP(PEX_POWERON))
-	  BP_EXCEPT(EXCEPTION_POWERON, VECNUM_POWERON);
-	 else
-	  BP_EXCEPT(EXCEPTION_RESET, VECNUM_RESET);
-	}
-	else if(MDFN_UNLIKELY(TPP(PEX_PSEUDO_DMABURST)))
-	 return;
-	else if(MDFN_UNLIKELY(TPP(PEX_CPUADDR)))
-	 BP_EXCEPT(EXCEPTION_CPUADDR, VECNUM_CPUADDR);
-	else if(MDFN_UNLIKELY(TPP(PEX_DMAADDR)))
-	 BP_EXCEPT(EXCEPTION_DMAADDR, VECNUM_DMAADDR);
-	else if(TPP(PEX_NMI))
-	 BP_EXCEPT(EXCEPTION_NMI, VECNUM_NMI);
-	else	// Int
-	{
-	 uint8 ipr = GetPendingInt(NULL);
-
-	 if(MDFN_LIKELY(ipr > ((SR >> 4) & 0xF)))
-	 {
-	  uint8 vecnum;
-
-	  // Note: GetPendingInt() may call ExIVecFetch(), which may call SetIRL with a new value, so be
-	  // careful to use the "old" value here.
-	  GetPendingInt(&vecnum);
-	  BP_EXCEPT(EXCEPTION_INT, vecnum);
-	 }
-	 else
-	 {
-	  lpid = (uint16)lpid;
-	  lpid |= InstrDecodeTab[lpid] << 24;
-	  goto SPEPRecover;
-	 }
-	}
-END_BP_OP
-#endif
 
  #undef BEGIN_BP_OP
  #undef END_BP_OP

@@ -138,9 +138,6 @@ sha256_digest sha256(const void* data, const uint64 len)
 
  for(unsigned i = 0; i < 8; i++)
   MDFN_en32msb(&ret[i * 4], h[i]);
-
- //printf("%08x %08x %08x %08x %08x %08x %08x %08x\n", h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]);
-
  return ret;
 }
 
@@ -151,19 +148,6 @@ void sha256_test(void)
 
  for(unsigned i = 0; i < 256; i++)
   tv[i] = i * 3;
-
-#if 0
- void *bmt = malloc(1024 * 1024 * 512);
-
- memset(bmt, 0, 1024 * 1024 * 512);
-
- uint32 st = MDFND_GetTime();
-
- sha256(bmt, 1024 * 1024 * 512);
- printf("%f\n", (double)1024 * 1024 * 512 * 1000 / (MDFND_GetTime() - st) / 1000 / 1000);
-
- abort();
-#endif
 
  static const sha256_digest expected[6] =
  {

@@ -21,9 +21,6 @@
 
 #include "ss.h"
 #include "scu.h"
-#include "debug.inc"
-
-#pragma GCC optimize("Os")
 
 #include "scu_dsp_common.inc"
 
@@ -85,5 +82,3 @@ MDFN_HIDE extern void (*const DSP_MVIFuncTable[2][16][128])(void) =
 {
  #include "scu_dsp_mvitab.inc"
 };
-
-

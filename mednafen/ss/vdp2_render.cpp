@@ -306,13 +306,11 @@ struct TileFetcher
    }
   }
 
-  #if 1
   pcco = 0;
   spr = false;
   scc = false;
   tile_vrb = nullptr;
   cellx_xor = 0;
-  #endif
  }
 
  //
@@ -428,10 +426,7 @@ struct TileFetcher
   tile_vrb = &VRAM[cg_addr];
 
   if(!cg_ok[cg_addr >> 16])
-  {
-   //printf("Goop: %08zx, %d %02x, %016llx %016llx %016llx %016llx\n", cg_addr, TA_bpp, VRAM_Mode, MDFN_de64lsb(VCPRegs[0]), MDFN_de64lsb(VCPRegs[1]), MDFN_de64lsb(VCPRegs[2]), MDFN_de64lsb(VCPRegs[3]));
    tile_vrb = DummyTileNT;
-  }
 
   //
   //
@@ -1267,8 +1262,6 @@ static void ApplyWin(const unsigned wlayer, uint64* buf)
 {
  unsigned x = 0;
 
- //printf("%d %d %d %d %d --- %d %d\n", WinPieces[0], WinPieces[1], WinPieces[2], WinPieces[3], WinPieces[4], Window[0].CurXStart, Window[0].CurXEnd);
-
  for(unsigned piece = 0; piece < WinPieces.size(); piece++)
  {
   bool xmet[2];
@@ -1583,11 +1576,6 @@ static void T_DrawNBG(const unsigned n, uint64* bgbuf, const unsigned w, const u
  iy = (CurYScrollIF[n] + MosEff_YCoordAccum[n]) >> 8;
  xcinc = CurXCoordInc[n];
 
- //if(line == 64)
- // printf("Mega %d: planesize=0x%1x charsize=%d pndsize=%d(auxmode=%d,supp=0x%04x) bpp=%d/%d ccmode=0x%04x SFSEL=0x%04x SFCODE=0x%04x SFCCMD=0x%04x\n", n, PlaneSize, CharSize, PNDSize, AuxMode, Supp, TA_bpp, TA_isrgb, TA_CCMode, SFSEL, SFCODE, SFCCMD);
-
- //printf("Mega %d %02x %d --- %04x %04x -- %04x --- lsa=0x%06x vcsa=0x%06x --- imode=0x%01x\n", TA_bpp, BMSize, w, xcinc, ycinc, SCRCTL, LineScrollAddr[n], VCScrollAddr, InterlaceMode);
-
  // Map: 2x2 planes
  // Plane: 1x1, 2x1, or 2x2 pages
  // Page: 64x64 cells
@@ -1703,10 +1691,7 @@ static void T_DrawNBG23(const unsigned n, uint64* bgbuf, const unsigned w, const
  // Layer offset kludges
  //
  // Note: When/If adding new kludges, check that the NT and CG fetches for the layer each occur only in one bank, to safely handle other cases may require something more complex.
- // printf("(TA_bpp == %d && n == %d && VRAM_Mode == 0x%01x && (HRes & 0x6) == 0x%01x && MDFN_de64lsb(VCPRegs[0]) == 0x%016llxULL && MDFN_de64lsb(VCPRegs[1]) == 0x%016llxULL && MDFN_de64lsb(VCPRegs[2]) == 0x%016llxULL && MDFN_de64lsb(VCPRegs[3]) == 0x%016llxULL) || \n", TA_bpp, n, VRAM_Mode, HRes & 0x6, (unsigned long long)MDFN_de64lsb(VCPRegs[0]), (unsigned long long)MDFN_de64lsb(VCPRegs[1]), (unsigned long long)MDFN_de64lsb(VCPRegs[2]), (unsigned long long)MDFN_de64lsb(VCPRegs[3]));
  const uint32 lok_modestuff = (VRAM_Mode << 0) | ((HRes & 0x6) << 1) | (tf.PNDSize << 4) | (tf.CharSize << 5);
- //if(HRes & 0x6)
- // printf("(TA_bpp == %u && n == %u && lok_modestuff == 0x%02x && MDFN_de32lsb(VCPRegs[0]) == 0x%08x && MDFN_de32lsb(VCPRegs[1]) == 0x%08x && MDFN_de32lsb(VCPRegs[2]) == 0x%08x && MDFN_de32lsb(VCPRegs[3]) == 0x%08x) || \n", TA_bpp, n, lok_modestuff, MDFN_de32lsb(VCPRegs[0]), MDFN_de32lsb(VCPRegs[1]), MDFN_de32lsb(VCPRegs[2]), MDFN_de32lsb(VCPRegs[3]));
 
  if(MDFN_UNLIKELY(
   /* Akumajou Dracula X */ (TA_bpp == 4 && n == 3 && VRAM_Mode == 0x2 && (HRes & 0x6) == 0x0 && MDFN_de64lsb(VCPRegs[0]) == 0x0f0f070406060505ULL && MDFN_de64lsb(VCPRegs[1]) == 0x0f0f0f0f0f0f0f0fULL && MDFN_de64lsb(VCPRegs[2]) == 0x0f0f03000f0f0201ULL && MDFN_de64lsb(VCPRegs[3]) == 0x0f0f0f0f0f0f0f0fULL) ||
@@ -1823,21 +1808,14 @@ static INLINE uint32 GetCoeffAddr(const unsigned i, uint32 offset)
 static INLINE uint32 ReadCoeff(const unsigned i, const uint32 addr)
 {
  const uint16* src = (CRKTE ? &CRAM[0x400] : VRAM);
- uint32 coeff;
 
  if(KTCTL[i] & 0x2)
  {
   const uint16 tmp = src[addr];
-  coeff = (sign_x_to_s32(21, tmp << 6) & 0x00FFFFFF) | ((tmp & 0x8000) << 16);
-  //printf("%d Coeff %08x, %04x -- %08x\n", i, offset, tmp, coeff);
+  return (sign_x_to_s32(21, tmp << 6) & 0x00FFFFFF) | ((tmp & 0x8000) << 16);
  }
- else
- {
-  const uint16* ea = &src[addr];
-  coeff = (ea[0] << 16) | ea[1];
- }
-
- return coeff;
+ const uint16* ea = &src[addr];
+ return (ea[0] << 16) | ea[1];
 }
 
 // Coefficient table reading can (temporarily) override kx, ky, and/or Xp
@@ -1940,9 +1918,6 @@ static void SetupRotVars(const T* rs, const unsigned rbg_w)
 
   for(unsigned i = 0; i < 2; i++)
    LB.rotv[i].base_coeff = coeff[i] = ReadCoeff(i, GetCoeffAddr(i, rs[i].KAstAccum));
-
-  //if(grumpus == 120)
-  // printf("BankTab: %d %d %d %d, UC: %d %d, Coeff: @0x%05x=0x%08x @0x%05x=0x%08x, DKAx: %f %f\n", bank_tab[0], bank_tab[1], bank_tab[2], bank_tab[3], LB.rotv[0].use_coeff, LB.rotv[1].use_coeff, GetCoeffAddr(0, rs[0].KAstAccum), coeff[0], GetCoeffAddr(1, rs[1].KAstAccum), coeff[1], rs[0].DKAx / 1024.0, rs[1].DKAx / 1024.0);
 
   for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
   {
@@ -2344,7 +2319,6 @@ enum
 template<bool TA_rbg1en, unsigned TA_Special, bool TA_CCRTMD, bool TA_CCMD>
 static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, const uint32 back_rgb24, const uint64* blursrc)
 {
- //printf("MixIt: %d, %d, %d, %d\n", TA_rbg1en, TA_Special, TA_CCRTMD, TA_CCMD);
  const uint32* lclut = &ColorCache[CurLCColor &~ 0x7F];
  uint32 blurprev[2];
 
@@ -2574,7 +2548,6 @@ static int32 ApplyHBlend(uint32* const target, int32 w)
 
  assert(w >= 4);
 
-#if 1
  if(!(HRes & 0x2))
  {
   target[(w - 1) * 2 + 1] = target[w - 1];
@@ -2598,15 +2571,6 @@ static int32 ApplyHBlend(uint32* const target, int32 w)
   return w << 1;
  }
  else
-#else
- if(!(HRes & 0x2))
- {
-  for(int32 x = w - 1; x >= 0; x--)
-   target[x * 2 + 0] = target[x * 2 + 1] = target[x];
-
-  w <<= 1;
- }
-#endif
  {
   uint32 a = target[0];
   for(int32 x = 0; x < w - 1; x++)
@@ -2648,24 +2612,20 @@ static void ReorderRGB(uint32* target, const unsigned w, const unsigned Rshift, 
 
 static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, const bool field)
 {
- uint32* target;
  const int32 tvdw = ((!CorrectAspect || Clock28M) ? 352 : 330) << ((HRes & 0x2) >> 1);
  const unsigned rbg_w = ((HRes & 0x1) ? 352 : 320);
  const unsigned w = ((HRes & 0x1) ? 352 : 320) << ((HRes & 0x2) >> 1);
  const int32 tvxo = std::max<int32>(0, (int32)(tvdw - w) >> 1);
  uint32 back_rgb24;
  uint32 border_ncf;
+ uint32 *target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
 
- target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
  espec->LineWidths[out_line] = tvdw;
 
  if(!ShowHOverscan)
  {
   const int32 ntdw = tvdw * 1024 / 1056;
   const int32 tadj = std::max<int32>(0, espec->DisplayRect.x - ((tvdw - ntdw) >> 1));
-
-  //if(out_line == 100)
-  // printf("tvdw=%d, ntdw=%d, tadj=%d --- tvdw+tadj=%d\n", tvdw, ntdw, tadj, tvdw + tadj);
 
   assert((tvdw + tadj) <= 704);
 
@@ -2769,7 +2729,6 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
      CurLSA[n]++;
 
      CurYScrollIF[n] += (YScrollI[n] << 8) + YScrollF[n];
-     //printf("%d %d %08x: %08x \n", vdp2_line, n, CurLSA[n], CurYScrollIF[n]);
     }
  
     if(sc & 0x8) // X zoom
@@ -2806,8 +2765,6 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
 
      Window[d].XStart = vrt[0] & 0x3FF;
      Window[d].XEnd = vrt[1] & 0x3FF;
-
-     //printf("LWin %d, %d(%08x): %04x %04x\n", vdp2_line, d, Window[d].CurLineWinAddr & 0x3FFFE, vrt[0], vrt[1]);
     }
     //
     //
@@ -2854,16 +2811,6 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
     WinPieces[piece] = std::min<unsigned>(w, WinPieces[piece]);	// Almost forgot to do this...
 
    std::sort(WinPieces.begin(), WinPieces.end());
-  }
-
-  //
-  //
-  //
-  if(vdp2_line == 64)
-  {
-   //printf("%d:%d, %d:%d (%d) --- %d:%d, %d:%d (%d)\n", Window[0].XStart, Window[0].YStart, Window[0].XEnd, Window[0].YEnd, Window[0].LineWinEn, Window[1].XStart, Window[1].YStart, Window[1].XEnd, Window[1].YEnd, Window[1].LineWinEn);
-   //printf("SPCTL_Low: %02x, SDCTL: %03x, SpriteCCCond: %01x, CCNum: %01x -- %01x %01x %01x %01x %01x %01x %01x %01x \n", SPCTL_Low, SDCTL, SpriteCCCond, SpriteCCNum, SpriteCCRatio[0], SpriteCCRatio[1], SpriteCCRatio[2], SpriteCCRatio[3], SpriteCCRatio[4], SpriteCCRatio[5], SpriteCCRatio[6], SpriteCCRatio[7]);
-   //printf("WinControl[WINLAYER_CC]=%02x\n", WinControl[WINLAYER_CC]);
   }
 
   //
@@ -3358,7 +3305,6 @@ void VDP2REND_EndFrame(void)
  while(MDFN_UNLIKELY(DrawCounter.load(std::memory_order_acquire) != 0))
 #if 0
  {
-  //fprintf(stderr, "SLEEEEP\n");
   //retro_sleep(1);
  }
 #else
@@ -3367,7 +3313,6 @@ void VDP2REND_EndFrame(void)
 
  if(NextOutLine < VisibleLines)
  {
-  //printf("OutLineCounter(%d) < VisibleLines(%d)\n", OutLineCounter, VisibleLines);
   do
   {
    uint16 out_line = NextOutLine;

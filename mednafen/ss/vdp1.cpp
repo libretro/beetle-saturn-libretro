@@ -45,7 +45,6 @@
 #include "vdp1.h"
 #include "vdp2.h"
 #include "vdp1_common.h"
-#include "debug.inc"
 
 enum : int { VDP1_UpdateTimingGran = 263 };
 enum : int { VDP1_IdleTimingGran = 1019 };
@@ -111,24 +110,11 @@ static struct
 
 static uint32 EraseYCounter;
 
-#if 1
 static uint32 InstantDrawSanityLimit; // ss_horrible_hacks
-#endif
 
 uint16 VRAM[0x40000];
 uint16 FB[2][0x20000];
-//
-//
-//
-#define VRAMUsageInit() { }
-#define VRAMUsageAddBaseTime(amount) { }
-#define VRAMUsageStart() { }
-#define VRAMUsageWrite(A) { }
-#define VRAMUsageDrawRead(A) { }
-#define VRAMUsageEnd() { }
-//
-//
-//
+
 void Init(void)
 {
  vbcdpending = false;
@@ -147,15 +133,12 @@ void Init(void)
  //
  //
  SS_SetPhysMemMap(0x05C00000, 0x05C7FFFF, VRAM, sizeof(VRAM), true);
- //SS_SetPhysMemMap(0x05C80000, 0x05CFFFFF, FB[FBDrawWhich], sizeof(FB[0]), true);
 
  vb_status = false;
  hb_status = false;
  lastts = 0;
  FBVBEraseLastTS = 0;
  LastRWTS = 0;
-
- VRAMUsageInit();
 }
 
 void Kill(void)
@@ -281,7 +264,6 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
  {
   case 0:	// 16 colors, color bank
 	rtd = (VRAM[(base + (x >> 2)) & 0x3FFFF] >> (((x & 0x3) ^ 0x3) << 2)) & 0xF;
-	VRAMUsageDrawRead((base + (x >> 2)) & 0x3FFFF);
 
 	if(!ECD && rtd == 0xF)
 	{
@@ -296,7 +278,6 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 
   case 1:	// 16 colors, LUT
 	rtd = (VRAM[(base + (x >> 2)) & 0x3FFFF] >> (((x & 0x3) ^ 0x3) << 2)) & 0xF;
-	VRAMUsageDrawRead((base + (x >> 2)) & 0x3FFFF);
 
 	if(!ECD && rtd == 0xF)
 	{
@@ -310,7 +291,6 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 
   case 2:	// 64 colors, color bank
 	rtd = (VRAM[(base + (x >> 1)) & 0x3FFFF] >> (((x & 0x1) ^ 0x1) << 3)) & 0xFF;
-	VRAMUsageDrawRead((base + (x >> 1)) & 0x3FFFF);
 
 	if(!ECD && rtd == 0xFF)
 	{
@@ -326,7 +306,6 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 
   case 3:	// 128 colors, color bank
 	rtd = (VRAM[(base + (x >> 1)) & 0x3FFFF] >> (((x & 0x1) ^ 0x1) << 3)) & 0xFF;
-	VRAMUsageDrawRead((base + (x >> 1)) & 0x3FFFF);
 
 	if(!ECD && rtd == 0xFF)
 	{
@@ -342,7 +321,6 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 
   case 4:	// 256 colors, color bank
 	rtd = (VRAM[(base + (x >> 1)) & 0x3FFFF] >> (((x & 0x1) ^ 0x1) << 3)) & 0xFF;
-	VRAMUsageDrawRead((base + (x >> 1)) & 0x3FFFF);
 
 	if(!ECD && rtd == 0xFF)
 	{
@@ -363,7 +341,6 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 	 rtd = VRAM[0];
 	else
 	 rtd = VRAM[(base + x) & 0x3FFFF];
-	VRAMUsageDrawRead((ColorMode >= 6) ? 0 : ((base + x) & 0x3FFFF));
 
 	if(!ECD && (rtd & 0xC000) == 0x4000)
 	{
@@ -624,10 +601,8 @@ enum : int { CommandPhaseBias = __COUNTER__ + 1 };
 
 static INLINE void DoDrawing(void)
 {
-#if 1
  if(MDFN_UNLIKELY(ss_horrible_hacks & HORRIBLEHACK_VDP1INSTANT))
   CycleCounter = InstantDrawSanityLimit; 
-#endif
 
  switch(CommandPhase + CommandPhaseBias)
  {
@@ -641,15 +616,11 @@ static INLINE void DoDrawing(void)
 
    VDP1_EAT_CLOCKS(16);
 
-   for(unsigned i = 0; i < 16; i++)
-    VRAMUsageDrawRead((CurCommandAddr + i) * 2);
-
    if(MDFN_LIKELY(!(CommandData[0] & 0xC000)))
    {
     if(MDFN_UNLIKELY((CommandData[0] & 0xF) >= 0xC))
     {
      DrawingActive = false;
-     VRAMUsageEnd();
      goto Breakout;
     }
     else
@@ -695,7 +666,6 @@ static INLINE void DoDrawing(void)
    else if(MDFN_UNLIKELY(CommandData[0] & 0x8000))
    {
     DrawingActive = false;
-    VRAMUsageEnd();
 
     EDSR |= 0x2;	// TODO: Does EDSR reflect IRQ out status?
 
@@ -736,10 +706,8 @@ static INLINE void DoDrawing(void)
  }
  Breakout:;
 
-#if 1
  if(MDFN_UNLIKELY(ss_horrible_hacks & HORRIBLEHACK_VDP1INSTANT))
   InstantDrawSanityLimit = CycleCounter;
-#endif
 }
 
 sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
@@ -781,7 +749,6 @@ static void StartDrawing(void)
  RetCommandAddr = -1;
  DrawingActive = true;
  CommandPhase = 0;
- VRAMUsageStart();
 
  CycleCounter = VDP1_UpdateTimingGran;
 }
@@ -857,16 +824,11 @@ void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, 
    //
    if(!(FBCR & FBCR_FCM) || (FBManualPending && (FBCR & FBCR_FCT)))	// Swap framebuffers
    {
-#if 1
     if((ss_horrible_hacks & HORRIBLEHACK_VDP1VRAM5000FIX) && DrawingActive && VRAM[0] == 0x5000 && VRAM[1] == 0x0000)
      VRAM[0] = 0x8000;
-#endif
 
     if(DrawingActive)
-    {
      DrawingActive = false;
-     VRAMUsageEnd();
-    }
 
     FBDrawWhich = !FBDrawWhich;
     FBDrawWhichPtr = FB[FBDrawWhich];
@@ -1003,8 +965,6 @@ void AdjustTS(const int32 delta)
   FBVBEraseLastTS += delta;
 
  LastRWTS = std::max<sscpu_timestamp_t>(-1000000, LastRWTS + delta);
-
- VRAMUsageAddBaseTime(-delta);
 }
 
 static INLINE void WriteReg(const unsigned which, const uint16 value)
@@ -1051,7 +1011,6 @@ static INLINE void WriteReg(const unsigned which, const uint16 value)
 	if(DrawingActive)
 	{
 	 DrawingActive = false;
-         VRAMUsageEnd();
 	 if(CycleCounter < 0)
 	  CycleCounter = 0;
 	 nt = SH7095_mem_timestamp + VDP1_IdleTimingGran;
@@ -1068,7 +1027,7 @@ static INLINE uint16 ReadReg(const unsigned which)
  switch(which)
  {
   default:
-	return 0;
+        break;
 
   case 0x8:	// EDSR
 	return EDSR;
@@ -1082,6 +1041,8 @@ static INLINE uint16 ReadReg(const unsigned which)
   case 0xB:	// MODR
 	return (0x1 << 12) | ((PTMR & 0x2) << 7) | ((FBCR & 0x1E) << 3) | (TVMR << 0);
  }
+
+ return 0;
 }
 
 //
@@ -1120,7 +1081,6 @@ MDFN_FASTCALL void Write8_DB(uint32 A, uint16 DB)
 
  if(A < 0x80000)
  {
-  VRAMUsageWrite(A >> 1);
   ne16_wbo_be<uint8>(VRAM, A, DB >> (((A & 1) ^ 1) << 3) );
   return;
  }
@@ -1145,7 +1105,6 @@ MDFN_FASTCALL void Write16_DB(uint32 A, uint16 DB)
 
  if(A < 0x80000)
  {
-  VRAMUsageWrite(A >> 1);
   VRAM[A >> 1] = DB;
   return;
  }

@@ -38,7 +38,6 @@
 #include "vdp2_render.h"
 
 #include "sh7095.h"
-#include "debug.inc"
 
 namespace VDP2
 {
@@ -244,14 +243,13 @@ static INLINE void RecalcVRAMPenalty(void)
 
   for(unsigned vcp_type = 0; vcp_type < 0x10; vcp_type++)
   {
-   bool penalty;
-
    if((vcp_type < 0x8) || vcp_type == 0xC || vcp_type == 0xD)
-    penalty = (bool)(BGON & (1U << (vcp_type & 0x3)));
+   {
+    bool penalty = (bool)(BGON & (1U << (vcp_type & 0x3)));
+    vcp_type_penalty[vcp_type] = penalty;
+   }
    else
-    penalty = false;
-
-   vcp_type_penalty[vcp_type] = penalty;
+    vcp_type_penalty[vcp_type] = false;
   }
 
   for(unsigned bank = 0; bank < 4; bank++)
@@ -369,7 +367,6 @@ static INLINE void IncVCounter(const sscpu_timestamp_t event_timestamp)
   Window[0].YEndMet = Window[1].YEndMet = false;
  }
 
-#if 1
  if(MDFN_UNLIKELY(ss_horrible_hacks & HORRIBLEHACK_NOSH2DMALINE106))
  {
   const bool s = (VCounter == (VTimings[PAL][VRes][VPHASE__COUNT - 1] - 1));
@@ -377,7 +374,6 @@ static INLINE void IncVCounter(const sscpu_timestamp_t event_timestamp)
   for(size_t i = 0; i < 2; i++)
    CPU[i].SetExtHaltDMAKludgeFromVDP2(s);
  }
-#endif
 
  // - 1, so the CPU loop will  have plenty of time to exit before we reach non-hblank top border area
  // (exit granularity could be large if program is executing from SCSP RAM space, for example).

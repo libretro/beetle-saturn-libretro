@@ -52,7 +52,6 @@
 
 #include "input/multitap.h"
 
-#include "debug.inc"
 #include "sh7095.h"
 
 enum
@@ -634,7 +633,7 @@ void SMPC_ProcessSlaveOffOn(void)
  }
 }
 
-int32 SMPC_StartFrame(EmulateSpecStruct* espec)
+int32 SMPC_StartFrame(void)
 {
  if(ResetPending)
   SS_Reset(false);
@@ -683,8 +682,6 @@ void SMPC_UpdateOutput(void)
 
 void SMPC_UpdateInput(const int32 time_elapsed)
 {
- //printf("%8d\n", time_elapsed);
-
  if (MiscInputPtr)
   ResetButtonPhysStatus = (bool)(*MiscInputPtr & 0x1);
  for(unsigned vp = 0; vp < 12; vp++)
@@ -874,7 +871,6 @@ void SMPC_ResetTS(void)
 		  next_event_ts = timestamp + (-ClockCounter + SMPC_ClockRatio - 1) / SMPC_ClockRatio;		\
 		  goto Breakout;								\
 		 }										\
-		 /*printf("%f\n", (double)ClockCounter / (1LL << 32));*/			\
 		}										\
 
 
@@ -1257,8 +1253,6 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
        JRS.work[1] = JR_BS;
        JRS.ID1 |= ((((JRS.work[1] >> 3) | (JRS.work[1] >> 2)) & 1) << 1) | ((((JRS.work[1] >> 1) | (JRS.work[1] >> 0)) & 1) << 0);
 
-       //printf("%d ID1: %02x (%02x, %02x)\n", JRS.CurPort, JRS.ID1, JRS.work[0], JRS.work[1]);
-
        if(JRS.ID1 == 0xB)
        {
 	// Saturn digital pad.
@@ -1313,8 +1307,6 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 	JR_EAT(50);
 	JR_WAIT(JR_BS & 0x10);
 	JRS.ID2 |= ((JR_BS & 0xF) << 0);
-
-	//printf("%d, %02x %02x\n", JRS.CurPort, JRS.ID1, JRS.ID2);
 
 	if(JRS.ID1 == 0x3)
 	 JRS.ID2 = 0xE3;
@@ -1373,8 +1365,6 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 	  JR_WRNYB(JRS.IDTap >> 0);
 	  JR_EAT(21);
          }
-
-         //printf("What: %d, %02x\n", JRS.TapCounter, JRS.ID2);
 
 	 JR_WRNYB(JRS.ID2 >> 4);
 	 JR_EAT(21);

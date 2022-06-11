@@ -1625,7 +1625,6 @@ switch(Pipe_ID >> 24)
 	 MemRead32(ea, SysRegs[(instr >> 4) & 0x3]);
 	}
 	PART_OP_INTDIS
-	//printf(" LDS.L: (0x%08x)->0x%08x\n", ea, SysRegs[sri]);
  END_OP
 
 
@@ -1792,8 +1791,6 @@ switch(Pipe_ID >> 24)
 
 	 R[n] -= 4;
 	 ea = R[n];
-
-	 //printf(" STS.L: 0x%08x->(0x%08x)\n", SysRegs[sri], ea);
 
 	 MemWrite32(ea, SysRegs[sri]);
 	}

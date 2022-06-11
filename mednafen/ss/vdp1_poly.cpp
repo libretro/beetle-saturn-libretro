@@ -92,21 +92,11 @@ static int32 PolygonResumeBase(const uint16* cmd_data)
  {
   do
   {
-   //printf("x=0x%03x y=0x%03x x_error=0x%04x y_error=0x%04x --- x_error_inc=0x%04x, x_error_adj=0x%04x --- y_error_inc=0x%04x, y_error_adj=0x%04x\n", e[0].x & 0x7FF, e[0].y & 0x7FF, (uint32)e[0].x_error >> (32 - 13), (uint32)e[0].y_error >> (32 - 13), (uint32)e[0].x_error_inc >> (32 - 13), (uint32)e[0].x_error_adj >> (32 - 13), (uint32)e[0].y_error_inc >> (32 - 13), (uint32)e[0].y_error_adj >> (32 - 13));
-
    e[0].GetVertex<gourauden>(&LineData.p[0]);
    e[1].GetVertex<gourauden>(&LineData.p[1]);
 
-#if 0
-   printf("(Edge0: x=%u y=%u, d_error=0x%04x x_error=0x%04x y_error=0x%04x) ", LineData.p[0].x, LineData.p[0].y, (e[0].d_error + e[0].d_error_inc) >> (32 - 13), (e[0].x_error + e[0].x_error_inc) >> (32 - 13), (e[0].y_error + e[0].y_error_inc) >> (32 - 13));
-   printf("(Edge1: x=%u y=%u, d_error=0x%04x x_error=0x%04x y_error=0x%04x)\n", LineData.p[1].x, LineData.p[1].y, (e[1].d_error + e[1].d_error_inc) >> (32 - 13), (e[1].x_error + e[1].x_error_inc) >> (32 - 13), (e[1].y_error + e[1].y_error_inc) >> (32 - 13));
-#endif
-   //printf("%d,%d %d,%d\n", LineData.p[0].x, LineData.p[0].y, LineData.p[1].x, LineData.p[1].y);
-   //
    if(!SetupDrawLine(&ret, true, false, mode) || !iter)
    {
-    //
-    //printf("%d:%d -> %d:%d\n", lp[0].x, lp[0].y, lp[1].x, lp[1].y);
     ResumeLine:;
     ret += AdjustDrawTiming(fnptr(&PrimData.need_line_resume));
     if(MDFN_UNLIKELY(PrimData.need_line_resume))
@@ -130,8 +120,7 @@ int32 RESUME_Polygon(const uint16* cmd_data)
 {
  if(cmd_data[0x2] & 0x4) // gouraud
   return PolygonResumeBase<true>(cmd_data);
- else
-  return PolygonResumeBase<false>(cmd_data);
+ return PolygonResumeBase<false>(cmd_data);
 }
 
 
@@ -183,8 +172,7 @@ int32 CMD_Polygon(const uint16* cmd_data)
 {
  if(cmd_data[0x2] & 0x4) // gouraud
   return CMD_PolygonG_T<true>(cmd_data);
- else
-  return CMD_PolygonG_T<false>(cmd_data);
+ return CMD_PolygonG_T<false>(cmd_data);
 }
 
 

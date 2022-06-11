@@ -34,7 +34,6 @@
 #include "cdb.h"
 
 #include "scsp.h"
-#include "debug.inc"
 
 static SS_SCSP SCSP;
 

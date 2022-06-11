@@ -215,16 +215,11 @@ static INLINE bool CheckDoMasterInt(void)
    0x0
   };
   const uint32 ipmd = IPending &~ (int16)IMask;
-  unsigned wi = MDFN_tzcount16(ipmd & 0xFFFF);
-  unsigned we = MDFN_tzcount16(ipmd >> 16);
-  unsigned olev, ovec, bpos;
-
-  //if((ipmd & 0x3) == 0x3 || ((ipmd & 0x81) == 0x81))
-  // printf("CONFLICT: 0x%08x 0x%08x\n", IPending, ipmd);
-
-  olev = internal_tab[wi];
-  ovec = 0x40 + wi;
-  bpos = wi;
+  unsigned wi   = MDFN_tzcount16(ipmd & 0xFFFF);
+  unsigned we   = MDFN_tzcount16(ipmd >> 16);
+  unsigned olev = internal_tab[wi];
+  unsigned ovec = 0x40 + wi;
+  unsigned bpos = wi;
 
   if(external_tab[we] > internal_tab[wi])
   {
@@ -410,29 +405,14 @@ static void SCU_AdjustTS(const int32 delta)
  //DSP.LastTS = std::max<sscpu_timestamp_t>(-1000000, DSP.LastTS + delta);
 
  DSP.LastTS += delta;
+ // TODO: Fix properly.
  if(DSP.LastTS < 0)
- {
-  // TODO: Fix properly.
-  //printf("%d\n", DSP.LastTS);
   DSP.LastTS = 0;
- }
  //
  //
  //
  BBus_SH2_WriteFinishTS = std::max<sscpu_timestamp_t>(-1000000, BBus_SH2_WriteFinishTS + delta);
 }
-
-/*
-static sscpu_timestamp_t SCU_UpdateInt(sscpu_timestamp_t timestamp)
-{
- if(timestamp < events[SS_EVENT_SCU_INT].event_time)
-  return events[SS_EVENT_SCU_INT].event_time;
-
- CPU[0].SetIRL(ILevel);
-
- return SS_EVENT_DISABLED_TS;
-}
-*/
 
 //
 // TODO: Test to see if the entire data bus or only parts are asserted for uint8 and uint16 reads
@@ -834,7 +814,6 @@ static INLINE void BBusRW_DB(uint32 A, uint16* DB, int32* time_thing, int32* dma
      SCU_DMA_VDP1WriteIgnoreKludge++;
      if(ignore_write)
       return;
-     //printf("%08x %04x\n", A, *DB);
     }
     else
      SCU_DMA_VDP1WriteIgnoreKludge = 0;
@@ -918,12 +897,7 @@ static INLINE void BBusRW_DB(uint32 A, uint16* DB, int32* time_thing, int32* dma
     expenalty = VDP2::Write16_DB(A, *DB);
 
    if(dma_time_thing != NULL)
-   {
-    //if(expenalty)
-    // printf("%u\n", expenalty);
-
     *dma_time_thing -= expenalty;
-   }
   }
   else
   {
@@ -1387,8 +1361,6 @@ static void RecalcDMAHalt(void)
   }
  }
 
- //fprintf(stderr, "SCU: %d --- %d %d %d\n", Halted, DMALevel[0].Active, DMALevel[1].Active, DMALevel[2].Active);
-
  CPU[0].SetExtHalt(Halted);
  CPU[1].SetExtHalt(Halted);
 }
@@ -1463,8 +1435,6 @@ static INLINE uint32 DMA_Read(DMALevelS* d)
 {
  int shift = ((0x3 ^ (d->CurReadSub & 0x3)) - (0x3 ^ (d->CurWriteAddr & 0x3 & (4 - count)))) * 8;
 
- //printf("Read: CurReadSub=0x%02x, CurWriteAddr=0x%08x, count=%zu --- ", d->CurReadSub, d->CurWriteAddr, count);
-
  d->CurReadSub += count;
  if(d->CurReadSub > 4)
  {
@@ -1481,8 +1451,6 @@ static INLINE uint32 DMA_Read(DMALevelS* d)
   d->Buffer |= tmp;
  }
 
- //printf("buffer=%016llx, shift=%d\n", (uint64)d->Buffer, shift);
-
  if(shift > 0)
   return d->Buffer >> shift;
  else
@@ -1495,7 +1463,6 @@ static INLINE void DMA_Write(DMALevelS* d, uint32 DB)
  const uint32 A = d->CurWriteAddr &~ (sizeof(T) - 1);
  int32 WriteOverhead = 0;
 
- //printf("Write: %zu %08x %08x\n", sizeof(T), A, DB);
  if(WriteBus == 0)
  {
   ABus_Write_DB32<T>(A, DB, NULL, &WriteOverhead);
@@ -1579,7 +1546,6 @@ static INLINE void UpdateDMAInner(DMALevelS* d)
 static void SCU_DoDMAEnd(const unsigned level)
 {
  static const unsigned itab[3] = { SCU_INT_L0DMA, SCU_INT_L1DMA, SCU_INT_L2DMA };
- //printf("FIN: %08x %08x %u\n", d->CurReadBase, d->CurReadSub, d->ReadUpdate);
  DMALevel[level].Active = false;
  RecalcDMAHalt();
  SCU_SetInt(itab[level], true);
@@ -1678,7 +1644,6 @@ sscpu_timestamp_t SCU_UpdateDSP(sscpu_timestamp_t timestamp)
 
  while(MDFN_LIKELY(DSP.CycleCounter > 0))
  {
-  //printf("%02x %16llx\n", DSP.PC, DSP.NextInstr);
   ((void (*)(void))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))();
   DSP.CycleCounter -= 2;
  }
@@ -1784,8 +1749,6 @@ static NO_INLINE NO_CLONE void DMAInstr(void)
  }
  else
   count = instr & 0xFF;
-
- //printf("%02x %08x Count: %u\n", DSP.PC, instr, count);
 
  if(dir)
  {
@@ -2126,10 +2089,7 @@ static MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const b
   else if(d.WATable >= dwt_ptrs[1] && d.WATable < (dwt_ptrs[1] + dwt_counts[1]))
    DMALevel_WATable[level] = 0x80000000 | (d.WATable - dwt_ptrs[1]);
   else
-  {
-   //printf("%016llx - %016llx %08zx, %016llx %08zx\n", (unsigned long long)d.WATable, (unsigned long long)dwt_ptrs[0], dwt_counts[0], (unsigned long long)dwt_ptrs[1], dwt_counts[1]);
    abort();	// FIXME: NULL pointer on init...
-  }
 
   for(unsigned rb = 0; rb < 3 + 1; rb++)
   {

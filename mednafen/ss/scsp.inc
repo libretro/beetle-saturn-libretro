@@ -202,8 +202,6 @@ INLINE uint8 SS_SCSP::MIDI_ReadInput(void)
 
  if(MIDI.InputCount)
  {
-  //printf("MIDI Read: %02x\n", ret);
-
   MIDI.InputRP = (MIDI.InputRP + 1) & 0x3;
   MIDI.InputCount--;
   MIDI.Flags &= ~MIDIF_INPUT_FULL;
@@ -230,7 +228,6 @@ void SS_SCSP::MIDI_WriteInput(uint8 V)
   MIDI.Flags |= MIDIF_INPUT_OFLOW;
   return;
  }
- //printf("MIDI Write: %02x\n", V);
 
  MIDI.InputFIFO[MIDI.InputWP] = V;
  MIDI.InputWP = (MIDI.InputWP + 1) & 0x3;
@@ -276,7 +273,6 @@ INLINE void SS_SCSP::MIDI_Run(void)
   {
    if(MIDI.OutputCount)
    {
-    //printf("Transmit\n");
     MIDI.TransmitBitCounter = 10;
     MIDI.TransmitBuffer = (uint32)(MIDI.OutputFIFO[MIDI.OutputRP] | ~0xFF) << 1;
     MIDI.OutputRP = (MIDI.OutputRP + 1) & 0x3;
@@ -655,8 +651,6 @@ INLINE void SS_SCSP::RW(uint32 A, T& DBV)
 
 	 if(!shift)
 	  t->Reload = DBV & 0xFF;
-
-	 //printf("Timer(%zu-byte) %u: %04x --- %02x\n", sizeof(T), ((A >> 1) & 0x1F) - 0x0C, DBV, t->Counter);
 	}
 	else
 	 DBV = 0;
@@ -1265,7 +1259,6 @@ INLINE void SS_SCSP::RunDSP(void)
    const unsigned F_SEL_Inputs[2] = { (unsigned)(ShifterOutput >> 11), (unsigned)(ShifterOutput & 0xFFF) };
 
    DSP.FRC_REG = F_SEL_Inputs[SHFT0 & SHFT1];
-   //printf("FRCL: 0x%08x\n", DSP.FRC_REG);
   }
   //
   //

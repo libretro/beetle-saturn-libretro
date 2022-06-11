@@ -137,7 +137,6 @@
 #include "scu.h"
 #include "sound.h"
 #include "cdb.h"
-#include "debug.inc"
 
 #include <mednafen/cdrom/CDUtility.h>
 #include <mednafen/cdrom/cdromif.h>
@@ -827,8 +826,6 @@ static void ReadRecord(FileInfoS* fi, const uint8* rr)
  int su_offs = 33 + (fi_len | 1);
  int su_len = (rec_len - su_offs);
 
- //printf("%d %d %d %d\n", rec_len, fi_len, su_offs, su_len);
-
  if(su_len >= 14 && (su_offs + su_len) <= 256)
  {
   if(rr[su_offs + 6] == 'X' && rr[su_offs + 7] == 'A')
@@ -837,14 +834,11 @@ static void ReadRecord(FileInfoS* fi, const uint8* rr)
    fi->fnum = rr[su_offs + 8];
   }
  }
-
- //printf("Meow: fad=%08x size=%08x attr=%02x us=%02x gs=%02x fnum=%02x %s\n", fi->fad(), fi->size(), fi->attr, fi->unit_size, fi->gap_size, fi->fnum, &FLS.record[33]);
 }
 
 static bool FLS_Run(void)
 {
  bool ret = false;
- //printf("%d, %d\n", Partitions[FLS.pnum].Count, FreeBufferCount);
 
  if(FLS.Abort)
   goto Abort;
@@ -892,7 +886,6 @@ static bool FLS_Run(void)
    Filter_SetTrueConn(FLS.pnum, FLS.pnum);
    Filter_SetFalseConn(FLS.pnum, 0xFF);
 
-   //printf("Hrm: %d\n", RootDirInfoValid);
    if(!RootDirInfoValid)
    {
     Filter_SetRange(FLS.pnum, 0, 0);
@@ -909,12 +902,6 @@ static bool FLS_Run(void)
       break;
      else if(FLS.pbuf[0] == 0x01)	// PVD
      {
-      //printf("MEOW MEOW:");
-      //for(unsigned i = 0; i < 64; i++)
-      // printf("%02x ", FLS.pbuf[156 + i]);
-      //printf("\n");
-
-      //printf("hrm2\n");
       ReadRecord(&RootDirInfo, &FLS.pbuf[156]);
       RootDirInfoValid = true;
       break;
@@ -948,7 +935,6 @@ static bool FLS_Run(void)
 
      FLS.total_max = fi->size();
 
-     //printf("YAYAYA: %08x\n", fi->fad());
      StartSeek(0x800000 | fi->fad(), 0);
     }
     //
@@ -960,7 +946,6 @@ static bool FLS_Run(void)
 
     FileInfoValid = false;
 
-    //printf("Start\n");
     while(FLS.total_counter < FLS.total_max)
     {
      memset(FLS.record, 0, sizeof(FLS.record));
@@ -1157,7 +1142,6 @@ static void DT_ReadIntoFIFO(void)
  else
   tmp = MDFN_de16msb(&Buffers[DT.BufList[DT.CurBufIndex]].Data[DT.InBufOffs << 1]);
 
- //printf("%02x %02x\n", DT.BufList[DT.CurBufIndex], DT.CurBufIndex);
  DT.FIFO[DT.FIFO_WP] = tmp;
  DT.FIFO_WP = (DT.FIFO_WP + 1) % (sizeof(DT.FIFO) / sizeof(DT.FIFO[0]));
  DT.FIFO_In++;
@@ -1417,7 +1401,6 @@ enum : int { CommandPhaseBias = __COUNTER__ + 1 };
 			      CommandPhase = __COUNTER__ - CommandPhaseBias - 1;			\
 			      goto CommandGetOut;						\
 			     }									\
-			     /*printf("%f\n", (double)ClockCounter / (1LL << 32));*/		\
 			    }									\
 			   }
 
@@ -1947,9 +1930,6 @@ static void Drive_Run(int64 clocks)
 	 seek_time = 12 * (44100 * 256) / 150;
 	 seek_time += abs(fad_delta) * ((fad_delta < 0) ? 28 : 26);
 	 seek_time += (fad_delta < 0 || fad_delta >= 150) ? (44100 * 256) / 150 : 0;
-	 //seek_time += fabs(sqrt(CurSector) - sqrt(CurPosInfo.fad)) * 13000;
-
-	 //printf("%d %d\n", fad_delta, seek_time);
 
 	 CurPosInfo.status = STATUS_SEEK;
 	 DrivePhase = DRIVEPHASE_SEEK;
@@ -2023,14 +2003,7 @@ static void Drive_Run(int64 clocks)
 	   PlaySectorProcessed = false;
 	   DrivePhase = DRIVEPHASE_PLAY;
 	   DriveCounter += (int64)((44100 * 256) / ((SubQBuf_Safe[0] & 0x40) ? 150 : 75)) << 32;
-
-#if 0
-	   if(!Cur_CDIF->NonDeterministic_CheckSectorReady(CurSector - 150))
-	    DrivePhase = DRIVEPHASE_SEEK;
-#endif
 	  }
-	  //else
-	  // printf("%d\n", CurSector);
          }
         }
 	break;
@@ -3601,7 +3574,6 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
       Partition_Clear(fnum);
 
-      //printf("DT Meow READ: 0x%08x 0x%08x --- offs=0x%08x\n", FileInfo[fileid].fad(), FileInfo[fileid].size(), offset);
       const uint32 fiaoffs = (fileid < 2) ? fileid : (2 + fileid - FileInfoOffs);
       uint32 start_fad = (FileInfo[fiaoffs].fad() + offset) & 0xFFFFFF;
       uint32 sec_count = ((FileInfo[fiaoffs].size() + 2047) >> 11) - offset;	// FIXME: Check offset versus ifile size.
@@ -3834,14 +3806,11 @@ uint16 CDB_Read(uint32 offset)
 	ret = HIRQ_Mask;
 	break;
 
-  case 0x6: ret = Results[0]; /*if(!ResultsRead) printf(" [CDB] Result0 Read: 0x%04x\n", ret);*/ break;
-  case 0x7: ret = Results[1]; /*if(!ResultsRead) printf(" [CDB] Result1 Read: 0x%04x\n", ret);*/ break;
-  case 0x8: ret = Results[2]; /*if(!ResultsRead) printf(" [CDB] Result2 Read: 0x%04x\n", ret);*/ break;
-  case 0x9: ret = Results[3]; /*if(!ResultsRead) printf(" [CDB] Result3 Read: 0x%04x\n", ret);*/ ResultsRead = true; break;
+  case 0x6: ret = Results[0];  break;
+  case 0x7: ret = Results[1];  break;
+  case 0x8: ret = Results[2];  break;
+  case 0x9: ret = Results[3];  ResultsRead = true; break;
  }
-
- //if(offset == 0)
- // fprintf(stderr, "Read: %02x %04x\n", offset, ret);
 
  return ret;
 }
@@ -4108,14 +4077,10 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   if(load < 0x00102600)
   {
    if(DrivePhase == DRIVEPHASE_PLAY && SecPreBuf_In)
-   {
-    //printf("CurSector--\n");
     CurSector--;
-   }
 
    if(CurPosInfo.status == STATUS_PAUSE && DrivePhase == DRIVEPHASE_PLAY)
    {
-    //printf("Pause fixup.\n");
     DrivePhase = DRIVEPHASE_PAUSE;
     PauseCounter = -1;
    }
@@ -4156,7 +4121,6 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
    }
   }
 
-  //printf("%d %d\n", FLS.Active, FLS.Phase);
   if(!FLS.Active)
    FLS.Phase = 0;
   //
@@ -4191,25 +4155,18 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   }
 
   if(need_reset_buffers)
-  {
-   //printf("need_reset_buffers!\n");
    ResetBuffers();
-  }
   //
   //
   //
   if(DT_CheckSanity() != 1)
   {
-   //printf("DT_CheckSanity() failed.\n");
-
    memset(&DT, 0, sizeof(DT));
    DT.Active = false;
   }
 
   if(FLS_CheckSanity() != 1)
   {
-   //printf("FLS_CheckSanity() failed.\n");
-
    memset(&FLS, 0, sizeof(FLS));
    FLS.Active = false;
   }

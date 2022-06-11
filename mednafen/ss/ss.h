@@ -98,7 +98,6 @@
 
  void SS_RequestMLExit(void);
  void SS_RequestEHLExit(void);
- void ForceEventUpdates(const sscpu_timestamp_t timestamp);
 
  enum
  {

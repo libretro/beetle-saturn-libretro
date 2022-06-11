@@ -117,17 +117,16 @@ int32 RESUME_Line(const uint16* cmd_data)
 
 int32 CMD_Line(const uint16* cmd_data)
 {
- int32 ret = 1;
  //
  //
- LineData.tex_base = 0;
- LineData.color = cmd_data[0x3];
+ LineData.tex_base         = 0;
+ LineData.color            = cmd_data[0x3];
  //
  //
- PrimData.iter = 0;
+ PrimData.iter             = 0;
  PrimData.need_line_resume = false;
 
- return ret;
+ return 1;
 }
 
 }
