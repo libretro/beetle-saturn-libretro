@@ -38,6 +38,7 @@
 #include <retro_miscellaneous.h>
 
 extern MDFNGI EmulatedSS;
+extern uint32 IBufferCount;
 
 #include "ss.h"
 #include "sound.h"
@@ -752,8 +753,9 @@ void Emulate(EmulateSpecStruct* espec_arg)
  //
  //
  //
- espec->MasterCycles = end_ts * cur_clock_div;
- espec->SoundBufSize += SOUND_FlushOutput();
+ espec->MasterCycles  = end_ts * cur_clock_div;
+ espec->SoundBufSize += IBufferCount;
+ IBufferCount         = 0;
 
  SMPC_UpdateOutput();
  //

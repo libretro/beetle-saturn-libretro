@@ -48,7 +48,7 @@ static sscpu_timestamp_t lastts;
 static MDFN_jmp_buf jbuf;
 
 int16 IBuffer[1024][2];
-static uint32 IBufferCount;
+uint32 IBufferCount;
 
 static INLINE void SCSP_SoundIntChanged(SS_SCSP* s, unsigned level)
 {
@@ -232,15 +232,6 @@ sscpu_timestamp_t SOUND_Update(sscpu_timestamp_t timestamp)
 
 void SOUND_StartFrame(double rate, uint32 quality)
 {
-}
-
-int32 SOUND_FlushOutput(void)
-{
- int32 ret = IBufferCount;
-
- IBufferCount = 0;
-
- return(ret);
 }
 
 void SOUND_StateAction(StateMem* sm, const unsigned load, const bool data_only)
