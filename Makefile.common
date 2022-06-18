@@ -146,7 +146,6 @@ SOURCES_CXX += \
 	$(MEDNAFEN_DIR)/mempatcher.cpp \
 	$(MEDNAFEN_DIR)/video/Deinterlacer.cpp \
 	$(MEDNAFEN_DIR)/video/surface.cpp \
-	$(MEDNAFEN_DIR)/git.cpp \
 	$(CORE_DIR)/disc.cpp \
 	$(CORE_DIR)/input.cpp \
 	$(CORE_DIR)/libretro.cpp \

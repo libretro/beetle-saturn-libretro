@@ -153,16 +153,3 @@ uint8 IODevice_Mouse::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 s
 
  return (smpc_out & (smpc_out_asserted | 0xE0)) | (tmp &~ smpc_out_asserted);
 }
-
-IDIISG IODevice_Mouse_IDII =
-{
- IDIIS_AxisRel("motion", "Motion",/**/ "left", "Left",/**/ "right", "Right", 0),
- IDIIS_AxisRel("motion", "Motion",/**/ "up", "Up",/**/ "down", "Down", 1),
-
- IDIIS_Button("left", "Left Button", 2),
- IDIIS_Button("right", "Right Button", 4),
- IDIIS_Button("middle", "Middle Button", 3),
- IDIIS_Button("start", "Start", 5),
-};
-
-

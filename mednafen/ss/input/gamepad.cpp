@@ -67,28 +67,3 @@ uint8 IODevice_Gamepad::UpdateBus(const sscpu_timestamp_t timestamp, const uint8
 
  return 0x10 | (smpc_out & (smpc_out_asserted | 0xE0)) | (tmp &~ smpc_out_asserted);
 }
-
-IDIISG IODevice_Gamepad_IDII =
-{
- IDIIS_Button("z", "Z", 10),
- IDIIS_Button("y", "Y", 9),
- IDIIS_Button("x", "X", 8),
- IDIIS_Button("rs", "Right Shoulder", 12),
-
- IDIIS_Button("up", "UP ↑", 0, "down"),
- IDIIS_Button("down", "DOWN ↓", 1, "up"),
- IDIIS_Button("left", "LEFT ←", 2, "right"),
- IDIIS_Button("right", "RIGHT →", 3, "left"),
-
- IDIIS_Button("b", "B", 6),
- IDIIS_Button("c", "C", 7),
- IDIIS_Button("a", "A", 5),
- IDIIS_Button("start", "START", 4),
-
- IDIIS_Padding<1>(),
- IDIIS_Padding<1>(),
- IDIIS_Padding<1>(),
- IDIIS_Button("ls", "Left Shoulder", 11),
-};
-
-

@@ -133,28 +133,3 @@ uint8 IODevice_Wheel::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 s
 
  return (smpc_out & (smpc_out_asserted | 0xE0)) | (tmp &~ smpc_out_asserted);
 }
-
-IDIISG IODevice_Wheel_IDII =
-{
- IDIIS_Button("up", "L Gear Shift(Equiv. UP ↑)", 1, "down"),
- IDIIS_Button("down", "R Gear Shift(Equiv. DOWN ↓)", 2, "up"),
- IDIIS_Padding<2>(),
-
- IDIIS_Button("b", "B (R Group)", 8),
- IDIIS_Button("c", "C (R Group)", 9),
- IDIIS_Button("a", "A (R Group)", 7),
- IDIIS_Button("start", "START", 6),
-
- IDIIS_Button("z", "Z (L Group)", 3),
- IDIIS_Button("y", "Y (L Group)", 4),
- IDIIS_Button("x", "X (L Group)", 5),
- IDIIS_Padding<1>(),
-
- IDIIS_Axis(	"analog", "Analog",
-		"left", "LEFT ←",
-		"right", "RIGHT →", 0),
-};
-
-
-
-

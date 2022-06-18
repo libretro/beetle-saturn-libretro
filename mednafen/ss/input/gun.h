@@ -57,6 +57,4 @@ class IODevice_Gun final : public IODevice
  int chair_r, chair_g, chair_b;
 };
 
-extern IDIISG IODevice_Gun_IDII;
-
 #endif

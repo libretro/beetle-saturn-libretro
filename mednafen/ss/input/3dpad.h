@@ -47,8 +47,4 @@ class IODevice_3DPad final : public IODevice
  bool mode;
 };
 
-
-MDFN_HIDE extern IDIISG IODevice_3DPad_IDII;
-
-
 #endif

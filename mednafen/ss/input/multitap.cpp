@@ -268,5 +268,3 @@ uint8 IODevice_Multitap::UpdateBus(const sscpu_timestamp_t timestamp, const uint
 
  return (smpc_out & (smpc_out_asserted | 0xE0)) | (((tl << 4) | data_out) &~ smpc_out_asserted);
 }
-
-
