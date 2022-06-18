@@ -674,12 +674,6 @@ void retro_unload_game(void)
 
    CloseGame();
 
-   if (MDFNGameInfo->RMD)
-   {
-      delete MDFNGameInfo->RMD;
-      MDFNGameInfo->RMD = NULL;
-   }
-
    MDFNMP_Kill();
 
    MDFNGameInfo = NULL;

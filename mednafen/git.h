@@ -9,22 +9,6 @@
 
 #include "video/surface.h"
 
-typedef struct
-{
- const char *extension; // Example ".nes"
- const char *description; // Example "iNES Format ROM Image"
-} FileExtensionSpecStruct;
-
-typedef enum
-{
- VIDSYS_NONE, // Can be used internally in system emulation code, but it is an error condition to let it continue to be
-	      // after the Load() or LoadCD() function returns!
- VIDSYS_PAL,
- VIDSYS_PAL_M, // Same timing as NTSC, but uses PAL-style colour encoding
- VIDSYS_NTSC,
- VIDSYS_SECAM
-} VideoSystems;
-
 #include "state.h"
 #include "settings-common.h"
 
@@ -65,15 +49,6 @@ struct CheatInfoStruct
 
 MDFN_HIDE extern const CheatInfoStruct CheatInfo_Empty;
 
-// Miscellaneous system/simple commands(power, reset, dip switch toggles, coin insert, etc.)
-// (for DoSimpleCommand() )
-enum
-{
- MDFN_MSC_RESET = 0x01,
- MDFN_MSC_POWER = 0x02,
- MDFN_MSC__LAST = 0x3F	// WARNING: Increasing(or having the enum'd value of a command greater than this :b) this will necessitate a change to the netplay protocol.
-};
-
 struct EmulateSpecStruct
 {
 	// Pitch(32-bit) must be equal to width and >= the "fb_width" specified in the MDFNGI struct for the emulated system.
@@ -110,54 +85,6 @@ struct EmulateSpecStruct
 	int64 MasterCycles = 0;
 };
 
-class CDIF;
-
-struct RMD_Media
-{
- std::string Name;
- unsigned MediaType;	// Index into RMD_Layout::MediaTypes
- std::vector<std::string> Orientations;	// The vector may be empty.
-};
-
-struct RMD_MediaType
-{
- std::string Name;
-};
-
-struct RMD_State
-{
- std::string Name;
-
- bool MediaPresent;
- bool MediaUsable;	// Usually the same as MediaPresent.
- bool MediaCanChange;
-};
-
-struct RMD_Drive
-{
- std::string Name;
-
- std::vector<RMD_State> PossibleStates;	// Ideally, only one state will have MediaPresent == true.
- std::vector<unsigned> CompatibleMedia;	// Indexes into RMD_Layout::MediaTypes
- unsigned MediaMtoPDelay;		// Recommended minimum delay, in milliseconds, between a MediaPresent == false state and a MediaPresent == true state; to be enforced
-					// by the media changing user interface.
-};
-
-struct RMD_DriveDefaults
-{
- uint32 State;
- uint32 Media;
- uint32 Orientation;
-};
-
-struct RMD_Layout
-{
- std::vector<RMD_Drive> Drives;
- std::vector<RMD_MediaType> MediaTypes;
- std::vector<RMD_Media> Media;
- std::vector<RMD_DriveDefaults> DrivesDefaults;
-};
-
 struct GameDB_Entry
 {
  std::string GameID;
@@ -175,8 +102,6 @@ struct GameDB_Database
 
  std::vector<GameDB_Entry> Entries;
 };
-
-
 
 //===========================================
 
@@ -201,8 +126,6 @@ typedef struct
  int fb_height;		// Height of the framebuffer passed to the Emulate() function(not necessarily height of the image)
 
  uint8 MD5[16];
-
- RMD_Layout* RMD;
 
  // For mouse relative motion.
  double mouse_sensitivity;
