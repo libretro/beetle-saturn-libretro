@@ -37,7 +37,6 @@ class CDAFReader_Vorbis : public CDAFReader
 
    private:
       OggVorbis_File ovfile;
-      Stream *fw;
 };
 
 
@@ -73,7 +72,7 @@ static long iov_tell_func(void *user_data)
    return fw->tell();
 }
 
-CDAFReader_Vorbis::CDAFReader_Vorbis(Stream *fp) : fw(fp)
+CDAFReader_Vorbis::CDAFReader_Vorbis(Stream *fp)
 {
    ov_callbacks cb;
 

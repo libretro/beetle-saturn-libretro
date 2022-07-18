@@ -99,49 +99,6 @@ void M68K::StateAction(StateMem* sm, const unsigned load, const bool data_only, 
   XPending &= XPENDING_MASK__VALID;
 }
 
-void M68K::LoadOldState(const uint8* osm)
-{
- uint32 old_C, old_V, old_notZ, old_N, old_X, old_I, old_S;
- uint32 old_USP, old_Status, old_IRQLine;
-
- osm += 4;
-
- for(unsigned i = 0; i < 16; i++)
- {
-  DA[i] = MDFN_de32lsb(osm);
-  osm += 4;
- }
-
- old_C = MDFN_de32lsb(osm); osm += 4;
- old_V = MDFN_de32lsb(osm); osm += 4;
- old_notZ = MDFN_de32lsb(osm); osm += 4;
- old_N = MDFN_de32lsb(osm); osm += 4;
- old_X = MDFN_de32lsb(osm); osm += 4;
- old_I = MDFN_de32lsb(osm); osm += 4;
- old_S = MDFN_de32lsb(osm); osm += 4;
- old_USP = MDFN_de32lsb(osm); osm += 4;
- PC = MDFN_de32lsb(osm); osm += 4;
- old_Status = MDFN_de32lsb(osm); osm += 4;
- old_IRQLine = MDFN_de32lsb(osm); osm += 4;
-
- if(MDFN_de32lsb(osm) != 0xDEADBEEF)
-  throw MDFN_Error(0, _("Malformed old 68K save state."));
- //
- //
- Flag_C = (old_C >> 8) & 1;
- Flag_V = (old_V >> 7) & 1;
- Flag_Z = !old_notZ;
- Flag_N = (old_N >> 7) & 1;
- Flag_X = (old_X >> 8) & 1;
- SRHB = ((old_S >> 8) & 0x20) | (old_I & 0x7);
- SP_Inactive = old_USP;
-
- XPending = ((old_Status & 0x02) ? XPENDING_MASK_STOPPED : 0);
- IPL = old_IRQLine & 0x7;
-
- RecalcInt();
-}
-
 INLINE void M68K::RecalcInt(void)
 {
  XPending &= ~XPENDING_MASK_INT;
@@ -525,12 +482,6 @@ INLINE void M68K::CalcZN(const T val)
   SetZ(val == 0);
 
  SetN(static_cast<typename std::make_signed<T>::type>(val) < 0);
-}
-
-template<typename T>
-INLINE void M68K::CalcCX(const uint64& val)
-{
- SetCX((val >> (sizeof(T) * 8)) & 1);
 }
 
 INLINE uint8 M68K::GetCCR(void)
@@ -2187,77 +2138,66 @@ INLINE bool M68K::CheckPrivilege(void)
  return true;
 }
 
-//
-//
-INLINE void M68K::InternalStep(void)
-{
- if(MDFN_UNLIKELY(XPending))
- {
-  if(MDFN_LIKELY(!(XPending & (XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED | XPENDING_MASK_EXTHALTED))))
-  {
-   if(MDFN_UNLIKELY(XPending & (XPENDING_MASK_RESET | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS)))
-   {
-    if(XPending & XPENDING_MASK_RESET)
-    {
-     SetSVisor(true);
-     SetTrace(false);
-     SetIMask(0x7);
-
-     A[7] = Read<uint32>(VECNUM_RESET_SSP << 2);
-     PC = Read<uint32>(VECNUM_RESET_PC << 2);
-     //
-     XPending &= ~XPENDING_MASK_RESET;
-    }
-    else
-    {
-     if(XPending & XPENDING_MASK_BUS)
-      Exception(EXCEPTION_BUS_ERROR, VECNUM_BUS_ERROR);
-     else
-      Exception(EXCEPTION_ADDRESS_ERROR, VECNUM_ADDRESS_ERROR);
-     // Clear bus/address error bits in XPending only after Exception() returns normally:
-     XPending &= ~(XPENDING_MASK_BUS | XPENDING_MASK_ADDRESS);
-    }
-
-    return;
-   }
-   else if(XPending & (XPENDING_MASK_INT | XPENDING_MASK_NMI))
-   {
-    assert(IPL == 0x7 || IPL > ((GetSR() >> 8) & 0x7));
-    XPending &= ~(XPENDING_MASK_STOPPED | XPENDING_MASK_INT | XPENDING_MASK_NMI);
-
-    Exception(EXCEPTION_INT, VECNUM_INT_BASE);
-
-    return;
-   }
-  }
-
-  // STOP and ExtHalted fallthrough:
-  timestamp += 4;
-  return;
- }
- //
- //
- //
- uint16 instr = ReadOp();
- const unsigned instr_b11_b9 = (instr >> 9) & 0x7;
- const unsigned instr_b2_b0 = instr & 0x7;
- switch(instr)
- {
-  default: ILLEGAL(instr); break;
-  #include "m68k_instr.inc"
- }
-}
-
-
 void NO_INLINE M68K::Run(int32 run_until_time)
 {
  while(MDFN_LIKELY(timestamp < run_until_time))
-  InternalStep();
-}
+ {
+	 if(MDFN_UNLIKELY(XPending))
+	 {
+		 if(MDFN_LIKELY(!(XPending & (XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED | XPENDING_MASK_EXTHALTED))))
+		 {
+			 if(MDFN_UNLIKELY(XPending & (XPENDING_MASK_RESET | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS)))
+			 {
+				 if(XPending & XPENDING_MASK_RESET)
+				 {
+					 SetSVisor(true);
+					 SetTrace(false);
+					 SetIMask(0x7);
 
-void NO_INLINE M68K::Step(void)
-{
- InternalStep();
+					 A[7] = Read<uint32>(VECNUM_RESET_SSP << 2);
+					 PC = Read<uint32>(VECNUM_RESET_PC << 2);
+					 //
+					 XPending &= ~XPENDING_MASK_RESET;
+				 }
+				 else
+				 {
+					 if(XPending & XPENDING_MASK_BUS)
+						 Exception(EXCEPTION_BUS_ERROR, VECNUM_BUS_ERROR);
+					 else
+						 Exception(EXCEPTION_ADDRESS_ERROR, VECNUM_ADDRESS_ERROR);
+					 // Clear bus/address error bits in XPending only after Exception() returns normally:
+					 XPending &= ~(XPENDING_MASK_BUS | XPENDING_MASK_ADDRESS);
+				 }
+
+				 return;
+			 }
+			 else if(XPending & (XPENDING_MASK_INT | XPENDING_MASK_NMI))
+			 {
+				 assert(IPL == 0x7 || IPL > ((GetSR() >> 8) & 0x7));
+				 XPending &= ~(XPENDING_MASK_STOPPED | XPENDING_MASK_INT | XPENDING_MASK_NMI);
+
+				 Exception(EXCEPTION_INT, VECNUM_INT_BASE);
+
+				 return;
+			 }
+		 }
+
+		 // STOP and ExtHalted fallthrough:
+		 timestamp += 4;
+		 return;
+	 }
+	 //
+	 //
+	 //
+	 uint16 instr = ReadOp();
+	 const unsigned instr_b11_b9 = (instr >> 9) & 0x7;
+	 const unsigned instr_b2_b0 = instr & 0x7;
+	 switch(instr)
+	 {
+		 default: ILLEGAL(instr); break;
+#include "m68k_instr.inc"
+	 }
+ }
 }
 
 //

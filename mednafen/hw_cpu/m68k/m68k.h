@@ -32,7 +32,6 @@ class M68K
  ~M68K() MDFN_COLD;
 
  void Run(int32 run_until_time);
- void Step(void);
 
  void Reset(bool powering_up) MDFN_COLD;
 
@@ -43,7 +42,7 @@ class M68K
  //
  // SignalDTACKHalted() and SignalAddressError() should be called from the external
  // bus read/write handlers as appropriate, followed by a longjmp() to above
- // Run()/Step().
+ // Run().
  //
  INLINE void SignalDTACKHalted(uint32 addr)
  {
@@ -62,8 +61,6 @@ class M68K
 
  void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname);
 
- void LoadOldState(const uint8* osm);
- enum { OldStateLen = 512 };
  //
  //
  //
@@ -179,9 +176,6 @@ class M68K
 
  template<typename T, bool Z_OnlyClear = false>
  void CalcZN(const T val);
-
- template<typename T>
- void CalcCX(const uint64& val);
 
  uint8 GetCCR(void);
  void SetCCR(uint8 val);
@@ -366,18 +360,6 @@ class M68K
  template<typename T, M68K::AddressMode TAM>
  void ROXR(HAM<T, TAM> &targ, unsigned count);
 
-#if 0
-static uint8 TAS_Callback(uint8 data)
-{
- CalcZN<uint8>(data);
- SetC(false);
- SetV(false);
-
- data |= 0x80;
- return data;
-}
-#endif
-
  template<typename T, M68K::AddressMode DAM>
  void TAS(HAM<T, DAM> &dst);
 
@@ -447,9 +429,6 @@ static uint8 TAS_Callback(uint8 data)
  void STOP(void);
 
  bool CheckPrivilege(void);
-
- void InternalStep(void);
-
  //
  //
  //
@@ -504,21 +483,6 @@ static uint8 TAS_Callback(uint8 data)
 
  uint32 GetRegister(unsigned which, char* special = nullptr, const uint32 special_len = 0);
  void SetRegister(unsigned which, uint32 value);
- INLINE void DupeState(const M68K* const src)
- {
-  memcpy(DA, src->DA, 16 * sizeof(uint32));
-  timestamp = src->timestamp;
-  PC = src->PC;
-  SRHB = src->SRHB;
-  IPL = src->IPL;
-  Flag_Z = src->Flag_Z;
-  Flag_N = src->Flag_N;
-  Flag_X = src->Flag_X;
-  Flag_C = src->Flag_C;
-  Flag_V = src->Flag_V;
-  SP_Inactive = src->SP_Inactive;
-  XPending = src->XPending;
- }
 };
 
 #endif
