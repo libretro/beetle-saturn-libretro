@@ -448,23 +448,16 @@ struct M68K::HAM
 
 
 
-INLINE void M68K::SetC(bool val) { Flag_C = val; }
-INLINE void M68K::SetV(bool val) { Flag_V = val; }
-INLINE void M68K::SetZ(bool val) { Flag_Z = val; }
-INLINE void M68K::SetN(bool val) { Flag_N = val; }
-INLINE void M68K::SetX(bool val) { Flag_X = val; }
-
 INLINE bool M68K::GetC(void) { return Flag_C; }
 INLINE bool M68K::GetV(void) { return Flag_V; }
 INLINE bool M68K::GetZ(void) { return Flag_Z; }
 INLINE bool M68K::GetN(void) { return Flag_N; }
 INLINE bool M68K::GetX(void) { return Flag_X; }
 
-
 INLINE void M68K::SetCX(bool val)
 {
- SetC(val);
- SetX(val);
+ Flag_C = (val);
+ Flag_X = (val);
 }
 
 //
@@ -476,12 +469,12 @@ INLINE void M68K::CalcZN(const T val)
  if(Z_OnlyClear)
  {
   if(val != 0)
-   SetZ(false);
+   Flag_Z = false;
  }
  else
-  SetZ(val == 0);
+  Flag_Z = (val == 0);
 
- SetN(static_cast<typename std::make_signed<T>::type>(val) < 0);
+ Flag_N  = (static_cast<typename std::make_signed<T>::type>(val) < 0);
 }
 
 INLINE uint8 M68K::GetCCR(void)
@@ -491,11 +484,11 @@ INLINE uint8 M68K::GetCCR(void)
 
 INLINE void M68K::SetCCR(uint8 val)
 {
- SetC((val >> 0) & 1);
- SetV((val >> 1) & 1);
- SetZ((val >> 2) & 1);
- SetN((val >> 3) & 1);
- SetX((val >> 4) & 1);
+ Flag_C   = ((val >> 0) & 1);
+ Flag_V   = ((val >> 1) & 1);
+ Flag_Z   = ((val >> 2) & 1);
+ Flag_N   = ((val >> 3) & 1);
+ Flag_X   = ((val >> 4) & 1);
 }
 
 INLINE uint16 M68K::GetSR(void)
@@ -507,7 +500,11 @@ INLINE void M68K::SetSR(uint16 val)
 {
  const uint8 new_srhb = (val >> 8) & 0xA7;
 
- SetCCR(val);
+ Flag_C   = ((val >> 0) & 1);
+ Flag_V   = ((val >> 1) & 1);
+ Flag_Z   = ((val >> 2) & 1);
+ Flag_N   = ((val >> 3) & 1);
+ Flag_X   = ((val >> 4) & 1);
 
  if((SRHB ^ new_srhb) & 0x20)	// Supervisor mode change
  {
@@ -518,34 +515,9 @@ INLINE void M68K::SetSR(uint16 val)
  RecalcInt();
 }
 
-INLINE uint8 M68K::GetIMask(void)
-{
- return (GetSR() >> 8) & 0x7;
-}
-
-INLINE void M68K::SetIMask(uint8 val)
-{
- SetSR((GetSR() & ~0x0700) | ((val & 0x7) << 8));
-}
-
 INLINE bool M68K::GetSVisor(void)
 {
  return (bool)(GetSR() & 0x2000);
-}
-
-INLINE void M68K::SetSVisor(bool value)
-{
- SetSR((GetSR() & ~0x2000) | (value << 13));
-}
-
-INLINE bool M68K::GetTrace(void)
-{
- return (bool)(GetSR() & 0x8000);
-}
-
-INLINE void M68K::SetTrace(bool value)
-{
- SetSR((GetSR() & ~0x8000) | (value << 15));
 }
 
 //
@@ -606,8 +578,8 @@ void NO_INLINE M68K::Exception(unsigned which, unsigned vecnum)
  const uint32 PC_save = PC;
  const uint16 SR_save = GetSR();
 
- SetSVisor(true);
- SetTrace(false);
+ SetSR((GetSR() & ~0x2000) | (1 << 13));
+ SetSR((GetSR() & ~0x8000));
  
  if(which == EXCEPTION_INT)
  {
@@ -615,7 +587,7 @@ void NO_INLINE M68K::Exception(unsigned which, unsigned vecnum)
 
   timestamp += 4;
 
-  SetIMask(IPL);
+  SetSR((GetSR() & ~0x0700) | ((IPL & 0x7) << 8));
 
   evn = BusIntAck(IPL);
 
@@ -680,7 +652,7 @@ INLINE void M68K::ADD(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
  {
   CalcZN<DT>(result);
   SetCX((result >> (sizeof(DT) * 8)) & 1);
-  SetV((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
+  Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
  }
 
  dst.write(result);
@@ -709,7 +681,7 @@ INLINE void M68K::ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 
  CalcZN<T, true>(result);
  SetCX((result >> (sizeof(T) * 8)) & 1);
- SetV((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
+ Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
 
  dst.write(result);
 }
@@ -762,7 +734,7 @@ INLINE DT M68K::Subtract(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
  {
   CalcZN<DT, X_form>(result);
   SetCX((result >> (sizeof(DT) * 8)) & 1);
-  SetV(((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
+  Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
  }
 
  return result;
@@ -827,8 +799,8 @@ INLINE void M68K::CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
  uint64 const result = (uint64)dst_data - src_data;
 
  CalcZN<DT>(result);
- SetC((result >> (sizeof(DT) * 8)) & 1);
- SetV(((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
+ Flag_C = ((result >> (sizeof(DT) * 8)) & 1);
+ Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
 }
 
 
@@ -855,8 +827,8 @@ INLINE void M68K::CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst)
   uint64 const result = (uint64)dst_data - src_data;
 
   CalcZN<T>(result);
-  SetC((result >> (sizeof(T) * 8)) & 1);
-  SetV(((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
+  Flag_C = ((result >> (sizeof(T) * 8)) & 1);
+  Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
 
   if(GetN() == GetV() && !GetZ())
   {
@@ -885,8 +857,8 @@ INLINE void M68K::OR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
  }
 
  CalcZN<T>(result);
- SetC(false);
- SetV(false);
+ Flag_C = (false);
+ Flag_V = false;
 
  dst.write(result);
 }
@@ -911,8 +883,8 @@ INLINE void M68K::EOR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
  }
 
  CalcZN<T>(result);
- SetC(false);
- SetV(false);
+ Flag_C = false;
+ Flag_V = false;
 
  dst.write(result);
 }
@@ -937,8 +909,8 @@ INLINE void M68K::AND(HAM<T, SAM> &src, HAM<T, DAM> &dst)
  }
 
  CalcZN<T>(result);
- SetC(false);
- SetV(false);
+ Flag_C = false;
+ Flag_V = false;
 
  dst.write(result);
 }
@@ -1064,8 +1036,8 @@ INLINE void M68K::MULU(HAM<T, SAM> &src, const unsigned dr)
   timestamp += 2;
 
  CalcZN<uint32>(result);
- SetC(false);
- SetV(false);
+ Flag_C = false;
+ Flag_V = false;
 
  D[dr] = result;
 }
@@ -1089,8 +1061,8 @@ INLINE void M68K::MULS(HAM<T, SAM> &src, const unsigned dr)
   timestamp += (tmp ^ (tmp << 1)) & 2;
 
  CalcZN<uint32>(result);
- SetC(false);
- SetV(false);
+ Flag_C = false;
+ Flag_V = false;
 
  D[dr] = result;
 }
@@ -1169,8 +1141,8 @@ INLINE void M68K::Divide(uint16 divisor, const unsigned dr)
  // Doesn't affect X flag
  //
  CalcZN<uint16>(tmp);
- SetC(false);
- SetV(oflow);
+ Flag_C = false;
+ Flag_V = oflow;
 
  if(!oflow)
   D[dr] = tmp;
@@ -1237,7 +1209,7 @@ INLINE void M68K::ABCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)	// ...XYZ, now I know
 
  CalcZN<uint8, true>(tmp);
  SetCX((bool)(tmp >> 8));
- SetV(V);
+ Flag_V = V;
 
  if(DAM == DATA_REG_DIR)
   timestamp += 2;
@@ -1272,7 +1244,7 @@ INLINE uint8 M68K::DecimalSubtractX(const uint8 src_data, const uint8 dst_data)
   V |= (prev_tmp & 0x80) & (~tmp & 0x80);
  }
 
- SetV(V);
+ Flag_V = V;
  CalcZN<uint8, true>(tmp);
  SetCX((bool)(tmp >> 8));
 
@@ -1343,7 +1315,7 @@ INLINE void M68K::BTST(HAM<T, TAM> &targ, unsigned wb)
  T const src_data = targ.read();
  wb &= (sizeof(T) << 3) - 1;
 
- SetZ(((src_data >> wb) & 1) == 0);
+ Flag_Z = (((src_data >> wb) & 1) == 0);
 }
 
 template<typename T, M68K::AddressMode TAM>
@@ -1352,7 +1324,7 @@ INLINE void M68K::BCHG(HAM<T, TAM> &targ, unsigned wb)
  T const src_data = targ.read();
  wb &= (sizeof(T) << 3) - 1;
 
- SetZ(((src_data >> wb) & 1) == 0);
+ Flag_Z = (((src_data >> wb) & 1) == 0);
 
  targ.write(src_data ^ (1U << wb));
 }
@@ -1363,7 +1335,7 @@ INLINE void M68K::BCLR(HAM<T, TAM> &targ, unsigned wb)
  T const src_data = targ.read();
  wb &= (sizeof(T) << 3) - 1;
 
- SetZ(((src_data >> wb) & 1) == 0);
+ Flag_Z = (((src_data >> wb) & 1) == 0);
 
  targ.write(src_data & ~(1U << wb));
 }
@@ -1374,7 +1346,7 @@ INLINE void M68K::BSET(HAM<T, TAM> &targ, unsigned wb)
  T const src_data = targ.read();
  wb &= (sizeof(T) << 3) - 1;
 
- SetZ(((src_data >> wb) & 1) == 0);
+ Flag_Z = (((src_data >> wb) & 1) == 0);
 
  targ.write(src_data | (1U << wb));
 }
@@ -1392,8 +1364,8 @@ INLINE void M68K::MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst)
  if(DAM != ADDR_REG_DIR)
  {
   CalcZN<T>(tmp);
-  SetV(false);
-  SetC(false);
+  Flag_V = false;
+  Flag_C = false;
  }
 
  dst.write(tmp);
@@ -1478,11 +1450,9 @@ INLINE void M68K::ShiftBase(HAM<T, TAM> &targ, unsigned count)
  if(TAM == DATA_REG_DIR)
   timestamp += (sizeof(T) == 4) ? 4 : 2;
 
+ // X is unaffected with a shift count of 0!
  if(count == 0)
- {
-  // X is unaffected with a shift count of 0!
-  SetC(false);
- }
+  Flag_C = false;
  else
  {
   bool shifted_out = false;
@@ -1523,9 +1493,9 @@ INLINE void M68K::ShiftBase(HAM<T, TAM> &targ, unsigned count)
  CalcZN<T>(result);
 
  if(Arithmetic)
-  SetV((vchange >> (sizeof(T) * 8 - 1)) & 1);
+  Flag_V = ((vchange >> (sizeof(T) * 8 - 1)) & 1);
  else
-  SetV(false);
+  Flag_V = (false);
 
  targ.write(result);
 }
@@ -1566,9 +1536,9 @@ INLINE void M68K::RotateBase(HAM<T, TAM> &targ, unsigned count)
  if(count == 0)
  {
   if(X_Form)
-   SetC(GetX());
+   Flag_C = GetX();
   else
-   SetC(false);
+   Flag_C = false;
  }
  else
  {
@@ -1595,13 +1565,13 @@ INLINE void M68K::RotateBase(HAM<T, TAM> &targ, unsigned count)
    }
   } while(--count != 0);
 
-  SetC(shifted_out);
+  Flag_C  = shifted_out;
   if(X_Form)
-   SetX(shifted_out);
+   Flag_X = shifted_out;
  }
 
  CalcZN<T>(result);
- SetV(false);
+ Flag_V = (false);
 
  targ.write(result);
 }
@@ -1636,8 +1606,8 @@ INLINE void M68K::ROXR(HAM<T, TAM> &targ, unsigned count)
 static MDFN_FASTCALL uint8 TAS_Callback(M68K* zptr, uint8 data)
 {
  zptr->CalcZN<uint8>(data);
- zptr->SetC(false);
- zptr->SetV(false);
+ zptr->Flag_C = false;
+ zptr->Flag_V = false;
 
  data |= 0x80;
  return data;
@@ -1661,8 +1631,8 @@ INLINE void M68K::TST(HAM<T, DAM> &dst)
 
  CalcZN<T>(dst_data);
 
- SetC(false);
- SetV(false);
+ Flag_C = false;
+ Flag_V = false;
 }
 
 
@@ -1677,11 +1647,11 @@ INLINE void M68K::CLR(HAM<T, DAM> &dst)
  if(sizeof(T) == 4 && DAM == DATA_REG_DIR)
   timestamp += 2;
 
- SetZ(true);
- SetN(false);
+ Flag_Z = true;
+ Flag_N = false;
 
- SetC(false);
- SetV(false);
+ Flag_C = false;
+ Flag_V = false;
 
  dst.write(0);
 }
@@ -1700,8 +1670,8 @@ INLINE void M68K::NOT(HAM<T, DAM> &dst)
  result = ~result;
 
  CalcZN<T>(result);
- SetC(false);
- SetV(false);
+ Flag_C = false;
+ Flag_V = false;
 
  dst.write(result);
 }
@@ -1722,8 +1692,8 @@ INLINE void M68K::EXT(HAM<T, DAM> &dst)
   result = (int16)result;
 
  CalcZN<T>(result);
- SetC(false);
- SetV(false);
+ Flag_C = false;
+ Flag_V = false;
 
  dst.write(result);
 }
@@ -1736,8 +1706,8 @@ INLINE void M68K::SWAP(const unsigned dr)
  D[dr] = (D[dr] << 16) | (D[dr] >> 16);
 
  CalcZN<uint32>(D[dr]);
- SetC(false);
- SetV(false);
+ Flag_C = false;
+ Flag_V = false;
 }
 
 
@@ -2150,9 +2120,9 @@ void NO_INLINE M68K::Run(int32 run_until_time)
 			 {
 				 if(XPending & XPENDING_MASK_RESET)
 				 {
-					 SetSVisor(true);
-					 SetTrace(false);
-					 SetIMask(0x7);
+					 SetSR((GetSR() & ~0x2000) | (1 << 13));
+					 SetSR((GetSR() & ~0x8000));
+					 SetSR((GetSR() & ~0x0700) | (0x7 << 8));
 
 					 A[7] = Read<uint32>(VECNUM_RESET_SSP << 2);
 					 PC = Read<uint32>(VECNUM_RESET_PC << 2);

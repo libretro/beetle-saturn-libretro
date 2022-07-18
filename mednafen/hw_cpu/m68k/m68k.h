@@ -160,12 +160,6 @@ class M68K
  template<typename T, M68K::AddressMode am>
  struct HAM;
 
- void SetC(bool val);
- void SetV(bool val);
- void SetZ(bool val);
- void SetN(bool val);
- void SetX(bool val);
-
  bool GetC(void);
  bool GetV(void);
  bool GetZ(void);
@@ -182,13 +176,7 @@ class M68K
  uint16 GetSR(void);
  void SetSR(uint16 val);
 
- uint8 GetIMask(void);
- void SetIMask(uint8 val);
-
  bool GetSVisor(void);
- void SetSVisor(bool value);
- bool GetTrace(void);
- void SetTrace(bool value);
 
  //
  //
