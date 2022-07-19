@@ -363,7 +363,7 @@ int MDFNSS_StateAction(void *st_p, int load, int data_only, SFORMAT *sf, const c
    return(MDFNSS_StateAction_internal(st, load, 0, &love));
 }
 
-extern int LibRetro_StateAction( StateMem* sm, const unsigned load, const bool data_only );
+extern int LibRetro_StateAction( StateMem* sm, const unsigned load);
 
 int MDFNSS_SaveSM(void *st_p, uint32_t ver, const void*, const void*, const void*)
 {
@@ -382,7 +382,7 @@ int MDFNSS_SaveSM(void *st_p, uint32_t ver, const void*, const void*, const void
 	smem_write(st, header, 32);
 
 	// Call out to main save state function.
-	success = LibRetro_StateAction( st, 0 /*SAVE*/, false );
+	success = LibRetro_StateAction( st, 0 /*SAVE*/);
 
 	// Circle back and fill in the file size.
 	uint32_t sizy = st->loc;
@@ -411,5 +411,5 @@ int MDFNSS_LoadSM(void *st_p, uint32_t ver)
 		return(0);
 
 	// Call out to main save state function.
-	return LibRetro_StateAction( st, 1 /*LOAD*/, false );
+	return LibRetro_StateAction( st, 1 /*LOAD*/);
 }

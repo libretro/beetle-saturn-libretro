@@ -171,8 +171,6 @@ static int simple_lec(unsigned char *frame)
 
 int ValidateRawSector(unsigned char *frame, bool xaMode)
 {  
- int lec_did_sth = false;
-
   /* Do simple L-EC.
      It seems that drives stop their internal L-EC as soon as the
      EDC is okay, so we may see uncorrected errors in the parity bytes.
@@ -189,7 +187,7 @@ int ValidateRawSector(unsigned char *frame, bool xaMode)
     memset(frame + 12, 0, 4);
    }
 
-   lec_did_sth = simple_lec(frame);
+   simple_lec(frame);
 
    if(xaMode)
     memcpy(frame + 12, header, 4);

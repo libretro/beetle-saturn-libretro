@@ -1254,9 +1254,8 @@ INLINE bool EventsPacker::Restore(const unsigned state_version)
  return true;
 }
 
-MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load, const bool data_only )
+MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load)
 {
-   if (!data_only)
    {
       sha256_digest sr_dig = BIOS_SHA256;
       int cart_type = ActiveCartType;
@@ -1268,7 +1267,7 @@ MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load, const boo
          SFEND
       };
 
-      if (MDFNSS_StateAction( sm, load, data_only, SRDStateRegs, "BIOS_HASH", true ) == 0)
+      if (MDFNSS_StateAction( sm, load, false, SRDStateRegs, "BIOS_HASH", true ) == 0)
          return 0;
 
       if ( load )
@@ -1289,8 +1288,6 @@ MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load, const boo
  bool RecordedNeedEmuICache = load ? false : NeedEmuICache;
  EventsPacker ep;
  ep.Save();
-
- /* static_assert(sizeof(ep.event_order) == 12 && (SS_EVENT_SCU_INT - (SS_EVENT__SYNFIRST + 1)) == 11, "baaah"); */
 
  SFORMAT StateRegs[] =
  {
@@ -1320,28 +1317,26 @@ MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load, const boo
   SFEND
  };
 
- CPU[0].StateAction(sm, load, data_only, "SH2-M");
- CPU[1].StateAction(sm, load, data_only, "SH2-S");
- SCU_StateAction(sm, load, data_only);
- SMPC_StateAction(sm, load, data_only);
+ CPU[0].StateAction(sm, load, false, "SH2-M");
+ CPU[1].StateAction(sm, load, false, "SH2-S");
+ SCU_StateAction(sm, load, false);
+ SMPC_StateAction(sm, load, false);
 
- CDB_StateAction(sm, load, data_only);
- VDP1::StateAction(sm, load, data_only);
- VDP2::StateAction(sm, load, data_only);
+ CDB_StateAction(sm, load, false);
+ VDP1::StateAction(sm, load, false);
+ VDP2::StateAction(sm, load, false);
 
- SOUND_StateAction(sm, load, data_only);
- CART_StateAction(sm, load, data_only);
+ SOUND_StateAction(sm, load, false);
+ CART_StateAction(sm, load, false);
  //
-   if (MDFNSS_StateAction(sm, load, data_only, StateRegs, "MAIN", false) == 0)
+   if (MDFNSS_StateAction(sm, load, false, StateRegs, "MAIN", false) == 0)
    {
       log_cb( RETRO_LOG_ERROR, "Failed to load MAIN state objects.\n" );
       return 0;
    }
 
-   if (input_StateAction( sm, load, data_only ) == 0)
-   {
+   if (input_StateAction( sm, load, false ) == 0)
       log_cb( RETRO_LOG_WARN, "Input state failed.\n" );
-   }
 
    if ( load )
    {
