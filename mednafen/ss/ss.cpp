@@ -1375,19 +1375,6 @@ static const MDFNSetting_EnumList RTCLang_List[] =
  { NULL, 0 },
 };
 
-static const CheatInfoStruct CheatInfo =
-{
- NULL,
- NULL,
-
- CheatMemRead,
- CheatMemWrite,
-
- CheatFormatInfo_Empty,
-
- true
-};
-
 MDFNGI EmulatedSS =
 {
    0,	// MasterClock
