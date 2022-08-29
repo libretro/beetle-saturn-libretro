@@ -942,85 +942,105 @@ uint32 GetRegister(const unsigned id, char* const special, const uint32 special_
 {
  switch(id)
  {
-  case GSREG_LINE:
-	return VCounter;
-  case GSREG_DON:
-	return DisplayOn;
-  case GSREG_BM:
-	return BorderMode;
-  case GSREG_IM:
-	return InterlaceMode;
-  case GSREG_VRES:
-	return VRes;
-  case GSREG_HRES:
-	return HRes;
-  case GSREG_RAMCTL:
-	return RAMCTL_Raw;
-  case GSREG_CYCA0:
-  case GSREG_CYCA1:
-  case GSREG_CYCB0:
-  case GSREG_CYCB1:
-	{
-	 const size_t idx = (id - GSREG_CYCA0);
-	 return (RawRegs[(0x10 >> 1) + (idx << 1)] << 16) | RawRegs[(0x12 >> 1) + (idx << 1)];
-	}
-  case GSREG_BGON:
-	return BGON;
-  case GSREG_MZCTL:
-	return RawRegs[0x22 >> 1] & 0xFF1F;
-  case GSREG_SFSEL:
-	return RawRegs[0x24 >> 1] & 0x001F;
-  case GSREG_SFCODE:
-	return RawRegs[0x26 >> 1];
-  case GSREG_CHCTLA:
-	return RawRegs[0x28 >> 1] & 0x3F7F;
-  case GSREG_CHCTLB:
-	return RawRegs[0x2A >> 1] & 0x7733;
-  case GSREG_SCXIN0:
-	return RawRegs[0x70 >> 1] & 0x07FF;
+	 case GSREG_LINE:
+		 return VCounter;
+	 case GSREG_DON:
+		 return DisplayOn;
+	 case GSREG_BM:
+		 return BorderMode;
+	 case GSREG_IM:
+		 return InterlaceMode;
+	 case GSREG_VRES:
+		 return VRes;
+	 case GSREG_HRES:
+		 return HRes;
+	 case GSREG_RAMCTL:
+		 return RAMCTL_Raw;
+	 case GSREG_CYCA0:
+	 case GSREG_CYCA1:
+	 case GSREG_CYCB0:
+	 case GSREG_CYCB1:
+		 {
+			 const size_t idx = (id - GSREG_CYCA0);
+			 return (RawRegs[(0x10 >> 1) + (idx << 1)] << 16) | RawRegs[(0x12 >> 1) + (idx << 1)];
+		 }
+	 case GSREG_BGON:
+		 return BGON;
+	 case GSREG_MZCTL:
+		 return RawRegs[0x22 >> 1] & 0xFF1F;
+	 case GSREG_SFSEL:
+		 return RawRegs[0x24 >> 1] & 0x001F;
+	 case GSREG_SFCODE:
+		 return RawRegs[0x26 >> 1];
+	 case GSREG_CHCTLA:
+		 return RawRegs[0x28 >> 1] & 0x3F7F;
+	 case GSREG_CHCTLB:
+		 return RawRegs[0x2A >> 1] & 0x7733;
+	 case GSREG_SCXIN0:
+		 return RawRegs[0x70 >> 1] & 0x07FF;
 
-  case GSREG_SCXDN0:
-	return RawRegs[0x72 >> 1] & 0xFF00;
-  case GSREG_SCYIN0:
-	return RawRegs[0x74 >> 1] & 0x07FF;
-  case GSREG_SCYDN0:
-	return RawRegs[0x76 >> 1] & 0xFF00;
-  case GSREG_ZMXIN0:
-	return RawRegs[0x78 >> 1] & 0x0007;
-  case GSREG_ZMXDN0:
-	return RawRegs[0x7A >> 1] & 0xFF00;
-  case GSREG_ZMYIN0:
-	return RawRegs[0x7C >> 1] & 0x0007;
-  case GSREG_ZMYDN0:
-	return RawRegs[0x7E >> 1] & 0xFF00;
-  case GSREG_SCXIN1:
-	return RawRegs[0x80 >> 1] & 0x07FF;
-  case GSREG_SCXDN1:
-	return RawRegs[0x82 >> 1] & 0xFF00;
-  case GSREG_SCYIN1:
-	return RawRegs[0x84 >> 1] & 0x07FF;
-  case GSREG_SCYDN1:
-	return RawRegs[0x86 >> 1] & 0xFF00;
-  case GSREG_ZMXIN1:
-	return RawRegs[0x88 >> 1] & 0x0007;
-  case GSREG_ZMXDN1:
-	return RawRegs[0x8A >> 1] & 0xFF00;
-  case GSREG_ZMYIN1:
-	return RawRegs[0x8C >> 1] & 0x0007;
-  case GSREG_ZMYDN1:
-	return RawRegs[0x8E >> 1] & 0xFF00;
-  case GSREG_SCXN2:
-	return RawRegs[0x90 >> 1] & 0x07FF;
-  case GSREG_SCYN2:
-	return RawRegs[0x92 >> 1] & 0x07FF;
-  case GSREG_SCXN3:
-	return RawRegs[0x94 >> 1] & 0x07FF;
-  case GSREG_SCYN3:
-	return RawRegs[0x96 >> 1] & 0x07FF;
-  case GSREG_ZMCTL:
-	return RawRegs[0x98 >> 1] & 0x0303;
-  case GSREG_SCRCTL:
-	return RawRegs[0x9A >> 1] & 0x3F3F;
+	 case GSREG_SCXDN0:
+		 return RawRegs[0x72 >> 1] & 0xFF00;
+	 case GSREG_SCYIN0:
+		 return RawRegs[0x74 >> 1] & 0x07FF;
+	 case GSREG_SCYDN0:
+		 return RawRegs[0x76 >> 1] & 0xFF00;
+	 case GSREG_ZMXIN0:
+		 return RawRegs[0x78 >> 1] & 0x0007;
+	 case GSREG_ZMXDN0:
+		 return RawRegs[0x7A >> 1] & 0xFF00;
+	 case GSREG_ZMYIN0:
+		 return RawRegs[0x7C >> 1] & 0x0007;
+	 case GSREG_ZMYDN0:
+		 return RawRegs[0x7E >> 1] & 0xFF00;
+	 case GSREG_SCXIN1:
+		 return RawRegs[0x80 >> 1] & 0x07FF;
+	 case GSREG_SCXDN1:
+		 return RawRegs[0x82 >> 1] & 0xFF00;
+	 case GSREG_SCYIN1:
+		 return RawRegs[0x84 >> 1] & 0x07FF;
+	 case GSREG_SCYDN1:
+		 return RawRegs[0x86 >> 1] & 0xFF00;
+	 case GSREG_ZMXIN1:
+		 return RawRegs[0x88 >> 1] & 0x0007;
+	 case GSREG_ZMXDN1:
+		 return RawRegs[0x8A >> 1] & 0xFF00;
+	 case GSREG_ZMYIN1:
+		 return RawRegs[0x8C >> 1] & 0x0007;
+	 case GSREG_ZMYDN1:
+		 return RawRegs[0x8E >> 1] & 0xFF00;
+	 case GSREG_SCXN2:
+		 return RawRegs[0x90 >> 1] & 0x07FF;
+	 case GSREG_SCYN2:
+		 return RawRegs[0x92 >> 1] & 0x07FF;
+	 case GSREG_SCXN3:
+		 return RawRegs[0x94 >> 1] & 0x07FF;
+	 case GSREG_SCYN3:
+		 return RawRegs[0x96 >> 1] & 0x07FF;
+	 case GSREG_ZMCTL:
+		 return RawRegs[0x98 >> 1] & 0x0303;
+	 case GSREG_SCRCTL:
+		 return RawRegs[0x9A >> 1] & 0x3F3F;
+	 case GSREG_RPMD:
+		 return RawRegs[0xB0 >> 1] & 0x0003;
+	 case GSREG_RPRCTL:
+		 return RawRegs[0xB2 >> 1] & 0x0707;
+	 case GSREG_KTCTL:
+		 return RawRegs[0xB4 >> 1] & 0x1F1F;
+	 case GSREG_KTAOF:
+		 return RawRegs[0xB6 >> 1] & 0x0707;
+	 case GSREG_OVPNRA:
+		 return RawRegs[0xB8 >> 1];
+	 case GSREG_OVPNRB:
+		 return RawRegs[0xBA >> 1];
+	 case GSREG_RPTA:
+		 return ((RawRegs[0xBC >> 1] & 0x0007) << 16) | (RawRegs[0xBE >> 1] );
+	 case GSREG_PRINA:
+		 return RawRegs[0xF8 >> 1] & 0x0707;
+	 case GSREG_PRINB:
+		 return RawRegs[0xFA >> 1] & 0x0707;
+	 case GSREG_PRIR:
+		 return RawRegs[0xFC >> 1] & 0x0007;
  }
 
  return 0xDEADBEEF;
@@ -1028,130 +1048,172 @@ uint32 GetRegister(const unsigned id, char* const special, const uint32 special_
 
 void SetRegister(const unsigned id, const uint32 value)
 {
- int rr = -1;
+   int rr = -1;
 
- switch(id)
- {
-  case GSREG_BGON:
-	BGON = value & 0x1F3F;
-	rr = 0x20 >> 1;
-	break;
+   switch(id)
+   {
+      case GSREG_BGON:
+         BGON = value & 0x1F3F;
+         rr = 0x20 >> 1;
+         break;
 
-  case GSREG_MZCTL:
-	rr = 0x22 >> 1;
-	break;
+      case GSREG_MZCTL:
+         rr = 0x22 >> 1;
+         break;
 
-  case GSREG_SFSEL:
-	rr = 0x24 >> 1;
-	break;
+      case GSREG_SFSEL:
+         rr = 0x24 >> 1;
+         break;
 
-  case GSREG_SFCODE:
-	rr = 0x26 >> 1;
-	break;
+      case GSREG_SFCODE:
+         rr = 0x26 >> 1;
+         break;
 
-  case GSREG_CHCTLA:
-	rr = 0x28 >> 1;
-	break;
+      case GSREG_CHCTLA:
+         rr = 0x28 >> 1;
+         break;
 
-  case GSREG_CHCTLB:
-	rr = 0x2A >> 1;
-	break;
-  //
-  //
-  case GSREG_SCXIN0:
-	rr = 0x70 >> 1;
-	break;
+      case GSREG_CHCTLB:
+         rr = 0x2A >> 1;
+         break;
+         //
+         //
+      case GSREG_SCXIN0:
+         rr = 0x70 >> 1;
+         break;
 
-  case GSREG_SCXDN0:
-	rr = 0x72 >> 1;
-	break;
+      case GSREG_SCXDN0:
+         rr = 0x72 >> 1;
+         break;
 
-  case GSREG_SCYIN0:
-	rr = 0x74 >> 1;
-	break;
+      case GSREG_SCYIN0:
+         rr = 0x74 >> 1;
+         break;
 
-  case GSREG_SCYDN0:
-	rr = 0x76 >> 1;
-	break;
+      case GSREG_SCYDN0:
+         rr = 0x76 >> 1;
+         break;
 
-  case GSREG_ZMXIN0:
-	rr = 0x78 >> 1;
-	break;
+      case GSREG_ZMXIN0:
+         rr = 0x78 >> 1;
+         break;
 
-  case GSREG_ZMXDN0:
-	rr = 0x7A >> 1;
-	break;
+      case GSREG_ZMXDN0:
+         rr = 0x7A >> 1;
+         break;
 
-  case GSREG_ZMYIN0:
-	rr = 0x7C >> 1;
-	break;
+      case GSREG_ZMYIN0:
+         rr = 0x7C >> 1;
+         break;
 
-  case GSREG_ZMYDN0:
-	rr = 0x7E >> 1;
-	break;
+      case GSREG_ZMYDN0:
+         rr = 0x7E >> 1;
+         break;
 
-  case GSREG_SCXIN1:
-	rr = 0x80 >> 1;
-	break;
+      case GSREG_SCXIN1:
+         rr = 0x80 >> 1;
+         break;
 
-  case GSREG_SCXDN1:
-	rr = 0x82 >> 1;
-	break;
+      case GSREG_SCXDN1:
+         rr = 0x82 >> 1;
+         break;
 
-  case GSREG_SCYIN1:
-	rr = 0x84 >> 1;
-	break;
+      case GSREG_SCYIN1:
+         rr = 0x84 >> 1;
+         break;
 
-  case GSREG_SCYDN1:
-	rr = 0x86 >> 1;
-	break;
+      case GSREG_SCYDN1:
+         rr = 0x86 >> 1;
+         break;
 
-  case GSREG_ZMXIN1:
-	rr = 0x88 >> 1;
-	break;
+      case GSREG_ZMXIN1:
+         rr = 0x88 >> 1;
+         break;
 
-  case GSREG_ZMXDN1:
-	rr = 0x8A >> 1;
-	break;
+      case GSREG_ZMXDN1:
+         rr = 0x8A >> 1;
+         break;
 
-  case GSREG_ZMYIN1:
-	rr = 0x8C >> 1;
-	break;
+      case GSREG_ZMYIN1:
+         rr = 0x8C >> 1;
+         break;
 
-  case GSREG_ZMYDN1:
-	rr = 0x8E >> 1;
-	break;
+      case GSREG_ZMYDN1:
+         rr = 0x8E >> 1;
+         break;
 
-  case GSREG_SCXN2:
-	rr = 0x90 >> 1;
-	break;
+      case GSREG_SCXN2:
+         rr = 0x90 >> 1;
+         break;
 
-  case GSREG_SCYN2:
-	rr = 0x92 >> 1;
-	break;
+      case GSREG_SCYN2:
+         rr = 0x92 >> 1;
+         break;
 
-  case GSREG_SCXN3:
-	rr = 0x94 >> 1;
-	break;
+      case GSREG_SCXN3:
+         rr = 0x94 >> 1;
+         break;
 
-  case GSREG_SCYN3:
-	rr = 0x96 >> 1;
-	break;
+      case GSREG_SCYN3:
+         rr = 0x96 >> 1;
+         break;
 
-  case GSREG_ZMCTL:
-	rr = 0x98 >> 1;
-	break;
+      case GSREG_ZMCTL:
+         rr = 0x98 >> 1;
+         break;
 
-  case GSREG_SCRCTL:
-	rr = 0x9A >> 1;
-	break;
- }
+      case GSREG_SCRCTL:
+         rr = 0x9A >> 1;
+         break;
 
- if(rr >= 0)
- {
-  RawRegs[rr] = (uint16)value;
-  VDP2REND_Write16_DB(0x180000 + (rr << 1), RawRegs[rr]);
- }
+      case GSREG_RPMD:
+         rr = 0xB0 >> 1;
+         break;
+
+      case GSREG_RPRCTL:
+         RPRCTL[0] = (value >> 0) & 0x7;
+         RPRCTL[1] = (value >> 8) & 0x7;
+
+         rr = 0xB2 >> 1;
+         break;
+
+      case GSREG_KTCTL:
+         rr = 0xB4 >> 1;
+         break;
+
+      case GSREG_KTAOF:
+         KTAOF[0] = (value >> 0) & 0x7;
+         KTAOF[1] = (value >> 8) & 0x7;
+
+         rr = 0xB6 >> 1;
+         break;
+
+      case GSREG_OVPNRA:
+         rr = 0xB8 >> 1;
+         break;
+
+      case GSREG_OVPNRB:
+         rr = 0xBA >> 1;
+         break;
+
+      case GSREG_PRINA:
+         rr = 0xF8 >> 1;
+         break;
+
+      case GSREG_PRINB:
+         rr = 0xFA >> 1;
+         break;
+
+      case GSREG_PRIR:
+         rr = 0xFC >> 1;
+         break;
+   }
+
+   if(rr >= 0)
+   {
+      RawRegs[rr] = (uint16)value;
+      VDP2REND_Write16_DB(0x180000 + (rr << 1), RawRegs[rr]);
+   }
 }
 
 uint8 PeekVRAM(uint32 addr)
