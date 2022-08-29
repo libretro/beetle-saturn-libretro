@@ -108,14 +108,9 @@ typedef struct
 #define MDFN_HIDE
 #define NO_CLONE
 
-#undef require
-#define require( expr ) assert( expr )
-
 #ifdef __cplusplus
 template<typename T> typename std::remove_all_extents<T>::type* MDAP(T* v) { return (typename std::remove_all_extents<T>::type*)v; }
 #include "error.h"
 #endif
-
-#define gettext_noop(String)	String
 
 #endif
