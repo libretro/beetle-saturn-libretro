@@ -37,7 +37,6 @@
 
 #include <stdint.h>
 #include <ctype.h>
-#include <errno.h>
 #include <fcntl.h>
 #include <math.h>
 #include <sys/stat.h>
