@@ -405,11 +405,11 @@ int MDFNSS_LoadSM(void *st_p, uint32_t ver)
 	if ( memcmp( header, "MDFNSVST", 8 ) )
 		return(0);
 
-	// Different core version?
+	// Unsupported state version?
 	stateversion = MDFN_de32lsb( header + 16 );
-	if ( stateversion != ver )
+	if ( stateversion < 0x900 )
 		return(0);
 
 	// Call out to main save state function.
-	return LibRetro_StateAction( st, 1 /*LOAD*/);
+	return LibRetro_StateAction( st, stateversion /*LOAD*/);
 }
