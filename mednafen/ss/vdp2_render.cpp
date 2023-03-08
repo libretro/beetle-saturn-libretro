@@ -32,6 +32,7 @@
 
 #include <retro_timers.h>
 #include <rthreads/rthreads.h>
+#include <rthreads/rsemaphore.h>
 #include <array>
 #include <atomic>
 #include <algorithm>
@@ -3105,6 +3106,7 @@ static size_t WQ_ReadPos, WQ_WritePos;
 static std::atomic_uint_least32_t WQ_InCount;
 static std::atomic_int_least32_t DrawCounter;
 static bool DoBusyWait;
+ssem_t* WakeupSem;
 static bool DoWakeupIfNecessary;
 
 static INLINE void WWQ(uint16 command, uint32 arg32 = 0, uint16 arg16 = 0)
@@ -3131,9 +3133,12 @@ static void/*int*/ RThreadEntry(void* data)
   while(MDFN_UNLIKELY(WQ_InCount.load(std::memory_order_acquire) == 0))
   {
    if(!DoBusyWait)
-    retro_sleep(1);
+    ssem_wait(WakeupSem);
    else
    {
+#ifdef MDFN_SS_BUSYWAIT_PAUSE
+    asm volatile("pause\n\tpause\n\tpause\n\tpause\n\tpause\n\tpause\n\tpause\n\t");
+#else
     for(int i = 1000; i; i--)
     {
      #ifdef _MSC_VER
@@ -3142,6 +3147,7 @@ static void/*int*/ RThreadEntry(void* data)
      asm volatile("nop\n\t");
      #endif
     }
+#endif
    }
   }
   //
@@ -3210,6 +3216,7 @@ void VDP2REND_Init(const bool IsPAL, const uint64 affinity)
  WQ_WritePos = 0;
  WQ_InCount.store(0, std::memory_order_release); 
  DrawCounter.store(0, std::memory_order_release);
+ WakeupSem = ssem_new(0);
  RThread = sthread_create(RThreadEntry, NULL);
 }
 
@@ -3272,10 +3279,22 @@ void VDP2REND_SetGetVideoParams(MDFNGI* gi, const bool caspect, const int sls, c
 
 void VDP2REND_Kill(void)
 {
+ if(WakeupSem != NULL)
+ {
+  WWQ(COMMAND_SET_BUSYWAIT, true);
+  ssem_signal(WakeupSem);
+ }
+
  if(RThread != NULL)
  {
   WWQ(COMMAND_EXIT);
   sthread_join(RThread);
+ }
+
+ if(WakeupSem != NULL)
+ {
+  ssem_free(WakeupSem);
+  WakeupSem = NULL;
  }
 }
 
@@ -3304,13 +3323,12 @@ void VDP2REND_StartFrame(EmulateSpecStruct* espec_arg, const bool clock28m, cons
 void VDP2REND_EndFrame(void)
 {
  while(MDFN_UNLIKELY(DrawCounter.load(std::memory_order_acquire) != 0))
-#if 0
  {
-  //retro_sleep(1);
+   ssem_signal(WakeupSem);
+   retro_sleep(1);
  }
-#else
- ;
-#endif
+
+ WWQ(COMMAND_SET_BUSYWAIT, false);
 
  if(NextOutLine < VisibleLines)
  {
@@ -3349,8 +3367,26 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32 crt_line, const bool fi
   if(espec->InterlaceOn)
    out_line = (out_line << 1) | espec->InterlaceField;
 
-      DrawCounter.fetch_add(1, std::memory_order_release);
-      WWQ(COMMAND_DRAW_LINE, ((uint16)vdp2_line << 16) | out_line, field);
+  auto wdcq = DrawCounter.fetch_add(1, std::memory_order_release);
+  WWQ(COMMAND_DRAW_LINE, ((uint16)vdp2_line << 16) | out_line, field);
+  //
+  //
+  if(crt_line == bwthresh)
+  {
+   WWQ(COMMAND_SET_BUSYWAIT, true);
+   ssem_signal(WakeupSem);
+  }
+  else if(crt_line < bwthresh)
+  {
+   if(wdcq == 0)
+    DoWakeupIfNecessary = true;
+   else if((wdcq + 1) >= 64 && DoWakeupIfNecessary)
+   {
+    //printf("Post Wakeup: %3d --- crt_line=%3d\n", wdcq + 1, crt_line);
+    ssem_signal(WakeupSem);
+    DoWakeupIfNecessary = false;
+   }
+  }
 
   NextOutLine = crt_line + 1;
  }
@@ -3385,7 +3421,10 @@ void VDP2REND_Write16_DB(uint32 A, uint16 DB)
 void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16 (&rr)[0x100], uint16 (&cr)[2048], uint16 (&vr)[262144])
 {
  while(MDFN_UNLIKELY(WQ_InCount.load(std::memory_order_acquire) != 0))
+ {
+  ssem_signal(WakeupSem);
   retro_sleep(1);
+ }
  //
  //
  //
