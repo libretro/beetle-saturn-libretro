@@ -187,7 +187,8 @@ SOURCES_C += 	 $(LIBRETRO_COMM_DIR)/streams/file_stream.c \
 		 $(LIBRETRO_COMM_DIR)/time/rtime.c
 
 ifeq ($(NEED_THREADING), 1)
-SOURCES_C += $(LIBRETRO_COMM_DIR)/rthreads/rthreads.c
+SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/rthreads/rthreads.c \
+		 $(LIBRETRO_COMM_DIR)/rthreads/rsemaphore.c
 endif
 
 endif
