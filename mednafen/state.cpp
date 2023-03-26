@@ -46,7 +46,16 @@ int32_t smem_write(StateMem *st, void *buffer, uint32_t len)
 
       while(newsize < (len + st->loc))
          newsize *= 2;
-      st->data = (uint8_t *)realloc(st->data, newsize);
+
+      // Don't realloc data_frontend memory
+      if (st->data == st->data_frontend && st->data != NULL)
+      {
+         st->data = (uint8_t *)malloc(newsize);
+         memcpy(st->data, st->data_frontend, st->malloced);
+      }
+      else
+         st->data = (uint8_t *)realloc(st->data, newsize);
+
       st->malloced = newsize;
    }
    memcpy(st->data + st->loc, buffer, len);

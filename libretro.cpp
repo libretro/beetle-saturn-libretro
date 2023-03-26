@@ -904,6 +904,7 @@ size_t retro_serialize_size(void)
       // Do a fake save to see.
       StateMem st;
 
+      st.data_frontend  = NULL;
       st.data           = NULL;
       st.loc            = 0;
       st.len            = 0;
@@ -925,26 +926,32 @@ size_t retro_serialize_size(void)
 
 bool retro_serialize(void *data, size_t size)
 {
-   /* it seems that mednafen can realloc pointers sent to it?
-      since we don't know the disposition of void* data (is it safe to realloc?) we have to manage a new buffer here */
    StateMem st;
    bool ret          = false;
-   uint8_t *_dat     = (uint8_t*)malloc(size);
 
-   st.data           = _dat;
+   st.data_frontend  = (uint8_t*)data;
+   st.data           = st.data_frontend;
    st.loc            = 0;
    st.len            = 0;
    st.malloced       = size;
    st.initial_malloc = 0;
 
+   /* MDFNSS_SaveSM will malloc separate memory for st.data to complete
+    * the save if the passed-in size is too small */
    ret               = MDFNSS_SaveSM(&st, MEDNAFEN_CORE_VERSION_NUMERIC, NULL, NULL, NULL);
 
-   /* there are still some errors with the save states, the size seems to change on some games for now just log when this happens */
    if (st.len != size)
-      log_cb(RETRO_LOG_WARN, "warning, save state size has changed\n");
+   {
+      log_cb(RETRO_LOG_WARN, "Warning: Save state size has changed\n");
 
-   memcpy(data,st.data,size);
-   free(st.data);
+      if (st.data != st.data_frontend)
+      {
+         free(st.data);
+         serialize_size = st.len;
+         ret            = false;
+      }
+   }
+
    return ret;
 }
 
@@ -952,7 +959,8 @@ bool retro_unserialize(const void *data, size_t size)
 {
    StateMem st;
 
-   st.data           = (uint8_t*)data;
+   st.data_frontend  = (uint8_t*)data;
+   st.data           = st.data_frontend;
    st.loc            = 0;
    st.len            = size;
    st.malloced       = 0;
