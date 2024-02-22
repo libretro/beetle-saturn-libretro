@@ -164,7 +164,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "40",       NULL },
          { NULL, NULL },
       },
-      "0"
+      "8"
    },
    {
       "beetle_saturn_last_scanline",
@@ -206,7 +206,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "239",       NULL },
          { NULL, NULL },
       },
-      "239"
+      "231"
    },
    {
       "beetle_saturn_initial_scanline_pal",
@@ -279,7 +279,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "60",       NULL },
          { NULL, NULL },
       },
-      "0"
+      "16"
    },
    {
       "beetle_saturn_last_scanline_pal",

@@ -757,13 +757,19 @@ void retro_run(void)
    {
       struct retro_system_av_info av_info;
 
-      // Change frontend resolution using  base width/height (+ overscan adjustments).
+      // Change frontend resolution using base width/height (+ overscan adjustments).
       // This avoids inconsistent frame scales when game switches between interlaced and non-interlaced modes.
       av_info.geometry.base_width   = 352 - h_mask;
       av_info.geometry.base_height  = linevislast + 1 - linevisfirst;
       av_info.geometry.max_width    = MEDNAFEN_CORE_GEOMETRY_MAX_W;
       av_info.geometry.max_height   = MEDNAFEN_CORE_GEOMETRY_MAX_H;
-      av_info.geometry.aspect_ratio = MEDNAFEN_CORE_GEOMETRY_ASPECT_RATIO;
+      av_info.geometry.aspect_ratio = 352.0f / ((is_pal) ? 256.0f : 240.0f);
+      av_info.geometry.aspect_ratio *= 6.0f / 7.0f;
+
+      /* Corrections for croppings */
+      av_info.geometry.aspect_ratio *= ((is_pal) ? 288.0f : 240.0f) / av_info.geometry.base_height;
+      av_info.geometry.aspect_ratio /= 352.0f / (352 - h_mask);
+
       environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
 
       log_cb(RETRO_LOG_INFO, "Target framebuffer size : %dx%d\n", width, height);
@@ -816,9 +822,9 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.aspect_ratio = MEDNAFEN_CORE_GEOMETRY_ASPECT_RATIO;
 
    if (retro_get_region() == RETRO_REGION_PAL)
-      info->timing.fps            = 49.96;
+      info->timing.fps            = 49.92012779552716;
    else
-      info->timing.fps            = 59.88;
+      info->timing.fps            = 59.82650314089141;
 }
 
 void retro_deinit(void)
