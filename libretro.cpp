@@ -772,12 +772,10 @@ void retro_run(void)
 
       environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
 
-      log_cb(RETRO_LOG_INFO, "Target framebuffer size : %dx%d\n", width, height);
-
       game_width  = width;
       game_height = height;
 
-      input_set_geometry( width, height );
+      input_set_geometry(width, height);
    }
 
    /* LED interface */
@@ -832,9 +830,9 @@ void retro_deinit(void)
    delete surf;
    surf = NULL;
 
-   log_cb(RETRO_LOG_INFO, "[%s]: Samples / Frame: %.5f\n",
+   log_cb(RETRO_LOG_DEBUG, "[%s]: Samples / Frame: %.5f\n",
          MEDNAFEN_CORE_NAME, (double)audio_frames / video_frames);
-   log_cb(RETRO_LOG_INFO, "[%s]: Estimated FPS: %.5f\n",
+   log_cb(RETRO_LOG_DEBUG, "[%s]: Estimated FPS: %.5f\n",
          MEDNAFEN_CORE_NAME, (double)video_frames * 44100 / audio_frames);
  
    libretro_supports_option_categories = false;
@@ -843,9 +841,7 @@ void retro_deinit(void)
 
 unsigned retro_get_region(void)
 {
-   if (is_pal)
-       return RETRO_REGION_PAL;  //Ben Swith PAL
-   return RETRO_REGION_NTSC;
+   return (is_pal) ? RETRO_REGION_PAL : RETRO_REGION_NTSC;
 }
 
 unsigned retro_api_version(void)
