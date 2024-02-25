@@ -757,21 +757,25 @@ void retro_run(void)
    {
       struct retro_system_av_info av_info;
 
-      // Change frontend resolution using  base width/height (+ overscan adjustments).
+      // Change frontend resolution using base width/height (+ overscan adjustments).
       // This avoids inconsistent frame scales when game switches between interlaced and non-interlaced modes.
       av_info.geometry.base_width   = 352 - h_mask;
       av_info.geometry.base_height  = linevislast + 1 - linevisfirst;
       av_info.geometry.max_width    = MEDNAFEN_CORE_GEOMETRY_MAX_W;
       av_info.geometry.max_height   = MEDNAFEN_CORE_GEOMETRY_MAX_H;
-      av_info.geometry.aspect_ratio = MEDNAFEN_CORE_GEOMETRY_ASPECT_RATIO;
-      environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
+      av_info.geometry.aspect_ratio = 352.0f / ((is_pal) ? 256.0f : 240.0f);
+      av_info.geometry.aspect_ratio *= 6.0f / 7.0f;
 
-      log_cb(RETRO_LOG_INFO, "Target framebuffer size : %dx%d\n", width, height);
+      /* Corrections for croppings */
+      av_info.geometry.aspect_ratio *= ((is_pal) ? 288.0f : 240.0f) / av_info.geometry.base_height;
+      av_info.geometry.aspect_ratio /= 352.0f / (352 - h_mask);
+
+      environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
 
       game_width  = width;
       game_height = height;
 
-      input_set_geometry( width, height );
+      input_set_geometry(width, height);
    }
 
    /* LED interface */
@@ -816,9 +820,9 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.aspect_ratio = MEDNAFEN_CORE_GEOMETRY_ASPECT_RATIO;
 
    if (retro_get_region() == RETRO_REGION_PAL)
-      info->timing.fps            = 49.96;
+      info->timing.fps            = 49.92012779552716;
    else
-      info->timing.fps            = 59.88;
+      info->timing.fps            = 59.82650314089141;
 }
 
 void retro_deinit(void)
@@ -826,9 +830,9 @@ void retro_deinit(void)
    delete surf;
    surf = NULL;
 
-   log_cb(RETRO_LOG_INFO, "[%s]: Samples / Frame: %.5f\n",
+   log_cb(RETRO_LOG_DEBUG, "[%s]: Samples / Frame: %.5f\n",
          MEDNAFEN_CORE_NAME, (double)audio_frames / video_frames);
-   log_cb(RETRO_LOG_INFO, "[%s]: Estimated FPS: %.5f\n",
+   log_cb(RETRO_LOG_DEBUG, "[%s]: Estimated FPS: %.5f\n",
          MEDNAFEN_CORE_NAME, (double)video_frames * 44100 / audio_frames);
  
    libretro_supports_option_categories = false;
@@ -837,9 +841,7 @@ void retro_deinit(void)
 
 unsigned retro_get_region(void)
 {
-   if (is_pal)
-       return RETRO_REGION_PAL;  //Ben Swith PAL
-   return RETRO_REGION_NTSC;
+   return (is_pal) ? RETRO_REGION_PAL : RETRO_REGION_NTSC;
 }
 
 unsigned retro_api_version(void)
