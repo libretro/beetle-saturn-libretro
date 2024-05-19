@@ -498,21 +498,6 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "100%"
    },
    {
-      "beetle_saturn_virtuagun_crosshair",
-      "Gun Crosshair",
-      NULL,
-      "Choose the crosshair for the 'Stunner' and 'Virtua Gun' device types. Setting it to Off disables the crosshair.",
-      NULL,
-      "input",
-      {
-         { "Cross",   NULL },
-         { "Dot",   NULL },
-         { "Off",   NULL },
-         { NULL, NULL },
-      },
-      "Cross"
-   },
-   {
       "beetle_saturn_virtuagun_input",
       "Gun Input Mode",
       NULL,
@@ -520,11 +505,70 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       NULL,
       "input",
       {
-         { "Lightgun",   NULL },
-         { "Touchscreen",   NULL },
+         { "Lightgun", NULL },
+         { "Touchscreen", NULL },
          { NULL, NULL },
       },
       "Lightgun"
+   },
+   {
+      "beetle_saturn_virtuagun_crosshair",
+      "Gun Crosshair",
+      NULL,
+      "Choose the crosshair for the 'Stunner' and 'Virtua Gun' device types. Setting it to Off disables the crosshair.",
+      NULL,
+      "input",
+      {
+         { "Cross", NULL },
+         { "Dot", NULL },
+         { "Off", NULL },
+         { NULL, NULL },
+      },
+      "Cross"
+   },
+   {
+      "beetle_saturn_crosshair_color_p1",
+      "Gun Crosshair Color: Port 1",
+      NULL,
+      "Choose the light gun crosshair color for port 1.",
+      NULL,
+      "input",
+      {
+         { "red", "Red" },
+         { "blue", "Blue" },
+         { "green", "Green" },
+         { "orange", "Orange" },
+         { "yellow", "Yellow" },
+         { "cyan", "Cyan" },
+         { "pink", "Pink" },
+         { "purple", "Purple" },
+         { "black", "Black" },
+         { "white", "White" },
+         { NULL, NULL },
+      },
+      "red"
+   },
+   {
+      "beetle_saturn_crosshair_color_p2",
+      "Gun Crosshair Color: Port 2",
+      NULL,
+      "Choose the light gun crosshair color for port 2.",
+      NULL,
+      "input",
+      {
+         { "blue", "Blue" },
+         { "red", "Red" },
+         { "green", "Green" },
+         { "orange", "Orange" },
+         { "yellow", "Yellow" },
+         { "cyan", "Cyan" },
+         { "pink", "Pink" },
+         { "purple", "Purple" },
+         { "black", "Black" },
+         { "white", "White" },
+         { NULL, NULL },
+      },
+      "blue"
    },
    {
       "beetle_saturn_cart",
