@@ -115,7 +115,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_initial_scanline",
-      "Initial scanline",
+      "Initial Scanline",
       NULL,
       "Adjust the first displayed scanline in NTSC mode.",
       NULL,
@@ -168,7 +168,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_last_scanline",
-      "Last scanline",
+      "Last Scanline",
       NULL,
       "Adjust the last displayed scanline in NTSC mode.",
       NULL,
@@ -210,7 +210,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_initial_scanline_pal",
-      "Initial scanline (PAL)",
+      "Initial Scanline (PAL)",
       NULL,
       "Adjust the first displayed scanline in PAL mode.",
       NULL,
@@ -283,7 +283,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_last_scanline_pal",
-      "Last scanline (PAL)",
+      "Last Scanline (PAL)",
       NULL,
       "Adjust the last displayed scanline in PAL mode.",
       NULL,
@@ -353,9 +353,9 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_horizontal_blend",
-      "Enable Horizontal Blend(blur)",
+      "Enable Horizontal Blend",
       NULL,
-      "Enable horizontal blend(blur) filter. Has a more noticeable effect with the Saturn's higher horizontal resolution modes(640/704).",
+      "Enable horizontal blend filter. Has a more noticeable effect with higher horizontal resolution modes (640/704).",
       NULL,
       "video",
       {
@@ -395,7 +395,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_opposite_directions",
-      "Allow Up+Down and Left+Right",
+      "Allow Opposite Directions",
       NULL,
       "Enabling this will allow pressing up and down or left and right directions at the same time. This may cause glitches.",
       NULL,
@@ -640,7 +640,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_autortc_lang",
-      "BIOS language",
+      "BIOS Language",
       NULL,
       "Also affects language used in some games (e.g. the European release of 'Panzer Dragoon').",
       NULL,
@@ -658,7 +658,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_cdimagecache",
-      "CD Image Cache (Restart)",
+      "CD Image Cache",
       NULL,
       "Loads the complete image in memory at startup. Can potentially decrease loading times at the cost of increased startup time. Requires a restart in order for a change to take effect.",
       NULL,
@@ -688,7 +688,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_autortc",
-      "Automatically set RTC on game load",
+      "RTC Automatic Set",
       NULL,
       "Automatically set the SMPC's emulated Real-Time Clock to the host system's current time and date upon game load.",
       NULL,
