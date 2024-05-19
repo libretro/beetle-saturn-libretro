@@ -504,16 +504,16 @@ static bool MDFNI_LoadGame( const char *name )
    size_t name_len = strlen( name );
 
    // check for a valid file extension
-   if ( name_len > 4 )
+   if ( name_len > 3 )
    {
-      const char *ext = name + name_len - 4;
+      const char *ext = name + name_len - 3;
 
       // supported extension?
-      if ((!strcasecmp( ext, ".ccd" )) ||
-          (!strcasecmp( ext, ".chd" )) ||
-          (!strcasecmp( ext, ".cue" )) ||
-          (!strcasecmp( ext, ".toc" )) ||
-          (!strcasecmp( ext, ".m3u" )) )
+      if ((!strcasecmp( ext, "ccd" )) ||
+          (!strcasecmp( ext, "chd" )) ||
+          (!strcasecmp( ext, "cue" )) ||
+          (!strcasecmp( ext, "toc" )) ||
+          (!strcasecmp( ext, "m3u" )) )
       {
          uint8 fd_id[16];
          char sgid[16 + 1]     = { 0 };
