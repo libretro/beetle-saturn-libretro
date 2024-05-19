@@ -65,6 +65,9 @@ static unsigned first_sl_pal = 0;
 static unsigned last_sl_pal = 287;
 bool is_pal = false;
 
+int setting_crosshair_color_p1 = 0xFF0000;
+int setting_crosshair_color_p2 = 0x0080FF;
+
 // Sets how often (in number of output frames/retro_run invocations)
 // the internal framerace counter should be updated if
 // display_internal_framerate is true.
@@ -147,10 +150,10 @@ static void retro_led_interface(void)
 
    unsigned int drive_status = GetDriveStatus();
    /* Active values:
-    * STATUS_BUSY	 = 0x00,
-    * STATUS_PLAY	 = 0x03,
-    * STATUS_SEEK	 = 0x04,
-    * STATUS_SCAN	 = 0x05, */
+    * STATUS_BUSY = 0x00,
+    * STATUS_PLAY = 0x03,
+    * STATUS_SEEK = 0x04,
+    * STATUS_SCAN = 0x05, */
 
    led_state[0] = (!Running) ? 1 : 0;
    led_state[1] = (drive_status == 0 || drive_status == 3 || drive_status == 4 || drive_status == 5) ? 1 : 0;
@@ -251,39 +254,38 @@ static void check_variables(bool startup)
 
    if (startup)
    {
-	   var.key      = "beetle_saturn_cdimagecache";
-           cdimagecache = false;
+      var.key = "beetle_saturn_cdimagecache";
+      var.value = NULL;
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      {
+         cdimagecache = false;
+         if (!strcmp(var.value, "enabled"))
+            cdimagecache = true;
+      }
 
-	   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) 
-			   && var.value)
-		   if (!strcmp(var.value, "enabled"))
-			   cdimagecache = true;
+      var.key = "beetle_saturn_shared_int";
+      var.value = NULL;
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      {
+         if (!strcmp(var.value, "enabled"))
+            shared_intmemory_toggle = true;
+         else if (!strcmp(var.value, "disabled"))
+            shared_intmemory_toggle = false;
+      }
 
-	   var.key = "beetle_saturn_shared_int";
-
-	   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-	   {
-		   if (!strcmp(var.value, "enabled"))
-			   shared_intmemory_toggle = true;
-		   else if (!strcmp(var.value, "disabled"))
-			   shared_intmemory_toggle = false;
-
-	   }
-
-	   var.key = "beetle_saturn_shared_ext";
-
-	   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-	   {
-		   if (!strcmp(var.value, "enabled"))
-			   shared_backup_toggle = true;
-		   else if (!strcmp(var.value, "disabled"))
-			   shared_backup_toggle = false;
-
-	   }
+      var.key = "beetle_saturn_shared_ext";
+      var.value = NULL;
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      {
+         if (!strcmp(var.value, "enabled"))
+            shared_backup_toggle = true;
+         else if (!strcmp(var.value, "disabled"))
+            shared_backup_toggle = false;
+      }
    }
 
    var.key = "beetle_saturn_region";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (!strcmp(var.value, "Auto Detect") || !strcmp(var.value, "auto"))
@@ -307,7 +309,7 @@ static void check_variables(bool startup)
    }
 
    var.key = "beetle_saturn_cart";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (!strcmp(var.value, "Auto Detect") || !strcmp(var.value, "auto"))
@@ -327,7 +329,7 @@ static void check_variables(bool startup)
    }
 
    var.key = "beetle_saturn_multitap_port1";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       bool connected = false;
@@ -340,7 +342,7 @@ static void check_variables(bool startup)
    }
 
    var.key = "beetle_saturn_multitap_port2";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       bool connected = false;
@@ -352,10 +354,8 @@ static void check_variables(bool startup)
       input_multitap( 2, connected );
    }
 
-
-
    var.key = "beetle_saturn_opposite_directions";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (!strcmp(var.value, "enabled"))
@@ -365,7 +365,7 @@ static void check_variables(bool startup)
    }
 
    var.key = "beetle_saturn_midsync";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (!strcmp(var.value, "enabled"))
@@ -375,7 +375,7 @@ static void check_variables(bool startup)
    }
 
    var.key = "beetle_saturn_autortc";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (!strcmp(var.value, "enabled"))
@@ -385,60 +385,60 @@ static void check_variables(bool startup)
    }
 
    var.key = "beetle_saturn_autortc_lang";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
-       if (!strcmp(var.value, "english"))
-          setting_smpc_autortc_lang = 0;
-       else if (!strcmp(var.value, "german"))
-          setting_smpc_autortc_lang = 1;
-       else if (!strcmp(var.value, "french"))
-          setting_smpc_autortc_lang = 2;
-       else if (!strcmp(var.value, "spanish"))
-          setting_smpc_autortc_lang = 3;
-       else if (!strcmp(var.value, "italian"))
-          setting_smpc_autortc_lang = 4;
-       else if (!strcmp(var.value, "japanese"))
-          setting_smpc_autortc_lang = 5;
+      if (!strcmp(var.value, "english"))
+         setting_smpc_autortc_lang = 0;
+      else if (!strcmp(var.value, "german"))
+         setting_smpc_autortc_lang = 1;
+      else if (!strcmp(var.value, "french"))
+         setting_smpc_autortc_lang = 2;
+      else if (!strcmp(var.value, "spanish"))
+         setting_smpc_autortc_lang = 3;
+      else if (!strcmp(var.value, "italian"))
+         setting_smpc_autortc_lang = 4;
+      else if (!strcmp(var.value, "japanese"))
+         setting_smpc_autortc_lang = 5;
    }
 
    var.key = "beetle_saturn_horizontal_overscan";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       h_mask = atoi(var.value);
    }
 
    var.key = "beetle_saturn_initial_scanline";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       first_sl = atoi(var.value);
    }
 
    var.key = "beetle_saturn_last_scanline";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       last_sl = atoi(var.value);
    }
 
    var.key = "beetle_saturn_initial_scanline_pal";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       first_sl_pal = atoi(var.value);
    }
 
    var.key = "beetle_saturn_last_scanline_pal";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       last_sl_pal = atoi(var.value);
    }
 
    var.key = "beetle_saturn_horizontal_blend";
-
+   var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       bool newval = (!strcmp(var.value, "enabled"));
@@ -447,34 +447,23 @@ static void check_variables(bool startup)
 
    var.key = "beetle_saturn_analog_stick_deadzone";
    var.value = NULL;
-
-   if ( environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value )
-      input_set_deadzone_stick( atoi( var.value ) );
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      input_set_deadzone_stick(atoi(var.value));
+   }
 
    var.key = "beetle_saturn_trigger_deadzone";
    var.value = NULL;
-
-   if ( environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value )
-      input_set_deadzone_trigger( atoi( var.value ) );
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      input_set_deadzone_trigger(atoi(var.value));
+   }
 
    var.key = "beetle_saturn_mouse_sensitivity";
    var.value = NULL;
-
-   if ( environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value )
-      input_set_mouse_sensitivity( atoi( var.value ) );
-
-   var.key = "beetle_saturn_virtuagun_crosshair";
-   var.value = NULL;
-
-   if ( environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value )
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
-      if ( !strcmp(var.value, "Off") ) {
-         setting_gun_crosshair = SETTING_GUN_CROSSHAIR_OFF;
-      } else if ( !strcmp(var.value, "Cross") ) {
-         setting_gun_crosshair = SETTING_GUN_CROSSHAIR_CROSS;
-      } else if ( !strcmp(var.value, "Dot") ) {
-         setting_gun_crosshair = SETTING_GUN_CROSSHAIR_DOT;
-      }
+      input_set_mouse_sensitivity(atoi(var.value));
    }
 
    var.key   = "beetle_saturn_virtuagun_input";
@@ -488,6 +477,74 @@ static void check_variables(bool startup)
          setting_gun_input = SETTING_GUN_INPUT_LIGHTGUN;
       }
    }
+
+   var.key = "beetle_saturn_virtuagun_crosshair";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (!strcmp(var.value, "Off"))
+         setting_gun_crosshair = SETTING_GUN_CROSSHAIR_OFF;
+      else if (!strcmp(var.value, "Cross"))
+         setting_gun_crosshair = SETTING_GUN_CROSSHAIR_CROSS;
+      else if (!strcmp(var.value, "Dot"))
+         setting_gun_crosshair = SETTING_GUN_CROSSHAIR_DOT;
+   }
+
+   var.key = "beetle_saturn_crosshair_color_p1";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "red") == 0)
+         setting_crosshair_color_p1 = 0xFF0000;
+      else if (strcmp(var.value, "blue") == 0)
+         setting_crosshair_color_p1 = 0x0080FF;
+      else if (strcmp(var.value, "green") == 0)
+         setting_crosshair_color_p1 = 0x00FF00;
+      else if (strcmp(var.value, "orange") == 0)
+         setting_crosshair_color_p1 = 0xFF8000;
+      else if (strcmp(var.value, "yellow") == 0)
+         setting_crosshair_color_p1 = 0xFFFF00;
+      else if (strcmp(var.value, "cyan") == 0)
+         setting_crosshair_color_p1 = 0x00FFFF;
+      else if (strcmp(var.value, "pink") == 0)
+         setting_crosshair_color_p1 = 0xFF00FF;
+      else if (strcmp(var.value, "purple") == 0)
+         setting_crosshair_color_p1 = 0x8000FF;
+      else if (strcmp(var.value, "black") == 0)
+         setting_crosshair_color_p1 = 0x000000;
+      else if (strcmp(var.value, "white") == 0)
+         setting_crosshair_color_p1 = 0xFFFFFF;
+   }
+
+   var.key = "beetle_saturn_crosshair_color_p2";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "red") == 0)
+         setting_crosshair_color_p2 = 0xFF0000;
+      else if (strcmp(var.value, "blue") == 0)
+         setting_crosshair_color_p2 = 0x0080FF;
+      else if (strcmp(var.value, "green") == 0)
+         setting_crosshair_color_p2 = 0x00FF00;
+      else if (strcmp(var.value, "orange") == 0)
+         setting_crosshair_color_p2 = 0xFF8000;
+      else if (strcmp(var.value, "yellow") == 0)
+         setting_crosshair_color_p2 = 0xFFFF00;
+      else if (strcmp(var.value, "cyan") == 0)
+         setting_crosshair_color_p2 = 0x00FFFF;
+      else if (strcmp(var.value, "pink") == 0)
+         setting_crosshair_color_p2 = 0xFF00FF;
+      else if (strcmp(var.value, "purple") == 0)
+         setting_crosshair_color_p2 = 0x8000FF;
+      else if (strcmp(var.value, "black") == 0)
+         setting_crosshair_color_p2 = 0x000000;
+      else if (strcmp(var.value, "white") == 0)
+         setting_crosshair_color_p2 = 0xFFFFFF;
+   }
+
+   SMPC_SetCrosshairsColor(0, setting_crosshair_color_p1);
+   SMPC_SetCrosshairsColor(1, setting_crosshair_color_p2);
+
 }
 
 static bool MDFNI_LoadGame( const char *name )
@@ -504,16 +561,16 @@ static bool MDFNI_LoadGame( const char *name )
    size_t name_len = strlen( name );
 
    // check for a valid file extension
-   if ( name_len > 4 )
+   if ( name_len > 3 )
    {
-      const char *ext = name + name_len - 4;
+      const char *ext = name + name_len - 3;
 
       // supported extension?
-      if ((!strcasecmp( ext, ".ccd" )) ||
-          (!strcasecmp( ext, ".chd" )) ||
-          (!strcasecmp( ext, ".cue" )) ||
-          (!strcasecmp( ext, ".toc" )) ||
-          (!strcasecmp( ext, ".m3u" )) )
+      if ((!strcasecmp( ext, "ccd" )) ||
+          (!strcasecmp( ext, "chd" )) ||
+          (!strcasecmp( ext, "cue" )) ||
+          (!strcasecmp( ext, "toc" )) ||
+          (!strcasecmp( ext, "m3u" )) )
       {
          uint8 fd_id[16];
          char sgid[16 + 1]     = { 0 };
@@ -649,17 +706,17 @@ bool retro_load_game(const struct retro_game_info *info)
    option_display.visible = false;
    if (is_pal)
    {
-	   option_display.key = "beetle_saturn_initial_scanline";
-	   environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
-	   option_display.key = "beetle_saturn_last_scanline";
-	   environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+      option_display.key = "beetle_saturn_initial_scanline";
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+      option_display.key = "beetle_saturn_last_scanline";
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
    }
    else
    {
-	   option_display.key = "beetle_saturn_initial_scanline_pal";
-	   environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
-	   option_display.key = "beetle_saturn_last_scanline_pal";
-	   environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+      option_display.key = "beetle_saturn_initial_scanline_pal";
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+      option_display.key = "beetle_saturn_last_scanline_pal";
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
    }
 
    return true;
@@ -700,8 +757,8 @@ void retro_run(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
       check_variables(false);
 
-   linevisfirst   =  is_pal ? first_sl_pal : first_sl;
-   linevislast    =  is_pal ? last_sl_pal : last_sl;
+   linevisfirst = is_pal ? first_sl_pal : first_sl;
+   linevislast  = is_pal ? last_sl_pal : last_sl;
 
    // Keep the counters at 0 so that they don't display a bogus
    // value if this option is enabled later on
@@ -711,9 +768,9 @@ void retro_run(void)
    input_poll_cb();
 
    if (libretro_supports_bitmasks)
-	   input_update_with_bitmasks( input_state_cb);
+      input_update_with_bitmasks( input_state_cb);
    else
-	   input_update( input_state_cb);
+      input_update( input_state_cb);
 
    static int32 rects[MEDNAFEN_CORE_GEOMETRY_MAX_H];
    rects[0] = ~0;
@@ -1038,9 +1095,9 @@ const char *MDFN_MakeFName(MakeFName_Type type, int id1, const char *cd1)
 
 void MDFN_MidSync(void)
 {
-    input_poll_cb();
-    if (libretro_supports_bitmasks)
-	    input_update_with_bitmasks( input_state_cb);
-    else
-	    input_update( input_state_cb);
+   input_poll_cb();
+   if (libretro_supports_bitmasks)
+      input_update_with_bitmasks( input_state_cb);
+   else
+      input_update( input_state_cb);
 }

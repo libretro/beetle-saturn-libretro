@@ -115,7 +115,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_initial_scanline",
-      "Initial scanline",
+      "Initial Scanline",
       NULL,
       "Adjust the first displayed scanline in NTSC mode.",
       NULL,
@@ -168,7 +168,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_last_scanline",
-      "Last scanline",
+      "Last Scanline",
       NULL,
       "Adjust the last displayed scanline in NTSC mode.",
       NULL,
@@ -210,7 +210,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_initial_scanline_pal",
-      "Initial scanline (PAL)",
+      "Initial Scanline (PAL)",
       NULL,
       "Adjust the first displayed scanline in PAL mode.",
       NULL,
@@ -283,7 +283,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_last_scanline_pal",
-      "Last scanline (PAL)",
+      "Last Scanline (PAL)",
       NULL,
       "Adjust the last displayed scanline in PAL mode.",
       NULL,
@@ -353,9 +353,9 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_horizontal_blend",
-      "Enable Horizontal Blend(blur)",
+      "Enable Horizontal Blend",
       NULL,
-      "Enable horizontal blend(blur) filter. Has a more noticeable effect with the Saturn's higher horizontal resolution modes(640/704).",
+      "Enable horizontal blend filter. Has a more noticeable effect with higher horizontal resolution modes (640/704).",
       NULL,
       "video",
       {
@@ -395,7 +395,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_opposite_directions",
-      "Allow Up+Down and Left+Right",
+      "Allow Opposite Directions",
       NULL,
       "Enabling this will allow pressing up and down or left and right directions at the same time. This may cause glitches.",
       NULL,
@@ -498,21 +498,6 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "100%"
    },
    {
-      "beetle_saturn_virtuagun_crosshair",
-      "Gun Crosshair",
-      NULL,
-      "Choose the crosshair for the 'Stunner' and 'Virtua Gun' device types. Setting it to Off disables the crosshair.",
-      NULL,
-      "input",
-      {
-         { "Cross",   NULL },
-         { "Dot",   NULL },
-         { "Off",   NULL },
-         { NULL, NULL },
-      },
-      "Cross"
-   },
-   {
       "beetle_saturn_virtuagun_input",
       "Gun Input Mode",
       NULL,
@@ -520,11 +505,70 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       NULL,
       "input",
       {
-         { "Lightgun",   NULL },
-         { "Touchscreen",   NULL },
+         { "Lightgun", NULL },
+         { "Touchscreen", NULL },
          { NULL, NULL },
       },
       "Lightgun"
+   },
+   {
+      "beetle_saturn_virtuagun_crosshair",
+      "Gun Crosshair",
+      NULL,
+      "Choose the crosshair for the 'Stunner' and 'Virtua Gun' device types. Setting it to Off disables the crosshair.",
+      NULL,
+      "input",
+      {
+         { "Cross", NULL },
+         { "Dot", NULL },
+         { "Off", NULL },
+         { NULL, NULL },
+      },
+      "Cross"
+   },
+   {
+      "beetle_saturn_crosshair_color_p1",
+      "Gun Crosshair Color: Port 1",
+      NULL,
+      "Choose the light gun crosshair color for port 1.",
+      NULL,
+      "input",
+      {
+         { "red", "Red" },
+         { "blue", "Blue" },
+         { "green", "Green" },
+         { "orange", "Orange" },
+         { "yellow", "Yellow" },
+         { "cyan", "Cyan" },
+         { "pink", "Pink" },
+         { "purple", "Purple" },
+         { "black", "Black" },
+         { "white", "White" },
+         { NULL, NULL },
+      },
+      "red"
+   },
+   {
+      "beetle_saturn_crosshair_color_p2",
+      "Gun Crosshair Color: Port 2",
+      NULL,
+      "Choose the light gun crosshair color for port 2.",
+      NULL,
+      "input",
+      {
+         { "blue", "Blue" },
+         { "red", "Red" },
+         { "green", "Green" },
+         { "orange", "Orange" },
+         { "yellow", "Yellow" },
+         { "cyan", "Cyan" },
+         { "pink", "Pink" },
+         { "purple", "Purple" },
+         { "black", "Black" },
+         { "white", "White" },
+         { NULL, NULL },
+      },
+      "blue"
    },
    {
       "beetle_saturn_cart",
@@ -596,7 +640,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_autortc_lang",
-      "BIOS language",
+      "BIOS Language",
       NULL,
       "Also affects language used in some games (e.g. the European release of 'Panzer Dragoon').",
       NULL,
@@ -614,7 +658,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_cdimagecache",
-      "CD Image Cache (Restart)",
+      "CD Image Cache",
       NULL,
       "Loads the complete image in memory at startup. Can potentially decrease loading times at the cost of increased startup time. Requires a restart in order for a change to take effect.",
       NULL,
@@ -644,7 +688,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_autortc",
-      "Automatically set RTC on game load",
+      "RTC Automatic Set",
       NULL,
       "Automatically set the SMPC's emulated Real-Time Clock to the host system's current time and date upon game load.",
       NULL,
