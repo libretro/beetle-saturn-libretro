@@ -28,7 +28,7 @@
 #include "cart.h"
 #include "cart/backup.h"
 #include "cart/cs1ram.h"
-#include "cart/debug.h"
+#include "cart/bootrom.h"
 #include "cart/extram.h"
 //#include "cart/nlmodem.h"
 #include "cart/rom.h"
@@ -191,9 +191,21 @@ void CART_Init(const int cart_type)
 	CART_CS1RAM_Init(&Cart);
 	break;
 
-  case CART_MDFN_DEBUG:
-	CART_Debug_Init(&Cart);
-	break;
+  case CART_BOOTROM:
+   {
+        const std::string path_cxx = MDFN_GetSettingS("ss.cart.bootrom_path");
+        const char *path = MDFN_MakeFName(MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
+        RFILE      *fp   = filestream_open(path,
+              RETRO_VFS_FILE_ACCESS_READ,
+              RETRO_VFS_FILE_ACCESS_HINT_NONE);
+
+        if (fp)
+        {
+           CART_BootROM_Init(&Cart, fp);
+           filestream_close(fp);
+        }
+    }
+        break;
 
 //  case CART_NLMODEM:
 //	CART_NLModem_Init(&Cart);

@@ -79,6 +79,14 @@ static inline void MDFN_en32lsb(uint8_t *buf, uint32_t morp)
  buf[3]=morp>>24;
 }
 
+static inline void MDFN_enlsb(void* buf, void* value, size_t size)
+{
+ if (size == 2) // 16 bits (2 bytes)
+  MDFN_en16lsb((uint8_t*)buf, *(uint16_t*)value);
+ else if (size == 4) // 32 bits (4 bytes)
+  MDFN_en32lsb((uint8_t*)buf, *(uint32_t*)value);
+}
+
 static inline void MDFN_en16msb(uint8_t *buf, uint16_t morp)
 {
  buf[0] = morp >> 8;

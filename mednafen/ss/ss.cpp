@@ -2,7 +2,7 @@
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
 /* ss.cpp - Saturn Core Emulation and Support Functions
-**  Copyright (C) 2015-2021 Mednafen Team
+**  Copyright (C) 2015-2023 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
 ** modify it under the terms of the GNU General Public License
@@ -863,7 +863,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          { CART_ULTRAMAN, "Ultraman ROM" },
          { CART_CS1RAM_16M, _("16MiB CS1 RAM") },
          { CART_NLMODEM, _("Netlink Modem") },
-         { CART_MDFN_DEBUG, "Mednafen Debug" }
+         { CART_BOOTROM, _("Bootable ROM") } 
       };
       const char* cn = nullptr;
 
@@ -910,7 +910,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    MDFNMP_RegSearchable(0x06000000, WORKRAM_BANK_SIZE_BYTES);
 
    CART_Init(cart_type);
-  ActiveCartType = cart_type;
+   ActiveCartType = cart_type;
 
    //
    //

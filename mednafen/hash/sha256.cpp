@@ -141,6 +141,101 @@ sha256_digest sha256(const void* data, const uint64 len)
  return ret;
 }
 
+sha256_hasher::sha256_hasher()
+{
+ reset();
+}
+
+void sha256_hasher::reset(void)
+{
+ buf_count = 0;
+ bytes_processed = 0;
+
+ h = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
+}
+
+INLINE void sha256_hasher::process_block(const uint8* blk_data)
+{
+ alignas(16) uint32 w[64];
+ alignas(16) auto v = h;
+
+ for(unsigned t = 0; t < 16; t++)
+  w[t] = MDFN_de32msb(blk_data + (t << 2));
+
+ for(unsigned t = 16; t < 64; t++)
+  w[t] = ls1(w[t - 2]) + w[t - 7] + ls0(w[t - 15]) + w[t - 16];
+
+ for(unsigned t = 0; t < 64; t++)
+ {
+  uint32 T1 = v[7] + bs1(v[4]) + ch(v[4], v[5], v[6]) + K[t] + w[t];
+  uint32 T2 = bs0(v[0]) + maj(v[0], v[1], v[2]);
+
+  v[7] = v[6];
+  v[6] = v[5];
+  v[5] = v[4];
+  v[4] = v[3] + T1;
+  v[3] = v[2];
+  v[2] = v[1];
+  v[1] = v[0];
+  v[0] = T1 + T2;
+ }
+
+ for(unsigned i = 0; i < h.size(); i++)
+  h[i] += v[i];
+}
+
+void sha256_hasher::process(const void* data, size_t len)
+{
+ uint8* d8 = (uint8*)data;
+
+ bytes_processed += len;
+
+ while(len)
+ {
+  if(buf_count || len < 0x40)
+  {
+   const size_t copy_len = std::min<size_t>(0x40 - buf_count, len);
+
+   memcpy(&buf[buf_count], d8, copy_len);
+   len -= copy_len;
+   d8 += copy_len;
+   buf_count += copy_len;
+   if(buf_count == 0x40)
+   {
+    process_block(buf);
+    buf_count = 0;
+   }
+  }
+  else
+  {
+   process_block(d8);
+   d8 += 0x40;
+   len -= 0x40;
+  }
+ }
+}
+
+
+sha256_digest sha256_hasher::digest(void) const
+{
+ sha256_digest ret;
+ sha256_hasher tmp = *this;
+ const size_t footer_len = ((buf_count <= (0x40 - 9)) ? 0x40 : 0x80) - buf_count;
+ alignas(16) uint8 footer[0x80];
+
+ memset(footer, 0, sizeof(footer));
+ footer[0] |= 0x80;
+
+ MDFN_en64msb(&footer[footer_len - 8], bytes_processed * 8);
+
+ tmp.process(footer, footer_len);
+
+ for(unsigned i = 0; i < 8; i++)
+  MDFN_en32msb(&ret[i * 4], tmp.h[i]);
+
+ return ret;
+}
+
 //sha256_digest goomba = "dccac470d07efd7f989c1f9a5045bc2cfe446622dbb50d4ad7f53996e574cd29"_sha256;
 void sha256_test(void)
 {
