@@ -139,6 +139,11 @@ void SOUND_Reset68K(void)
  SoundCPU.Reset(false);
 }
 
+void SOUND_ResetSCSP(void)
+{
+ SCSP.Reset(false);
+}
+
 void SOUND_Kill(void)
 {
 }
@@ -373,6 +378,8 @@ static MDFN_FASTCALL void SoundCPU_BusRMW(uint32 A, uint8 (MDFN_FASTCALL *cb)(M6
 
 static MDFN_FASTCALL unsigned SoundCPU_BusIntAck(uint8 level)
 {
+ SoundCPU.timestamp += 10;
+
  return M68K::BUS_INT_ACK_AUTO;
 }
 
