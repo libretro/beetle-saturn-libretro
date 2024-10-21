@@ -90,7 +90,7 @@ enum
 
  CART_NLMODEM	 = 0x600,
 
- CART_MDFN_DEBUG = 0xF00
+ CART_BOOTROM = 0xF00
 };
 
 void CART_Init(const int cart_type) MDFN_COLD;
