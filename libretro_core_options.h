@@ -366,6 +366,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "disabled"
    },
    {
+      "beetle_saturn_deinterlacer",
+      "Deinterlace Method",
+      NULL,
+      "'Weave' shows both fields on the same frame for full high resolution still image, 'Bob' sacrificies resolution clarity for motion clarity.",
+      NULL,
+      "video",
+      {
+         { "weave",  "Weave" },
+         { "bob",  "Bob" },
+         { NULL, NULL },
+      },
+      "weave"
+   },
+   {
       "beetle_saturn_multitap_port1",
       "6Player Adaptor on Port 1",
       NULL,
