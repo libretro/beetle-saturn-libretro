@@ -445,6 +445,15 @@ static void check_variables(bool startup)
       DoHBlend = newval;
    }
 
+   var.key = "beetle_saturn_deinterlacer";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "bob") == 0)
+         deint.SetType(Deinterlacer::DEINT_BOB);
+      else
+         deint.SetType(Deinterlacer::DEINT_WEAVE);
+   }
+
    var.key = "beetle_saturn_analog_stick_deadzone";
    var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -792,7 +801,7 @@ void retro_run(void)
 
       deint.Process(spec.surface, spec.DisplayRect, spec.LineWidths, spec.InterlaceField);
 
-      PrevInterlaced = true;
+      PrevInterlaced = (deint.GetType() == Deinterlacer::DEINT_WEAVE) ? true : false;
 
       spec.InterlaceOn = false;
       spec.InterlaceField = 0;

@@ -4,6 +4,8 @@
 
 #include "Deinterlacer.h"
 
+#define BOB_LORES
+
 Deinterlacer::Deinterlacer() : FieldBuffer(NULL), StateValid(false), DeintType(DEINT_WEAVE)
 {
  PrevDRect.x = 0;
@@ -90,7 +92,11 @@ void Deinterlacer::InternalProcess(MDFN_Surface *surface, MDFN_Rect &DisplayRect
   else if(DeintType == DEINT_BOB)
   {
    const T* src = surface->pixels + ((y * 2) + field + DisplayRect.y) * surface->pitchinpix + DisplayRect.x;
+#ifdef BOB_LORES
+   T* dest = surface->pixels + ((y * 1) + field + DisplayRect.y) * surface->pitchinpix + DisplayRect.x;
+#else
    T* dest = surface->pixels + ((y * 2) + (field ^ 1) + DisplayRect.y) * surface->pitchinpix + DisplayRect.x;
+#endif
    const int32 *src_lw = &LineWidths[(y * 2) + field + DisplayRect.y];
    int32 *dest_lw = &LineWidths[(y * 2) + (field ^ 1) + DisplayRect.y];
 
