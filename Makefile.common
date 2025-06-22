@@ -37,7 +37,7 @@ ifeq ($(NEED_CD), 1)
 endif
 
 ifeq ($(HAVE_CHD), 1)
-   FLAGS += -DHAVE_CHD -D_7ZIP_ST
+   FLAGS += -DHAVE_CHD -D_7ZIP_ST -DZSTD_DISABLE_ASM
 ifeq ($(SYSTEM_LIBCHDR), 1)
    INCFLAGS += $(shell pkg-config --cflags libchdr)
    LIBS += $(shell pkg-config --libs libchdr)
@@ -46,7 +46,8 @@ else
 	       -I$(DEPS_DIR)/lzma/C \
 	       -I$(DEPS_DIR)/libchdr \
 	       -I$(DEPS_DIR)/libchdr/include \
-	       -I$(DEPS_DIR)/libchdr/include/libchdr
+	       -I$(DEPS_DIR)/libchdr/include/libchdr \
+	       -I$(DEPS_DIR)/zstd/lib
 endif
 endif
 
@@ -129,7 +130,16 @@ SOURCES_C += \
 	$(LIBCHDR_DIR)/libchdr_cdrom.c \
 	$(LIBCHDR_DIR)/libchdr_chd.c \
 	$(LIBCHDR_DIR)/libchdr_flac.c \
-	$(LIBCHDR_DIR)/libchdr_huffman.c 
+	$(LIBCHDR_DIR)/libchdr_huffman.c \
+	$(DEPS_DIR)/zstd/lib/common/entropy_common.c \
+	$(DEPS_DIR)/zstd/lib/common/error_private.c \
+	$(DEPS_DIR)/zstd/lib/common/fse_decompress.c \
+	$(DEPS_DIR)/zstd/lib/common/zstd_common.c \
+	$(DEPS_DIR)/zstd/lib/common/xxhash.c \
+	$(DEPS_DIR)/zstd/lib/decompress/huf_decompress.c \
+	$(DEPS_DIR)/zstd/lib/decompress/zstd_ddict.c \
+	$(DEPS_DIR)/zstd/lib/decompress/zstd_decompress.c \
+	$(DEPS_DIR)/zstd/lib/decompress/zstd_decompress_block.c
 endif
 
 SOURCES_CXX += $(CDROM_DIR)/CDAccess_CHD.cpp
