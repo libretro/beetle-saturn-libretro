@@ -486,8 +486,6 @@ void input_init(void)
 
 void input_set_geometry(unsigned width, unsigned height)
 {
-	log_cb(RETRO_LOG_INFO, "%s: %dx%d\n", __func__, width, height);
-
 	geometry_width = width;
 	geometry_height = height;
 }

@@ -34,7 +34,6 @@
 #define MEDNAFEN_CORE_VERSION                "v1.29.0"
 #define MEDNAFEN_CORE_VERSION_NUMERIC        0x00102900
 #define MEDNAFEN_CORE_EXTENSIONS             "cue|ccd|chd|toc|m3u"
-#define MEDNAFEN_CORE_TIMING_FPS             59.82
 #define MEDNAFEN_CORE_GEOMETRY_BASE_W        320
 #define MEDNAFEN_CORE_GEOMETRY_BASE_H        240
 #define MEDNAFEN_CORE_GEOMETRY_MAX_W         704
@@ -54,7 +53,6 @@ static retro_video_refresh_t video_cb             = NULL;
 
 static unsigned frame_count = 0;
 static unsigned internal_frame_count = 0;
-static bool failed_init = false;
 static unsigned image_offset = 0;
 static unsigned image_crop = 0;
 
@@ -67,6 +65,17 @@ bool is_pal = false;
 
 int setting_crosshair_color_p1 = 0xFF0000;
 int setting_crosshair_color_p2 = 0x0080FF;
+
+static bool cdimagecache = false;
+static bool boot = true;
+
+// shared internal memory support
+bool shared_intmemory = false;
+bool shared_intmemory_toggle = false;
+
+// shared backup memory support
+bool shared_backup = false;
+bool shared_backup_toggle = false;
 
 // Sets how often (in number of output frames/retro_run invocations)
 // the internal framerace counter should be updated if
@@ -132,7 +141,11 @@ static void check_system_specs(void)
 
 static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 {
-   // stub
+   (void)level;
+   va_list va;
+   va_start(va, fmt);
+   vfprintf(stderr, fmt, va);
+   va_end(va);
 }
 
 /* LED interface */
@@ -177,24 +190,16 @@ void retro_init(void)
    else
       log_cb = fallback_log;
 
-   CDUtility_Init();
-
    const char *dir = NULL;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
    {
       snprintf(retro_base_directory, sizeof(retro_base_directory), "%s", dir);
    }
-   else
-   {
-      /* TODO: Add proper fallback */
-      log_cb(RETRO_LOG_WARN, "System directory is not defined. Fallback on using same dir as ROM for system directory later ...\n");
-      failed_init = true;
-   }
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY, &dir) && dir)
    {
-      // If save directory is defined use it, otherwise use system directory
+      /* If save directory is defined use it, otherwise use system directory */
       if (dir)
          snprintf(retro_save_directory, sizeof(retro_save_directory), "%s", dir);
       else
@@ -202,12 +207,11 @@ void retro_init(void)
    }
    else
    {
-      /* TODO: Add proper fallback */
-      log_cb(RETRO_LOG_WARN, "Save directory is not defined. Fallback on using SYSTEM directory ...\n");
       snprintf(retro_save_directory, sizeof(retro_save_directory), "%s", retro_base_directory);
    }
 
-   disc_init( environ_cb );
+   CDUtility_Init();
+   disc_init(environ_cb);
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_PERF_INTERFACE, &perf_cb))
       perf_get_cpu_features_cb = perf_cb.get_cpu_features;
@@ -227,26 +231,13 @@ void retro_init(void)
 
 void retro_reset(void)
 {
-   SS_Reset( true );
+   SS_Reset(true);
 }
 
 bool retro_load_game_special(unsigned, const struct retro_game_info *, size_t)
 {
    return false;
 }
-
-static bool cdimagecache = false;
-
-static bool boot = true;
-
-// shared internal memory support
-bool shared_intmemory = false;
-bool shared_intmemory_toggle = false;
-
-
-// shared backup memory support
-bool shared_backup = false;
-bool shared_backup_toggle = false;
 
 static void check_variables(bool startup)
 {
@@ -553,10 +544,9 @@ static void check_variables(bool startup)
 
    SMPC_SetCrosshairsColor(0, setting_crosshair_color_p1);
    SMPC_SetCrosshairsColor(1, setting_crosshair_color_p2);
-
 }
 
-static bool MDFNI_LoadGame( const char *name )
+static bool MDFNI_LoadGame(const char *name)
 {
    unsigned horrible_hacks   = 0;
    // .. safe defaults
@@ -567,10 +557,10 @@ static bool MDFNI_LoadGame( const char *name )
    // always set this.
    MDFNGameInfo = &EmulatedSS;
 
-   size_t name_len = strlen( name );
+   size_t name_len = strlen(name);
 
    // check for a valid file extension
-   if ( name_len > 3 )
+   if (name_len > 3)
    {
       const char *ext = name + name_len - 3;
 
@@ -586,37 +576,36 @@ static bool MDFNI_LoadGame( const char *name )
          char sgname[0x70 + 1] = { 0 };
          char sgarea[0x10 + 1] = { 0 };
 
-         if ( disc_load_content( MDFNGameInfo, name, fd_id, sgid, sgname, sgarea, cdimagecache ) )
+         if (disc_load_content(MDFNGameInfo, name, fd_id, sgid, sgname, sgarea, cdimagecache))
          {
-            log_cb(RETRO_LOG_INFO, "Game ID is: %s\n", sgid );
+            log_cb(RETRO_LOG_INFO, "Game ID is: %s\n", sgid);
 
             // test discs?
             bool discs_ok = true;
-            if ( setting_disc_test )
+            if (setting_disc_test)
                discs_ok = DiscSanityChecks();
 
-            if ( discs_ok )
+            if (discs_ok)
             {
-               DetectRegion( &region );
+               DetectRegion(&region);
 
-               DB_Lookup(nullptr, sgid, sgname, sgarea, fd_id, &region, &cart_type, &cpucache_emumode );
+               DB_Lookup(nullptr, sgid, sgname, sgarea, fd_id, &region, &cart_type, &cpucache_emumode);
                horrible_hacks = DB_LookupHH(sgid, fd_id);
 
                // forced region setting?
-               if ( setting_region != 0 )
+               if (setting_region != 0)
                   region = setting_region;
 
                // forced cartridge setting?
-               if ( setting_cart != CART__RESERVED )
+               if (setting_cart != CART__RESERVED)
                   cart_type = setting_cart;
 
                // GO!
-               if ( InitCommon( cpucache_emumode,
-                    horrible_hacks, cart_type, region ) )
+               if (InitCommon(cpucache_emumode,
+                    horrible_hacks, cart_type, region))
                {
                   MDFN_LoadGameCheats();
                   MDFNMP_InstallReadPatches();
-
                   return true;
                }
 
@@ -627,7 +616,6 @@ static bool MDFNI_LoadGame( const char *name )
                // screen.
 
                disc_cleanup();
-
                return false;
             } // discs okay?
 
@@ -643,15 +631,15 @@ static bool MDFNI_LoadGame( const char *name )
    disc_cleanup();
 
    // forced region setting?
-   if ( setting_region != 0 )
+   if (setting_region != 0)
       region = setting_region;
 
    // forced cartridge setting?
-   if ( setting_cart != CART__RESERVED )
+   if (setting_cart != CART__RESERVED)
       cart_type = setting_cart;
 
    // Initialise with safe parameters
-   InitCommon( cpucache_emumode, horrible_hacks, cart_type, region );
+   InitCommon(cpucache_emumode, horrible_hacks, cart_type, region);
 
    MDFN_LoadGameCheats();
    MDFNMP_InstallReadPatches();
@@ -664,10 +652,10 @@ bool retro_load_game(const struct retro_game_info *info)
    char tocbasepath[4096];
    bool ret = false;
 
-   if (!info || failed_init)
+   if (!info)
       return false;
 
-   input_init_env( environ_cb );
+   input_init_env(environ_cb);
 
    enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
@@ -751,9 +739,6 @@ void retro_unload_game(void)
    retro_cd_base_name[0]      = '\0';
 }
 
-static uint64_t video_frames, audio_frames;
-#define SOUND_CHANNELS 2
-
 void retro_run(void)
 {
    bool updated = false;
@@ -777,9 +762,9 @@ void retro_run(void)
    input_poll_cb();
 
    if (libretro_supports_bitmasks)
-      input_update_with_bitmasks( input_state_cb);
+      input_update_with_bitmasks(input_state_cb);
    else
-      input_update( input_state_cb);
+      input_update(input_state_cb);
 
    static int32 rects[MEDNAFEN_CORE_GEOMETRY_MAX_H];
    rects[0] = ~0;
@@ -853,13 +838,7 @@ void retro_run(void)
    fb = pix;
 
    video_cb(fb, game_width, game_height, pitch);
-
-   video_frames++;
-   audio_frames += spec.SoundBufSize;
-
-   int16_t *interbuf = (int16_t*)&IBuffer;
-
-   audio_batch_cb(interbuf, spec.SoundBufSize);
+   audio_batch_cb((int16_t*)&IBuffer, spec.SoundBufSize);
 }
 
 void retro_get_system_info(struct retro_system_info *info)
@@ -896,11 +875,6 @@ void retro_deinit(void)
    delete surf;
    surf = NULL;
 
-   log_cb(RETRO_LOG_DEBUG, "[%s]: Samples / Frame: %.5f\n",
-         MEDNAFEN_CORE_NAME, (double)audio_frames / video_frames);
-   log_cb(RETRO_LOG_DEBUG, "[%s]: Estimated FPS: %.5f\n",
-         MEDNAFEN_CORE_NAME, (double)video_frames * 44100 / audio_frames);
- 
    libretro_supports_option_categories = false;
    libretro_supports_bitmasks          = false;
 }
@@ -915,7 +889,7 @@ unsigned retro_api_version(void)
    return RETRO_API_VERSION;
 }
 
-void retro_set_environment( retro_environment_t cb )
+void retro_set_environment(retro_environment_t cb)
 {
    struct retro_vfs_interface_info vfs_iface_info;
    struct retro_led_interface led_interface;
@@ -967,7 +941,7 @@ static size_t serialize_size = 0;
 size_t retro_serialize_size(void)
 {
    // Don't know yet?
-   if ( serialize_size == 0 )
+   if (serialize_size == 0)
    {
       // Do a fake save to see.
       StateMem st;
@@ -979,7 +953,7 @@ size_t retro_serialize_size(void)
       st.malloced       = 0;
       st.initial_malloc = 0;
 
-      if ( MDFNSS_SaveSM( &st, MEDNAFEN_CORE_VERSION_NUMERIC, NULL, NULL, NULL ) )
+      if (MDFNSS_SaveSM(&st, MEDNAFEN_CORE_VERSION_NUMERIC, NULL, NULL, NULL))
       {
          // Cache and tidy up.
          serialize_size = st.len;
@@ -1010,7 +984,7 @@ bool retro_serialize(void *data, size_t size)
 
    if (st.len != size)
    {
-      log_cb(RETRO_LOG_WARN, "Warning: Save state size has changed\n");
+      log_cb(RETRO_LOG_WARN, "Save state size has changed.\n");
 
       if (st.data != st.data_frontend)
       {
@@ -1039,12 +1013,10 @@ bool retro_unserialize(const void *data, size_t size)
 
 void *retro_get_memory_data(unsigned type)
 {
-   switch ( type & RETRO_MEMORY_MASK )
+   switch (type & RETRO_MEMORY_MASK)
    {
-
-   case RETRO_MEMORY_SYSTEM_RAM:
-      return WorkRAM;
-
+      case RETRO_MEMORY_SYSTEM_RAM:
+         return WorkRAM;
    }
 
    // not supported
@@ -1053,12 +1025,10 @@ void *retro_get_memory_data(unsigned type)
 
 size_t retro_get_memory_size(unsigned type)
 {
-   switch ( type & RETRO_MEMORY_MASK )
+   switch (type & RETRO_MEMORY_MASK)
    {
-
-   case RETRO_MEMORY_SYSTEM_RAM:
-      return sizeof(WorkRAM);
-
+      case RETRO_MEMORY_SYSTEM_RAM:
+         return sizeof(WorkRAM);
    }
 
    // not supported
@@ -1106,7 +1076,7 @@ void MDFN_MidSync(void)
 {
    input_poll_cb();
    if (libretro_supports_bitmasks)
-      input_update_with_bitmasks( input_state_cb);
+      input_update_with_bitmasks(input_state_cb);
    else
-      input_update( input_state_cb);
+      input_update(input_state_cb);
 }

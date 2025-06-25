@@ -172,7 +172,6 @@ static bool disk_set_image_index(unsigned index)
 	if ( g_eject_state == true )
 	{
 		if ( index < CDInterfaces.size() ) {
-			// log_cb(RETRO_LOG_INFO, "Selected disc %d of %d.\n", index+1, CDInterfaces.size() );
 			g_current_disc = index;
 			return true;
 		}
@@ -222,7 +221,6 @@ static void update_md5_checksum(CDIF *iface)
 */
 static bool disk_replace_image_index(unsigned index, const struct retro_game_info *info)
 {
-	log_cb(RETRO_LOG_INFO, "disk_replace_image_index(%d,*info) called.\n", index);
 	return false;
 
 	// todo - untested
@@ -271,8 +269,6 @@ static bool disk_replace_image_index(unsigned index, const struct retro_game_inf
 
 static bool disk_add_image_index(void)
 {
-	log_cb(RETRO_LOG_INFO, "disk_add_image_index called.\n");
-
 	CDInterfaces.push_back(NULL);
 	disk_image_paths.push_back("");
 	disk_image_labels.push_back("");
@@ -772,7 +768,7 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8*
 	}
 	catch( std::exception &e )
 	{
-		log_cb(RETRO_LOG_ERROR, "Loading Failed.\n");
+		log_cb(RETRO_LOG_ERROR, "Loading failed.\n");
 		return false;
 	}
 

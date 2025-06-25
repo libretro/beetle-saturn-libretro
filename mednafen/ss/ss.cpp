@@ -845,14 +845,14 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
     break;
    }
   }
-  log_cb(RETRO_LOG_INFO, "[Mednafen]: CPU Cache Emulation Mode: %s\n", cem);
+  log_cb(RETRO_LOG_INFO, "CPU Cache Emulation Mode: %s\n", cem);
  }
  //
  if(horrible_hacks)
-  log_cb(RETRO_LOG_INFO, "[Mednafen]: Horrible hacks: 0x%08x\n", horrible_hacks);
+  log_cb(RETRO_LOG_INFO, "Horrible hacks: 0x%08x\n", horrible_hacks);
  //
    {
-      log_cb(RETRO_LOG_INFO, "[Mednafen]: Region: 0x%01x.\n", smpc_area);
+      log_cb(RETRO_LOG_INFO, "Region: 0x%01x.\n", smpc_area);
       const CartName CartNames[] =
       {
          { CART_NONE, "None" },
@@ -876,9 +876,9 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          break;
       }
       if ( cn ) {
-         log_cb(RETRO_LOG_INFO, "[Mednafen]: Cart: %s.\n", cn);
+         log_cb(RETRO_LOG_INFO, "Cart: %s.\n", cn);
      } else {
-         log_cb(RETRO_LOG_INFO, "[Mednafen]: Cart: Unknown (%d).\n", cart_type );
+         log_cb(RETRO_LOG_INFO, "Cart: Unknown (%d).\n", cart_type );
      }
    }
    //
