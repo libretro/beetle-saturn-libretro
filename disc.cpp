@@ -20,6 +20,7 @@ char *rfgets(char *buffer, int maxCount, RFILE* stream);
 int rfclose(RFILE* stream);
 }
 
+extern bool cdimagecache;
 //------------------------------------------------------------------------------
 // Locals
 //------------------------------------------------------------------------------
@@ -70,6 +71,41 @@ region_strings[] =
 //------------------------------------------------------------------------------
 // Local Functions
 //------------------------------------------------------------------------------
+
+void extract_basename(char *buf, const char *path, size_t size)
+{
+   const char *base = strrchr(path, '/');
+   if (!base)
+      base = strrchr(path, '\\');
+   if (!base)
+      base = path;
+
+   if (*base == '\\' || *base == '/')
+      base++;
+
+   strncpy(buf, base, size - 1);
+   buf[size - 1] = '\0';
+
+   char *ext = strrchr(buf, '.');
+   if (ext)
+      *ext = '\0';
+}
+
+void extract_directory(char *buf, const char *path, size_t size)
+{
+   strncpy(buf, path, size - 1);
+   buf[size - 1] = '\0';
+
+   char *base = strrchr(buf, '/');
+   if (!base)
+      base = strrchr(buf, '\\');
+
+   if (base)
+      *base = '\0';
+   else
+      buf[0] = '\0';
+}
+
 
 static void ReadM3U( std::vector<std::string> &file_list, std::string path, unsigned depth = 0 )
 {
@@ -185,86 +221,29 @@ static unsigned disk_get_num_images(void)
 	return CDInterfaces.size();
 }
 
-/*
-#if 0
-// Mednafen really doesn't support adding disk images on the fly ...
-// Hack around this.
-static void update_md5_checksum(CDIF *iface)
-{
-   uint8 LayoutMD5[16];
-   md5_context layout_md5;
-   CD_TOC toc;
-
-   md5_starts(&layout_md5);
-
-   TOC_Clear(&toc);
-
-   iface->ReadTOC(&toc);
-
-   md5_update_u32_as_lsb(&layout_md5, toc.first_track);
-   md5_update_u32_as_lsb(&layout_md5, toc.last_track);
-   md5_update_u32_as_lsb(&layout_md5, toc.tracks[100].lba);
-
-   for (uint32 track = toc.first_track; track <= toc.last_track; track++)
-   {
-      md5_update_u32_as_lsb(&layout_md5, toc.tracks[track].lba);
-      md5_update_u32_as_lsb(&layout_md5, toc.tracks[track].control & 0x4);
-   }
-
-   md5_finish(&layout_md5, LayoutMD5);
-   memcpy(MDFNGameInfo->MD5, LayoutMD5, 16);
-
-   char *md5 = md5_asciistr(MDFNGameInfo->MD5);
-   log_cb(RETRO_LOG_INFO, "[Mednafen]: Updated md5 checksum: %s.\n", md5);
-}
-#endif
-*/
 static bool disk_replace_image_index(unsigned index, const struct retro_game_info *info)
 {
+	if (index < 0 || index >= CDInterfaces.size())
+		return false;
+
+	if (info != NULL)
+	{
+		char image_label[512];
+
+		image_label[0] = '\0';
+
+		CDIF *image  = CDIF_Open(info->path, cdimagecache);
+		CDInterfaces[index] = image;
+
+		extract_basename(image_label,
+			info->path,
+			sizeof(image_label));
+
+		disk_image_paths[index] = info->path;
+		disk_image_labels[index] = image_label;
+		return true;
+	}
 	return false;
-
-	// todo - untested
-
-#if 0
-   if (index >= disk_get_num_images() || !g_eject_state)
-      return false;
-
-   if (!info)
-   {
-      delete CDInterfaces.at(index);
-      CDInterfaces.erase(CDInterfaces.begin() + index);
-      if (index < CD_SelectedDisc)
-         CD_SelectedDisc--;
-
-      disk_image_paths.erase(disk_image_paths.begin() + index);
-      disk_image_labels.erase(disk_image_labels.begin() + index);
-
-      // Poke into psx.cpp
-      CalcDiscSCEx();
-      return true;
-   }
-
-   bool success = true;
-   CDIF *iface = CDIF_Open(&success, info->path, false, false);
-
-   if (!success)
-      return false;
-
-   delete CDInterfaces.at(index);
-   CDInterfaces.at(index) = iface;
-   CalcDiscSCEx();
-
-   /* If we replace, we want the "swap disk manually effect". */
-   extract_basename(retro_cd_base_name, info->path, sizeof(retro_cd_base_name));
-   /* Ugly, but needed to get proper disk swapping effect. */
-   update_md5_checksum(iface);
-
-   /* Update disk path/label vectors */
-   disk_image_paths[index]  = info->path;
-   disk_image_labels[index] = retro_cd_base_name;
-
-   return true;
-#endif
 }
 
 static bool disk_add_image_index(void)
@@ -359,39 +338,6 @@ static struct retro_disk_control_ext_callback disk_interface_ext =
 	disk_get_image_label,
 };
 
-void extract_basename(char *buf, const char *path, size_t size)
-{
-   const char *base = strrchr(path, '/');
-   if (!base)
-      base = strrchr(path, '\\');
-   if (!base)
-      base = path;
-
-   if (*base == '\\' || *base == '/')
-      base++;
-
-   strncpy(buf, base, size - 1);
-   buf[size - 1] = '\0';
-
-   char *ext = strrchr(buf, '.');
-   if (ext)
-      *ext = '\0';
-}
-
-void extract_directory(char *buf, const char *path, size_t size)
-{
-   strncpy(buf, path, size - 1);
-   buf[size - 1] = '\0';
-
-   char *base = strrchr(buf, '/');
-   if (!base)
-      base = strrchr(buf, '\\');
-
-   if (base)
-      *base = '\0';
-   else
-      buf[0] = '\0';
-}
 
 void disc_init( retro_environment_t environ_cb )
 {
@@ -724,12 +670,13 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8*
 					bool success = true;
 					image_label[0] = '\0';
 					log_cb(RETRO_LOG_INFO, "Adding CD: \"%s\".\n", disk_image_paths[i].c_str());
+
 					CDIF *image = CDIF_Open(disk_image_paths[i].c_str(), image_memcache);
 					CDInterfaces.push_back(image);
-					extract_basename(
-					image_label,
-					disk_image_paths[i].c_str(),
-					sizeof(image_label));
+
+					extract_basename(image_label,
+						disk_image_paths[i].c_str(),
+						sizeof(image_label));
 					disk_image_labels.push_back(image_label);
 				}
 			}
@@ -745,10 +692,9 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8*
 				CDIF *image  = CDIF_Open(content_name, image_memcache);
 				CDInterfaces.push_back(image);
 
-				extract_basename(
-				image_label,
-				content_name,
-				sizeof(image_label));
+				extract_basename(image_label,
+					content_name,
+					sizeof(image_label));
 				disk_image_labels.push_back(image_label);
 			}
 

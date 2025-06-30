@@ -66,7 +66,7 @@ bool is_pal = false;
 int setting_crosshair_color_p1 = 0xFF0000;
 int setting_crosshair_color_p2 = 0x0080FF;
 
-static bool cdimagecache = false;
+bool cdimagecache = false;
 static bool boot = true;
 
 // shared internal memory support
