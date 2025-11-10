@@ -238,70 +238,14 @@ else ifeq ($(platform), gcw0)
    FLAGS += -ffast-math -march=mips32 -mtune=mips32r2 -mhard-float
    GLES = 1
    GL_LIB := -lGLESv2
-   
+
 # Emscripten
 else ifeq ($(platform), emscripten)
    TARGET := $(TARGET_NAME)_libretro_$(platform).bc
+   FLAGS += -pthread -msimd128 -ftree-vectorize
+   SYSTEM_ZLIB = 1
+   M68K_SPLIT_SWITCH = 1
    STATIC_LINKING = 1
-   FLAGS += $(PTHREAD_FLAGS) -Dretro_fopen=gg_retro_fopen\
-                 -Dmain=gg_main\
-                 -Dretro_fclose=gg_retro_fclose\
-                 -Dretro_fseek=gg_retro_fseek\
-                 -Dretro_fread=gg_retro_fread\
-                 -Dretro_fwrite=gg_retro_fwrite\
-                 -Dscond_broadcast=gg_scond_broadcast\
-                 -Dscond_wait_timeout=gg_scond_wait_timeout\
-                 -Dscond_signal=gg_scond_signal\
-                 -Dscond_wait=gg_scond_wait\
-                 -Dscond_free=gg_scond_free\
-                 -Dscond_new=gg_scond_new\
-                 -Dslock_unlock=gg_slock_unlock\
-                 -Dslock_lock=gg_slock_lock\
-                 -Dslock_free=gg_slock_free\
-                 -Dslock_new=gg_slock_new\
-                 -Dsthread_join=gg_sthread_join\
-                 -Dsthread_detach=gg_sthread_detach\
-                 -Dsthread_create=gg_sthread_create\
-                 -Dscond=gg_scond\
-                 -Dslock=gg_slock\
-                 -Drglgen_symbol_map=mupen_rglgen_symbol_map \
-		 -Dmain_exit=mupen_main_exit \
-		 -Dadler32=mupen_adler32 \
-		 -Drglgen_resolve_symbols_custom=mupen_rglgen_resolve_symbols_custom \
-		 -Drglgen_resolve_symbols=mupen_rglgen_resolve_symbols \
-		 -Dsinc_resampler=mupen_sinc_resampler \
-		 -Dnearest_resampler=mupen_nearest_resampler \
-		 -DCC_resampler=mupen_CC_resampler \
-		 -Daudio_resampler_driver_find_handle=mupen_audio_resampler_driver_find_handle \
-		 -Daudio_resampler_driver_find_ident=mupen_audio_resampler_driver_find_ident \
-		 -Drarch_resampler_realloc=mupen_rarch_resampler_realloc \
-		 -Daudio_convert_s16_to_float_C=mupen_audio_convert_s16_to_float_C \
-		 -Daudio_convert_float_to_s16_C=mupen_audio_convert_float_to_s16_C \
-		 -Daudio_convert_init_simd=mupen_audio_convert_init_simd \
-                 -Dfilestream_open=gg_filestream_open\
-                 -Dfilestream_get_fd=gg_filestream_get_fd\
-                 -Dfilestream_read=gg_filestream_read\
-                 -Dfilestream_seek=gg_filestream_seek\
-                 -Dfilestream_close=gg_filestream_close\
-                 -Dfilestream_tell=gg_filestream_tell\
-                 -Dfilestream_read_file=gg_filestream_read_file\
-                 -Dfilestream_write_file=gg_filestream_write_file\
-                 -Dfilestream_write=gg_filestream_write\
-                 -Dfilestream_rewind=gg_filestream_rewind\
-                 -Dfilestream_putc=gg_filestream_putc\
-                 -Dstring_is_empty=gg_string_is_empty\
-                 -Dstring_is_equal=gg_string_is_equal\
-                 -Dstring_to_upper=gg_string_to_upper\
-                 -Dstring_to_lower=gg_string_to_lower\
-                 -Dstring_ucwords=gg_string_ucwords\
-                 -Dstring_replace_substring=gg_string_replace_substring\
-                 -Dstring_trim_whitespace_left=gg_string_trim_whitespace_left\
-                 -Dstring_trim_whitespace_right=gg_string_trim_whitespace_right\
-                 -Dstring_trim_whitespace_left=gg_string_trim_whitespace_left\
-                 -Dstring_trim_whitespace=gg_string_trim_whitespace\
-                 -Dsthread_isself=gg_sthread_isself\
-                 -Dstring_is_equal_noncase=gg_string_is_equal_noncase\
-                 -Dmkdir_norecurse=gg_mkdir_norecurse
 
 ifeq ($(HAVE_OPENGL),1)
 	ifneq (,$(findstring gles,$(platform)))

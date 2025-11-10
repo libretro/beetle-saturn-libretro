@@ -92,6 +92,12 @@ SOURCES_CXX += \
 
 SOURCES_CXX += $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k.cpp
 
+ifeq ($(M68K_SPLIT_SWITCH), 1)
+   FLAGS += -DM68K_SPLIT_SWITCH
+   SOURCES_CXX += $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k_instr_split0.cpp \
+                  $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k_instr_split1.cpp
+endif
+
 ifeq ($(NEED_TREMOR), 1)
    SOURCES_C += $(wildcard $(MEDNAFEN_DIR)/tremor/*.c)
 endif
@@ -196,9 +202,9 @@ SOURCES_C += 	 $(LIBRETRO_COMM_DIR)/streams/file_stream.c \
 		 $(LIBRETRO_COMM_DIR)/string/stdstring.c \
 		 $(LIBRETRO_COMM_DIR)/time/rtime.c
 
+endif
+
 ifeq ($(NEED_THREADING), 1)
 SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/rthreads/rthreads.c \
 		 $(LIBRETRO_COMM_DIR)/rthreads/rsemaphore.c
-endif
-
 endif
