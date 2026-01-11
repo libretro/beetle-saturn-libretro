@@ -29,7 +29,6 @@
 #include "input.h"
 #include "disc.h"
 
-
 #define MEDNAFEN_CORE_NAME                   "Beetle Saturn"
 #define MEDNAFEN_CORE_VERSION                "v1.29.0"
 #define MEDNAFEN_CORE_VERSION_NUMERIC        0x00102900
@@ -104,14 +103,11 @@ MDFNGI *MDFNGameInfo = NULL;
 extern MDFNGI EmulatedSS;
 
 // forward declarations
- bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrible_hacks, const unsigned cart_type, const unsigned smpc_area);
- MDFN_COLD void CloseGame(void);
- void Emulate(EmulateSpecStruct* espec_arg);
-
-//forward decls
+bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrible_hacks, const unsigned cart_type, const unsigned smpc_area);
+MDFN_COLD void CloseGame(void);
+void Emulate(EmulateSpecStruct* espec_arg);
 static bool overscan;
 static double last_sound_rate;
-
 
 #ifdef NEED_DEINTERLACER
 static bool PrevInterlaced;
@@ -183,14 +179,13 @@ static void retro_led_interface(void)
 
 void retro_init(void)
 {
+   const char *dir = NULL;
    struct retro_log_callback log;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log))
       log_cb = log.log;
    else
       log_cb = fallback_log;
-
-   const char *dir = NULL;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
    {
@@ -329,7 +324,7 @@ static void check_variables(bool startup)
       else if (!strcmp(var.value, "disabled"))
          connected = false;
 
-      input_multitap( 1, connected );
+      input_multitap(1, connected);
    }
 
    var.key = "beetle_saturn_multitap_port2";
@@ -342,7 +337,7 @@ static void check_variables(bool startup)
       else if (!strcmp(var.value, "disabled"))
          connected = false;
 
-      input_multitap( 2, connected );
+      input_multitap(2, connected);
    }
 
    var.key = "beetle_saturn_opposite_directions";
@@ -799,10 +794,10 @@ void retro_run(void)
    const uint32_t *pix = surf->pixels;
    size_t pitch        = FB_WIDTH * sizeof(uint32_t);
 
-   hires_h_mode   =  (rects[0] == 704) ? true : false;
-   overscan_mask  =  (h_mask >> 1) << hires_h_mode;
-   width          =  rects[0] - (h_mask << hires_h_mode);
-   height         =  (linevislast + 1 - linevisfirst) << PrevInterlaced;
+   hires_h_mode  = (rects[0] == 704) ? true : false;
+   overscan_mask = (h_mask >> 1) << hires_h_mode;
+   width         = rects[0] - (h_mask << hires_h_mode);
+   height        = (linevislast + 1 - linevisfirst) << PrevInterlaced;
 
    if (width != game_width || height != game_height)
    {
@@ -810,11 +805,11 @@ void retro_run(void)
 
       // Change frontend resolution using base width/height (+ overscan adjustments).
       // This avoids inconsistent frame scales when game switches between interlaced and non-interlaced modes.
-      av_info.geometry.base_width   = 352 - h_mask;
-      av_info.geometry.base_height  = linevislast + 1 - linevisfirst;
-      av_info.geometry.max_width    = MEDNAFEN_CORE_GEOMETRY_MAX_W;
-      av_info.geometry.max_height   = MEDNAFEN_CORE_GEOMETRY_MAX_H;
-      av_info.geometry.aspect_ratio = 352.0f / ((is_pal) ? 256.0f : 240.0f);
+      av_info.geometry.base_width    = 352 - h_mask;
+      av_info.geometry.base_height   = linevislast + 1 - linevisfirst;
+      av_info.geometry.max_width     = MEDNAFEN_CORE_GEOMETRY_MAX_W;
+      av_info.geometry.max_height    = MEDNAFEN_CORE_GEOMETRY_MAX_H;
+      av_info.geometry.aspect_ratio  = 352.0f / ((is_pal) ? 256.0f : 240.0f);
       av_info.geometry.aspect_ratio *= 6.0f / 7.0f;
 
       /* Corrections for croppings */
@@ -829,16 +824,16 @@ void retro_run(void)
       input_set_geometry(width, height);
    }
 
-   /* LED interface */
-   if (led_state_cb)
-      retro_led_interface();
-
    pix += surf->pitchinpix * (linevisfirst << PrevInterlaced) + overscan_mask;
 
    fb = pix;
 
    video_cb(fb, game_width, game_height, pitch);
    audio_batch_cb((int16_t*)&IBuffer, spec.SoundBufSize);
+
+   /* LED interface */
+   if (led_state_cb)
+      retro_led_interface();
 }
 
 void retro_get_system_info(struct retro_system_info *info)
