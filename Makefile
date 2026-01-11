@@ -1,3 +1,4 @@
+SILENT := 0
 DEBUG = 0
 HAVE_OPENGL = 0
 HAVE_CHD = 1
@@ -483,9 +484,15 @@ else
 endif
 
 %.o: %.cpp
+	@if [ $(SILENT) -ne 1 ]; then\
+		$(if $@, $(shell echo echo CXX $<),);\
+	fi
 	$(CXX) -c $(OBJOUT)$@ $< $(CXXFLAGS)
 
 %.o: %.c
+	@if [ $(SILENT) -ne 1 ]; then\
+		$(if $@, $(shell echo echo CC $<),);\
+	fi
 	$(CC) -c $(OBJOUT)$@ $< $(CFLAGS)
 
 clean:
