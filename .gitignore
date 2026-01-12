@@ -5,3 +5,5 @@
 *.lib
 *.exp
 *.manifest
+mednafen/hw_cpu/m68k/gen
+mednafen/hw_cpu/m68k/gen_split

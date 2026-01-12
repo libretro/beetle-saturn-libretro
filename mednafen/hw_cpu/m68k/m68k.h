@@ -117,6 +117,11 @@ class M68K
 
  uint16 ReadOp(void);
 
+#ifdef M68K_SPLIT_SWITCH
+ void RunSplit0(uint16 instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
+ void RunSplit1(uint16 instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
+#endif
+
  template<typename T, bool long_dec = false>
  void Write(uint32 addr, const T val);
 

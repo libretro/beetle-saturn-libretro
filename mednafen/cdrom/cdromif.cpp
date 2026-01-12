@@ -244,11 +244,11 @@ struct RTS_Args
    CDIF_MT *cdif_ptr;
 };
 
-static int ReadThreadStart_C(void *v_arg)
+static void ReadThreadStart_C(void *v_arg)
 {
    RTS_Args *args = (RTS_Args *)v_arg;
 
-   return args->cdif_ptr->ReadThreadStart();
+   args->cdif_ptr->ReadThreadStart();
 }
 
 int CDIF_MT::ReadThreadStart()
@@ -358,7 +358,7 @@ CDIF_MT::CDIF_MT(CDAccess *cda) : disc_cdaccess(cda), CDReadThread(NULL), SBMute
 
    s.cdif_ptr = this;
 
-   CDReadThread = sthread_create((void (*)(void*))ReadThreadStart_C, &s);
+   CDReadThread = sthread_create(ReadThreadStart_C, &s);
    EmuThreadQueue.Read(&msg);
 }
 
