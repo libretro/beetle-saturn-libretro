@@ -30,6 +30,12 @@ else ifneq (,$(findstring armv,$(platform)))
    override platform += unix
 endif
 
+ifeq ($(platform), unix)
+   ifeq ($(shell uname -m),loongarch64)
+      arch = loongarch64
+   endif
+endif
+
 ifneq ($(platform), osx)
    ifeq ($(findstring Haiku,$(shell uname -s)),)
       PTHREAD_FLAGS = -pthread
@@ -56,6 +62,12 @@ endif
 GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
 ifneq ($(GIT_VERSION)," unknown")
    CXXFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+endif
+
+# loongarch
+ifeq ($(arch),loongarch64)
+   libdir := $(libdir)/loongarch64-linux-gnu
+   CXXFLAGS += -D__loongarch64__
 endif
 
 # Unix

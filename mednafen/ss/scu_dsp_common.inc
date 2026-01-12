@@ -19,7 +19,7 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(__arm64__) || defined(__ppc64__) || defined(__PPC64__) || defined(__ppce64le__)
+#if defined(__loongarch64__) || defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(__arm64__) || defined(__ppc64__) || defined(__PPC64__) || defined(__ppce64le__)
  #define DSP_INSTR_BASE_UIPT ((uintptr_t)DSP_Init)
  #define DSP_INSTR_RECOVER_TCAST int32
 #else
