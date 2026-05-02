@@ -2536,17 +2536,18 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
    const uint32 rgb_tmp = pix >> PIX_RGB_SHIFT;
    int32 rt, gt, bt;
 
+   // Magnitude test (not bit-test) so the compiler emits csel instead of tst+branch.
    rt = ColorOffs[sel][0] + (rgb_tmp & 0x000000FF);
    if(rt < 0) rt = 0;
-   if(rt & 0x00000100) rt = 0x000000FF;
+   if(rt > 0x000000FF) rt = 0x000000FF;
 
    gt = ColorOffs[sel][1] + (rgb_tmp & 0x0000FF00);
    if(gt < 0) gt = 0;
-   if(gt & 0x00010000) gt = 0x0000FF00;
+   if(gt > 0x0000FF00) gt = 0x0000FF00;
 
    bt = ColorOffs[sel][2] + (rgb_tmp & 0x00FF0000);
    if(bt < 0) bt = 0;
-   if(bt & 0x01000000) bt = 0x00FF0000;
+   if(bt > 0x00FF0000) bt = 0x00FF0000;
 
    pix = (uint32)pix | ((uint64)(uint32)(rt | gt | bt) << PIX_RGB_SHIFT);
   }
