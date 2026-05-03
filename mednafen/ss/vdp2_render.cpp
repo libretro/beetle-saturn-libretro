@@ -3194,6 +3194,8 @@ static void/*int*/ RThreadEntry(void* data)
    {
 #ifdef MDFN_SS_BUSYWAIT_PAUSE
     asm volatile("pause\n\tpause\n\tpause\n\tpause\n\tpause\n\tpause\n\tpause\n\t");
+#elif defined(__aarch64__) || defined(__arm__)
+    asm volatile("yield\n\tyield\n\tyield\n\tyield\n\tyield\n\tyield\n\tyield\n\t");
 #else
     for(int i = 1000; i; i--)
     {
