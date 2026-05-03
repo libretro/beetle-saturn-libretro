@@ -3004,7 +3004,7 @@ void SS_DumpOpPairProfile(void)
 
 */
 
-#define DoIDIF(IntPreventNext) DoIDIF_NI<which, EmulateICache, IntPreventNext>()
+#define DoIDIF(IntPreventNext) DoIDIF_NI<EmulateICache, IntPreventNext>()
 
 #define OnChipRegRead(T, A) OnChipRegRead_INLINE<T>(A)
 #define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<which, false, T, BurstHax>(A)
@@ -3030,10 +3030,10 @@ INLINE void SH7095::DoIDIF_INLINE(void)
  DoIDIF_MACRO(IntPreventNext);
 }
 
-template<unsigned which, bool EmulateICache, bool IntPreventNext>
-static NO_INLINE MDFN_HOT void DoIDIF_NI(void)
+template<bool EmulateICache, bool IntPreventNext>
+NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI(void)
 {
- CPU[which].DoIDIF_INLINE<EmulateICache, IntPreventNext>();
+ DoIDIF_INLINE<EmulateICache, IntPreventNext>();
 }
 
 template<unsigned which, bool EmulateICache>

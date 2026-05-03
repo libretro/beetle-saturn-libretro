@@ -479,6 +479,9 @@ class SH7095 final
  template<bool EmulateICache, bool IntPreventNext>
  INLINE void DoIDIF_INLINE(void);
 
+ template<bool EmulateICache, bool IntPreventNext>
+ NO_INLINE void DoIDIF_NI(void) MDFN_HOT;
+
  template<bool SlavePenalty, typename T, bool BurstHax>
  INLINE T ExtBusRead_INLINE(uint32 A);
 
