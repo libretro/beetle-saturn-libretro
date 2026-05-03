@@ -3,6 +3,7 @@ DEBUG = 0
 HAVE_OPENGL = 0
 HAVE_CHD = 1
 HAVE_CDROM = 0
+LTO = 1
 
 CORE_DIR := .
 
@@ -407,6 +408,11 @@ ifeq ($(DEBUG),0)
    FLAGS += -O2 $(EXTRA_GCC_FLAGS)
 else
    FLAGS += -O0 -g
+endif
+
+ifneq ($(LTO),)
+   FLAGS   += -flto=auto -fipa-pta
+   LDFLAGS += -flto=auto -fipa-pta -O2
 endif
 
 LDFLAGS += $(fpic) $(SHARED)
