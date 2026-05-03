@@ -146,17 +146,18 @@
   SS_EVENT__COUNT,
  };
 
+ // events[] is padded so FindNextEventTS() can min-reduce over whole vectors;
+ // padding slots stay at SS_EVENT_DISABLED_TS.
+ enum { SS_EVENT__SIMD_COUNT = (SS_EVENT__COUNT + 3) & ~3 };
+
  typedef sscpu_timestamp_t (*ss_event_handler)(const sscpu_timestamp_t timestamp);
 
  struct event_list_entry
  {
   sscpu_timestamp_t event_time;
-  event_list_entry *prev;
-  event_list_entry *next;
-  ss_event_handler event_handler;
  };
 
- MDFN_HIDE extern event_list_entry events[SS_EVENT__COUNT];
+ MDFN_HIDE extern event_list_entry events[SS_EVENT__SIMD_COUNT];
 
  enum : sscpu_timestamp_t { SS_EVENT_DISABLED_TS = 0x7FFFFFFF };
 

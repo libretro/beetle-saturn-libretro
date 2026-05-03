@@ -418,9 +418,20 @@ void SS_SetPhysMemMap(uint32 Astart, uint32 Aend, uint16* ptr, uint32 length, bo
 //     functions.
 //
 int Running;
-event_list_entry events[SS_EVENT__COUNT];
+alignas(16) event_list_entry events[SS_EVENT__SIMD_COUNT];
+static ss_event_handler event_handlers[SS_EVENT__COUNT];
 
 static sscpu_timestamp_t next_event_ts;
+
+// NO_INLINE keeps the body out of RunLoop's no-unroll pragma scope so -O2
+// auto-vectorizes the reduction (smin/sminv on aarch64).
+static NO_INLINE sscpu_timestamp_t FindNextEventTS(void)
+{
+ sscpu_timestamp_t m = SS_EVENT_DISABLED_TS;
+ for(unsigned i = 0; i < SS_EVENT__SIMD_COUNT; i++)
+  m = std::min(m, events[i].event_time);
+ return m;
+}
 
 template<unsigned c>
 static sscpu_timestamp_t SH_DMA_EventHandler(sscpu_timestamp_t et)
@@ -441,38 +452,38 @@ static sscpu_timestamp_t SH_DMA_EventHandler(sscpu_timestamp_t et)
 
 static MDFN_COLD void InitEvents(void)
 {
- for(unsigned i = 0; i < SS_EVENT__COUNT; i++)
+ // SYNFIRST/SYNLAST and padding slots stay disabled so the min-reduction
+ // ignores them; only [SYNFIRST+1, SYNLAST) hold real events.
+ for(unsigned i = 0; i < SS_EVENT__SIMD_COUNT; i++)
  {
-  if(i == SS_EVENT__SYNFIRST)
-   events[i].event_time = 0;
-  else if(i == SS_EVENT__SYNLAST)
-   events[i].event_time = 0x7FFFFFFF;
+  if(i == SS_EVENT__SYNFIRST || i == SS_EVENT__SYNLAST || i >= SS_EVENT__COUNT)
+   events[i].event_time = SS_EVENT_DISABLED_TS;
   else
-   events[i].event_time = 0; //SS_EVENT_DISABLED_TS;
-
-  events[i].prev = (i > 0) ? &events[i - 1] : NULL;
-  events[i].next = (i < (SS_EVENT__COUNT - 1)) ? &events[i + 1] : NULL;
+   events[i].event_time = 0;
  }
 
- events[SS_EVENT_SH2_M_DMA].event_handler = &SH_DMA_EventHandler<0>;
- events[SS_EVENT_SH2_S_DMA].event_handler = &SH_DMA_EventHandler<1>;
+ for(unsigned i = 0; i < SS_EVENT__COUNT; i++)
+  event_handlers[i] = NULL;
 
- events[SS_EVENT_SCU_DMA].event_handler = SCU_UpdateDMA;
- events[SS_EVENT_SCU_DSP].event_handler = SCU_UpdateDSP;
-/*events[SS_EVENT_SCU_INT].event_handler = SCU_UpdateInt;*/
+ event_handlers[SS_EVENT_SH2_M_DMA] = &SH_DMA_EventHandler<0>;
+ event_handlers[SS_EVENT_SH2_S_DMA] = &SH_DMA_EventHandler<1>;
 
- events[SS_EVENT_SMPC].event_handler = SMPC_Update;
+ event_handlers[SS_EVENT_SCU_DMA] = SCU_UpdateDMA;
+ event_handlers[SS_EVENT_SCU_DSP] = SCU_UpdateDSP;
+/*event_handlers[SS_EVENT_SCU_INT] = SCU_UpdateInt;*/
 
- events[SS_EVENT_VDP1].event_handler = VDP1::Update;
- events[SS_EVENT_VDP2].event_handler = VDP2::Update;
+ event_handlers[SS_EVENT_SMPC] = SMPC_Update;
 
- events[SS_EVENT_CDB].event_handler = CDB_Update;
+ event_handlers[SS_EVENT_VDP1] = VDP1::Update;
+ event_handlers[SS_EVENT_VDP2] = VDP2::Update;
 
- events[SS_EVENT_SOUND].event_handler = SOUND_Update;
+ event_handlers[SS_EVENT_CDB] = CDB_Update;
 
- events[SS_EVENT_CART].event_handler = CART_GetEventHandler();
+ event_handlers[SS_EVENT_SOUND] = SOUND_Update;
 
- events[SS_EVENT_MIDSYNC].event_handler = MidSync;
+ event_handlers[SS_EVENT_CART] = CART_GetEventHandler();
+
+ event_handlers[SS_EVENT_MIDSYNC] = MidSync;
  //
  //
  SS_SetEventNT(&events[SS_EVENT_MIDSYNC], SS_EVENT_DISABLED_TS);
@@ -480,66 +491,28 @@ static MDFN_COLD void InitEvents(void)
 
 static void RebaseTS(const sscpu_timestamp_t timestamp)
 {
- for(unsigned i = 0; i < SS_EVENT__COUNT; i++)
+ for(unsigned i = SS_EVENT__SYNFIRST + 1; i < SS_EVENT__SYNLAST; i++)
  {
-  if(i == SS_EVENT__SYNFIRST || i == SS_EVENT__SYNLAST)
-   continue;
-
   assert(events[i].event_time > timestamp);
 
   if(events[i].event_time != SS_EVENT_DISABLED_TS)
    events[i].event_time -= timestamp;
  }
 
- next_event_ts = events[SS_EVENT__SYNFIRST].next->event_time;
+ next_event_ts = FindNextEventTS();
 }
 
 void SS_SetEventNT(event_list_entry* e, const sscpu_timestamp_t next_timestamp)
 {
- if(next_timestamp < e->event_time)
- {
-  event_list_entry *fe = e;
+ const sscpu_timestamp_t old_t = e->event_time;
+ e->event_time = next_timestamp;
 
-  do
-  {
-   fe = fe->prev;
-  } while(next_timestamp < fe->event_time);
-
-  // Remove this event from the list, temporarily of course.
-  e->prev->next = e->next;
-  e->next->prev = e->prev;
-
-  // Insert into the list, just after "fe".
-  e->prev = fe;
-  e->next = fe->next;
-  fe->next->prev = e;
-  fe->next = e;
-
-  e->event_time = next_timestamp;
- }
- else if(next_timestamp > e->event_time)
- {
-  event_list_entry *fe = e;
-
-  do
-  {
-   fe = fe->next;
-  } while(next_timestamp > fe->event_time);
-
-  // Remove this event from the list, temporarily of course
-  e->prev->next = e->next;
-  e->next->prev = e->prev;
-
-  // Insert into the list, just BEFORE "fe".
-  e->prev = fe->prev;
-  e->next = fe;
-  fe->prev->next = e;
-  fe->prev = e;
-
-  e->event_time = next_timestamp;
- }
-
- next_event_ts = ((Running > 0) ? events[SS_EVENT__SYNFIRST].next->event_time : 0);
+ if(MDFN_UNLIKELY(Running <= 0))
+  next_event_ts = 0;
+ else if(old_t == next_event_ts)
+  next_event_ts = FindNextEventTS();
+ else if(next_timestamp < next_event_ts)
+  next_event_ts = next_timestamp;
 }
 
 // Called from debug.cpp too.
@@ -551,24 +524,31 @@ static void ForceEventUpdates(const sscpu_timestamp_t timestamp)
  for(unsigned evnum = SS_EVENT__SYNFIRST + 1; evnum < SS_EVENT__SYNLAST; evnum++)
  {
   if(events[evnum].event_time != SS_EVENT_DISABLED_TS)
-   SS_SetEventNT(&events[evnum], events[evnum].event_handler(timestamp));
+   events[evnum].event_time = event_handlers[evnum](timestamp);
  }
 
- next_event_ts = ((Running > 0) ? events[SS_EVENT__SYNFIRST].next->event_time : 0);
+ next_event_ts = (Running > 0) ? FindNextEventTS() : 0;
 }
 
 static INLINE bool EventHandler(const sscpu_timestamp_t timestamp)
 {
- event_list_entry *e = NULL;
-
- while(timestamp >= (e = events[SS_EVENT__SYNFIRST].next)->event_time)  // If Running = 0, EventHandler() may be called even if there isn't an event per-se, so while() instead of do { ... } while
+ // next_event_ts is forced to 0 (sentinel) when Running <= 0 to make
+ // CheckEventsByMemTS trip and unwind RunLoop. Don't enter the dispatch loop
+ // in that state best_t = 0 wouldn't match any events[i].event_time and
+ // the inner scan would walk off the end.
+ if(MDFN_UNLIKELY(Running <= 0))
+  return false;
+ sscpu_timestamp_t best_t = next_event_ts;
+ while(best_t <= timestamp)
  {
-  sscpu_timestamp_t nt;
-  nt = e->event_handler(e->event_time);
-
-  SS_SetEventNT(e, nt);
+  unsigned best_i = SS_EVENT__SYNFIRST + 1;
+  while(events[best_i].event_time != best_t)
+   best_i++;
+  events[best_i].event_time = event_handlers[best_i](best_t);
+  best_t = FindNextEventTS();
  }
 
+ next_event_ts = (Running > 0) ? best_t : 0;
  return Running > 0;
 }
 
@@ -1219,25 +1199,25 @@ struct EventsPacker
 
 INLINE void EventsPacker::Save(void)
 {
- event_list_entry* evt = events[SS_EVENT__SYNFIRST].next;
-
- for(size_t i = eventcopy_first; i < eventcopy_bound; i++)
+ for(size_t i = 0; i < eventcopy_bound - eventcopy_first; i++)
  {
-  event_times[i - eventcopy_first] = events[i].event_time;
-  event_order[i - eventcopy_first] = evt - events;
-  assert(event_order[i - eventcopy_first] >= eventcopy_first && event_order[i - eventcopy_first] < eventcopy_bound);
-  evt = evt->next;
+  event_times[i] = events[eventcopy_first + i].event_time;
+  event_order[i] = (uint8)(eventcopy_first + i);
  }
+
+ // event_order is the schedule order Restore() validates; equal times tie-break by index.
+ std::stable_sort(event_order, event_order + (eventcopy_bound - eventcopy_first),
+  [](uint8 a, uint8 b) { return events[a].event_time < events[b].event_time; });
 }
 
 INLINE bool EventsPacker::Restore(const unsigned state_version)
 {
  bool used[SS_EVENT__COUNT] = { 0 };
- event_list_entry* evt = &events[SS_EVENT__SYNFIRST];
- for(size_t i = eventcopy_first; i < eventcopy_bound; i++)
+
+ for(size_t i = 0; i < eventcopy_bound - eventcopy_first; i++)
  {
-  int32 et = event_times[i - eventcopy_first];
-  uint8 eo = event_order[i - eventcopy_first];
+  int32 et = event_times[i];
+  uint8 eo = event_order[i];
 
   if(state_version < 0x00102600 && et >= 0x40000000)
   {
@@ -1260,47 +1240,17 @@ INLINE bool EventsPacker::Restore(const unsigned state_version)
 
   used[eo] = true;
 
-  if(et < events[SS_EVENT__SYNFIRST].event_time)
+  if(et < 0)
    return false;
 
-  events[i].event_time = et;
-
-  evt->next = &events[eo];
-  evt->next->prev = evt;
-  evt = evt->next;
+  events[eventcopy_first + i].event_time = et;
  }
- evt->next = &events[SS_EVENT__SYNLAST];
- evt->next->prev = evt;
 
- for(size_t i = 0; i < SS_EVENT__COUNT; i++)
+ // Reject malformed save states whose event_order isn't non-decreasing.
+ for(size_t i = 1; i < eventcopy_bound - eventcopy_first; i++)
  {
-  if(i == SS_EVENT__SYNLAST)
-  {
-   if(events[i].next != NULL)
-    return false;
-  }
-  else
-  {
-   if(events[i].next->prev != &events[i])
-    return false;
-
-   if(events[i].next->event_time < events[i].event_time)
-    return false;
-  }
-
-  if(i == SS_EVENT__SYNFIRST)
-  {
-   if(events[i].prev != NULL)
-    return false;
-  }
-  else
-  {
-   if(events[i].prev->next != &events[i])
-    return false;
-
-   if(events[i].prev->event_time > events[i].event_time)
-    return false;
-  }
+  if(events[event_order[i]].event_time < events[event_order[i - 1]].event_time)
+   return false;
  }
 
  return true;
