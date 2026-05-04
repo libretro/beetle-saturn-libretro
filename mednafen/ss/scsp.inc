@@ -1206,7 +1206,71 @@ void SS_SCSP::DecodeMPROG(void)
   f |= ((instr >> 47) & 1) ? DSPF_XSEL   : 0;
   f |= ((instr >> 55) & 1) ? DSPF_TWT    : 0;
   s.flags = f;
-  s._reserved = 0;
+
+  uint8 reads = 0;
+  if(f & (DSPF_EWT | DSPF_TWT | DSPF_FRCL | DSPF_ADRL | DSPF_MWT | DSPF_BSEL))
+   reads |= DSPR_SFT;
+  if(s.YSEL == 0)                            reads |= DSPR_FRC;
+  if(s.YSEL == 2 || s.YSEL == 3)             reads |= DSPR_Y;
+  if(f & DSPF_ADRGB)                         reads |= DSPR_ADRS;
+  if(!(f & DSPF_XSEL) || !(f & DSPF_BSEL))   reads |= DSPR_TEMP;
+  if(!(s.IRA & 0x20))                        reads |= DSPR_MEMS;
+  s.reads = reads;
+
+  uint8 writes = DSPW_SFT;
+  if(f & DSPF_FRCL)                  writes |= DSPW_FRC;
+  if(f & DSPF_YRL)                   writes |= DSPW_Y;
+  if(f & DSPF_ADRL)                  writes |= DSPW_ADRS;
+  if(f & DSPF_TWT)                   writes |= DSPW_TEMP;
+  if(f & DSPF_IWT)                   writes |= DSPW_MEMS;
+  if(f & DSPF_EWT)                   writes |= DSPW_EFREG;
+  if(f & (DSPF_MRT | DSPF_MWT))      writes |= DSPW_RAM;
+  s.writes = writes;
+
+  s.hazard_next = 0;	// filled in by hazard pass
+  s.live = 1;		// filled in by liveness pass
+ }
+
+ // Hazard pass: hazard_next[N] bit 0 = "step N+1 RAW-depends on step N"
+ for(unsigned step = 0; step < 127; step++)
+ {
+  const DSPStep& cur = DSP.MPROG_Decoded[step];
+  const DSPStep& nxt = DSP.MPROG_Decoded[step + 1];
+  uint8 haz = 0;
+
+  if(nxt.reads & DSPR_SFT)                                         haz = 1;
+  else if((cur.writes & DSPW_FRC)  && (nxt.reads & DSPR_FRC))      haz = 1;
+  else if((cur.writes & DSPW_Y)    && (nxt.reads & DSPR_Y))        haz = 1;
+  else if((cur.writes & DSPW_ADRS) && (nxt.reads & DSPR_ADRS))     haz = 1;
+  else if((cur.writes & DSPW_TEMP) && (nxt.reads & DSPR_TEMP) && cur.TWA == nxt.TRA)
+                                                                   haz = 1;
+  else if((cur.writes & DSPW_MEMS) && (nxt.reads & DSPR_MEMS) && cur.IWA == (nxt.IRA & 0x1F))
+                                                                   haz = 1;
+  else if(cur.writes & DSPW_RAM)                                   haz = 1;
+
+  DSP.MPROG_Decoded[step].hazard_next = haz;
+ }
+
+ // Liveness pass: a step is dead if its only observable writes are SFT_REG and/or
+ // INPUTS, and the next step (wrapping for step 127 -> step 0 across the sample
+ // boundary) doesn't observe either of them.  INPUTS is preserved when IRA is in
+ // [0x32..0x3F]; otherwise the step writes INPUTS via MEMS/MIXS/EXTS.
+ for(unsigned step = 0; step < 128; step++)
+ {
+  const DSPStep& cur = DSP.MPROG_Decoded[step];
+  const DSPStep& nxt = DSP.MPROG_Decoded[(step + 1) & 0x7F];
+  const uint32 nf = nxt.flags;
+
+  const bool has_other_writes  = (cur.writes & ~(unsigned)DSPW_SFT) != 0;
+  const bool sft_observed      = (nxt.reads & DSPR_SFT) != 0;
+
+  const bool cur_writes_inputs    = !((cur.IRA & 0x30) == 0x30 && (cur.IRA & 0x0E) != 0);
+  const bool nxt_preserves_inputs =  ((nxt.IRA & 0x30) == 0x30 && (nxt.IRA & 0x0E) != 0);
+  const bool nxt_uses_inputs      = (nf & DSPF_YRL) || (nf & DSPF_XSEL) ||
+                                    ((nf & DSPF_ADRL) && !((nf & DSPF_SHFT0) && (nf & DSPF_SHFT1)));
+  const bool inputs_observed      = cur_writes_inputs && nxt_preserves_inputs && nxt_uses_inputs;
+
+  DSP.MPROG_Decoded[step].live = (has_other_writes || sft_observed || inputs_observed) ? 1 : 0;
  }
 
  DSP.MPROG_Dirty = false;
@@ -1220,6 +1284,7 @@ INLINE void SS_SCSP::RunDSP(void)
  for(unsigned step = 0; step < 128; step++)
  {
   const DSPStep& s = DSP.MPROG_Decoded[step];
+  if(!s.live) continue;
   const uint32 f = s.flags;
   const unsigned IRA = s.IRA;
   const unsigned TEMPWriteAddr = (s.TWA + DSP.MDEC_CT) & 0x7F;
