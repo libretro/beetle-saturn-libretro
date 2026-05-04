@@ -1670,15 +1670,26 @@ INLINE void SS_SCSP::RunSample(T_out* outlr)
    }
   }
 
-  if(!Slots[(GlobalCounter - 4) & 0x1F].StackWriteInhibit)
   {
-   SoundStack[(GlobalCounter - 4) & 0x3F] = SoundStackDelayer[3];
-  }
+   uint64 packed;
+   memcpy(&packed, SoundStackDelayer, sizeof(SoundStackDelayer));
 
-  SoundStackDelayer[3] = SoundStackDelayer[2];
-  SoundStackDelayer[2] = SoundStackDelayer[1];
-  SoundStackDelayer[1] = SoundStackDelayer[0];
-  SoundStackDelayer[0] = sample;
+   if(!Slots[(GlobalCounter - 4) & 0x1F].StackWriteInhibit)
+   {
+#ifdef MSB_FIRST
+    SoundStack[(GlobalCounter - 4) & 0x3F] = (uint16)packed;
+#else
+    SoundStack[(GlobalCounter - 4) & 0x3F] = (uint16)(packed >> 48);
+#endif
+   }
+
+#ifdef MSB_FIRST
+   packed = (packed >> 16) | ((uint64)(uint16)sample << 48);
+#else
+   packed = (packed << 16) | (uint16)sample;
+#endif
+   memcpy(SoundStackDelayer, &packed, sizeof(SoundStackDelayer));
+  }
   //
   //
   if(SlotMonitorWhich == slot)
