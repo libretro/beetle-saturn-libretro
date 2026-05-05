@@ -613,6 +613,30 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
    else
     p->NextEventTS = std::max<sscpu_timestamp_t>(0, p->NextEventTS);
   }
+
+  if(load < 0x00103100)
+  {
+   //printf("%u --- %u\n", SubPhase, SubPhase + 1); //SubPhaseBias);
+
+   switch(SubPhase)
+   {
+    case 29:
+    case 27:
+	JRS.NextContBit = true;
+	if(SR & SR_NPE)
+	{
+	 IR0WX = (!JRS.NextContBit << 7);
+	 IR0WA = 0xC0;
+	 SubPhase = 27;
+	}
+	else
+	{
+	 IR0WA = 0;
+	 SubPhase = 29;
+	}
+	break;
+   }
+  }
  }
 }
 
