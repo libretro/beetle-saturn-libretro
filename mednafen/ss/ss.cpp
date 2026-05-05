@@ -241,8 +241,13 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
   {
    if(sizeof(T) != 1 || (A & 1))
    {
-    BackupRAM[(A >> 1) & 0x7FFF] = DB;
-    BackupRAM_Dirty = true;
+    uint8* const brp = &BackupRAM[(A >> 1) & 0x7FFF];
+
+    if(*brp != (uint8)DB)
+    {
+     *brp = (uint8)DB;
+     BackupRAM_Dirty = true;
+    }
    }
   }
   else
