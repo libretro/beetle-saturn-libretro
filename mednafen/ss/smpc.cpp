@@ -1492,7 +1492,12 @@ void SMPC_SetVBVS(sscpu_timestamp_t event_timestamp, bool vb_status, bool vsync_
  if(vb ^ vb_status)
  {
   if(vb_status)	// Going into vblank
+  {
    PendingVB = true;
+
+   if(events[SS_EVENT_MIDSYNC].event_time == SS_EVENT_DISABLED_TS)
+    SS_SetEventNT(&events[SS_EVENT_MIDSYNC], event_timestamp + 1);
+  }
 
   SS_SetEventNT(&events[SS_EVENT_SMPC], event_timestamp + 1);
  }
