@@ -2753,6 +2753,37 @@ static const uint8 InstrDecodeTab[65536] =
  #include "sh7095_idecodetab.inc"
 };
 
+#ifdef SH7095_OP_PAIR_PROFILE
+namespace {
+ struct OpPairProf {
+  uint32 counter[256][256];
+  uint8 prev_op;
+ };
+ OpPairProf op_pair_prof[2];
+}
+
+#define OP_PAIR_TICK(which_idx)							\
+ do {										\
+  const unsigned _wi = (which_idx);						\
+  const uint8 _curr = (uint8)(Pipe_ID >> 24);					\
+  op_pair_prof[_wi].counter[op_pair_prof[_wi].prev_op][_curr]++;		\
+  op_pair_prof[_wi].prev_op = _curr;						\
+ } while(0)
+
+void SS_DumpOpPairProfile(void)
+{
+ const char* paths[2] = { "/tmp/op_pairs_master.bin", "/tmp/op_pairs_slave.bin" };
+ for(unsigned i = 0; i < 2; i++) {
+  FILE* f = fopen(paths[i], "wb");
+  if(!f) continue;
+  fwrite(&op_pair_prof[i].counter[0][0], sizeof(uint32), 256u * 256u, f);
+  fclose(f);
+ }
+}
+#else
+#define OP_PAIR_TICK(which_idx) do {} while(0)
+#endif
+
 /*								*/
 /* TODO: Stop reading from memory when an exception is pending? */
 /*								*/
@@ -3006,7 +3037,7 @@ static NO_INLINE MDFN_HOT void DoIDIF_NI(void)
 }
 
 template<unsigned which, bool EmulateICache>
-INLINE void SH7095::Step(void)
+FORCE_INLINE void SH7095::Step(void)
 {
  //
  // Ideally, we would place SPEPRecover: after the FRT event check, but doing
@@ -3026,6 +3057,7 @@ INLINE void SH7095::Step(void)
  const unsigned instr_nyb1 = (instr >> 4) & 0xF;
  const unsigned instr_nyb2 = (instr >> 8) & 0xF;
 // asm volatile("":: "a"(instr_nyb1), "d"(instr_nyb2));
+ OP_PAIR_TICK(which);
  //
  #include "sh7095_ops.inc"
  //

@@ -28,6 +28,7 @@
 #define OP_MOV_W_REG_REGINDIR                   case 0x06:case 0x86:
 #define OP_MOV_L_REG_REGINDIR                   case 0x07:case 0x87:
 #define OP_MOV_B_REGINDIR_REG                   case 0x08:case 0x88:
+#define OP_MOV_B_REGINDIR_REG_ID                0x08
 #define OP_MOV_W_REGINDIR_REG                   case 0x09:case 0x89:
 #define OP_MOV_L_REGINDIR_REG                   case 0x0a:case 0x8a:
 #define OP_MOV_B_REG_REGINDIRPD                 case 0x0b:case 0x8b:
@@ -40,6 +41,7 @@
 #define OP_MOV_W_REG0_REGINDIRDISP              case 0x12:case 0x92:
 #define OP_MOV_L_REG_REGINDIRDISP               case 0x13:case 0x93:
 #define OP_MOV_B_REGINDIRDISP_REG0              case 0x14:case 0x94:
+#define OP_MOV_B_REGINDIRDISP_REG0_ID           0x14
 #define OP_MOV_W_REGINDIRDISP_REG0              case 0x15:case 0x95:
 #define OP_MOV_L_REGINDIRDISP_REG               case 0x16:case 0x96:
 #define OP_MOV_B_REG_IDXREGINDIR                case 0x17:case 0x97:
@@ -64,6 +66,7 @@
 #define OP_ADDC_REG_REG                         case 0x2a:case 0xaa:
 #define OP_ADDV_REG_REG                         case 0x2b:case 0xab:
 #define OP_CMP_EQ_IMM_REG0                      case 0x2c:case 0xac:
+#define OP_CMP_EQ_IMM_REG0_ID                   0x2c
 #define OP_CMP_EQ_REG_REG                       case 0x2d:case 0xad:
 #define OP_CMP_HS_REG_REG                       case 0x2e:case 0xae:
 #define OP_CMP_GE_REG_REG                       case 0x2f:case 0xaf:
@@ -78,6 +81,7 @@
 #define OP_DMULS_L_REG_REG                      case 0x38:case 0xb8:
 #define OP_DMULU_L_REG_REG                      case 0x39:case 0xb9:
 #define OP_DT                                   case 0x3a:case 0xba:
+#define OP_DT_ID                                0x3a
 #define OP_EXTS_B_REG_REG                       case 0x3b:case 0xbb:
 #define OP_EXTS_W_REG_REG                       case 0x3c:case 0xbc:
 #define OP_EXTU_B_REG_REG                       case 0x3d:case 0xbd:
@@ -102,6 +106,7 @@
 #define OP_TAS_B_REGINDIR                       case 0x50:case 0xd0:
 #define OP_TST_REG_REG                          case 0x51:case 0xd1:
 #define OP_TST_IMM_REG0                         case 0x52:case 0xd2:
+#define OP_TST_IMM_REG0_ID                      0x52
 #define OP_TST_B_IMM_IDXGBRINDIR                case 0x53:case 0xd3:
 #define OP_XOR_REG_REG                          case 0x54:case 0xd4:
 #define OP_XOR_IMM_REG0                         case 0x55:case 0xd5:
@@ -120,8 +125,10 @@
 #define OP_SHLL16_REG                           case 0x62:case 0xe2:
 #define OP_SHLR16_REG                           case 0x63:case 0xe3:
 #define OP_BF                                   case 0x64: /* (slot illegal) */
+#define OP_BF_ID                                0x64
 #define OP_BF_S                                 case 0x65: /* (slot illegal) */
 #define OP_BT                                   case 0x66: /* (slot illegal) */
+#define OP_BT_ID                                0x66
 #define OP_BT_S                                 case 0x67: /* (slot illegal) */
 #define OP_BRA                                  case 0x68: /* (slot illegal) */
 #define OP_BRAF_REG                             case 0x69: /* (slot illegal) */
@@ -137,6 +144,7 @@
 #define OP_LDS                                  case 0x73:case 0xf3:
 #define OP_LDS_L                                case 0x74:case 0xf4:
 #define OP_NOP                                  case 0x75:case 0xf5:
+#define OP_NOP_ID                               0x75
 #define OP_RTE                                  case 0x76: /* (slot illegal) */
 #define OP_SETT                                 case 0x77:case 0xf7:
 #define OP_SLEEP                                case 0x78:case 0xf8:
