@@ -532,6 +532,9 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   SFVAR(PendingVB),
 
+  SFVAR(IR0WX),
+  SFVAR(IR0WA),
+
   SFVAR(SubPhase),
   SFVAR(ClockCounter),
   SFVAR(SMPC_ClockRatio),
