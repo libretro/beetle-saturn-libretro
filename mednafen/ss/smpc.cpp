@@ -1151,8 +1151,6 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
       SCU_SetInt(SCU_INT_SMPC, false);
      }
 
-     // Wait for !vb, wait until (IREG[0] & 0x80), time-optimization wait.
-
      if(IREG[1] & 0x8)
      {
       #define JR_WAIT(cond)	{ SMPC_WAIT_UNTIL_COND((cond) || PendingVB); if(PendingVB) { goto AbortJR; } }
@@ -1197,29 +1195,28 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 	 UpdateIOBus(JRS.CurPort, timestamp);									\
 	}
 
-      IR0WX = 0x00;
-      IR0WA = 0x40;
-      JR_WAIT(!vb || (IREG[0] & 0x40));
+      // Wait until Continue or Break condition(if having previously returned SMPC status).
+      // Wait until end of vblank.
+      // Time optimization wait.
 
-      if(IREG[0] & 0x40)
-      {
-       goto AbortJR;
-      }
-      IR0WA = 0;
       JRS.NextContBit = true;
       if(SR & SR_NPE)
       {
        IR0WX = (!JRS.NextContBit << 7);
        IR0WA = 0xC0;
        JR_WAIT((bool)(IREG[0] & 0x80) == JRS.NextContBit || (IREG[0] & 0x40));
-       if(IREG[0] & 0x40)
+       if((IREG[0] & 0x40) && (bool)(IREG[0] & 0x80) != JRS.NextContBit)
        {
         goto AbortJR;
        }
        IR0WA = 0;
        JRS.NextContBit = !JRS.NextContBit;
       }
-
+      //
+      JR_WAIT(!vb);
+      //
+      //
+      //
       JRS.PDCounter = 0;
       JRS.TimeOptEn = !(IREG[1] & 0x2);
       JRS.Mode[0] = (IREG[1] >> 4) & 0x3;
