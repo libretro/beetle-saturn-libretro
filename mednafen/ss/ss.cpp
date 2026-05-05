@@ -96,6 +96,7 @@ uint8 WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear acc
 static uint16* WorkRAML = (uint16*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*0));
 static uint16* WorkRAMH = (uint16*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*1));
 static uint8 BackupRAM[32768];
+static uint8 BackupRAM_StateHelper[32768];
 static bool BackupRAM_Dirty;
 static int64 BackupRAM_SaveDelay;
 static int64 CartNV_SaveDelay;
@@ -1333,6 +1334,11 @@ MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load)
 
  SOUND_StateAction(sm, load, false);
  CART_StateAction(sm, load, false);
+
+
+ if(load)
+  memcpy(BackupRAM_StateHelper, BackupRAM, sizeof(BackupRAM));
+ //
  //
    if (MDFNSS_StateAction(sm, load, false, StateRegs, "MAIN", false) == 0)
    {
@@ -1345,7 +1351,8 @@ MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load)
 
    if ( load )
    {
-      BackupRAM_Dirty = true;
+      if(memcmp(BackupRAM_StateHelper, BackupRAM, sizeof(BackupRAM)))
+         BackupRAM_Dirty = true;
 
       if ( !ep.Restore(load) )
       {
