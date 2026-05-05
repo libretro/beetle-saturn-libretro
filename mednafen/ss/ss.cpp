@@ -594,8 +594,10 @@ void SS_RequestMLExit(void)
  next_event_ts = 0;
 }
 
-#pragma GCC push_options
-#pragma GCC optimize("O2,no-unroll-loops,no-peel-loops,no-crossjumping")
+#if defined(__GNUC__) && !defined(__clang__)
+ #pragma GCC push_options
+ #pragma GCC optimize("O2,no-unroll-loops,no-peel-loops,no-crossjumping")
+#endif
 template<bool EmulateICache>
 static NO_INLINE MDFN_HOT int32 RunLoop(EmulateSpecStruct* espec)
 {
@@ -639,7 +641,9 @@ static NO_INLINE MDFN_HOT int32 RunLoop(EmulateSpecStruct* espec)
  return eff_ts;
 }
 
-#pragma GCC pop_options
+#if defined(__GNUC__) && !defined(__clang__)
+ #pragma GCC pop_options
+#endif
 
 // Must not be called within an event or read/write handler.
 void SS_Reset(bool powering_up)
