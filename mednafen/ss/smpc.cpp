@@ -640,7 +640,12 @@ void SMPC_ProcessSlaveOffOn(void)
 int32 SMPC_StartFrame(void)
 {
  if(ResetPending)
+ {
   SS_Reset(false);
+
+  // TODO: Fix SMPC_Reset(false) instead ?
+  OREG[0x1F] = CMD_SYSRES;
+ }
 
  if(PendingClockDivisor > 0)
  {
