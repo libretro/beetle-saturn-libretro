@@ -101,6 +101,7 @@ static uint16* WorkRAMH = (uint16*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*1));
 // drained by libretro.cpp from outside Emulate() -- see comment in
 // Emulate() above. The old master-cycle delay variables are gone.
 uint8 BackupRAM[32768];
+static uint8 BackupRAM_StateHelper[32768];
 bool BackupRAM_Dirty;
 bool CartNV_Dirty;
 
@@ -245,8 +246,13 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
   {
    if(sizeof(T) != 1 || (A & 1))
    {
-    BackupRAM[(A >> 1) & 0x7FFF] = DB;
-    BackupRAM_Dirty = true;
+    uint8* const brp = &BackupRAM[(A >> 1) & 0x7FFF];
+
+    if(*brp != (uint8)DB)
+    {
+     *brp = (uint8)DB;
+     BackupRAM_Dirty = true;
+    }
    }
   }
   else
@@ -592,8 +598,10 @@ void SS_RequestMLExit(void)
  next_event_ts = 0;
 }
 
-#pragma GCC push_options
-#pragma GCC optimize("O2,no-unroll-loops,no-peel-loops,no-crossjumping")
+#if defined(__GNUC__) && !defined(__clang__)
+ #pragma GCC push_options
+ #pragma GCC optimize("O2,no-unroll-loops,no-peel-loops,no-crossjumping")
+#endif
 template<bool EmulateICache>
 static NO_INLINE MDFN_HOT int32 RunLoop(EmulateSpecStruct* espec)
 {
@@ -637,7 +645,9 @@ static NO_INLINE MDFN_HOT int32 RunLoop(EmulateSpecStruct* espec)
  return eff_ts;
 }
 
-#pragma GCC pop_options
+#if defined(__GNUC__) && !defined(__clang__)
+ #pragma GCC pop_options
+#endif
 
 // Must not be called within an event or read/write handler.
 void SS_Reset(bool powering_up)
@@ -1367,6 +1377,11 @@ MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load)
 
  SOUND_StateAction(sm, load, false);
  CART_StateAction(sm, load, false);
+
+
+ if(load)
+  memcpy(BackupRAM_StateHelper, BackupRAM, sizeof(BackupRAM));
+ //
  //
    if (MDFNSS_StateAction(sm, load, false, StateRegs, "MAIN", false) == 0)
    {
@@ -1379,7 +1394,8 @@ MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load)
 
    if ( load )
    {
-      BackupRAM_Dirty = true;
+      if(memcmp(BackupRAM_StateHelper, BackupRAM, sizeof(BackupRAM)))
+         BackupRAM_Dirty = true;
 
       if ( !ep.Restore(load) )
       {

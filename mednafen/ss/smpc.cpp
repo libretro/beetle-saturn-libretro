@@ -541,6 +541,9 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   SFVAR(PendingVB),
 
+  SFVAR(IR0WX),
+  SFVAR(IR0WA),
+
   SFVAR(SubPhase),
   SFVAR(ClockCounter),
   SFVAR(SMPC_ClockRatio),
@@ -619,6 +622,30 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
    else
     p->NextEventTS = std::max<sscpu_timestamp_t>(0, p->NextEventTS);
   }
+
+  if(load < 0x00103100)
+  {
+   //printf("%u --- %u\n", SubPhase, SubPhase + 1); //SubPhaseBias);
+
+   switch(SubPhase)
+   {
+    case 29:
+    case 27:
+	JRS.NextContBit = true;
+	if(SR & SR_NPE)
+	{
+	 IR0WX = (!JRS.NextContBit << 7);
+	 IR0WA = 0xC0;
+	 SubPhase = 27;
+	}
+	else
+	{
+	 IR0WA = 0;
+	 SubPhase = 29;
+	}
+	break;
+   }
+  }
  }
 }
 
@@ -646,7 +673,12 @@ void SMPC_ProcessSlaveOffOn(void)
 int32 SMPC_StartFrame(void)
 {
  if(ResetPending)
+ {
   SS_Reset(false);
+
+  // TODO: Fix SMPC_Reset(false) instead ?
+  OREG[0x1F] = CMD_SYSRES;
+ }
 
  if(PendingClockDivisor > 0)
  {
@@ -1152,8 +1184,6 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
       SCU_SetInt(SCU_INT_SMPC, false);
      }
 
-     // Wait for !vb, wait until (IREG[0] & 0x80), time-optimization wait.
-
      if(IREG[1] & 0x8)
      {
       #define JR_WAIT(cond)	{ SMPC_WAIT_UNTIL_COND((cond) || PendingVB); if(PendingVB) { goto AbortJR; } }
@@ -1198,29 +1228,28 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 	 UpdateIOBus(JRS.CurPort, timestamp);									\
 	}
 
-      IR0WX = 0x00;
-      IR0WA = 0x40;
-      JR_WAIT(!vb || (IREG[0] & 0x40));
+      // Wait until Continue or Break condition(if having previously returned SMPC status).
+      // Wait until end of vblank.
+      // Time optimization wait.
 
-      if(IREG[0] & 0x40)
-      {
-       goto AbortJR;
-      }
-      IR0WA = 0;
       JRS.NextContBit = true;
       if(SR & SR_NPE)
       {
        IR0WX = (!JRS.NextContBit << 7);
        IR0WA = 0xC0;
        JR_WAIT((bool)(IREG[0] & 0x80) == JRS.NextContBit || (IREG[0] & 0x40));
-       if(IREG[0] & 0x40)
+       if((IREG[0] & 0x40) && (bool)(IREG[0] & 0x80) != JRS.NextContBit)
        {
         goto AbortJR;
        }
        IR0WA = 0;
        JRS.NextContBit = !JRS.NextContBit;
       }
-
+      //
+      JR_WAIT(!vb);
+      //
+      //
+      //
       JRS.PDCounter = 0;
       JRS.TimeOptEn = !(IREG[1] & 0x2);
       JRS.Mode[0] = (IREG[1] >> 4) & 0x3;
@@ -1496,7 +1525,12 @@ void SMPC_SetVBVS(sscpu_timestamp_t event_timestamp, bool vb_status, bool vsync_
  if(vb ^ vb_status)
  {
   if(vb_status)	// Going into vblank
+  {
    PendingVB = true;
+
+   if(events[SS_EVENT_MIDSYNC].event_time == SS_EVENT_DISABLED_TS)
+    SS_SetEventNT(&events[SS_EVENT_MIDSYNC], event_timestamp + 1);
+  }
 
   SS_SetEventNT(&events[SS_EVENT_SMPC], event_timestamp + 1);
  }
