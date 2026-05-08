@@ -3134,28 +3134,56 @@ struct WQ_Entry
 };
 
 static std::array<WQ_Entry, 0x80000> WQ;
-static size_t WQ_ReadPos, WQ_WritePos;
-static std::atomic_uint_least32_t WQ_InCount;
-static std::atomic_int_least32_t DrawCounter;
+// SPSC queue state. Each atomic is written by exactly one thread (release-store)
+// and read by the other (acquire-load); live queue depth is recovered by
+// subtraction, avoiding the cross-thread RMW that bounced the cache line.
+// Producer-side and consumer-side state live on separate cache lines so the
+// consumer's pop-side writes don't thrash the producer's reads of its own
+// counters. WQ_PopCached lets WWQ skip the per-call atomic load on the
+// queue-full check. DrawFinishCount (consumer-written) is read directly by
+// the producer because the wakeup heuristic needs an up-to-date queue depth;
+// DrawPushCount (producer-written) mirrors Prod.DrawPushLocal so the consumer
+// can tell when it has finished every DRAW_LINE the producer queued and wake
+// EndFrame's drain wait.
+alignas(64) static std::atomic_uint_least32_t WQ_PushCount;     // producer-written
+alignas(64) static std::atomic_uint_least32_t WQ_PopCount;      // consumer-written
+alignas(64) static std::atomic_uint_least32_t DrawFinishCount;  // consumer-written
+alignas(64) static std::atomic_uint_least32_t DrawPushCount;    // producer-written
+struct alignas(64) ProducerState
+{
+ size_t WritePos;
+ uint32 PushLocal;        // total WQ pushes
+ uint32 DrawPushLocal;    // total VDP2REND_DrawLine pushes
+ uint32 WQ_PopCached;     // last-seen WQ_PopCount; refreshed only when the queue
+                          // appears full (huge queue, so basically never)
+};
+struct alignas(64) ConsumerState
+{
+ size_t ReadPos;
+ uint32 PopLocal;         // total WQ pops
+ uint32 DrawFinishLocal;  // total DrawLine completions
+};
+static ProducerState Prod;
+static ConsumerState Cons;
 static bool DoBusyWait;
 ssem_t* WakeupSem;
 
 // Drain coordination: when EndFrame is called the producer has to wait
-// for the consumer thread to drain the rest of this frame's DRAW_LINE
-// commands (DrawCounter going back to zero). The old implementation
-// spun: ssem_signal(WakeupSem) + retro_sleep(0) repeatedly until the
-// counter hit zero. That works but burns producer CPU on every frame
-// transition for as long as the consumer takes -- and on some systems
-// retro_sleep(0) is implemented as sched_yield() which keeps the
-// producer at the head of the runqueue, defeating the yield.
+// for the consumer to finish this frame's DRAW_LINE commands -- i.e. for
+// DrawFinishCount to catch up to the producer's DrawPushLocal. The old
+// implementation spun: ssem_signal(WakeupSem) + retro_sleep repeatedly
+// until the two were equal. That works but burns producer CPU on every
+// frame transition for as long as the consumer takes -- and on some
+// systems retro_sleep(0) is implemented as sched_yield(), which keeps
+// the producer at the head of the runqueue, defeating the yield.
 //
 // Replacement: a mutex+condvar pair. EndFrame waits on scond_wait
 // (proper kernel block, zero spinning); the consumer's COMMAND_DRAW_LINE
-// handler signals on the fetch_sub that takes DrawCounter to zero.
-// Per-frame overhead: 1 lock+unlock+wait on the producer, 1 lock+
-// signal+unlock on the consumer (only for the line that hits zero,
-// not every line). Net change: a few microseconds of overhead per
-// frame, in exchange for zero CPU spent spinning during the drain.
+// handler signals once -- on the completion that makes DrawFinishLocal
+// reach the published DrawPushCount. Per-frame overhead: 1 lock+unlock+
+// wait on the producer, 1 lock+signal+unlock on the consumer (only for
+// the line that drains the frame, not every line). A few microseconds
+// per frame, in exchange for zero CPU spent spinning during the drain.
 static slock_t  *DrainLock = NULL;
 static scond_t  *DrainCond = NULL;
 static bool DoWakeupIfNecessary;
@@ -3167,17 +3195,21 @@ static INLINE void WWQ(uint16 command, uint32 arg32 = 0, uint16 arg16 = 0)
  // tick by default, which would have wedged the producer for almost a
  // whole frame each time the queue filled. retro_sleep(0) yields to the
  // scheduler without that minimum dwell.
- while(MDFN_UNLIKELY(WQ_InCount.load(std::memory_order_acquire) == WQ.size()))
-  retro_sleep(0);
+ while(MDFN_UNLIKELY(Prod.PushLocal - Prod.WQ_PopCached == WQ.size()))
+ {
+  Prod.WQ_PopCached = WQ_PopCount.load(std::memory_order_acquire);
+  if(Prod.PushLocal - Prod.WQ_PopCached == WQ.size())
+   retro_sleep(0);
+ }
 
- WQ_Entry* wqe = &WQ[WQ_WritePos];
+ WQ_Entry* wqe = &WQ[Prod.WritePos];
 
  wqe->Command = command;
  wqe->Arg16 = arg16;
  wqe->Arg32 = arg32;
 
- WQ_WritePos = (WQ_WritePos + 1) % WQ.size();
- WQ_InCount.fetch_add(1, std::memory_order_release);
+ Prod.WritePos = (Prod.WritePos + 1) % WQ.size();
+ WQ_PushCount.store(++Prod.PushLocal, std::memory_order_release);
 }
 
 static void/*int*/ RThreadEntry(void* data)
@@ -3186,7 +3218,7 @@ static void/*int*/ RThreadEntry(void* data)
 
  while(MDFN_LIKELY(Running))
  {
-  while(MDFN_UNLIKELY(WQ_InCount.load(std::memory_order_acquire) == 0))
+  while(MDFN_UNLIKELY(WQ_PushCount.load(std::memory_order_acquire) == Cons.PopLocal))
   {
    if(!DoBusyWait)
     ssem_wait(WakeupSem);
@@ -3211,7 +3243,7 @@ static void/*int*/ RThreadEntry(void* data)
   //
   //
   //
-  WQ_Entry* wqe = &WQ[WQ_ReadPos];
+  WQ_Entry* wqe = &WQ[Cons.ReadPos];
 
   switch(wqe->Command)
   {
@@ -3227,15 +3259,16 @@ static void/*int*/ RThreadEntry(void* data)
 	//for(unsigned i = 0; i < 2; i++)
 	DrawLine((uint16)wqe->Arg32, wqe->Arg32 >> 16, wqe->Arg16);
 	//
-	// fetch_sub returns the old value, so the transition-to-zero is
-	// when the OLD value was 1. Signal the drain condvar only on that
-	// transition -- the producer is waiting in EndFrame for this
-	// exact moment. The slock_lock / unlock pair around scond_signal
-	// is required by the POSIX-style API even though our visible
-	// state is the atomic DrawCounter; without the lock there's a
-	// classic missed-wakeup race window between the producer's
-	// load() and its scond_wait().
-	if (DrawCounter.fetch_sub(1, std::memory_order_release) == 1)
+	// Publish completion: DrawFinishCount is consumer-written, read by
+	// the producer (EndFrame's drain wait, and the wdcq wakeup
+	// heuristic in VDP2REND_DrawLine). If this completion brings us
+	// level with everything the producer has queued so far, and
+	// EndFrame is blocked on the drain condvar, wake it. The
+	// slock_lock / unlock pair around scond_signal closes the
+	// missed-wakeup race between EndFrame's recheck and its scond_wait;
+	// scond_signal with no waiter is a harmless no-op.
+	DrawFinishCount.store(++Cons.DrawFinishLocal, std::memory_order_release);
+	if (Cons.DrawFinishLocal == DrawPushCount.load(std::memory_order_acquire))
 	{
 	   slock_lock(DrainLock);
 	   scond_signal(DrainCond);
@@ -3262,8 +3295,8 @@ static void/*int*/ RThreadEntry(void* data)
   //
   //
   //
-  WQ_ReadPos = (WQ_ReadPos + 1) % WQ.size();
-  WQ_InCount.fetch_sub(1, std::memory_order_release);
+  Cons.ReadPos = (Cons.ReadPos + 1) % WQ.size();
+  WQ_PopCount.store(++Cons.PopLocal, std::memory_order_release);
  }
 
  // return 0; // Libretro fix
@@ -3283,10 +3316,12 @@ void VDP2REND_Init(const bool IsPAL, const uint64 affinity)
  UserLayerEnableMask = ~0U;
  Clock28M = false;
  //
- WQ_ReadPos = 0;
- WQ_WritePos = 0;
- WQ_InCount.store(0, std::memory_order_release); 
- DrawCounter.store(0, std::memory_order_release);
+ Prod = {};
+ Cons = {};
+ WQ_PushCount.store(0, std::memory_order_release);
+ WQ_PopCount.store(0, std::memory_order_release);
+ DrawFinishCount.store(0, std::memory_order_release);
+ DrawPushCount.store(0, std::memory_order_release);
  WakeupSem = ssem_new(0);
  DrainLock = slock_new();
  DrainCond = scond_new();
@@ -3411,23 +3446,24 @@ void VDP2REND_StartFrame(EmulateSpecStruct* espec_arg, const bool clock28m, cons
 void VDP2REND_EndFrame(void)
 {
  // Wait for the consumer thread to finish all queued DRAW_LINE
- // commands for this frame. Replaces an old spin-yield loop
- // (ssem_signal(WakeupSem) + retro_sleep(0) repeatedly) with a
- // condvar wait. The consumer's DRAW_LINE handler now signals
- // DrainCond on the fetch_sub that takes DrawCounter to zero;
- // see the case in RThreadEntry. The slock around scond_wait is
- // POSIX-required even though we never write any shared state
- // while holding it -- the lock is what closes the missed-wakeup
- // race between checking DrawCounter and entering scond_wait.
+ // commands for this frame -- i.e. for DrawFinishCount to catch up
+ // to the producer-local DrawPushLocal. Replaces an old spin-yield
+ // loop (ssem_signal(WakeupSem) + retro_sleep repeatedly) with a
+ // condvar wait. The consumer's DRAW_LINE handler signals DrainCond
+ // on the completion that levels the two counters; see the case in
+ // RThreadEntry. The slock around scond_wait is POSIX-required even
+ // though we never write any shared state while holding it -- the
+ // lock is what closes the missed-wakeup race between checking the
+ // counters and entering scond_wait.
  //
  // The initial WakeupSem signal is still needed: it kicks the
  // consumer out of any ssem_wait it might be in on an empty
- // command queue, so progress on DrawCounter can resume.
- if (MDFN_UNLIKELY(DrawCounter.load(std::memory_order_acquire) != 0))
+ // command queue, so progress on DrawFinishCount can resume.
+ if (MDFN_UNLIKELY(DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal))
  {
   ssem_signal(WakeupSem);
   slock_lock(DrainLock);
-  while (DrawCounter.load(std::memory_order_acquire) != 0)
+  while (DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal)
    scond_wait(DrainCond, DrainLock);
   slock_unlock(DrainLock);
  }
@@ -3471,7 +3507,9 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32 crt_line, const bool fi
   if(espec->InterlaceOn)
    out_line = (out_line << 1) | espec->InterlaceField;
 
-  auto wdcq = DrawCounter.fetch_add(1, std::memory_order_release);
+  const uint32 wdcq = Prod.DrawPushLocal - DrawFinishCount.load(std::memory_order_acquire);
+  ++Prod.DrawPushLocal;
+  DrawPushCount.store(Prod.DrawPushLocal, std::memory_order_release);
   WWQ(COMMAND_DRAW_LINE, ((uint16)vdp2_line << 16) | out_line, field);
   //
   //
@@ -3508,7 +3546,7 @@ void VDP2REND_SetLayerEnableMask(uint64 mask)
 
 void VDP2REND_Write8_DB(uint32 A, uint16 DB)
 {
- //if(DrawCounter.load(std::memory_order_acquire) != 0)
+ //if(DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal)
   WWQ(COMMAND_WRITE8, A, DB);
  //else
  // MemW<uint8>(A, DB);
@@ -3516,7 +3554,7 @@ void VDP2REND_Write8_DB(uint32 A, uint16 DB)
 
 void VDP2REND_Write16_DB(uint32 A, uint16 DB)
 {
- //if(DrawCounter.load(std::memory_order_acquire) != 0)
+ //if(DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal)
   WWQ(COMMAND_WRITE16, A, DB);
  //else
  // MemW<uint16>(A, DB);
@@ -3524,7 +3562,7 @@ void VDP2REND_Write16_DB(uint32 A, uint16 DB)
 
 void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16 (&rr)[0x100], uint16 (&cr)[2048], uint16 (&vr)[262144])
 {
- while(MDFN_UNLIKELY(WQ_InCount.load(std::memory_order_acquire) != 0))
+ while(MDFN_UNLIKELY(WQ_PopCount.load(std::memory_order_acquire) != Prod.PushLocal))
  {
   ssem_signal(WakeupSem);
   retro_sleep(1);
