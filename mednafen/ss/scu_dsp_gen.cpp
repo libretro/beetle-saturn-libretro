@@ -34,32 +34,32 @@
 
 #include "scu_dsp_common.inc"
 
-static FORCE_INLINE void SetC(bool value)
+static FORCE_INLINE void SetC(DSPS* dsp, bool value)
 {
- DSP.FlagC = value;
+ dsp->FlagC = value;
 }
 
-static FORCE_INLINE void CalcZS32(uint32 val)
+static FORCE_INLINE void CalcZS32(DSPS* dsp, uint32 val)
 {
- DSP.FlagS = (int32)val < 0;
- DSP.FlagZ = !val;
+ dsp->FlagS = (int32)val < 0;
+ dsp->FlagZ = !val;
 }
 
-static FORCE_INLINE void CalcZS48(uint64 val)
+static FORCE_INLINE void CalcZS48(DSPS* dsp, uint64 val)
 {
  val <<= 16;
 
- DSP.FlagS = (int64)val < 0;
- DSP.FlagZ = !val;
+ dsp->FlagS = (int64)val < 0;
+ dsp->FlagZ = !val;
 }
 
 
 template<const bool looped, const unsigned alu_op, const unsigned x_op, const unsigned y_op, const unsigned d1_op>
-static NO_INLINE NO_CLONE void GeneralInstr(void)
+static NO_INLINE NO_CLONE void GeneralInstr(DSPS* dsp)
 {
- const uint32 instr = DSP_InstrPre<looped>();
+ const uint32 instr = DSP_InstrPre<looped>(dsp);
  //
- DSPR48 ALU = DSP.AC;
+ DSPR48 ALU = dsp->AC;
  unsigned dr_read = 0;
  unsigned ct_inc = 0;
 
@@ -79,9 +79,9 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   //
   case 0x01:
   {
-   ALU.L &= DSP.P.L;
-   SetC(false);
-   CalcZS32(ALU.L);
+   ALU.L &= dsp->P.L;
+   SetC(dsp, false);
+   CalcZS32(dsp, ALU.L);
   }
   break;
 
@@ -90,9 +90,9 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   //
   case 0x02:
   {
-   ALU.L |= DSP.P.L;
-   SetC(false);
-   CalcZS32(ALU.L);
+   ALU.L |= dsp->P.L;
+   SetC(dsp, false);
+   CalcZS32(dsp, ALU.L);
   }
   break;
 
@@ -101,9 +101,9 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   //
   case 0x03:
   {
-   ALU.L ^= DSP.P.L;
-   SetC(false);
-   CalcZS32(ALU.L);
+   ALU.L ^= dsp->P.L;
+   SetC(dsp, false);
+   CalcZS32(dsp, ALU.L);
   }
   break;
 
@@ -112,11 +112,11 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   //
   case 0x04:
   {
-   const uint64 tmp = (uint64)ALU.L + DSP.P.L;
+   const uint64 tmp = (uint64)ALU.L + dsp->P.L;
 
-   DSP.FlagV |= (((~(ALU.L ^ DSP.P.L)) & (ALU.L ^ tmp)) >> 31) & 1;
-   SetC((tmp >> 32) & 0x1);
-   CalcZS32(tmp);
+   dsp->FlagV |= (((~(ALU.L ^ dsp->P.L)) & (ALU.L ^ tmp)) >> 31) & 1;
+   SetC(dsp, (tmp >> 32) & 0x1);
+   CalcZS32(dsp, tmp);
    ALU.L = tmp;
   }
   break;
@@ -126,11 +126,11 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   //
   case 0x05:
   {
-   const uint64 tmp = (uint64)ALU.L - DSP.P.L;
+   const uint64 tmp = (uint64)ALU.L - dsp->P.L;
 
-   DSP.FlagV |= ((((ALU.L ^ DSP.P.L)) & (ALU.L ^ tmp)) >> 31) & 1;
-   SetC((tmp >> 32) & 0x1);
-   CalcZS32(tmp);
+   dsp->FlagV |= ((((ALU.L ^ dsp->P.L)) & (ALU.L ^ tmp)) >> 31) & 1;
+   SetC(dsp, (tmp >> 32) & 0x1);
+   CalcZS32(dsp, tmp);
    ALU.L = tmp;
   }
   break;
@@ -140,11 +140,11 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   //
   case 0x06:
   {
-   const uint64 tmp = (ALU.T & 0xFFFFFFFFFFFFULL) + (DSP.P.T & 0xFFFFFFFFFFFFULL);
+   const uint64 tmp = (ALU.T & 0xFFFFFFFFFFFFULL) + (dsp->P.T & 0xFFFFFFFFFFFFULL);
 
-   DSP.FlagV |= (((~(ALU.T ^ DSP.P.T)) & (ALU.T ^ tmp)) >> 47) & 1;
-   SetC((tmp >> 48) & 0x1);
-   CalcZS48(tmp);
+   dsp->FlagV |= (((~(ALU.T ^ dsp->P.T)) & (ALU.T ^ tmp)) >> 47) & 1;
+   SetC(dsp, (tmp >> 48) & 0x1);
+   CalcZS48(dsp, tmp);
    ALU.T = tmp;
   }
   break;
@@ -156,9 +156,9 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   {
    const bool new_C = ALU.L & 0x1;
 
-   SetC(new_C);
+   SetC(dsp, new_C);
    ALU.L = (int32)ALU.L >> 1;
-   CalcZS32(ALU.L);
+   CalcZS32(dsp, ALU.L);
   }
   break;
 
@@ -169,9 +169,9 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   {
    const bool new_C = ALU.L & 0x1;
 
-   SetC(new_C);
+   SetC(dsp, new_C);
    ALU.L = (ALU.L >> 1) | (new_C << 31);
-   CalcZS32(ALU.L);
+   CalcZS32(dsp, ALU.L);
   }
   break;
 
@@ -182,9 +182,9 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   {
    const bool new_C = ALU.L >> 31;
 
-   SetC(new_C);
+   SetC(dsp, new_C);
    ALU.L <<= 1;
-   CalcZS32(ALU.L);
+   CalcZS32(dsp, ALU.L);
   }
   break;
 
@@ -195,9 +195,9 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   {
    const bool new_C = ALU.L >> 31;
 
-   SetC(new_C);
+   SetC(dsp, new_C);
    ALU.L = (ALU.L << 1) | new_C;
-   CalcZS32(ALU.L);
+   CalcZS32(dsp, ALU.L);
   }
   break;
 
@@ -208,9 +208,9 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   {
    const bool new_C = (ALU.L >> 24) & 1;
 
-   SetC(new_C);
+   SetC(dsp, new_C);
    ALU.L = (ALU.L << 8) | (ALU.L >> 24);
-   CalcZS32(ALU.L);
+   CalcZS32(dsp, ALU.L);
   }
   break;
  }
@@ -219,7 +219,7 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
  // X Op
  //
  if((x_op & 0x3) == 0x2)
-  DSP.P.T = (int64)(int32)DSP.RX * (int32)DSP.RY;
+  dsp->P.T = (int64)(int32)dsp->RX * (int32)dsp->RY;
 
  if(x_op >= 0x3)
  {
@@ -227,24 +227,24 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   const size_t drw = s & 0x3;
   uint32 src_data;
 
-  src_data = DSP.DataRAM[drw][DSP.CT[drw]];
+  src_data = dsp->DataRAM[drw][dsp->CT[drw]];
   dr_read |= 1U << drw;
   ct_inc |= (bool)(s & 0x4) << (drw << 3);
 
   if((x_op & 0x3) == 0x3)
-   DSP.P.T = (int32)src_data;
+   dsp->P.T = (int32)src_data;
 
   if(x_op & 0x4)
-   DSP.RX = src_data;
+   dsp->RX = src_data;
  }
 
  //
  // Y Op
  //
  if((y_op & 0x3) == 0x1)
-  DSP.AC.T = 0;
+  dsp->AC.T = 0;
  else if((y_op & 0x3) == 0x2)
-  DSP.AC.T = ALU.T;
+  dsp->AC.T = ALU.T;
 
  if(y_op >= 0x3)
  {
@@ -252,15 +252,15 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
   const size_t drw = s & 0x3;
   uint32 src_data;
 
-  src_data = DSP.DataRAM[drw][DSP.CT[drw]];
+  src_data = dsp->DataRAM[drw][dsp->CT[drw]];
   dr_read |= 1U << drw;
   ct_inc |= (bool)(s & 0x4) << (drw << 3);
 
   if((y_op & 0x3) == 0x3)
-   DSP.AC.T = (int32)src_data;
+   dsp->AC.T = (int32)src_data;
 
   if(y_op & 0x4)
-   DSP.RY = src_data;
+   dsp->RY = src_data;
  }
 
  //
@@ -282,15 +282,15 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
     case 0xE:
     case 0xF: src_data = 0xFFFFFFFF; break;
 
-    case 0x0: src_data = DSP.DataRAM[0][DSP.CT[0]]; dr_read |= 0x01; break;
-    case 0x1: src_data = DSP.DataRAM[1][DSP.CT[1]]; dr_read |= 0x02; break;
-    case 0x2: src_data = DSP.DataRAM[2][DSP.CT[2]]; dr_read |= 0x04; break;
-    case 0x3: src_data = DSP.DataRAM[3][DSP.CT[3]]; dr_read |= 0x08; break;
+    case 0x0: src_data = dsp->DataRAM[0][dsp->CT[0]]; dr_read |= 0x01; break;
+    case 0x1: src_data = dsp->DataRAM[1][dsp->CT[1]]; dr_read |= 0x02; break;
+    case 0x2: src_data = dsp->DataRAM[2][dsp->CT[2]]; dr_read |= 0x04; break;
+    case 0x3: src_data = dsp->DataRAM[3][dsp->CT[3]]; dr_read |= 0x08; break;
 
-    case 0x4: src_data = DSP.DataRAM[0][DSP.CT[0]]; if(d != 0) { ct_inc |= 1 <<  0; } dr_read |= 0x01; break;
-    case 0x5: src_data = DSP.DataRAM[1][DSP.CT[1]]; if(d != 1) { ct_inc |= 1 <<  8; } dr_read |= 0x02; break;
-    case 0x6: src_data = DSP.DataRAM[2][DSP.CT[2]]; if(d != 2) { ct_inc |= 1 << 16; } dr_read |= 0x04; break;
-    case 0x7: src_data = DSP.DataRAM[3][DSP.CT[3]]; if(d != 3) { ct_inc |= 1 << 24; } dr_read |= 0x08; break;
+    case 0x4: src_data = dsp->DataRAM[0][dsp->CT[0]]; if(d != 0) { ct_inc |= 1 <<  0; } dr_read |= 0x01; break;
+    case 0x5: src_data = dsp->DataRAM[1][dsp->CT[1]]; if(d != 1) { ct_inc |= 1 <<  8; } dr_read |= 0x02; break;
+    case 0x6: src_data = dsp->DataRAM[2][dsp->CT[2]]; if(d != 2) { ct_inc |= 1 << 16; } dr_read |= 0x04; break;
+    case 0x7: src_data = dsp->DataRAM[3][dsp->CT[3]]; if(d != 3) { ct_inc |= 1 << 24; } dr_read |= 0x08; break;
 
     case 0x9: src_data = ALU.T; break;
     case 0xA: src_data = ALU.T >> 16; break;
@@ -299,27 +299,27 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
 
   switch(d)
   {
-   case 0x0: if(!(dr_read & 0x01)) { DSP.DataRAM[0][DSP.CT[0]] = src_data; ct_inc |= 1 <<  0; } break;
-   case 0x1: if(!(dr_read & 0x02)) { DSP.DataRAM[1][DSP.CT[1]] = src_data; ct_inc |= 1 <<  8; } break;
-   case 0x2: if(!(dr_read & 0x04)) { DSP.DataRAM[2][DSP.CT[2]] = src_data; ct_inc |= 1 << 16; } break;
-   case 0x3: if(!(dr_read & 0x08)) { DSP.DataRAM[3][DSP.CT[3]] = src_data; ct_inc |= 1 << 24; } break;
-   case 0x4: DSP.RX = src_data; break;
-   case 0x5: DSP.P.T = (int32)src_data; break;
-   case 0x6: DSP.RAO = src_data; break;
-   case 0x7: DSP.WAO = src_data; break;
+   case 0x0: if(!(dr_read & 0x01)) { dsp->DataRAM[0][dsp->CT[0]] = src_data; ct_inc |= 1 <<  0; } break;
+   case 0x1: if(!(dr_read & 0x02)) { dsp->DataRAM[1][dsp->CT[1]] = src_data; ct_inc |= 1 <<  8; } break;
+   case 0x2: if(!(dr_read & 0x04)) { dsp->DataRAM[2][dsp->CT[2]] = src_data; ct_inc |= 1 << 16; } break;
+   case 0x3: if(!(dr_read & 0x08)) { dsp->DataRAM[3][dsp->CT[3]] = src_data; ct_inc |= 1 << 24; } break;
+   case 0x4: dsp->RX = src_data; break;
+   case 0x5: dsp->P.T = (int32)src_data; break;
+   case 0x6: dsp->RAO = src_data; break;
+   case 0x7: dsp->WAO = src_data; break;
    case 0x8:
    case 0x9: break;
-   case 0xA: if(!looped || DSP.LOP == 0x0FFF) { DSP.LOP = src_data & 0x0FFF; } break;
-   case 0xB: DSP.TOP = src_data & 0xFF; break;
+   case 0xA: if(!looped || dsp->LOP == 0x0FFF) { dsp->LOP = src_data & 0x0FFF; } break;
+   case 0xB: dsp->TOP = src_data & 0xFF; break;
 
    //
    // Don't bother masking with 0x3F here, since the & 0x3F3F3F3F mask down below will cover it(and no chance of overflowing into an adjacent byte
    // since we're masking out the corresponding byte in ct_inc, too).
    //
-   case 0xC: DSP.CT[0] = src_data; ct_inc &= ~0x000000FF; break;
-   case 0xD: DSP.CT[1] = src_data; ct_inc &= ~0x0000FF00; break;
-   case 0xE: DSP.CT[2] = src_data; ct_inc &= ~0x00FF0000; break;
-   case 0xF: DSP.CT[3] = src_data; ct_inc &= ~0xFF000000; break;
+   case 0xC: dsp->CT[0] = src_data; ct_inc &= ~0x000000FF; break;
+   case 0xD: dsp->CT[1] = src_data; ct_inc &= ~0x0000FF00; break;
+   case 0xE: dsp->CT[2] = src_data; ct_inc &= ~0x00FF0000; break;
+   case 0xF: dsp->CT[3] = src_data; ct_inc &= ~0xFF000000; break;
   }
  }
 
@@ -331,10 +331,10 @@ static NO_INLINE NO_CLONE void GeneralInstr(void)
  #endif
 
  if(x_op >= 0x3 || y_op >= 0x3 || (d1_op & 0x1))
-  DSP.CT32 = (DSP.CT32 + ct_inc) & 0x3F3F3F3F;
+  dsp->CT32 = (dsp->CT32 + ct_inc) & 0x3F3F3F3F;
 }
 
-MDFN_HIDE extern void (*const DSP_GenFuncTable[2][16][8][8][4])(void) =
+MDFN_HIDE extern void (*const DSP_GenFuncTable[2][16][8][8][4])(DSPS*) =
 {
  #include "scu_dsp_gentab.inc"
 };
