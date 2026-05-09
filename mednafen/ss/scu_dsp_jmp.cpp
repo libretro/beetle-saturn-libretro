@@ -33,6 +33,8 @@ static NO_INLINE NO_CLONE void JMPInstr(DSPS* dsp)
 
  if(DSP_TestCond<cond>(dsp))
   dsp->PC = (uint8)instr;
+
+ DSP_TailDispatch(dsp);
 }
 
 MDFN_HIDE extern void (*const DSP_JMPFuncTable[2][128])(DSPS*) =

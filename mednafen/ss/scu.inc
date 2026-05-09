@@ -1644,11 +1644,11 @@ sscpu_timestamp_t SCU_UpdateDSP(sscpu_timestamp_t timestamp)
 
  {
   DSPS* const dsp = &DSP;
-  while(MDFN_LIKELY(dsp->CycleCounter > 0))
-  {
+  // Threaded dispatch: the first handler tail-chains through the
+  // remaining cycles via DSP_TailDispatch and only returns once the
+  // budget is exhausted (or the DSP stopped).
+  if(MDFN_LIKELY(dsp->CycleCounter > 0))
    ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)dsp->NextInstr))(dsp);
-   dsp->CycleCounter -= 2;
-  }
  }
 
  if(MDFN_UNLIKELY(!DSP.IsRunning()))
@@ -1753,6 +1753,10 @@ static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
  else
   count = instr & 0xFF;
 
+ // do { } while(0) lets bus-error paths "break" out so we still
+ // fall through to DSP_TailDispatch at the end (the original
+ // dispatcher would re-enter on the next loop iteration).
+ do {
  if(dir)
  {
   const uint32 addr_add_amount = (1 << add_mode) &~ 1;
@@ -1761,7 +1765,7 @@ static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
 
   if(MDFN_UNLIKELY(WriteBus == -1))
   {
-   return;
+   break;
   }
 
   // Read from data RAM, write to external bus
@@ -1816,7 +1820,7 @@ static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
 
   if(MDFN_UNLIKELY(ReadBus == -1))
   {
-   return;
+   break;
   }
 
   dsp->PRAMDMABufCount = 0;
@@ -1869,6 +1873,9 @@ static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
   if(!hold)
    dsp->RAO = addr >> 2;
  }
+ } while(0);
+
+ DSP_TailDispatch(dsp);
 }
 
 MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(DSPS*) =

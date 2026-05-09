@@ -210,6 +210,28 @@ static FORCE_INLINE uint32 DSP_InstrPre(DSPS* dsp)
  return instr;
 }
 
+//
+// At the tail of every handler: account for this instruction's cycle
+// cost, decide whether the dispatcher should keep running, and call
+// the next handler.  The next handler's pointer was already prefetched
+// into dsp->NextInstr by DSP_InstrPre at the top of this handler.
+//
+// SCU_UpdateDSP caps CycleCounter at DSP_UpdateTimingGran (=64) on
+// entry, and the DMA / END paths can only lower it -- so the chain is
+// bounded to ~32 calls.  Modern optimizing compilers turn the call
+// below into a tail jump (verified on GCC 15 / -O2 / aarch64); even
+// when they don't, the bounded depth keeps the stack safe.
+//
+static FORCE_INLINE void DSP_TailDispatch(DSPS* dsp)
+{
+ dsp->CycleCounter -= 2;
+ if(MDFN_UNLIKELY(dsp->CycleCounter <= 0 || !dsp->IsRunning()))
+  return;
+
+ void (* const next)(DSPS*) = (void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)dsp->NextInstr);
+ next(dsp);
+}
+
 template<unsigned cond>
 static FORCE_INLINE bool DSP_TestCond(DSPS* dsp)
 {

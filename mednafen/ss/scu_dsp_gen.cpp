@@ -332,6 +332,8 @@ static NO_INLINE NO_CLONE void GeneralInstr(DSPS* dsp)
 
  if(x_op >= 0x3 || y_op >= 0x3 || (d1_op & 0x1))
   dsp->CT32 = (dsp->CT32 + ct_inc) & 0x3F3F3F3F;
+
+ DSP_TailDispatch(dsp);
 }
 
 MDFN_HIDE extern void (*const DSP_GenFuncTable[2][16][8][8][4])(DSPS*) =

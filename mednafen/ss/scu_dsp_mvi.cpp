@@ -75,6 +75,8 @@ static NO_INLINE NO_CLONE void MVIInstr(DSPS* dsp)
 	break;
   }
  }
+
+ DSP_TailDispatch(dsp);
 }
 
 

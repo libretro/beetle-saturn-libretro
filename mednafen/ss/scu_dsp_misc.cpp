@@ -59,6 +59,8 @@ static NO_INLINE NO_CLONE void MiscInstr(DSPS* dsp)
  {
   dsp->NextInstr = DSP_DecodeInstruction<true>(dsp->NextInstr >> 32);
  }
+
+ DSP_TailDispatch(dsp);
 }
 
 MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(DSPS*) =
