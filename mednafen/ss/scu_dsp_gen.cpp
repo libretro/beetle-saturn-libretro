@@ -34,18 +34,18 @@
 
 #include "scu_dsp_common.inc"
 
-static INLINE void SetC(bool value)
+static FORCE_INLINE void SetC(bool value)
 {
  DSP.FlagC = value;
 }
 
-static INLINE void CalcZS32(uint32 val)
+static FORCE_INLINE void CalcZS32(uint32 val)
 {
  DSP.FlagS = (int32)val < 0;
  DSP.FlagZ = !val;
 }
 
-static INLINE void CalcZS48(uint64 val)
+static FORCE_INLINE void CalcZS48(uint64 val)
 {
  val <<= 16;
 

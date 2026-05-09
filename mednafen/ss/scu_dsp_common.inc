@@ -70,7 +70,7 @@ struct DSPS
  };
  int32 State;
 
- INLINE bool IsRunning(void)	// returns true if not stopped and not paused.
+ FORCE_INLINE bool IsRunning(void)	// returns true if not stopped and not paused.
  {
   return State > 0;
  }
@@ -152,7 +152,7 @@ MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(void);
 MDFN_HIDE extern DSPS DSP;
 
 template<bool looped = false>
-static INLINE uint64 DSP_DecodeInstruction(const uint32 instr)
+static FORCE_INLINE uint64 DSP_DecodeInstruction(const uint32 instr)
 {
  void (*aal)(void);
 
@@ -194,7 +194,7 @@ static INLINE uint64 DSP_DecodeInstruction(const uint32 instr)
 }
 
 template<bool looped>
-static INLINE uint32 DSP_InstrPre(void)
+static FORCE_INLINE uint32 DSP_InstrPre(void)
 {
  const uint32 instr = DSP.NextInstr >> 32;
 
@@ -211,7 +211,7 @@ static INLINE uint32 DSP_InstrPre(void)
 }
 
 template<unsigned cond>
-static INLINE bool DSP_TestCond(void)
+static FORCE_INLINE bool DSP_TestCond(void)
 {
  if(!(cond & 0x40))
   return true;
