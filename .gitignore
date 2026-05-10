@@ -6,5 +6,7 @@
 *.exp
 *.manifest
 *.d
+*.data
+*.old
 mednafen/hw_cpu/m68k/gen
 mednafen/hw_cpu/m68k/gen_split
