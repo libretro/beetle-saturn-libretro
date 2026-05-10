@@ -157,6 +157,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "disabled"
    },
    {
+      "beetle_saturn_jit_scu",
+      "SCU DSP JIT Binary Translator",
+      NULL,
+      "Use the native aarch64 JIT binary translator for the SCU DSP. Has no effect on non-aarch64 builds. Restart required.",
+      NULL,
+      "system",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "enabled"
+   },
+   {
       "beetle_saturn_initial_scanline",
       "Initial Scanline",
       NULL,

@@ -337,6 +337,16 @@ static void check_variables(bool startup)
             cdimagecache = true;
       }
 
+      var.key = "beetle_saturn_jit_scu";
+      var.value = NULL;
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      {
+         if (!strcmp(var.value, "disabled"))
+            setting_jit_scu = false;
+         else
+            setting_jit_scu = true;
+      }
+
       var.key = "beetle_saturn_shared_int";
       var.value = NULL;
       if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
