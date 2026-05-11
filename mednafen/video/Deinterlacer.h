@@ -48,7 +48,7 @@ enum
  * for k in [0, native_field_h); the opposite-parity row blocks
  * still hold whatever was there from the previous Process() call.
  *
- * Three modes:
+ * Four modes:
  *   - WEAVE:      no-op; trusts the surface to already hold both
  *                 fields' row blocks since the previous frame's
  *                 opposite field was never overwritten.  Surface
@@ -60,6 +60,17 @@ enum
  *   - BOB_OFFSET: copies this field's row blocks down by one
  *                 native row, leaving the originals in place so
  *                 the surface ends up double-rowed at full height.
+ *   - FASTMAD:    keeps this field's GPU-written row blocks in place
+ *                 and reconstructs opposite-parity rows via motion-
+ *                 adaptive blending against a two-frame history.
+ *                 Surface height presented to libretro is full
+ *                 interlaced height.
+ *
+ * WEAVE, BOB_OFFSET and FASTMAD all produce a full-height surface;
+ * the libretro bridge must set PrevInterlaced=true for all three so
+ * the reported geometry and the framebuffer base-offset are doubled
+ * relative to the single-field case.  BOB is the only half-height
+ * mode.
  *
  * The previous implementation kept a separate FieldBuffer surface
  * and an LWBuffer line-widths array to support an out-of-place

@@ -925,12 +925,14 @@ void retro_run(void)
       Deinterlacer_Process(&deint, spec.surface, &spec.DisplayRect, spec.LineWidths, spec.InterlaceField);
 
       // PrevInterlaced governs whether the libretro output presents at
-      // full interlaced height (true) or half-height (false). WEAVE
-      // and BOB_OFFSET both produce a full-height surface; only BOB
-      // compacts to half-height.
+      // full interlaced height (true) or half-height (false). WEAVE,
+      // BOB_OFFSET, and FASTMAD all produce a full-height surface;
+      // only BOB compacts to half-height.
       {
          const unsigned dt = Deinterlacer_GetType(&deint);
-         PrevInterlaced = (dt == DEINT_WEAVE || dt == DEINT_BOB_OFFSET);
+         PrevInterlaced = (dt == DEINT_WEAVE
+                        || dt == DEINT_BOB_OFFSET
+                        || dt == DEINT_FASTMAD);
       }
 
       spec.InterlaceOn = false;
