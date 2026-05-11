@@ -2582,7 +2582,21 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
   if((uint8)pix >= PIX_SHADHALVTEST8_VAL)
    pix = (uint32)pix | ((pix >> 1) & 0x7F7F7F00000000ULL);
 
-  target[i] = pix >> PIX_RGB_SHIFT;
+  // MixIt's internal pixel format keeps R at byte 0, G at byte 1, B at
+  // byte 2 (matches rgb15_to_rgb24's output and lets all the colour-
+  // offset / blend / shadow math above use byte-aligned 0x0000FF /
+  // 0x00FF00 / 0xFF0000 masks). The libretro surface wants R at byte 2
+  // (RED_SHIFT=16), G at byte 1 (GREEN_SHIFT=8), B at byte 0
+  // (BLUE_SHIFT=0) -- exactly the byte-swap-and-drop-high-byte that
+  // ReorderRGB used to do as a separate post-pass over the same row.
+  //
+  // Folding it inline here costs ~2 extra instructions per pixel
+  // (bswap + shr) at a register that already holds the value, and
+  // eliminates the entire ReorderRGB pass's read-modify-write of the
+  // active row (8 bytes/pixel of memory traffic, ~3 ops/pixel).
+  // Border pixels are written by the border-fill loops in DrawLine
+  // already in output format, so they don't need any swap.
+  target[i] = __builtin_bswap32((uint32)(pix >> PIX_RGB_SHIFT)) >> 8;
  }
 }
 
@@ -2636,35 +2650,6 @@ static int32 ApplyHBlend(uint32* const target, int32 w)
   return w;
  }
  #undef BHALF
-}
-
-// Reorder per-pixel RGB layout. The VDP2 internal pipeline produces
-// pixels with R at bits 0-7, G at 8-15, B at 16-23, alpha don't-care.
-// The libretro framebuffer expects R at RED_SHIFT (16), G at
-// GREEN_SHIFT (8), B at BLUE_SHIFT (0), alpha at ALPHA_SHIFT (24).
-// In other words: swap R and B byte positions, keep G, zero alpha.
-//
-// That's exactly __builtin_bswap32(val) >> 8 with the trailing zeros
-// landing in the high (alpha) byte. The previous implementation took
-// the three shift values as runtime parameters and did the manual
-// shift/mask/or sequence (8+ instructions on x86); this lowers to
-// a single bswap + shr (2 instructions) and is loop-vectorizable by
-// any modern compiler. Marking INLINE so the single call site below
-// doesn't carry the per-line call/ret overhead.
-static INLINE void ReorderRGB(uint32* target, const unsigned w)
-{
- assert(!(w & 1));
- static_assert(RED_SHIFT == 16 && GREEN_SHIFT == 8 && BLUE_SHIFT == 0,
-   "ReorderRGB fast-path assumes R<<16 | G<<8 | B<<0 output layout");
-
- uint32* const bound = target + w;
-
- while(MDFN_LIKELY(target != bound))
- {
-  target[0] = __builtin_bswap32(target[0]) >> 8;
-  target[1] = __builtin_bswap32(target[1]) >> 8;
-  target += 2;
- }
 }
 
 static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, const bool field)
@@ -3096,10 +3081,11 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
      special = MIXIT_SPECIAL_HIRES_CRAM12;
    }
    MixIt[rbgdualen][special][CCRTMD][CCMD](target + tvxo, vdp2_line, w, back_rgb24, blursrc);
-   // ReorderRGB now hardcodes the R/G/B shift positions (which were
-   // always RED_SHIFT/GREEN_SHIFT/BLUE_SHIFT anyway) and uses
-   // __builtin_bswap32 to do the byte swap in one instruction.
-   ReorderRGB(target + tvxo, w);
+   // RGB-to-output byte-swap now folded into MixIt's terminal store
+   // (single bswap+shr per pixel at a register that already holds the
+   // value, instead of a separate read-modify-write pass over the row).
+   // Border pixels were already written in output format by the two
+   // border-fill loops above, so they pass through unchanged.
   }
   //
   //
