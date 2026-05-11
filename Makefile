@@ -411,14 +411,21 @@ else
 endif
 
 ifneq ($(LTO),)
-   FLAGS   += -flto=auto
-   LDFLAGS += -flto=auto -O2
-   # -fipa-pta is a GCC-only optimization; clang (used on Apple targets,
-   # and on some Linux/BSD setups) errors out on it as an unknown argument.
+   # -flto=auto and -fipa-pta are GCC-only spellings. clang (used on all
+   # Apple targets, and on some Linux/BSD setups) rejects -fipa-pta as
+   # an unknown argument, and older clangs (including Apple clang from
+   # Xcode <= 12) reject -flto=auto with "unsupported argument 'auto'".
+   # Clang from LLVM 13+ ignores -flto=auto as a GCC compat alias, but
+   # we have to support the older Apple SDKs the iOS CI runners ship.
+   # Use plain -flto on clang (full LTO, same effective behavior as
+   # -flto=auto on newer clangs), and the full GCC spelling otherwise.
    CC_IS_CLANG := $(shell $(firstword $(CC)) --version 2>/dev/null | grep -ic clang)
    ifeq ($(CC_IS_CLANG),0)
-      FLAGS   += -fipa-pta
-      LDFLAGS += -fipa-pta
+      FLAGS   += -flto=auto -fipa-pta
+      LDFLAGS += -flto=auto -fipa-pta -O2
+   else
+      FLAGS   += -flto
+      LDFLAGS += -flto -O2
    endif
 endif
 
