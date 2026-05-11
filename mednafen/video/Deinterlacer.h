@@ -32,8 +32,10 @@ enum
    DEINT_BOB_OFFSET = 0, /* fallback default when state is reset */
    DEINT_BOB,
    DEINT_WEAVE,
-   DEINT_OFF             /* SW renderer matches HW: bypass dfe and
+   DEINT_OFF,            /* SW renderer matches HW: bypass dfe and
                           * use deferred end-of-frame scanout */
+   DEINT_FASTMAD         /* CPU motion-adaptive deinterlace, port
+                          * of PCSX2's FastMAD shader */
 };
 
 /*
@@ -72,6 +74,18 @@ typedef struct
    int32_t   PrevDRect_h;
    int32_t   PrevDRect_x;
    unsigned  DeintType;
+
+   /* FastMAD state (allocated lazily on first DEINT_FASTMAD call;
+    * released by Deinterlacer_Cleanup).  See deint_fastmad() in
+    * Deinterlacer.c for the algorithm and the bank-rotation
+    * semantics. */
+   uint32_t *MadHist[2];
+   uint32_t *MadScratch;
+   int32_t   MadW;
+   int32_t   MadH;
+   int32_t   MadScratchW;
+   int32_t   MadIdx;
+   int32_t   MadFramesValid;
 } Deinterlacer;
 
 void     Deinterlacer_Init(Deinterlacer *d);

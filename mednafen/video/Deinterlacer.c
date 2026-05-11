@@ -63,16 +63,32 @@
 
 void Deinterlacer_Init(Deinterlacer *d)
 {
-   d->StateValid   = false;
-   d->PrevDRect_h  = 0;
-   d->PrevDRect_x  = 0;
-   d->DeintType    = DEINT_WEAVE;
+   d->StateValid      = false;
+   d->PrevDRect_h     = 0;
+   d->PrevDRect_x     = 0;
+   d->DeintType       = DEINT_WEAVE;
+   d->MadHist[0]      = NULL;
+   d->MadHist[1]      = NULL;
+   d->MadScratch      = NULL;
+   d->MadW            = 0;
+   d->MadH            = 0;
+   d->MadScratchW     = 0;
+   d->MadIdx          = 0;
+   d->MadFramesValid  = 0;
 }
 
 void Deinterlacer_Cleanup(Deinterlacer *d)
 {
-   /* No allocations to release - kept for API symmetry. */
-   (void)d;
+   if (!d)
+      return;
+   free(d->MadHist[0]);
+   free(d->MadHist[1]);
+   free(d->MadScratch);
+   d->MadHist[0] = d->MadHist[1] = NULL;
+   d->MadScratch = NULL;
+   d->MadW = d->MadH = d->MadScratchW = 0;
+   d->MadIdx = 0;
+   d->MadFramesValid = 0;
 }
 
 void Deinterlacer_SetType(Deinterlacer *d, unsigned dt)
@@ -262,6 +278,429 @@ static bool deint_weave(Deinterlacer *d, uint32_t *pixels, int32_t pitch_pix,
    return weave_good;
 }
 
+/* ====================================================================
+ * FastMAD (Motion Adaptive Deinterlacing)
+ *
+ * Backported from beetle-psx-libretro's mednafen/video/Deinterlacer.c,
+ * which in turn ported PCSX2's CPU FastMAD in
+ * pcsx2/GS/Renderers/SW/GSDeviceSW.cpp -- itself a CPU port of
+ * interlace.glsl's ps_main3 + ps_main4 (MAD_BUFFER / MAD_RECONSTRUCT
+ * shader passes).
+ *
+ * Algorithm (one Deinterlacer_Process call):
+ *
+ *   For each row of opposite-field parity in the output:
+ *     - top/bottom edge       -> weave with whatever is already
+ *                                in surface[y] (= previous call's
+ *                                MAD output, approximating last
+ *                                field's content).
+ *     - interior              -> per-native-pixel motion test
+ *                                between current frame and a
+ *                                snapshot from 2 calls ago.  If
+ *                                any of three vertically-adjacent
+ *                                pixels exceeds the sensitivity
+ *                                threshold in any RGB channel ->
+ *                                interpolate (hn+ln)/2.  Else
+ *                                weave (keep cn).
+ *
+ *   After processing, snapshot the surface at native resolution
+ *   into the currently-active history bank, then toggle the bank
+ *   pointer.  Next call reads from the OTHER bank which by that
+ *   point holds 2-call-old state.
+ *
+ * Memory:
+ *   2 banks * w_native * h_native * 4 bytes.
+ *   ~2.7 MB worst case for PAL 480i (704x576).  Above
+ *   MAD_MAX_PIXELS (1M native pixels) the allocation is skipped
+ *   and the mode falls through to weave behaviour silently.
+ *
+ * Warmup:
+ *   The first MAD_WARMUP calls after a fresh allocation skip the
+ *   reconstruction pass; visible result is plain weave for ~67 ms
+ *   at 60 Hz.  This avoids the brief "everything looks like
+ *   motion" softening when history is still zero-filled.
+ *
+ * Upscaling:
+ *   Saturn's VDP2 SW renderer writes at native resolution; the
+ *   upscale shift `s` reaches us as 0 from Process via
+ *   SATURN_UPSCALE_SHIFT, so `upscale == 1` is always taken in
+ *   the branches below.  Structure preserved from upstream to
+ *   keep merges mechanical.
+ *
+ * SSE2 codepath in the inner per-pixel motion+blend loop; scalar
+ * fallback otherwise (and on non-x86 targets).
+ * ==================================================================== */
+
+#if defined(__SSE2__)
+#include <emmintrin.h>
+#define MAD_HAVE_SSE2 1
+#endif
+
+#define MAD_SENSITIVITY 20
+#define MAD_MAX_PIXELS  (1024 * 1024)
+#define MAD_WARMUP      4
+
+static int mad_pixel_motion(uint32_t newer, uint32_t older, int threshold)
+{
+   int nr, ng, nb, or_, og, ob;
+   int dr, dg, db, m;
+
+   nr  = (int)((newer      ) & 0xFFu);
+   ng  = (int)((newer >>  8) & 0xFFu);
+   nb  = (int)((newer >> 16) & 0xFFu);
+   or_ = (int)((older      ) & 0xFFu);
+   og  = (int)((older >>  8) & 0xFFu);
+   ob  = (int)((older >> 16) & 0xFFu);
+
+   dr = nr - or_;
+   dg = ng - og;
+   db = nb - ob;
+   if (dr < 0) dr = -dr;
+   if (dg < 0) dg = -dg;
+   if (db < 0) db = -db;
+   dr -= threshold;
+   dg -= threshold;
+   db -= threshold;
+
+   m = dr;
+   if (dg > m) m = dg;
+   if (db > m) m = db;
+   return m;
+}
+
+static uint32_t mad_average_pixels(uint32_t a, uint32_t b)
+{
+   uint32_t ar, ag, ab, br, bg, bb, r, g, bl;
+
+   ar = (a      ) & 0xFFu;
+   ag = (a >>  8) & 0xFFu;
+   ab = (a >> 16) & 0xFFu;
+   br = (b      ) & 0xFFu;
+   bg = (b >>  8) & 0xFFu;
+   bb = (b >> 16) & 0xFFu;
+   r  = (ar + br + 1u) >> 1;
+   g  = (ag + bg + 1u) >> 1;
+   bl = (ab + bb + 1u) >> 1;
+   return (a & 0xFF000000u) | (bl << 16) | (g << 8) | r;
+}
+
+#if MAD_HAVE_SSE2
+/* Per-32-bit-lane motion mask for 4 pixels at a time.  Result lane
+ * is all-ones where motion was detected in any of the three triples
+ * in any RGB channel, all-zeros otherwise. */
+static __m128i mad_motion_mask_sse2(
+      __m128i hn, __m128i ho,
+      __m128i cn, __m128i co,
+      __m128i ln, __m128i lo,
+      __m128i thresh,
+      __m128i alpha_mask)
+{
+   __m128i dh, dc, dl, any, still;
+
+   dh = _mm_or_si128(_mm_subs_epu8(hn, ho), _mm_subs_epu8(ho, hn));
+   dc = _mm_or_si128(_mm_subs_epu8(cn, co), _mm_subs_epu8(co, cn));
+   dl = _mm_or_si128(_mm_subs_epu8(ln, lo), _mm_subs_epu8(lo, ln));
+
+   dh = _mm_subs_epu8(dh, thresh);
+   dc = _mm_subs_epu8(dc, thresh);
+   dl = _mm_subs_epu8(dl, thresh);
+
+   any   = _mm_or_si128(_mm_or_si128(dh, dc), dl);
+   any   = _mm_and_si128(any, alpha_mask);
+
+   still = _mm_cmpeq_epi8(any, _mm_setzero_si128());
+   still = _mm_cmpeq_epi32(still, _mm_set1_epi32(-1));
+   return _mm_xor_si128(still, _mm_set1_epi32(-1));
+}
+#endif
+
+/* Reconstruct one native row of MAD output into dst (w pixels). */
+static void mad_reconstruct_row(
+      uint32_t       *dst,
+      const uint32_t *cn_row,
+      const uint32_t *hn_row,
+      const uint32_t *ln_row,
+      const uint32_t *co_row,
+      const uint32_t *ho_row,
+      const uint32_t *lo_row,
+      int             w)
+{
+   int x = 0;
+
+#if MAD_HAVE_SSE2
+   {
+      const __m128i thresh     = _mm_set1_epi8((char)MAD_SENSITIVITY);
+      const __m128i alpha_mask = _mm_set1_epi32(0x00FFFFFF);
+      for (; x + 4 <= w; x += 4)
+      {
+         __m128i hn   = _mm_loadu_si128((const __m128i*)(hn_row + x));
+         __m128i cn   = _mm_loadu_si128((const __m128i*)(cn_row + x));
+         __m128i ln   = _mm_loadu_si128((const __m128i*)(ln_row + x));
+         __m128i ho   = _mm_loadu_si128((const __m128i*)(ho_row + x));
+         __m128i co   = _mm_loadu_si128((const __m128i*)(co_row + x));
+         __m128i lo   = _mm_loadu_si128((const __m128i*)(lo_row + x));
+         __m128i mask = mad_motion_mask_sse2(hn, ho, cn, co, ln, lo,
+               thresh, alpha_mask);
+         __m128i avg  = _mm_avg_epu8(hn, ln);
+         __m128i out  = _mm_or_si128(
+               _mm_and_si128(mask, avg),
+               _mm_andnot_si128(mask, cn));
+         _mm_storeu_si128((__m128i*)(dst + x), out);
+      }
+   }
+#endif
+   for (; x < w; x++)
+   {
+      uint32_t hn = hn_row[x];
+      uint32_t cn = cn_row[x];
+      uint32_t ln = ln_row[x];
+      uint32_t ho = ho_row[x];
+      uint32_t co = co_row[x];
+      uint32_t lo = lo_row[x];
+      int mh = mad_pixel_motion(hn, ho, MAD_SENSITIVITY);
+      int mc = mad_pixel_motion(cn, co, MAD_SENSITIVITY);
+      int ml = mad_pixel_motion(ln, lo, MAD_SENSITIVITY);
+      dst[x] = (mh > 0 || mc > 0 || ml > 0)
+         ? mad_average_pixels(hn, ln)
+         : cn;
+   }
+}
+
+/* Snapshot the current surface at native resolution into dst,
+ * sampling one pixel per upscale block. */
+static void mad_snapshot_native(
+      uint32_t       *dst,
+      int             w_native,
+      const uint32_t *surf,
+      int             surf_pitch_pix,
+      int             dy_native,
+      int             snap_h,
+      int             upscale)
+{
+   int y, x;
+
+   for (y = 0; y < snap_h; y++)
+   {
+      const uint32_t *src     = surf
+         + (size_t)((y + dy_native) * upscale) * surf_pitch_pix;
+      uint32_t       *out_row = dst + (size_t)y * w_native;
+      if (upscale == 1)
+         memcpy(out_row, src, (size_t)w_native * sizeof(uint32_t));
+      else
+         for (x = 0; x < w_native; x++)
+            out_row[x] = src[x * upscale];
+   }
+}
+
+/* Expand one native row to the upscale row/col block at dst_block_first
+ * (= first surface row of the upscale block; surf_pitch_pix is in
+ * pixels, upscale is the linear factor). */
+static void mad_expand_row(
+      uint32_t       *dst_block_first,
+      int             surf_pitch_pix,
+      const uint32_t *native_row,
+      int             w_native,
+      int             upscale)
+{
+   int v;
+
+   if (upscale == 1)
+   {
+      memcpy(dst_block_first, native_row,
+             (size_t)w_native * sizeof(uint32_t));
+      return;
+   }
+   {
+      int x, u;
+      for (x = 0; x < w_native; x++)
+      {
+         uint32_t  pix = native_row[x];
+         uint32_t *p   = dst_block_first + (size_t)x * upscale;
+         for (u = 0; u < upscale; u++)
+            p[u] = pix;
+      }
+   }
+   for (v = 1; v < upscale; v++)
+      memcpy(dst_block_first + (size_t)v * surf_pitch_pix,
+             dst_block_first,
+             (size_t)(w_native * upscale) * sizeof(uint32_t));
+}
+
+/* Ensure history banks and scratch row are sized for the current
+ * geometry.  Returns 0 on success, -1 on allocation failure or
+ * if the surface exceeds the size cap (caller falls back to
+ * weave). */
+static int mad_ensure_buffers(Deinterlacer *d, int w_native, int h_native)
+{
+   const size_t bank_pix = (size_t)w_native * (size_t)h_native;
+
+   if (w_native <= 0 || h_native <= 0)
+      return -1;
+   if (bank_pix > (size_t)MAD_MAX_PIXELS)
+      return -1;
+
+   if (   d->MadHist[0] == NULL
+       || d->MadW != w_native
+       || d->MadH != h_native)
+   {
+      free(d->MadHist[0]);
+      free(d->MadHist[1]);
+      d->MadHist[0] = (uint32_t*)calloc(bank_pix, sizeof(uint32_t));
+      d->MadHist[1] = (uint32_t*)calloc(bank_pix, sizeof(uint32_t));
+      if (!d->MadHist[0] || !d->MadHist[1])
+      {
+         free(d->MadHist[0]);
+         free(d->MadHist[1]);
+         d->MadHist[0] = d->MadHist[1] = NULL;
+         d->MadW = d->MadH = 0;
+         d->MadFramesValid = 0;
+         return -1;
+      }
+      d->MadW            = w_native;
+      d->MadH            = h_native;
+      d->MadIdx          = 0;
+      d->MadFramesValid  = 0;
+   }
+   if (d->MadScratch == NULL || d->MadScratchW < w_native)
+   {
+      free(d->MadScratch);
+      d->MadScratch  = (uint32_t*)malloc((size_t)w_native
+                                          * sizeof(uint32_t));
+      if (!d->MadScratch)
+      {
+         d->MadScratchW = 0;
+         return -1;
+      }
+      d->MadScratchW = w_native;
+   }
+   return 0;
+}
+
+/* Top-level FastMAD entry, called from Deinterlacer_Process. */
+static void deint_fastmad(
+      Deinterlacer    *d,
+      uint32_t        *pixels,
+      int32_t          pitch_pix,
+      const MDFN_Rect *DisplayRect,
+      bool             field,
+      unsigned         s)
+{
+   const int       upscale  = 1 << s;
+   const int       w_native = (DisplayRect->w > 0)
+                              ? DisplayRect->w
+                              : (pitch_pix / upscale);
+   const int       h_native = DisplayRect->h;
+   const int       dy       = DisplayRect->y;
+   const uint32_t *hist;
+   int             k, y, v;
+
+   if (mad_ensure_buffers(d, w_native, h_native) < 0)
+      return;     /* silent weave fallback */
+
+   hist = d->MadHist[d->MadIdx];
+
+   if (d->MadFramesValid >= MAD_WARMUP)
+   {
+      for (y = 0; y < h_native; y++)
+      {
+         int       is_current_parity, is_edge;
+         uint32_t *first_dst;
+
+         is_current_parity = ((y & 1) == (int)field);
+         is_edge           = (y == 0 || y == h_native - 1);
+         if (is_current_parity)
+            continue;     /* GPU already filled this row */
+
+         first_dst = pixels + (size_t)((y + dy) * upscale) * pitch_pix;
+         if (is_edge)
+         {
+            /* Weave from surface.  Just replicate the GPU's first-
+             * row-of-block across the rest of the upscale block. */
+            for (v = 1; v < upscale; v++)
+               memcpy(first_dst + (size_t)v * pitch_pix, first_dst,
+                      (size_t)(w_native * upscale) * sizeof(uint32_t));
+            continue;
+         }
+
+         {
+            const int       y_above   = y - 1;
+            const int       y_below   = y + 1;
+            const uint32_t *cn_row    = pixels
+               + (size_t)((y       + dy) * upscale) * pitch_pix;
+            const uint32_t *hn_row    = pixels
+               + (size_t)((y_above + dy) * upscale) * pitch_pix;
+            const uint32_t *ln_row    = pixels
+               + (size_t)((y_below + dy) * upscale) * pitch_pix;
+            const uint32_t *co_row    = hist + (size_t)y       * w_native;
+            const uint32_t *ho_row    = hist + (size_t)y_above * w_native;
+            const uint32_t *lo_row    = hist + (size_t)y_below * w_native;
+
+            if (upscale == 1)
+            {
+               mad_reconstruct_row(d->MadScratch,
+                     cn_row, hn_row, ln_row,
+                     co_row, ho_row, lo_row,
+                     w_native);
+            }
+            else
+            {
+               /* Subsample current-frame rows on the fly.  Forfeits
+                * SSE2 in the upscaled path; at upscale > 1 the
+                * history buffer's column-stride still gives us
+                * tight reads for the older-frame side. */
+               int x;
+               for (x = 0; x < w_native; x++)
+               {
+                  uint32_t hn = hn_row[x * upscale];
+                  uint32_t cn = cn_row[x * upscale];
+                  uint32_t ln = ln_row[x * upscale];
+                  uint32_t ho = ho_row[x];
+                  uint32_t co = co_row[x];
+                  uint32_t lo = lo_row[x];
+                  int mh = mad_pixel_motion(hn, ho, MAD_SENSITIVITY);
+                  int mc = mad_pixel_motion(cn, co, MAD_SENSITIVITY);
+                  int ml = mad_pixel_motion(ln, lo, MAD_SENSITIVITY);
+                  d->MadScratch[x] = (mh > 0 || mc > 0 || ml > 0)
+                     ? mad_average_pixels(hn, ln)
+                     : cn;
+               }
+            }
+
+            mad_expand_row(first_dst, pitch_pix,
+                  d->MadScratch, w_native, upscale);
+         }
+      }
+
+      /* Replicate current-field rows across the upscale row block.
+       * The GPU's immediate-scanout path only wrote the first row
+       * of each block; rows 1..upscale-1 are scratch. */
+      if (upscale > 1)
+      {
+         for (k = 0; k < (h_native / 2); k++)
+         {
+            const int    native_y    = (k * 2) + (int)field;
+            uint32_t    *first_dst   = pixels
+               + (size_t)((native_y + dy) * upscale) * pitch_pix;
+            for (v = 1; v < upscale; v++)
+               memcpy(first_dst + (size_t)v * pitch_pix, first_dst,
+                      (size_t)(w_native * upscale) * sizeof(uint32_t));
+         }
+      }
+   }
+   else
+   {
+      d->MadFramesValid++;
+   }
+
+   /* Snapshot the surface at native resolution into the bank we'll
+    * READ from 2 calls from now. */
+   mad_snapshot_native(d->MadHist[d->MadIdx], w_native,
+         pixels, pitch_pix, dy, h_native, upscale);
+
+   /* Toggle bank pointer. */
+   d->MadIdx ^= 1;
+}
+
 void Deinterlacer_Process(Deinterlacer *d, MDFN_Surface *surface,
       MDFN_Rect *DisplayRect, int32_t *LineWidths, const bool field)
 {
@@ -317,6 +756,10 @@ void Deinterlacer_Process(Deinterlacer *d, MDFN_Surface *surface,
       case DEINT_BOB:
          deint_bob(pixels, pitch_pix, DisplayRect,
                LineWidths, field, s);
+         break;
+
+      case DEINT_FASTMAD:
+         deint_fastmad(d, pixels, pitch_pix, DisplayRect, field, s);
          break;
 
       case DEINT_BOB_OFFSET:
