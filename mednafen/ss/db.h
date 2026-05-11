@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_DB_H
 #define __MDFN_SS_DB_H
 
+class Stream;
+
 enum
 {
  CPUCACHE_EMUMODE_DATA_CB = 0,
@@ -29,6 +31,72 @@ enum
  CPUCACHE_EMUMODE_FULL = 2,
  CPUCACHE_EMUMODE__COUNT = 3,
 };
+
+// ST-V (Sega Titan Video) arcade hardware support.
+//
+// Ported from upstream Mednafen 1.32.1's mednafen/ss/db.h. ST-V games are
+// distributed as multi-file MAME-style ROM sets; STVROMLayout describes how
+// to map each file's contents into Saturn A-bus CS0/CS1 address space, and
+// STVGameInfo wraps the per-game settings (region, control scheme,
+// encryption/compression chip, rotation flag, ROM layout table).
+//
+// The layout `map` field selects byte-vs-16-bit-endian unpacking, and
+// `head_crc32` lets DB_LookupSTV disambiguate ROM sets that share a first
+// file name across game variants.
+//
+struct STVROMLayout
+{
+ uint32 offset;
+ uint32 size;
+ unsigned map;
+ const char* fname;
+ uint32 head_crc32;
+};
+
+enum
+{
+ STV_CONTROL_3B = 0,
+ STV_CONTROL_6B,
+ STV_CONTROL_HAMMER,
+ //
+ STV_CONTROL_RSG
+};
+
+enum
+{
+ STV_MAP_BYTE = 0,
+ STV_MAP_16LE,
+ STV_MAP_16BE
+};
+
+enum
+{
+ STV_ROMTWIDDLE_NONE = 0,
+ STV_ROMTWIDDLE_SANJEON
+};
+
+enum
+{
+ STV_EC_CHIP_NONE = 0,
+ //
+ STV_EC_CHIP_315_5881,
+ STV_EC_CHIP_315_5838,
+ //
+ STV_EC_CHIP_RSG
+};
+
+struct STVGameInfo
+{
+ const char* name;
+ unsigned area;
+ unsigned control;
+ unsigned ec_chip;
+ unsigned romtwiddle;
+ bool rotate;
+ STVROMLayout rom_layout[16];
+};
+
+const STVGameInfo* DB_LookupSTV(const std::string& fname, Stream* s);
 
 void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode);
 uint32 DB_LookupHH(const char* sgid, const uint8* fd_id);

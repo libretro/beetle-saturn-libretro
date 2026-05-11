@@ -49,6 +49,10 @@ class IODevice
  virtual uint8 UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted);
  virtual void LineHook(const sscpu_timestamp_t timestamp, int32 out_line, int32 div, int32 coord_adj);
  virtual void ResetTS(void);
+ // SetTSFreq is called when the emulator's master clock changes; ST-V's
+ // EEPROM (AK93C45) needs this to recompute its time-base ratio. Base
+ // implementation is empty -- standard Saturn input devices don't care.
+ virtual void SetTSFreq(const int32 rate);
  sscpu_timestamp_t NextEventTS = SS_EVENT_DISABLED_TS;
  sscpu_timestamp_t LastTS = 0;
 };

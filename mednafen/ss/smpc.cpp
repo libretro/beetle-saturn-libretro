@@ -240,6 +240,7 @@ void IODevice::Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32* 
 uint8 IODevice::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted) { return smpc_out; }
 
 void IODevice::ResetTS(void) { if(NextEventTS < SS_EVENT_DISABLED_TS) { NextEventTS -= LastTS; assert(NextEventTS >= 0); } LastTS = 0; }
+void IODevice::SetTSFreq(const int32 rate) { }
 void IODevice::LineHook(const sscpu_timestamp_t timestamp, int32 out_line, int32 div, int32 coord_adj) { }
 //
 //
@@ -346,6 +347,15 @@ void SMPC_SetInput(unsigned port, const char* type, uint8* ptr)
   nd = &PossibleDevices[port].keyboard;
  else if(!strcmp(type, "jpkeyboard"))
   nd = &PossibleDevices[port].jpkeyboard;
+ else if(!strcmp(type, "extern"))
+ {
+  // ST-V uses this to inject its own IODevice (the SMPC port shim that
+  // talks to the AK93C45 EEPROM and forwards sound CPU reset to STV I/O).
+  // ptr here is an IODevice*, not the usual raw input-state buffer; clear
+  // it so the DPtr slot below doesn't treat it as one.
+  nd = (IODevice*)ptr;
+  ptr = nullptr;
+ }
  else
   abort();
 
@@ -415,11 +425,19 @@ void SMPC_SetRTC(const struct tm* ht, const uint8 lang)
  }
 }
 
-void SMPC_Init(const uint8 area_code_arg, const int32 master_clock_arg)
+// When the SMPC is running inside ST-V (Sega Titan Video) arcade hardware,
+// the sound CPU control bus is wired directly to the STV's I/O board instead
+// of being slaved to SMPC like on Saturn. SMPC therefore must not assert
+// reset / 68K-active changes when STV is the host. Set true via the
+// `block_soundcpu_control` argument to SMPC_Init.
+static bool BlockSoundCPUControl;
+
+void SMPC_Init(const uint8 area_code_arg, const int32 master_clock_arg, bool block_soundcpu_control)
 {
  AreaCode = area_code_arg;
  MasterClock = master_clock_arg;
  SMPC_ClockRatio = 0;
+ BlockSoundCPUControl = block_soundcpu_control;
 
  SlaveSH2Pending = false;
 
@@ -446,6 +464,11 @@ void SMPC_Init(const uint8 area_code_arg, const int32 master_clock_arg)
 
 static void TurnSoundCPUOn(void)
 {
+ if(BlockSoundCPUControl)
+ {
+  SoundCPUOn = true;
+  return;
+ }
  SOUND_Reset68K();
  SoundCPUOn = true;
  SOUND_Set68KActive(true);
@@ -453,6 +476,11 @@ static void TurnSoundCPUOn(void)
 
 static void TurnSoundCPUOff(void)
 {
+ if(BlockSoundCPUControl)
+ {
+  SoundCPUOn = false;
+  return;
+ }
  SOUND_Reset68K();
  SoundCPUOn = false;
  SOUND_Set68KActive(false);
