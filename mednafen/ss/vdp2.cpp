@@ -1354,6 +1354,48 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   HPhase %= HPHASE__COUNT;
   VPhase %= VPHASE__COUNT;
+
+  //
+  // Register-value masks that RegsWrite applies on bus writes but
+  // that StateAction had not been applying on state load. Each is a
+  // 4-bit (or 3-bit) bitfield packed into a 16-bit register; the
+  // runtime path masks each byte before storing it, but the load
+  // path just took whatever was in the save file.
+  //
+  // VCPRegs is the load-bearing one. Inside RecalcVRAMPenalty
+  // (line ~272) values feed an index into a local 16-entry
+  // vcp_type_penalty[] array:
+  //
+  //   tmp += vcp_type_penalty[VCPRegs[esb][i]];   x8
+  //   VRAMPenalty[bank] = tab[tmp];               (tab is 9 bytes)
+  //
+  // A crafted state with VCPRegs[i][j] > 0xF produces an OOB read
+  // of adjacent stack memory; the byte value is then accumulated
+  // into tmp eight times, which can push tmp far past 8 and turn
+  // the final tab[tmp] read into a second OOB into the rodata
+  // segment. The output is consumed as a memory-access penalty, so
+  // the symptom is corrupt VRAM timing rather than memory
+  // corruption, but the read primitive is real. Match the
+  // RegsWrite mask (4 bits per nibble).
+  //
+  // RPRCTL is bit-tested only (& 0x01, 0x02, 0x04) -- functionally
+  // safe with any value -- but we mask for consistency with
+  // RegsWrite (3 bits).
+  //
+  // KTAOF feeds `KTAOF[i] << 26` (line ~174). KTAOF is uint8, so
+  // the operand is promoted to signed int; values >= 0x20 then
+  // produce a left shift whose result doesn't fit in int, which is
+  // UB in C++. The result becomes part of KAstAccum so the symptom
+  // is mostly "garbage rotation parameters", but cleaner to clamp.
+  for(unsigned r = 0; r < 4; r++)
+   for(unsigned c = 0; c < 8; c++)
+    VCPRegs[r][c] &= 0xF;
+
+  for(unsigned i = 0; i < 2; i++)
+  {
+   RPRCTL[i] &= 0x7;
+   KTAOF[i]  &= 0x7;
+  }
  }
 
  VDP2REND_StateAction(sm, load, data_only, RawRegs, CRAM, VRAM);
