@@ -49,7 +49,9 @@
 
 #include <tuple>
 
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC optimize ("no-crossjumping,no-gcse")
+#endif
 
 #include "m68k_private.h"
 

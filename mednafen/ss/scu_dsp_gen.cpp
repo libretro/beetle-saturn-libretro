@@ -22,7 +22,7 @@
 #include "ss.h"
 #include "scu.h"
 
-#ifndef _MSC_VER
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC optimize("Os")
 #endif
 

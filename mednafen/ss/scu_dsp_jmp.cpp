@@ -22,7 +22,9 @@
 #include "ss.h"
 #include "scu.h"
 
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC optimize("Os")
+#endif
 
 #include "scu_dsp_common.inc"
 
