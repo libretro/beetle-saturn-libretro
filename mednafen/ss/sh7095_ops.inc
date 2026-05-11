@@ -6,13 +6,79 @@ switch(Pipe_ID >> 24)
  
  #define BEGIN_OP(x)		OP_##x { PART_OP_NORMIDIF
  #define BEGIN_OP_FUDGEIF(x)	OP_##x { if(EmulateICache) { UCRead_IF_Kludge = false; } DoIDIF(false); if(EmulateICache) { timestamp -= UCRead_IF_Kludge; }
- #define BEGIN_OP_DLYIDIF(x)	OP_##x { 
+ #define BEGIN_OP_DLYIDIF(x)	OP_##x {
 
  // "Interrupt-disabled" instruction(blocks interrupt from being taken for next instruction).
  // Use with BEGIN_OP_DLYIDIF()
  #define PART_OP_INTDIS { DoIDIF(true); }
 
  #define END_OP } break;
+
+ // Pair fusion: at the end of a setter-of-T's handler, after its DoIDIF has
+ // populated Pipe_ID with the next op-id, take the inlined cond-branch path
+ // when the next op is the matching BF/BT (and no exception is pending --
+ // EPending ORs 0xFF000000 into Pipe_ID, so the equality fails closed).
+ // The extra PC += 2 compensates for the post-switch PC += 2 only firing
+ // once for the two folded instructions; cycle accounting matches the
+ // unfused path (one fetch in this op's DoIDIF, one in the inlined branch's).
+ // Skipped in the slave resume path (RunSlaveUntil) because DoIDIF can yield
+ // via CHECK_EXIT_RESUME and br_instr is a stack local that won't survive.
+ #if !defined(SH7095_OP_PAIR_PROFILE) && !defined(SH7095_NEED_RESUME_TABLE_INIT) && defined(_LOW_ACCURACY_)
+ #define FUSE_COND_BRANCH(next_op_id, cond_expr)				\
+  if(MDFN_LIKELY((Pipe_ID >> 24) == (next_op_id)))			\
+  {									\
+   const uint16 br_instr = (uint16)Pipe_ID;				\
+   PC += 2;								\
+   if(EmulateICache) { UCRead_IF_Kludge = false; }			\
+   DoIDIF(false);							\
+   if(EmulateICache) { timestamp -= UCRead_IF_Kludge; }			\
+   CondRelBranch((cond_expr), (uint32)(int8)br_instr << 1);		\
+  }
+ // Delay-slot fusion: collapse a NOP delay slot into its preceding
+ // delay-branch handler.  After DelayBranch(), Pipe_ID's high byte is
+ // (InstrDecodeTab[delay_slot] | 0x80) -- so for a NOP delay slot it's
+ // 0xF5.  We inline the NOP's empty-body dispatch as PC += 2 + DoIDIF,
+ // saving one switch round-trip when this fires.  Hot for the slave's
+ // interrupt-storm cycle (RTE -> NOP delay -> PSEUDO_EPENDING -> RTE),
+ // where RTE -> NOP transitions are 100% in profiling.
+ #define FUSE_DELAY_SLOT_NOP()						\
+  if(MDFN_LIKELY((Pipe_ID >> 24) == (OP_NOP_ID | 0x80)))		\
+  {									\
+   PC += 2;								\
+   DoIDIF(false);							\
+  }
+ // Triplet fusion: load -> cmp/tst -> conditional branch.  At the load's
+ // tail, Pipe_ID has the cmp/tst (decoded by the load's BEGIN_OP DoIDIF)
+ // and Pipe_IF has the branch instruction word (raw uint16, op-id NOT yet
+ // computed -- DoID decodes during rotation).  Detection therefore needs an
+ // explicit InstrDecodeTab lookup on Pipe_IF; the high byte of Pipe_IF is
+ // always zero (FetchIF only writes a uint16) so testing it would fail
+ // closed.  alu_set_t_expr reads alu_instr (uint16) as the cmp/tst word.
+ // The two DoIDIF_INLINE calls model the cmp/tst's and the branch's fetch
+ // slots; PC interleaves +=2 between them so each fetches the right address.
+ // The branch's slot keeps its FUDGEIF kludge wrap.  Total PC advance =
+ // 2+2 inside macro + 2 post-switch = 6 bytes for 3 folded instructions.
+ #define FUSE_LOAD_CMPTST_BRANCH(alu_op_id, br_op_id, alu_set_t_expr, br_cond_expr)	\
+  if(MDFN_LIKELY((Pipe_ID >> 24) == (alu_op_id) &&					\
+                 InstrDecodeTab[(uint16)Pipe_IF] == (br_op_id)))			\
+  {											\
+   const uint16 alu_instr = (uint16)Pipe_ID;						\
+   const uint16 br_instr = (uint16)Pipe_IF;						\
+   WB_EX_CHECK(0)									\
+   alu_set_t_expr;									\
+   PC += 2;										\
+   DoIDIF_INLINE<EmulateICache, false>();						\
+   PC += 2;										\
+   if(EmulateICache) { UCRead_IF_Kludge = false; }					\
+   DoIDIF_INLINE<EmulateICache, false>();						\
+   if(EmulateICache) { timestamp -= UCRead_IF_Kludge; }					\
+   CondRelBranch((br_cond_expr), (uint32)(int8)br_instr << 1);				\
+  }
+ #else
+ #define FUSE_COND_BRANCH(next_op_id, cond_expr) do {} while(0)
+ #define FUSE_LOAD_CMPTST_BRANCH(alu_op_id, br_op_id, alu_set_t_expr, br_cond_expr) do {} while(0)
+ #define FUSE_DELAY_SLOT_NOP() do {} while(0)
+ #endif
 
  #define WB_EX_CHECK(r) { if(timestamp < WB_until[(r)]) timestamp = WB_until[(r)]; }
  #define WB_WRITE(r, v) { R[(r)] = (v); WB_until[(r)] = MA_until + 1; }
@@ -120,6 +186,9 @@ switch(Pipe_ID >> 24)
 	CONST_VAR(uint32, ea) = R[m];
 
 	WB_READ8(instr_nyb2, ea);
+
+	FUSE_LOAD_CMPTST_BRANCH(OP_CMP_EQ_IMM_REG0_ID, OP_BF_ID,
+		SetT((int32)(int8)alu_instr == (int32)R[0]), !GetT());
  END_OP
 
 
@@ -281,6 +350,9 @@ switch(Pipe_ID >> 24)
 	CONST_VAR(uint32, ea) = R[m] + (d << 0);
 
 	WB_READ8(0, ea);
+
+	FUSE_LOAD_CMPTST_BRANCH(OP_TST_IMM_REG0_ID, OP_BT_ID,
+		SetT(!(R[0] & (uint8)alu_instr)), GetT());
  END_OP
 
 
@@ -578,6 +650,8 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(0)
 
 	SetT(imm == R[0]);
+
+	FUSE_COND_BRANCH(OP_BF_ID, !GetT());
  END_OP
 
 
@@ -648,6 +722,8 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(m)
 
 	SetT((int32)R[n] > (int32)R[m]);
+
+	FUSE_COND_BRANCH(OP_BT_ID, GetT());
  END_OP
 
 
@@ -769,6 +845,8 @@ switch(Pipe_ID >> 24)
 
 	R[n]--;
 	SetT(!R[n]);
+
+	FUSE_COND_BRANCH(OP_BF_ID, !GetT());
  END_OP
 
 
@@ -1203,6 +1281,9 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(m)
 
 	SetT(!(R[n] & R[m]));
+
+	FUSE_COND_BRANCH(OP_BF_ID, !GetT());
+	FUSE_COND_BRANCH(OP_BT_ID, GetT());
  END_OP
 
 
@@ -1215,6 +1296,8 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(0)
 
 	SetT(!(R[0] & imm));
+
+	FUSE_COND_BRANCH(OP_BT_ID, GetT());
  END_OP
 
 
@@ -1457,6 +1540,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP_FUDGEIF(BF_S)
 	CondRelDelayBranch(!GetT(), (uint32)(int8)instr << 1);
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -1473,6 +1557,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP_FUDGEIF(BT_S)
 	CondRelDelayBranch(GetT(), (uint32)(int8)instr << 1);
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -1481,6 +1566,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP_DLYIDIF(BRA)
 	UCRelDelayBranch((uint32)sign_x_to_s32(12, instr) << 1);
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -1489,6 +1575,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP_DLYIDIF(BRAF_REG)
 	UCRelDelayBranch(R[instr_nyb2]);
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -1499,6 +1586,7 @@ switch(Pipe_ID >> 24)
 	PR = PC;
 
 	UCRelDelayBranch((uint32)sign_x_to_s32(12, instr) << 1);
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -1509,6 +1597,7 @@ switch(Pipe_ID >> 24)
 	PR = PC;
 
 	UCRelDelayBranch(R[instr_nyb2]);
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -1517,6 +1606,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP_DLYIDIF(JMP_REGINDIR)
 	UCDelayBranch(R[instr_nyb2]);
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -1527,6 +1617,7 @@ switch(Pipe_ID >> 24)
 	PR = PC;
 
 	UCDelayBranch(R[instr_nyb2]);
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -1535,6 +1626,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP_DLYIDIF(RTS)
 	UCDelayBranch(PR);
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -1657,6 +1749,8 @@ switch(Pipe_ID >> 24)
 	timestamp++;
 
 	DelayBranch(opexec_new_PC);
+
+	FUSE_DELAY_SLOT_NOP();
  END_OP
 
 
@@ -2019,6 +2113,9 @@ static_assert(__COUNTER__ == ((DebugMode ? 10000 : 5000) + 393 + 512 + 1), "Unex
 #undef BEGIN_OP_DLYIDIF
 #undef PART_OP_INTDIS
 #undef END_OP
+#undef FUSE_COND_BRANCH
+#undef FUSE_LOAD_CMPTST_BRANCH
+#undef FUSE_DELAY_SLOT_NOP
 #undef WB_EX_CHECK
 #undef WB_WRITE
 #undef WB_READ8

@@ -1141,75 +1141,154 @@ static INLINE uint32 int_to_dspfloat(const uint32 inv)
  return ret;
 }
 
-INLINE void SS_SCSP::RunDSP(void)
+//
+// Instruction field order/width RE'ing notes:
+//
+// Bit     0: NXADDR
+// Bit     1: ADRGB
+// Bit   2-6: MASA
+// Bit     8: NOFL (disables floating-point conversion when =1, instead just shifting by 8); has effect with MRT=1 or MWT=1
+// Bit  9-14: CRA (Coefficient read address, input into Y_SEL)
+// Bit    16: BSEL
+// Bit    17: ZERO
+// Bit    18: NEGB (apparently no effect when ZERO=1)
+// Bit    19: YRL
+// Bit    20: SHFT0
+// Bit    21: SHFT1
+// Bit    22: FRCL
+// Bit    23: ADRL (latches A_SEL output into ADRS_REG)
+// Bit 24-27: EWA(EFREG write address)
+// Bit    28: EWT(EFREG write enable)
+// Bit    29: MRT  (Memory read trigger; to read: [MWR=1] [whatever instruction] [IWT=1]
+// Bit    30: MWT  (Memory write trigger)
+// Bit    31: TABLE
+// Bit 32-36: IWA (MEMS write address)
+// Bit    37: IWT (MEMS write trigger)
+// Bit 38-43: IRA (0x00-0x1F MEMS, 0x20-0x2F MIXS)
+// Bit 45-46: YSEL
+// Bit    47: XSEL
+// Bit 48-54: TWA(temp write address) Seems to be an offset added to a counter changed each sample.
+// Bit    55: TWT(temp write trigger)  WARNING: Setting this to 1 for all 128 steps apparently can cause a CPU to freeze up if it tries to read/write TEMP afterward.
+// Bit 56-62: TRA(temp read address)
+void SS_SCSP::DecodeMPROG(void)
 {
- //
- //
- // Instruction field order/width RE'ing notes:
- //
- // Bit     0: NXADDR
- // Bit     1: ADRGB
- // Bit   2-6: MASA
- // Bit     8: NOFL (disables floating-point conversion when =1, instead just shifting by 8); has effect with MRT=1 or MWT=1
- // Bit  9-14: CRA (Coefficient read address, input into Y_SEL)
- // Bit    16: BSEL
- // Bit    17: ZERO
- // Bit    18: NEGB (apparently no effect when ZERO=1)
- // Bit    19: YRL
- // Bit    20: SHFT0
- // Bit    21: SHFT1
- // Bit    22: FRCL
- // Bit    23: ADRL (latches A_SEL output into ADRS_REG)
- // Bit 24-27: EWA(EFREG write address)
- // Bit    28: EWT(EFREG write enable)
- // Bit    29: MRT  (Memory read trigger; to read: [MWR=1] [whatever instruction] [IWT=1]
- // Bit    30: MWT  (Memory write trigger)
- // Bit    31: TABLE
- // Bit 32-36: IWA (MEMS write address)
- // Bit    37: IWT (MEMS write trigger)
- // Bit 38-43: IRA (0x00-0x1F MEMS, 0x20-0x2F MIXS)
- // Bit 45-46: YSEL
- // Bit    47: XSEL
- // Bit 48-54: TWA(temp write address) Seems to be an offset added to a counter changed each sample.
- // Bit    55: TWT(temp write trigger)  WARNING: Setting this to 1 for all 128 steps apparently can cause a CPU to freeze up if it tries to read/write TEMP afterward.
- // Bit 56-62: TRA(temp read address) 
  for(unsigned step = 0; step < 128; step++)
  {
   const uint64 instr = DSP.MPROG[step];
+  DSPStep& s = DSP.MPROG_Decoded[step];
 
-/*
-  assert(!(instr & (1ULL << 7)));
-  assert(!(instr & (1ULL << 15)));
-  assert(!(instr & (1ULL << 44)));
-  assert(!(instr & (1ULL << 63)));
-*/
+  s.MASA = (instr >>  2) & 0x1F;
+  s.CRA  = (instr >>  9) & 0x3F;
+  s.EWA  = (instr >> 24) & 0x0F;
+  s.IWA  = (instr >> 32) & 0x1F;
+  s.IRA  = (instr >> 38) & 0x3F;
+  s.YSEL = (instr >> 45) & 0x03;
+  s.TWA  = (instr >> 48) & 0x7F;
+  s.TRA  = (instr >> 56) & 0x7F;
 
-  const bool NXADDR = (instr >> 0) & 1;
-  const bool ADRGB = (instr >> 1) & 1;
-  const unsigned MASA = (instr >> 2) & 0x1F;
-  const bool NOFL = (instr >> 8) & 1;
-  const unsigned CRA = (instr >> 9) & 0x3F;
-  const bool BSEL = (instr >> 16) & 1;
-  const bool ZERO = (instr >> 17) & 1;
-  const bool NEGB = (instr >> 18) & 1;
-  const bool YRL = (instr >> 19) & 1;
-  const bool SHFT0 = (instr >> 20) & 1;
-  const bool SHFT1 = (instr >> 21) & 1;
-  const bool FRCL = (instr >> 22) & 1;  
-  const bool ADRL = (instr >> 23) & 1;
-  const unsigned EWA = (instr >> 24) & 0x0F;
-  const bool EWT = (instr >> 28) & 1;
-  const bool MRT = (instr >> 29) & 1;
-  const bool MWT = (instr >> 30) & 1;
-  const bool TABLE = (instr >> 31) & 1;
-  const unsigned IWA = (instr >> 32) & 0x1F;
-  const bool IWT = (instr >> 37) & 1;
-  const unsigned IRA = (instr >> 38) & 0x3F;
-  const unsigned YSEL = (instr >> 45) & 0x03;
-  const bool XSEL = (instr >> 47) & 1;
-  const unsigned TEMPWriteAddr = ((instr >> 48) + DSP.MDEC_CT) & 0x7F;
-  const bool TWT = (instr >> 55) & 1;
-  const unsigned TEMPReadAddr = ((instr >> 56) + DSP.MDEC_CT) & 0x7F;
+  uint32 f = 0;
+  f |= ((instr >>  0) & 1) ? DSPF_NXADDR : 0;
+  f |= ((instr >>  1) & 1) ? DSPF_ADRGB  : 0;
+  f |= ((instr >>  8) & 1) ? DSPF_NOFL   : 0;
+  f |= ((instr >> 16) & 1) ? DSPF_BSEL   : 0;
+  f |= ((instr >> 17) & 1) ? DSPF_ZERO   : 0;
+  f |= ((instr >> 18) & 1) ? DSPF_NEGB   : 0;
+  f |= ((instr >> 19) & 1) ? DSPF_YRL    : 0;
+  f |= ((instr >> 20) & 1) ? DSPF_SHFT0  : 0;
+  f |= ((instr >> 21) & 1) ? DSPF_SHFT1  : 0;
+  f |= ((instr >> 22) & 1) ? DSPF_FRCL   : 0;
+  f |= ((instr >> 23) & 1) ? DSPF_ADRL   : 0;
+  f |= ((instr >> 28) & 1) ? DSPF_EWT    : 0;
+  f |= ((instr >> 29) & 1) ? DSPF_MRT    : 0;
+  f |= ((instr >> 30) & 1) ? DSPF_MWT    : 0;
+  f |= ((instr >> 31) & 1) ? DSPF_TABLE  : 0;
+  f |= ((instr >> 37) & 1) ? DSPF_IWT    : 0;
+  f |= ((instr >> 47) & 1) ? DSPF_XSEL   : 0;
+  f |= ((instr >> 55) & 1) ? DSPF_TWT    : 0;
+  s.flags = f;
+
+  uint8 reads = 0;
+  if(f & (DSPF_EWT | DSPF_TWT | DSPF_FRCL | DSPF_ADRL | DSPF_MWT | DSPF_BSEL))
+   reads |= DSPR_SFT;
+  if(s.YSEL == 0)                            reads |= DSPR_FRC;
+  if(s.YSEL == 2 || s.YSEL == 3)             reads |= DSPR_Y;
+  if(f & DSPF_ADRGB)                         reads |= DSPR_ADRS;
+  if(!(f & DSPF_XSEL) || !(f & DSPF_BSEL))   reads |= DSPR_TEMP;
+  if(!(s.IRA & 0x20))                        reads |= DSPR_MEMS;
+  s.reads = reads;
+
+  uint8 writes = DSPW_SFT;
+  if(f & DSPF_FRCL)                  writes |= DSPW_FRC;
+  if(f & DSPF_YRL)                   writes |= DSPW_Y;
+  if(f & DSPF_ADRL)                  writes |= DSPW_ADRS;
+  if(f & DSPF_TWT)                   writes |= DSPW_TEMP;
+  if(f & DSPF_IWT)                   writes |= DSPW_MEMS;
+  if(f & DSPF_EWT)                   writes |= DSPW_EFREG;
+  if(f & (DSPF_MRT | DSPF_MWT))      writes |= DSPW_RAM;
+  s.writes = writes;
+
+  s.hazard_next = 0;	// filled in by hazard pass
+  s.live = 1;		// filled in by liveness pass
+ }
+
+ // Hazard pass: hazard_next[N] bit 0 = "step N+1 RAW-depends on step N"
+ for(unsigned step = 0; step < 127; step++)
+ {
+  const DSPStep& cur = DSP.MPROG_Decoded[step];
+  const DSPStep& nxt = DSP.MPROG_Decoded[step + 1];
+  uint8 haz = 0;
+
+  if(nxt.reads & DSPR_SFT)                                         haz = 1;
+  else if((cur.writes & DSPW_FRC)  && (nxt.reads & DSPR_FRC))      haz = 1;
+  else if((cur.writes & DSPW_Y)    && (nxt.reads & DSPR_Y))        haz = 1;
+  else if((cur.writes & DSPW_ADRS) && (nxt.reads & DSPR_ADRS))     haz = 1;
+  else if((cur.writes & DSPW_TEMP) && (nxt.reads & DSPR_TEMP) && cur.TWA == nxt.TRA)
+                                                                   haz = 1;
+  else if((cur.writes & DSPW_MEMS) && (nxt.reads & DSPR_MEMS) && cur.IWA == (nxt.IRA & 0x1F))
+                                                                   haz = 1;
+  else if(cur.writes & DSPW_RAM)                                   haz = 1;
+
+  DSP.MPROG_Decoded[step].hazard_next = haz;
+ }
+
+ // Liveness pass: a step is dead if its only observable writes are SFT_REG and/or
+ // INPUTS, and the next step (wrapping for step 127 -> step 0 across the sample
+ // boundary) doesn't observe either of them.  INPUTS is preserved when IRA is in
+ // [0x32..0x3F]; otherwise the step writes INPUTS via MEMS/MIXS/EXTS.
+ for(unsigned step = 0; step < 128; step++)
+ {
+  const DSPStep& cur = DSP.MPROG_Decoded[step];
+  const DSPStep& nxt = DSP.MPROG_Decoded[(step + 1) & 0x7F];
+  const uint32 nf = nxt.flags;
+
+  const bool has_other_writes  = (cur.writes & ~(unsigned)DSPW_SFT) != 0;
+  const bool sft_observed      = (nxt.reads & DSPR_SFT) != 0;
+
+  const bool cur_writes_inputs    = !((cur.IRA & 0x30) == 0x30 && (cur.IRA & 0x0E) != 0);
+  const bool nxt_preserves_inputs =  ((nxt.IRA & 0x30) == 0x30 && (nxt.IRA & 0x0E) != 0);
+  const bool nxt_uses_inputs      = (nf & DSPF_YRL) || (nf & DSPF_XSEL) ||
+                                    ((nf & DSPF_ADRL) && !((nf & DSPF_SHFT0) && (nf & DSPF_SHFT1)));
+  const bool inputs_observed      = cur_writes_inputs && nxt_preserves_inputs && nxt_uses_inputs;
+
+  DSP.MPROG_Decoded[step].live = (has_other_writes || sft_observed || inputs_observed) ? 1 : 0;
+ }
+
+ DSP.MPROG_Dirty = false;
+}
+
+INLINE void SS_SCSP::RunDSP(void)
+{
+ if(DSP.MPROG_Dirty)
+  DecodeMPROG();
+
+ for(unsigned step = 0; step < 128; step++)
+ {
+  const DSPStep& s = DSP.MPROG_Decoded[step];
+  if(!s.live) continue;
+  const uint32 f = s.flags;
+  const unsigned IRA = s.IRA;
+  const unsigned TEMPWriteAddr = (s.TWA + DSP.MDEC_CT) & 0x7F;
+  const unsigned TEMPReadAddr  = (s.TRA + DSP.MDEC_CT) & 0x7F;
 
   //
   //
@@ -1231,20 +1310,22 @@ INLINE void SS_SCSP::RunDSP(void)
   }
 
   const int32 INPUTS = sign_x_to_s32(24, DSP.INPUTS);
-  const uint16 Y_SEL_Inputs[4] = { DSP.FRC_REG, DSP.COEF[CRA], (uint16)((DSP.Y_REG >> 11) & 0x1FFF), (uint16)((DSP.Y_REG >> 4) & 0x0FFF) };
+  const uint16 Y_SEL_Inputs[4] = { DSP.FRC_REG, DSP.COEF[s.CRA], (uint16)((DSP.Y_REG >> 11) & 0x1FFF), (uint16)((DSP.Y_REG >> 4) & 0x0FFF) };
   //
   //
   //
-  if(YRL)
+  if(f & DSPF_YRL)
   {
    DSP.Y_REG = INPUTS & 0xFFFFFF;
   }
   //
   //
   //
-  int32 ShifterOutput = (uint32)sign_x_to_s32(26, DSP.SFT_REG) << (SHFT0 ^ SHFT1);
+  const unsigned shft0 = (f >> 7) & 1;
+  const unsigned shft1 = (f >> 8) & 1;
+  int32 ShifterOutput = (uint32)sign_x_to_s32(26, DSP.SFT_REG) << (shft0 ^ shft1);
 
-  if(!SHFT1)
+  if(!shft1)
   {
    if(ShifterOutput > 0x7FFFFF)
     ShifterOutput = 0x7FFFFF;
@@ -1254,11 +1335,11 @@ INLINE void SS_SCSP::RunDSP(void)
   ShifterOutput &= 0xFFFFFF;
   //
   //
-  if(FRCL)
+  if(f & DSPF_FRCL)
   {
    const unsigned F_SEL_Inputs[2] = { (unsigned)(ShifterOutput >> 11), (unsigned)(ShifterOutput & 0xFFF) };
 
-   DSP.FRC_REG = F_SEL_Inputs[SHFT0 & SHFT1];
+   DSP.FRC_REG = F_SEL_Inputs[shft0 & shft1];
   }
   //
   //
@@ -1266,30 +1347,30 @@ INLINE void SS_SCSP::RunDSP(void)
    const int32 TEMP = sign_x_to_s32(24, DSP.TEMP[TEMPReadAddr]);
    const uint32 SGA_Inputs[2] = { (uint32)TEMP, DSP.SFT_REG };
    const int32 X_SEL_Inputs[2] = { TEMP, INPUTS };
-   const uint32 Product = ((int64)sign_x_to_s32(13, Y_SEL_Inputs[YSEL]) * X_SEL_Inputs[XSEL]) >> 12;
+   const uint32 Product = ((int64)sign_x_to_s32(13, Y_SEL_Inputs[s.YSEL]) * X_SEL_Inputs[(f >> 16) & 1]) >> 12;
    uint32 SGAOutput;
 
-   SGAOutput = SGA_Inputs[BSEL];
+   SGAOutput = SGA_Inputs[(f >> 3) & 1];
 
-   if(NEGB)
+   if(f & DSPF_NEGB)
     SGAOutput = -SGAOutput;
 
-   if(ZERO)
+   if(f & DSPF_ZERO)
     SGAOutput = 0;
 
    DSP.SFT_REG = (Product + SGAOutput) & 0x3FFFFFF;
   }
   //
   //
-  if(EWT)
-   DSP.EFREG[EWA] = (ShifterOutput >> 8);
+  if(f & DSPF_EWT)
+   DSP.EFREG[s.EWA] = (ShifterOutput >> 8);
 
-  if(TWT)
+  if(f & DSPF_TWT)
    DSP.TEMP[TEMPWriteAddr] = ShifterOutput;
 
-  if(IWT)
+  if(f & DSPF_IWT)
   {
-   DSP.MEMS[IWA] = DSP.ReadValue;
+   DSP.MEMS[s.IWA] = DSP.ReadValue;
   }
   //
   //
@@ -1310,15 +1391,15 @@ INLINE void SS_SCSP::RunDSP(void)
   {
    uint16 addr;
 
-   addr = DSP.MADRS[MASA];
-   addr += NXADDR;
+   addr = DSP.MADRS[s.MASA];
+   addr += (f & DSPF_NXADDR) ? 1 : 0;
 
-   if(ADRGB)
+   if(f & DSPF_ADRGB)
    {
     addr += sign_x_to_s32(12, DSP.ADRS_REG);
    }
 
-   if(!TABLE)
+   if(!(f & DSPF_TABLE))
    {
     addr += DSP.MDEC_CT;
     addr &= (0x2000 << RBL) - 1;
@@ -1326,23 +1407,23 @@ INLINE void SS_SCSP::RunDSP(void)
 
    DSP.RWAddr = (addr + (RBP << 12)) & 0x7FFFF;
 
-   if(MRT)
+   if(f & DSPF_MRT)
    {
-    DSP.ReadPending = 1 + NOFL;
+    DSP.ReadPending = (f & DSPF_NOFL) ? 2 : 1;
    }
-   if(MWT)
+   if(f & DSPF_MWT)
    {
     DSP.WritePending = true;
-    DSP.WriteValue = NOFL ? (ShifterOutput >> 8) : int_to_dspfloat(ShifterOutput);
+    DSP.WriteValue = (f & DSPF_NOFL) ? (ShifterOutput >> 8) : int_to_dspfloat(ShifterOutput);
    }
   }
   //
   //
-  if(ADRL)
+  if(f & DSPF_ADRL)
   {
    const uint16 A_SEL_Inputs[2] = { /*INPUTS is sign-extended above */ (uint16)((INPUTS >> 16) & 0xFFF), (uint16)(ShifterOutput >> 12) };
 
-   DSP.ADRS_REG = A_SEL_Inputs[SHFT0 & SHFT1];
+   DSP.ADRS_REG = A_SEL_Inputs[shft0 & shft1];
   }
  }
 
@@ -1589,15 +1670,26 @@ INLINE void SS_SCSP::RunSample(T_out* outlr)
    }
   }
 
-  if(!Slots[(GlobalCounter - 4) & 0x1F].StackWriteInhibit)
   {
-   SoundStack[(GlobalCounter - 4) & 0x3F] = SoundStackDelayer[3];
-  }
+   uint64 packed;
+   memcpy(&packed, SoundStackDelayer, sizeof(SoundStackDelayer));
 
-  SoundStackDelayer[3] = SoundStackDelayer[2];
-  SoundStackDelayer[2] = SoundStackDelayer[1];
-  SoundStackDelayer[1] = SoundStackDelayer[0];
-  SoundStackDelayer[0] = sample;
+   if(!Slots[(GlobalCounter - 4) & 0x1F].StackWriteInhibit)
+   {
+#ifdef MSB_FIRST
+    SoundStack[(GlobalCounter - 4) & 0x3F] = (uint16)packed;
+#else
+    SoundStack[(GlobalCounter - 4) & 0x3F] = (uint16)(packed >> 48);
+#endif
+   }
+
+#ifdef MSB_FIRST
+   packed = (packed >> 16) | ((uint64)(uint16)sample << 48);
+#else
+   packed = (packed << 16) | (uint16)sample;
+#endif
+   memcpy(SoundStackDelayer, &packed, sizeof(SoundStackDelayer));
+  }
   //
   //
   if(SlotMonitorWhich == slot)

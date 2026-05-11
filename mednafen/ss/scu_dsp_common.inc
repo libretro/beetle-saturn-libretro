@@ -70,7 +70,7 @@ struct DSPS
  };
  int32 State;
 
- INLINE bool IsRunning(void)	// returns true if not stopped and not paused.
+ FORCE_INLINE bool IsRunning(void)	// returns true if not stopped and not paused.
  {
   return State > 0;
  }
@@ -121,7 +121,7 @@ struct DSPS
 //   X Op: bits 23-25	- * 8
 //   Y Op: bits 17-19	- * 8
 //  D1 Op: bits 12-13	- * 4
-MDFN_HIDE extern void (*const DSP_GenFuncTable[2][16][8][8][4])(void);
+MDFN_HIDE extern void (*const DSP_GenFuncTable[2][16][8][8][4])(DSPS*);
 
 // Hold/Format/Direction: bits 12-14
 //  Hold: bit 14
@@ -129,32 +129,32 @@ MDFN_HIDE extern void (*const DSP_GenFuncTable[2][16][8][8][4])(void);
 //  Direction: bit 12
 // RAM: bits 8-10
 //
-MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(void);
+MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(DSPS*);
 
 //
 // Dest: bits 26-29
 // Condition: bits 19-25
 //
-MDFN_HIDE extern void (*const DSP_MVIFuncTable[2][16][128])(void);
+MDFN_HIDE extern void (*const DSP_MVIFuncTable[2][16][128])(DSPS*);
 
 //
 // Condition: bits 19-25
 //
-MDFN_HIDE extern void (*const DSP_JMPFuncTable[2][128])(void);
+MDFN_HIDE extern void (*const DSP_JMPFuncTable[2][128])(DSPS*);
 
 
 //
 // LPS, BTM, END, ENDI(bits 29-31 = 0x7)
 // bits 27-28
 //
-MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(void);
+MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(DSPS*);
 
 MDFN_HIDE extern DSPS DSP;
 
 template<bool looped = false>
-static INLINE uint64 DSP_DecodeInstruction(const uint32 instr)
+static FORCE_INLINE uint64 DSP_DecodeInstruction(const uint32 instr)
 {
- void (*aal)(void);
+ void (*aal)(DSPS*);
 
  switch((instr >> 28) & 0xF)
  {
@@ -194,24 +194,46 @@ static INLINE uint64 DSP_DecodeInstruction(const uint32 instr)
 }
 
 template<bool looped>
-static INLINE uint32 DSP_InstrPre(void)
+static FORCE_INLINE uint32 DSP_InstrPre(DSPS* dsp)
 {
- const uint32 instr = DSP.NextInstr >> 32;
+ const uint32 instr = dsp->NextInstr >> 32;
 
- if(!looped || !DSP.LOP)
+ if(!looped || !dsp->LOP)
  {
-  DSP.NextInstr = DSP.ProgRAM[DSP.PC];
-  DSP.PC++;
+  dsp->NextInstr = dsp->ProgRAM[dsp->PC];
+  dsp->PC++;
  }
 
  if(looped)
-  DSP.LOP = (DSP.LOP - 1) & 0x0FFF;
+  dsp->LOP = (dsp->LOP - 1) & 0x0FFF;
 
  return instr;
 }
 
+//
+// At the tail of every handler: account for this instruction's cycle
+// cost, decide whether the dispatcher should keep running, and call
+// the next handler.  The next handler's pointer was already prefetched
+// into dsp->NextInstr by DSP_InstrPre at the top of this handler.
+//
+// SCU_UpdateDSP caps CycleCounter at DSP_UpdateTimingGran (=64) on
+// entry, and the DMA / END paths can only lower it -- so the chain is
+// bounded to ~32 calls.  Modern optimizing compilers turn the call
+// below into a tail jump (verified on GCC 15 / -O2 / aarch64); even
+// when they don't, the bounded depth keeps the stack safe.
+//
+static FORCE_INLINE void DSP_TailDispatch(DSPS* dsp)
+{
+ dsp->CycleCounter -= 2;
+ if(MDFN_UNLIKELY(dsp->CycleCounter <= 0 || !dsp->IsRunning()))
+  return;
+
+ void (* const next)(DSPS*) = (void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)dsp->NextInstr);
+ next(dsp);
+}
+
 template<unsigned cond>
-static INLINE bool DSP_TestCond(void)
+static FORCE_INLINE bool DSP_TestCond(DSPS* dsp)
 {
  if(!(cond & 0x40))
   return true;
@@ -221,16 +243,16 @@ static INLINE bool DSP_TestCond(void)
  bool ret = false;
 
  if(cond & 0x1)
-  ret |= DSP.FlagZ;
+  ret |= dsp->FlagZ;
 
  if(cond & 0x2)
-  ret |= DSP.FlagS;
+  ret |= dsp->FlagS;
 
  if(cond & 0x4)
-  ret |= DSP.FlagC;
+  ret |= dsp->FlagC;
 
  if(cond & 0x8)
-  ret |= (DSP.T0_Until < DSP.CycleCounter);
+  ret |= (dsp->T0_Until < dsp->CycleCounter);
 
  //if(cond & 0x10)	// ?
 

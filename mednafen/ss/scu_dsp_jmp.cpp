@@ -27,15 +27,17 @@
 #include "scu_dsp_common.inc"
 
 template<bool looped, unsigned cond>
-static NO_INLINE NO_CLONE void JMPInstr(void)
+static NO_INLINE NO_CLONE void JMPInstr(DSPS* dsp)
 {
- const uint32 instr = DSP_InstrPre<looped>();
+ const uint32 instr = DSP_InstrPre<looped>(dsp);
 
- if(DSP_TestCond<cond>())
-  DSP.PC = (uint8)instr;
+ if(DSP_TestCond<cond>(dsp))
+  dsp->PC = (uint8)instr;
+
+ DSP_TailDispatch(dsp);
 }
 
-MDFN_HIDE extern void (*const DSP_JMPFuncTable[2][128])(void) =
+MDFN_HIDE extern void (*const DSP_JMPFuncTable[2][128])(DSPS*) =
 {
  #include "scu_dsp_jmptab.inc"
 };

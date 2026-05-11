@@ -55,6 +55,7 @@ void VDP2REND_DrawLine(int vdp2_line, const uint32 crt_line, const bool field);
 
 void VDP2REND_Write8_DB(uint32 A, uint16 DB) MDFN_HOT;
 void VDP2REND_Write16_DB(uint32 A, uint16 DB) MDFN_HOT;
+void VDP2REND_WriteBurst16_DB(uint32 base, uint32 n16, uint32 add_mode, const uint16* words) MDFN_HOT;
 
 
 #endif

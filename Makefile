@@ -3,6 +3,7 @@ DEBUG = 0
 HAVE_OPENGL = 0
 HAVE_CHD = 1
 HAVE_CDROM = 0
+LTO = 1
 
 CORE_DIR := .
 
@@ -399,6 +400,7 @@ ifeq ($(NO_GCC),1)
 endif
 
 OBJECTS := $(SOURCES_CXX:.cpp=.o) $(SOURCES_C:.c=.o)
+DEPS    := $(OBJECTS:.o=.d)
 
 all: $(TARGET)
 
@@ -406,6 +408,11 @@ ifeq ($(DEBUG),0)
    FLAGS += -O2 $(EXTRA_GCC_FLAGS)
 else
    FLAGS += -O0 -g
+endif
+
+ifneq ($(LTO),)
+   FLAGS   += -flto=auto -fipa-pta
+   LDFLAGS += -flto=auto -fipa-pta -O2
 endif
 
 LDFLAGS += $(fpic) $(SHARED)
@@ -419,6 +426,8 @@ CFLAGS   += $(FLAGS)
 
 ifeq (,$(findstring msvc,$(platform)))
     CXXFLAGS += -std=c++11
+    CFLAGS   += -MMD -MP
+    CXXFLAGS += -MMD -MP
 endif
 
 OBJOUT   = -o
@@ -452,7 +461,7 @@ endif
 	$(CC) -c $(OBJOUT)$@ $< $(CFLAGS)
 
 clean:
-	rm -f $(TARGET) $(OBJECTS)
+	rm -f $(TARGET) $(OBJECTS) $(DEPS)
 
 install:
 	install -D -m 755 $(TARGET) $(DESTDIR)$(libdir)/$(LIBRETRO_INSTALL_DIR)/$(TARGET)
@@ -461,3 +470,5 @@ uninstall:
 	rm $(DESTDIR)$(libdir)/$(LIBRETRO_INSTALL_DIR)/$(TARGET)
 
 .PHONY: clean install uninstall
+
+-include $(DEPS)

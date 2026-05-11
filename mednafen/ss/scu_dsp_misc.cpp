@@ -25,9 +25,9 @@
 #include "scu_dsp_common.inc"
 
 template<bool looped, unsigned op>
-static NO_INLINE NO_CLONE void MiscInstr(void)
+static NO_INLINE NO_CLONE void MiscInstr(DSPS* dsp)
 {
- DSP_InstrPre<looped>();
+ DSP_InstrPre<looped>(dsp);
 
  //
  // END/ENDI
@@ -36,32 +36,34 @@ static NO_INLINE NO_CLONE void MiscInstr(void)
  {
   if(op & 0x1)
   {
-   DSP.FlagEnd = true;
+   dsp->FlagEnd = true;
    SCU_SetInt(SCU_INT_DSP, true);
   }
 
-  if(DSP.PRAMDMABufCount)
+  if(dsp->PRAMDMABufCount)
    DSP_FinishPRAMDMA();
   else
   {
-   DSP.State &= ~DSPS::STATE_MASK_EXECUTE;
-   DSP.CycleCounter -= DSP_EndCCSubVal;	// Break out of execution loop(also remember to handle this case for manual stepping via port writes).
+   dsp->State &= ~DSPS::STATE_MASK_EXECUTE;
+   dsp->CycleCounter -= DSP_EndCCSubVal;	// Break out of execution loop(also remember to handle this case for manual stepping via port writes).
   }
  }
  else if(op == 0)	// BTM
  {
-  if(DSP.LOP)
-   DSP.PC = DSP.TOP;
+  if(dsp->LOP)
+   dsp->PC = dsp->TOP;
 
-  DSP.LOP = (DSP.LOP - 1) & 0x0FFF;
+  dsp->LOP = (dsp->LOP - 1) & 0x0FFF;
  }
  else if(op == 1)	// LPS
  {
-  DSP.NextInstr = DSP_DecodeInstruction<true>(DSP.NextInstr >> 32);
+  dsp->NextInstr = DSP_DecodeInstruction<true>(dsp->NextInstr >> 32);
  }
+
+ DSP_TailDispatch(dsp);
 }
 
-MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(void) =
+MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(DSPS*) =
 {
  #include "scu_dsp_misctab.inc"
 };
