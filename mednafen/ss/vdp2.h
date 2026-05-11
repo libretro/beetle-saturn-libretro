@@ -27,6 +27,9 @@ namespace VDP2
 
 uint32 Write8_DB(uint32 A, uint16 DB) MDFN_HOT;
 uint32 Write16_DB(uint32 A, uint16 DB) MDFN_HOT;
+// DSP-DMA burst of n16 16-bit writes into the VDP2 window: words[i] -> (base + i*((1<<add_mode)&~1)).
+// Performs the SH2-side array writes here and queues a single renderer burst; returns the summed VRAM access penalty.
+uint32 Write16Burst_DB(uint32 base, uint32 n16, uint32 add_mode, const uint16* words) MDFN_HOT;
 uint16 Read16_DB(uint32 A) MDFN_HOT;
 
 void Init(const bool IsPAL, const uint64 affinity) MDFN_COLD;

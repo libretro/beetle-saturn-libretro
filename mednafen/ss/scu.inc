@@ -1768,6 +1768,47 @@ static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
    break;
   }
 
+  // Fast path: a contiguous run of 16-bit writes landing entirely within the
+  // VDP2 register/RAM window. Collapse the per-halfword renderer-queue pushes
+  // (the hot part of DSP DMA) into a single burst command; the SH2-side array
+  // writes and their VRAM-bank access penalties still happen per halfword.
+  {
+   const unsigned words = count ? count : 256;
+   const unsigned n16 = words << 1;
+
+   if(WriteBus == 1 && addr >= 0x05E00000 &&
+      (uint64)addr + (uint64)(n16 - 1) * addr_add_amount <= 0x05FBFFFF)
+   {
+    uint16 burstbuf[512];
+    unsigned k = 0;
+
+    do
+    {
+     uint32 DB;
+
+     if(drw & 0x4)
+      DB = 0xFFFFFFFF;
+     else
+     {
+      DB = dsp->DataRAM[drw][dsp->CT[drw]];
+      dsp->CT[drw] = (dsp->CT[drw] + 1) & 0x3F;
+     }
+
+     burstbuf[k++] = DB >> 16;
+     burstbuf[k++] = DB & 0xFFFF;
+    } while(--count);
+
+    dsp->T0_Until -= (int32)n16;
+    dsp->T0_Until -= (int32)VDP2::Write16Burst_DB(addr, n16, add_mode, burstbuf);
+    addr += n16 * addr_add_amount;
+
+    if(!hold)
+     dsp->WAO = (addr + 2) >> 2;
+
+    break;
+   }
+  }
+
   // Read from data RAM, write to external bus
   do
   {

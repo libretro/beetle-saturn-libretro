@@ -3115,6 +3115,7 @@ enum
 {
  COMMAND_WRITE8 = 0,
  COMMAND_WRITE16,
+ COMMAND_WRITE16_BURST,	// Arg32 = base B-bus address, Arg16 = n16 | (add_mode << 13); n16 uint16 payload words follow in BurstBuf.
 
  COMMAND_DRAW_LINE,
 
@@ -3134,6 +3135,18 @@ struct WQ_Entry
 };
 
 static std::array<WQ_Entry, 0x80000> WQ;
+
+// Payload ring for COMMAND_WRITE16_BURST (DSP-DMA streaming a contiguous run of
+// 16-bit writes into the VDP2 register/RAM window). Single-producer (emulator
+// thread, in DMAInstr) / single-consumer (RThreadEntry). It carries no atomic of
+// its own beyond BurstPopCount: the producer fills the payload slots *before* the
+// WWQ() that publishes the burst command, so that WWQ's release-store on
+// WQ_PushCount also publishes these writes, and the consumer's acquire-load makes
+// them visible before it dispatches the burst. Sized large enough that the
+// occupancy check below never realistically blocks (one max burst is 512 words).
+static constexpr uint32 BurstBufSize = 1u << 20;
+static constexpr uint32 BurstBufMask = BurstBufSize - 1;
+static std::array<uint16, BurstBufSize> BurstBuf;
 // SPSC queue state. Each atomic is written by exactly one thread (release-store)
 // and read by the other (acquire-load); live queue depth is recovered by
 // subtraction, avoiding the cross-thread RMW that bounced the cache line.
@@ -3149,6 +3162,7 @@ alignas(64) static std::atomic_uint_least32_t WQ_PushCount;     // producer-writ
 alignas(64) static std::atomic_uint_least32_t WQ_PopCount;      // consumer-written
 alignas(64) static std::atomic_uint_least32_t DrawFinishCount;  // consumer-written
 alignas(64) static std::atomic_uint_least32_t DrawPushCount;    // producer-written
+alignas(64) static std::atomic_uint_least32_t BurstPopCount;    // consumer-written; cumulative uint16 words drained from BurstBuf
 struct alignas(64) ProducerState
 {
  size_t WritePos;
@@ -3156,12 +3170,15 @@ struct alignas(64) ProducerState
  uint32 DrawPushLocal;    // total VDP2REND_DrawLine pushes
  uint32 WQ_PopCached;     // last-seen WQ_PopCount; refreshed only when the queue
                           // appears full (huge queue, so basically never)
+ uint32 BurstWritePos;    // cumulative uint16 words written to BurstBuf
+ uint32 BurstPopCached;   // last-seen BurstPopCount; refreshed only when BurstBuf appears full
 };
 struct alignas(64) ConsumerState
 {
  size_t ReadPos;
  uint32 PopLocal;         // total WQ pops
  uint32 DrawFinishLocal;  // total DrawLine completions
+ uint32 BurstReadPos;     // cumulative uint16 words drained from BurstBuf
 };
 static ProducerState Prod;
 static ConsumerState Cons;
@@ -3255,6 +3272,22 @@ static void/*int*/ RThreadEntry(void* data)
 	MemW<uint16>(wqe->Arg32, wqe->Arg16);
 	break;
 
+   case COMMAND_WRITE16_BURST:
+	{
+	 const uint32 n16 = wqe->Arg16 & 0x1FFF;
+	 const uint32 stride = (1u << (wqe->Arg16 >> 13)) &~ 1u;
+	 uint32 a = wqe->Arg32;
+
+	 for(uint32 i = 0; i < n16; i++)
+	 {
+	  MemW<uint16>(a, BurstBuf[(Cons.BurstReadPos + i) & BurstBufMask]);
+	  a += stride;
+	 }
+	 Cons.BurstReadPos += n16;
+	 BurstPopCount.store(Cons.BurstReadPos, std::memory_order_release);
+	}
+	break;
+
    case COMMAND_DRAW_LINE:
 	//for(unsigned i = 0; i < 2; i++)
 	DrawLine((uint16)wqe->Arg32, wqe->Arg32 >> 16, wqe->Arg16);
@@ -3322,6 +3355,7 @@ void VDP2REND_Init(const bool IsPAL, const uint64 affinity)
  WQ_PopCount.store(0, std::memory_order_release);
  DrawFinishCount.store(0, std::memory_order_release);
  DrawPushCount.store(0, std::memory_order_release);
+ BurstPopCount.store(0, std::memory_order_release);
  WakeupSem = ssem_new(0);
  DrainLock = slock_new();
  DrainCond = scond_new();
@@ -3558,6 +3592,27 @@ void VDP2REND_Write16_DB(uint32 A, uint16 DB)
   WWQ(COMMAND_WRITE16, A, DB);
  //else
  // MemW<uint16>(A, DB);
+}
+
+// DSP-DMA burst of n16 16-bit writes: words[i] -> (base + i * ((1<<add_mode)&~1)).
+// Equivalent to n16 successive VDP2REND_Write16_DB() calls but collapses them to a
+// single queue command + a bulk payload copy. n16 <= 512, add_mode <= 7.
+void VDP2REND_WriteBurst16_DB(uint32 base, uint32 n16, uint32 add_mode, const uint16* words)
+{
+ // Reserve n16 contiguous (mod BurstBufSize) payload slots, spin-sleeping if the
+ // consumer hasn't drained enough yet (mirrors WWQ's queue-full handling).
+ while(MDFN_UNLIKELY((Prod.BurstWritePos - Prod.BurstPopCached) > (BurstBufSize - n16)))
+ {
+  Prod.BurstPopCached = BurstPopCount.load(std::memory_order_acquire);
+  if((Prod.BurstWritePos - Prod.BurstPopCached) > (BurstBufSize - n16))
+   retro_sleep(1);
+ }
+
+ for(uint32 i = 0; i < n16; i++)
+  BurstBuf[(Prod.BurstWritePos + i) & BurstBufMask] = words[i];
+ Prod.BurstWritePos += n16;
+
+ WWQ(COMMAND_WRITE16_BURST, base, (uint16)(n16 | (add_mode << 13)));
 }
 
 void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16 (&rr)[0x100], uint16 (&cr)[2048], uint16 (&vr)[262144])

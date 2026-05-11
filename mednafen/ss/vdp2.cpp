@@ -821,6 +821,24 @@ uint32 Write16_DB(uint32 A, uint16 DB)
  return RW<uint16, true>(A, &DB);
 }
 
+uint32 Write16Burst_DB(uint32 base, uint32 n16, uint32 add_mode, const uint16* words)
+{
+ VDP2REND_WriteBurst16_DB(base, n16, add_mode, words);
+
+ const uint32 stride = (1u << add_mode) &~ 1u;
+ uint32 a = base;
+ uint32 penalty_sum = 0;
+
+ for(uint32 i = 0; i < n16; i++)
+ {
+  uint16 w = words[i];
+  penalty_sum += RW<uint16, true>(a, &w);
+  a += stride;
+ }
+
+ return penalty_sum;
+}
+
 
 //
 //
