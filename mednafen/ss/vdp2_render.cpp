@@ -74,6 +74,30 @@ static const uint16 DummyTileNT[8 * 8 * 4 / sizeof(uint16)] = { 0 };
 
 static uint32 UserLayerEnableMask;
 
+/*
+ * "Deinterlace = Off" toggle, read by the consumer thread inside
+ * DrawLine. When true and the frame is interlaced, each rendered
+ * scanline is also memcpy'd to the opposite-field row of the surface
+ * so every emulated frame produces a stable progressive image
+ * (current-frame content at full vertical resolution) instead of
+ * one field's worth interleaved with the previous frame.
+ *
+ * Backport of beetle-psx-libretro's psx_gpu_rasterize_both_fields
+ * mechanism. PSX does this by bypassing LineSkipTest in the GPU
+ * rasteriser and deferring the per-line VRAM-to-surface conversion
+ * to a single end-of-frame flush; Saturn has no equivalent
+ * rasterise-vs-scanout split (VDP2 writes RGB directly into the
+ * libretro surface as it goes, end-of-frame drain via the WWQ
+ * render thread already defers presentation to libretro until all
+ * lines are committed). The duplicate-to-mirror-row in DrawLine
+ * gives the same user-visible effect: full-resolution, no comb on
+ * motion, deinterlacer becomes a no-op.
+ *
+ * Set via COMMAND_SET_DEINT_OFF on the render-thread command queue
+ * (same lock-free pattern used for UserLayerEnableMask).
+ */
+static bool DeinterlaceOff;
+
 static uint16 BGON;
 static uint16 MZCTL;
 static uint8 MosaicVCount;
@@ -3104,6 +3128,50 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
   // Kind of late, but meh. ;p
   assert((espec->DisplayRect.x + espec->LineWidths[out_line]) <= 704);
  }
+
+ //
+ // DEINT_OFF: when the user has selected Deinterlace = Off and we
+ // are rendering an interlaced frame, also fill the opposite-field
+ // row of the surface with this scanline's content. Every emulated
+ // frame thus produces a stable, full-vertical-resolution image
+ // where both surface rows in each (even, odd) pair hold
+ // current-frame pixels. The deinterlacer in libretro.cpp is set
+ // to DEINT_OFF alongside this flag so it doesn't try to combine
+ // fields.
+ //
+ // Detection of "interlaced": LineWidths-touched rows go in pairs
+ // (out_line and out_line ^ 1 are both in the displayed area), but
+ // we can't peek InterlaceOn from the consumer thread without
+ // a load. Instead we condition on (espec->DisplayRect.h is even
+ // and out_line < DisplayRect.y + DisplayRect.h - 1) which is true
+ // for any but the very last row of an interlaced rect -- the last
+ // row's mirror would be out-of-rect and gets dropped.
+ //
+ // The memcpy width matches the rendered active width
+ // (espec->LineWidths[out_line]); the rest of the surface row gets
+ // border colour as already laid down by the same DrawLine call's
+ // border-fill loop. We re-execute that border + active copy by
+ // duplicating the whole rendered span (tvxo + w + tvxo_right
+ // padding).
+ //
+ if(MDFN_UNLIKELY(DeinterlaceOff) && espec->InterlaceOn)
+ {
+  const int32 mirror_line = (int32)out_line ^ 1;
+  const int32 rect_end = espec->DisplayRect.y + espec->DisplayRect.h;
+  if(mirror_line >= espec->DisplayRect.y && mirror_line < rect_end)
+  {
+   uint32* src_row = espec->surface->pixels + out_line   * espec->surface->pitchinpix;
+   uint32* dst_row = espec->surface->pixels + mirror_line * espec->surface->pitchinpix;
+   // Copy the whole pitchinpix to capture border colour on both
+   // sides of the active region. LineWidths[mirror_line] gets
+   // set to LineWidths[out_line] so the libretro frontend sees
+   // the same row geometry for both fields. (The Deinterlacer
+   // only reads LineWidths[0] but the upstream-Mednafen-style
+   // consumer might inspect more, so be tidy.)
+   memcpy(dst_row, src_row, (size_t)espec->surface->pitchinpix * sizeof(uint32));
+   espec->LineWidths[mirror_line] = espec->LineWidths[out_line];
+  }
+ }
 }
 
 //
@@ -3120,6 +3188,8 @@ enum
  COMMAND_DRAW_LINE,
 
  COMMAND_SET_LEM,
+
+ COMMAND_SET_DEINT_OFF,
 
  COMMAND_SET_BUSYWAIT,
 
@@ -3315,6 +3385,10 @@ static void/*int*/ RThreadEntry(void* data)
 
    case COMMAND_SET_LEM:
 	UserLayerEnableMask = wqe->Arg32;
+	break;
+
+   case COMMAND_SET_DEINT_OFF:
+	DeinterlaceOff = (bool)wqe->Arg32;
 	break;
 
    case COMMAND_SET_BUSYWAIT:
@@ -3576,6 +3650,14 @@ void VDP2REND_Reset(bool powering_up)
 void VDP2REND_SetLayerEnableMask(uint64 mask)
 {
  WWQ(COMMAND_SET_LEM, mask);
+}
+
+void VDP2REND_SetDeinterlaceOff(bool off)
+{
+ // Routed through the consumer command queue (not a direct atomic
+ // store) so the flag flips exactly between scanlines, never
+ // mid-line. Matches the SetLayerEnableMask threading pattern.
+ WWQ(COMMAND_SET_DEINT_OFF, (uint32)off);
 }
 
 void VDP2REND_Write8_DB(uint32 A, uint16 DB)

@@ -27,6 +27,7 @@
 #include "mednafen/ss/cart.h"
 #include "mednafen/ss/db.h"
 #include "mednafen/ss/smpc.h"
+#include "mednafen/ss/vdp2.h"
 #include "mednafen/ss/sound.h"
 
 #include "libretro_core_options.h"
@@ -466,12 +467,25 @@ static void check_variables(bool startup)
    var.key = "beetle_saturn_deinterlacer";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
+      // The "off" mode pairs DEINT_OFF on the deinterlacer (which then
+      // does nothing) with VDP2::SetDeinterlaceOff(true) on the VDP2
+      // renderer side, which causes each rendered scanline to also be
+      // memcpy'd to the opposite-field row of the libretro surface.
+      // Every emulated frame thus produces a stable, full-resolution
+      // progressive image. All other modes leave the renderer in its
+      // default single-field-per-frame behaviour and let the
+      // deinterlacer combine fields after the fact.
+      const bool off = (strcmp(var.value, "off") == 0);
+      VDP2::SetDeinterlaceOff(off);
+
       if (strcmp(var.value, "bob") == 0)
          Deinterlacer_SetType(&deint, DEINT_BOB);
       else if (strcmp(var.value, "bob_offset") == 0)
          Deinterlacer_SetType(&deint, DEINT_BOB_OFFSET);
       else if (strcmp(var.value, "fastmad") == 0)
          Deinterlacer_SetType(&deint, DEINT_FASTMAD);
+      else if (off)
+         Deinterlacer_SetType(&deint, DEINT_OFF);
       else
          Deinterlacer_SetType(&deint, DEINT_WEAVE);
    }
@@ -926,13 +940,14 @@ void retro_run(void)
 
       // PrevInterlaced governs whether the libretro output presents at
       // full interlaced height (true) or half-height (false). WEAVE,
-      // BOB_OFFSET, and FASTMAD all produce a full-height surface;
+      // BOB_OFFSET, FASTMAD, and OFF all produce a full-height surface;
       // only BOB compacts to half-height.
       {
          const unsigned dt = Deinterlacer_GetType(&deint);
          PrevInterlaced = (dt == DEINT_WEAVE
                         || dt == DEINT_BOB_OFFSET
-                        || dt == DEINT_FASTMAD);
+                        || dt == DEINT_FASTMAD
+                        || dt == DEINT_OFF);
       }
 
       spec.InterlaceOn = false;

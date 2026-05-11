@@ -1252,6 +1252,11 @@ void SetLayerEnableMask(uint64 mask)
  VDP2REND_SetLayerEnableMask(mask);
 }
 
+void SetDeinterlaceOff(bool off)
+{
+ VDP2REND_SetDeinterlaceOff(off);
+}
+
 void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {
  SFORMAT StateRegs[] =

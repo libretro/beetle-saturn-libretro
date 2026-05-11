@@ -48,7 +48,7 @@ enum
  * for k in [0, native_field_h); the opposite-parity row blocks
  * still hold whatever was there from the previous Process() call.
  *
- * Four modes:
+ * Five modes:
  *   - WEAVE:      no-op; trusts the surface to already hold both
  *                 fields' row blocks since the previous frame's
  *                 opposite field was never overwritten.  Surface
@@ -65,12 +65,18 @@ enum
  *                 adaptive blending against a two-frame history.
  *                 Surface height presented to libretro is full
  *                 interlaced height.
+ *   - OFF:        no-op in the deinterlacer itself; pairs with
+ *                 VDP2REND_SetDeinterlaceOff(true) on the renderer
+ *                 side, which mirrors each rendered scanline to the
+ *                 opposite-field row of the surface so both row-block
+ *                 stripes hold current-frame content.  Surface height
+ *                 presented to libretro is full interlaced height.
  *
- * WEAVE, BOB_OFFSET and FASTMAD all produce a full-height surface;
- * the libretro bridge must set PrevInterlaced=true for all three so
- * the reported geometry and the framebuffer base-offset are doubled
- * relative to the single-field case.  BOB is the only half-height
- * mode.
+ * WEAVE, BOB_OFFSET, FASTMAD and OFF all produce a full-height
+ * surface; the libretro bridge must set PrevInterlaced=true for all
+ * four so the reported geometry and the framebuffer base-offset are
+ * doubled relative to the single-field case.  BOB is the only
+ * half-height mode.
  *
  * The previous implementation kept a separate FieldBuffer surface
  * and an LWBuffer line-widths array to support an out-of-place
