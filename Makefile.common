@@ -72,6 +72,8 @@ SOURCES_CXX += \
 	$(CORE_EMU_DIR)/vdp2.cpp \
 	$(CORE_EMU_DIR)/vdp2_render.cpp \
 	$(CORE_EMU_DIR)/smpc.cpp \
+	$(CORE_EMU_DIR)/stvio.cpp \
+	$(CORE_EMU_DIR)/ak93c45.cpp \
 	$(CORE_EMU_DIR)/input/gamepad.cpp \
 	$(CORE_EMU_DIR)/input/gun.cpp \
 	$(CORE_EMU_DIR)/input/3dpad.cpp \
@@ -88,7 +90,11 @@ SOURCES_CXX += \
 	       $(CORE_EMU_DIR)/cart/bootrom.cpp \
 	       $(CORE_EMU_DIR)/cart/extram.cpp \
 	       $(CORE_EMU_DIR)/cart/rom.cpp \
+	       $(CORE_EMU_DIR)/cart/stv.cpp \
 	       $(CORE_EMU_DIR)/cart/ar4mp.cpp
+
+# CRC helpers used by the ST-V port (game DB fingerprinting + EEPROM seed).
+SOURCES_CXX += $(MEDNAFEN_DIR)/hash/crc.cpp
 
 SOURCES_CXX += $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k.cpp
 

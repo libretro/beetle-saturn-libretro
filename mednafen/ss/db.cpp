@@ -28,6 +28,9 @@
 
 #include <mednafen/mednafen.h>
 #include <mednafen/FileStream.h>
+#include <mednafen/Stream.h>
+#include <mednafen/hash/crc.h>
+#include <strings.h>
 
 #include "ss.h"
 #include "smpc.h"
@@ -366,6 +369,1319 @@ static const struct
  { "T-21401G",	NULL, NULL, CPUCACHE_EMUMODE_FULL,		"Zero4 Champ DooZy-J Type-R (Japan)", "Fixes game hang." },
 #endif
 };
+
+
+// ============================================================================
+// ST-V (Sega Titan Video) arcade game database.
+//
+// Ported from upstream Mednafen 1.32.1 mednafen/ss/db.cpp (lines 508-1801).
+// Lookup uses crc32_zip on the first 128 bytes of the user-loaded ROM file
+// to disambiguate game variants that share a primary filename. Filename
+// match uses strcasecmp (POSIX strings.h) instead of upstream's
+// MDFN_strazicmp -- the latter is locale-insensitive ASCII-only, but in
+// practice all ST-V ROM-set filenames are pure ASCII so strcasecmp behaves
+// identically.
+// ============================================================================
+
+static const STVGameInfo STVGI[] =
+{
+ // Broken(encryption)
+ {
+  "Astra SuperStars",
+  SMPC_AREA_JP,
+  STV_CONTROL_6B,
+  STV_EC_CHIP_315_5881,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "epr20825.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20827.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20828.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20829.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20830.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20831.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20826.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr20832.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr20833.9" },
+  }
+ },
+
+ {
+  "Baku Baku Animal",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "fpr17969.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr17970.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr17971.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr17972.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr17973.5" },
+  }
+ },
+
+ // Broken, needs extra sound board emulation
+ {
+  "Batman Forever",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0100000, STV_MAP_BYTE, "350-mpa1.u19" },
+   { 0x0200001, 0x0100000, STV_MAP_BYTE, "350-mpa1.u16" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "gfx0.u1" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "gfx1.u3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "gfx2.u5" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "gfx3.u8" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "gfx4.u12" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "gfx5.u15" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "gfx6.u18" },
+  }
+ },
+
+ // Broken
+ {
+  "Choro Q Hyper Racing 5",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "ic22.bin", 0x4F4D6229 },
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "ic24.bin" },
+   { 0x0600000, 0x0200000, STV_MAP_16LE, "ic26.bin" },
+   { 0x0800000, 0x0200000, STV_MAP_16LE, "ic28.bin" },
+   { 0x0A00000, 0x0200000, STV_MAP_16LE, "ic30.bin" },
+   { 0x0C00000, 0x0200000, STV_MAP_16LE, "ic32.bin" },
+   { 0x0E00000, 0x0200000, STV_MAP_16LE, "ic34.bin" },
+   { 0x1000000, 0x0200000, STV_MAP_16LE, "ic36.bin" },
+  }
+ },
+
+ {
+  "Columns '97",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "fpr19553.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr19554.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr19555.3" },
+  }
+ },
+
+ {
+  "Cotton 2",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr20122.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20117.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20118.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20119.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20120.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20121.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20116.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr20123.8" },
+  }
+ },
+
+ {
+  "Cotton Boomerang",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr21075.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr21070.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr21071.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr21072.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr21073.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr21074.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr21069.1" },
+  }
+ },
+
+ {
+  "Critter Crusher",
+  SMPC_AREA_EU_PAL,
+  STV_CONTROL_HAMMER,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr-18821.ic13" },
+   { 0x0100001, 0x0080000, STV_MAP_BYTE,  "epr-18821.ic13" },
+
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr-18789.ic8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr-18788.ic9" },
+  }
+ },
+
+ {
+  "DaeJeon! SanJeon SuJeon",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_SANJEON,
+  false,
+  {
+   { 0x0000001, 0x0200000, STV_MAP_BYTE, "ic11", 0x0D30DA34 },
+   { 0x0400000, 0x0200000, STV_MAP_16BE, "ic13" },
+   { 0x0600000, 0x0200000, STV_MAP_16BE, "ic14" },
+   { 0x0800000, 0x0200000, STV_MAP_16BE, "ic15" },
+   { 0x0A00000, 0x0200000, STV_MAP_16BE, "ic16" },
+   { 0x0C00000, 0x0200000, STV_MAP_16BE, "ic17" },
+   { 0x0E00000, 0x0200000, STV_MAP_16BE, "ic18" },
+   { 0x1000000, 0x0200000, STV_MAP_16BE, "ic19" },
+   { 0x1200000, 0x0200000, STV_MAP_16BE, "ic20" },
+   { 0x1400000, 0x0200000, STV_MAP_16BE, "ic21" },
+   { 0x1600000, 0x0200000, STV_MAP_16BE, "ic22" },
+   { 0x1800000, 0x0400000, STV_MAP_16BE, "ic12" },
+  }
+ },
+
+ {
+  "Danchi de Hanafuda",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr21974.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr21970.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr21971.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr21972.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr21973.5" },
+  }
+ },
+
+ // TODO: needs special controller remapping?
+ {
+  "Danchi de Quiz",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "ic22", 0xD2CAACB5 },
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "ic24" },
+   { 0x0600000, 0x0200000, STV_MAP_16LE, "ic26" },
+   { 0x0800000, 0x0200000, STV_MAP_16LE, "ic28" },
+   { 0x0A00000, 0x0200000, STV_MAP_16LE, "ic30" },
+   { 0x0C00000, 0x0200000, STV_MAP_16LE, "ic32" },
+   { 0x0E00000, 0x0200000, STV_MAP_16LE, "ic34" },
+   { 0x1000000, 0x0200000, STV_MAP_16LE, "ic36" },
+   { 0x1200000, 0x0200000, STV_MAP_16LE, "ic23" },
+   { 0x1400000, 0x0200000, STV_MAP_16LE, "ic25" },
+  }
+ },
+
+ // Broken
+ {
+  "Dancing Fever Gold",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000000, 0x0080000, STV_MAP_16LE, "13" },
+   { 0x0080000, 0x0080000, STV_MAP_16LE, "13" },
+   { 0x0100000, 0x0080000, STV_MAP_16LE, "13" },
+#if 1
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "1" },
+#else
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "1" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "2" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "3" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "4" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "5" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "6" },
+#endif
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "9" },
+   { 0x2400000, 0x0400000, STV_MAP_16LE, "10" },
+   { 0x2800000, 0x0400000, STV_MAP_16LE, "11" },
+   { 0x2C00000, 0x0400000, STV_MAP_16LE, "12" },
+  }
+ },
+
+ // Broken(encryption+compression)
+ {
+  "Decathlete (V1.000)",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_315_5838,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE, "epr18967.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18968.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18969.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18970.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr18971.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr18972.6" },
+  }
+ },
+
+ // Broken(encryption+compression)
+ {
+  "Decathlete (V1.001)",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_315_5838,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE, "epr18967a.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18968.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18969.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18970.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr18971.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr18972.6" },
+  }
+ },
+
+ {
+  "Die Hard Arcade",
+  SMPC_AREA_NA,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "fpr19119.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr19115.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr19116.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr19117.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr19118.5" },
+  }
+ },
+
+ {
+  "Dynamite Deka",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "fpr19114.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr19115.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr19116.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr19117.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr19118.5" },
+  }
+ },
+
+ {
+  "Ejihon Tantei Jimusyo",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr18137.13" },
+   { 0x1000001, 0x0080000, STV_MAP_BYTE,  "epr18137.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18138.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18139.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18140.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr18141.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr18142.6" },
+  }
+ },
+
+ {
+  "Final Arch",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "finlarch.13" },
+   { 0x0200001, 0x0100000, STV_MAP_BYTE,  "finlarch.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18257.2" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr18257.2" },
+
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18258.3" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr18258.3" },
+
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18259.4" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr18259.4" },
+
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr18260.5" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr18260.5" },
+  }
+ },
+
+
+ {
+  "Final Fight Revenge",
+  SMPC_AREA_JP,
+  STV_CONTROL_6B,
+  STV_EC_CHIP_315_5881,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE, "ffr110.ic35" },
+
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "opr21872.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr21873.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr21874.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr21875.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr21876.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr21877.6" },
+   { 0x1800000, 0x0200000, STV_MAP_16LE, "opr21878.1" },
+  }
+ },
+
+ {
+  "Find Love",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE, "epr20424.13" },
+
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr20431.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20426.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20427.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20428.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20429.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20430.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20425.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr20432.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr20433.9" },
+   { 0x2400000, 0x0400000, STV_MAP_16LE, "mpr20434.10" },
+   { 0x2800000, 0x0400000, STV_MAP_16LE, "mpr20435.11" },
+   { 0x2C00000, 0x0400000, STV_MAP_16LE, "mpr20436.12" }
+  }
+ },
+
+ {
+  "Funky Head Boxers",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "fr18541a.13" },
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr18538.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18533.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18534.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18535.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr18536.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr18537.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr18532.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr18539.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr18540.9" },
+  }
+ },
+
+ {
+  "Golden Axe: The Duel",
+  SMPC_AREA_JP,
+  STV_CONTROL_6B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr17766.13" },
+   { 0x0100001, 0x0080000, STV_MAP_BYTE,  "epr17766.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr17768.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr17769.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr17770.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr17771.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr17772.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr17767.1" },
+  }
+ },
+
+ {
+  "Groove on Fight: Gouketsuji Ichizoku 3",
+  SMPC_AREA_JP,
+  STV_CONTROL_6B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0100000, STV_MAP_16LE, "mpr19820.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr19815.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr19816.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr19817.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr19818.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr19819.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr19814.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr19821.8" },
+   { 0x2000000, 0x0200000, STV_MAP_16LE, "mpr19822.9" }
+  }
+ },
+
+ {
+  "Guardian Force",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr20844.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20839.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20840.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20841.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20842.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20843.6" },
+  }
+ },
+
+ // Broken
+ {
+  "Hashire Patrol Car",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "ic22.bin", 0x635EB1AF },
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "ic24.bin" },
+   { 0x0600000, 0x0200000, STV_MAP_16LE, "ic26.bin" },
+   { 0x0800000, 0x0200000, STV_MAP_16LE, "ic28.bin" },
+   { 0x0A00000, 0x0200000, STV_MAP_16LE, "ic30.bin" },
+  }
+ },
+
+ {
+  "Karaoke Quiz Intro Don Don!",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE, "epr18937.13" },
+   { 0x0100001, 0x0080000, STV_MAP_BYTE, "epr18937.13" },
+   { 0x0200000, 0x0100000, STV_MAP_16LE, "mpr18944.7" }, 
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18939.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18940.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18941.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr18942.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr18943.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr18938.1" },
+  }
+ },
+
+ // Broken
+ {
+  "Magical Zunou Power",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE, "flash.ic13" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr-19354.ic2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr-19355.ic3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr-19356.ic4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr-19357.ic5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr-19358.ic6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr-19359.ic1" },
+  }
+ },
+
+ {
+  "Maru-Chan de Goo!",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE, "epr20416.13" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20417.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20418.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20419.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20420.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20421.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20422.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr20423.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr20443.9" }
+  }
+ },
+
+ {
+  "Mausuke no Ojama the World",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE, "ic13.bin" },
+   { 0x0200001, 0x0100000, STV_MAP_BYTE, "ic13.bin" },
+
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "mcj-00.2" },
+   { 0x0800000, 0x0200000, STV_MAP_16LE, "mcj-01.3" },
+   { 0x0C00000, 0x0200000, STV_MAP_16LE, "mcj-02.4" },
+   { 0x1000000, 0x0200000, STV_MAP_16LE, "mcj-03.5" },
+   { 0x1400000, 0x0200000, STV_MAP_16LE, "mcj-04.6" },
+   { 0x1800000, 0x0200000, STV_MAP_16LE, "mcj-05.1" },
+   { 0x1C00000, 0x0200000, STV_MAP_16LE, "mcj-06.8" },
+  }
+ },
+
+ // Broken
+ {
+  "Microman Battle Charge",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "ic22", 0x83523F5E },
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "ic24" },
+   { 0x0600000, 0x0200000, STV_MAP_16LE, "ic26" },
+   { 0x0800000, 0x0200000, STV_MAP_16LE, "ic28" },
+   { 0x0A00000, 0x0200000, STV_MAP_16LE, "ic30" },
+   { 0x0C00000, 0x0200000, STV_MAP_16LE, "ic32" },
+   { 0x1000000, 0x0200000, STV_MAP_16LE, "ic34" },
+   { 0x1200000, 0x0200000, STV_MAP_16LE, "ic36" },
+  }
+ },
+
+ // Broken
+ {
+  "Nerae Super Goal",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "ic22.bin", 0xC7B1A30B },
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "ic24.bin" },
+   { 0x0600000, 0x0200000, STV_MAP_16LE, "ic26.bin" },
+   { 0x0800000, 0x0200000, STV_MAP_16LE, "ic28.bin" },
+   { 0x0A00000, 0x0200000, STV_MAP_16LE, "ic30.bin" },
+  }
+ },
+
+ {
+  "Othello Shiyouyo",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr20967.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20963.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20964.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20965.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20966.5" },
+  }
+ },
+
+ {
+  "Pebble Beach: The Great Shot",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr18852.13" },
+   { 0x0100001, 0x0080000, STV_MAP_BYTE,  "epr18852.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18853.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18854.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18855.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr18856.5" },
+  }
+ },
+
+ // Broken
+ {
+  "Pro Mahjong Kiwame S",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr18737.13" },
+   { 0x0100001, 0x0080000, STV_MAP_BYTE,  "epr18737.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18738.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18739.3" },
+   { 0x0C00000, 0x0200000, STV_MAP_16LE, "mpr18740.4" },
+  }
+ },
+
+ {
+  "Purikura Daisakusen",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr19337.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr19333.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr19334.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr19335.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr19336.5" },
+  }
+ },
+
+ {
+  "Puyo Puyo Sun",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr19531.13" },
+   { 0x0100001, 0x0080000, STV_MAP_BYTE,  "epr19531.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr19533.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr19534.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr19535.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr19536.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr19537.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr19532.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr19538.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr19539.9" },
+  }
+ },
+
+ {
+  "Puzzle & Action: BoMulEul Chajara",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0080000, STV_MAP_BYTE,  "2.ic13_2" },
+   { 0x0200001, 0x0080000, STV_MAP_BYTE,  "1.ic13_1" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16BE, "bom210-10.ic2" },
+   { 0x1C00000, 0x0400000, STV_MAP_16BE, "bom210-10.ic2" },
+
+   { 0x0800000, 0x0400000, STV_MAP_16BE, "bom210-11.ic3" },
+   { 0x2000000, 0x0400000, STV_MAP_16BE, "bom210-11.ic3" },
+
+   { 0x0C00000, 0x0400000, STV_MAP_16BE, "bom210-12.ic4" },
+   { 0x2400000, 0x0400000, STV_MAP_16BE, "bom210-12.ic4" },
+
+   { 0x1000000, 0x0400000, STV_MAP_16BE, "bom210-13.ic5" },
+   { 0x2800000, 0x0400000, STV_MAP_16BE, "bom210-13.ic5" },
+  }
+ },
+
+ {
+  "Puzzle & Action: Sando-R",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "sando-r.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18635.8" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr18635.8" },
+
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18636.9" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr18636.9" },
+
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18637.10" },
+   { 0x2400000, 0x0400000, STV_MAP_16LE, "mpr18637.10" },
+
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr18638.11" },
+   { 0x2800000, 0x0400000, STV_MAP_16LE, "mpr18638.11" },
+  }
+ },
+
+ {
+  "Puzzle & Action: Treasure Hunt",
+  SMPC_AREA_NA,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0080000, STV_MAP_BYTE,  "th-ic7_2.stv" },
+   { 0x0200001, 0x0080000, STV_MAP_BYTE,  "th-ic7_1.stv" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "th-e-2.ic2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "th-e-3.ic3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "th-e-4.ic4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "th-e-5.ic5" },
+  }
+ },
+
+ // 0x0600EDBC
+ {
+  "Radiant Silvergun",
+  SMPC_AREA_JP,
+  STV_CONTROL_RSG,
+  STV_EC_CHIP_RSG,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr20958.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20959.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20960.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20961.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20962.5" },
+  }
+ },
+
+ {
+  "Sakura Taisen: Hanagumi Taisen Columns",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0100000, STV_MAP_16LE, "mpr20143.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20138.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20139.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20140.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20141.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20142.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20137.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr20144.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr20145.9" },
+   { 0x2400000, 0x0400000, STV_MAP_16LE, "mpr20146.10" },
+   { 0x2800000, 0x0400000, STV_MAP_16LE, "mpr20147.11" },
+   { 0x2C00000, 0x0400000, STV_MAP_16LE, "mpr20148.12" }
+  }
+ },
+
+ {
+  "Sea Bass Fishing",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "seabassf.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20551.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20552.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20553.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20554.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20555.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20550.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr20556.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr20557.9" },
+  }
+ },
+
+ {
+  "Shanghai: The Great Wall",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr18341.7" },
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "mpr18340.2" },
+  }
+ },
+
+ {
+  "Shienryu",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  true,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr19631.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr19632.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr19633.3" },
+  }
+ },
+
+ // Broken
+ {
+  "Sky Challenger",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "ic22.bin", 0x6AE68F06 },
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "ic24.bin" },
+   { 0x0600000, 0x0200000, STV_MAP_16LE, "ic26.bin" },
+   { 0x0800000, 0x0200000, STV_MAP_16LE, "ic28.bin" },
+   { 0x0A00000, 0x0200000, STV_MAP_16LE, "ic30.bin" },
+   { 0x0C00000, 0x0200000, STV_MAP_16LE, "ic32.bin" },
+  }
+ },
+
+ // Broken
+ {
+  "Soreyuke Anpanman Crayon Kids",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "ic22.bin", 0x8483A390 },
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "ic24.bin" },
+   { 0x0600000, 0x0200000, STV_MAP_16LE, "ic26.bin" },
+   { 0x0800000, 0x0200000, STV_MAP_16LE, "ic28.bin" },
+   { 0x0A00000, 0x0200000, STV_MAP_16LE, "ic30.bin" },
+   { 0x0C00000, 0x0200000, STV_MAP_16LE, "ic32.bin" },
+   { 0x0E00000, 0x0200000, STV_MAP_16LE, "ic34.bin" },
+   { 0x1000000, 0x0200000, STV_MAP_16LE, "ic36.bin" },
+  }
+ },
+
+ {
+  "Soukyu Gurentai",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "fpr19188.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr19189.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr19190.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr19191.4" },
+   { 0x1000000, 0x0200000, STV_MAP_16LE, "mpr19192.5" },
+  }
+ },
+
+ // Broken, needs custom BIOS and CD?
+ {
+  "Sport Fishing 2",
+  SMPC_AREA_NA,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "epr-18427.ic13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr-18273.ic2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr-18274.ic3" },
+   { 0x0C00000, 0x0200000, STV_MAP_16LE, "mpr-18275.ic4" },
+  }
+ },
+
+ // Broken(encryption)
+ {
+  "Steep Slope Sliders",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_315_5881,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr21488.13" },
+   { 0x0100001, 0x0080000, STV_MAP_BYTE,  "epr21488.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr21489.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr21490.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr21491.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr21492.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr21493.6" },
+  }
+ },
+
+ // Broken
+ {
+  "Stress Busters",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "epr-21300a.ic13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr-21290.ic2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr-21291.ic3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr-21292.ic4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr-21293.ic5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr-21294.ic6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr-21289.ic1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr-21296.ic8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr-21297.ic9" },
+   { 0x2400000, 0x0400000, STV_MAP_16LE, "mpr-21298.ic10" },
+   { 0x2800000, 0x0400000, STV_MAP_16LE, "mpr-21299.ic11" },
+  }
+ },
+
+ {
+  "Suiko Enbu",
+  SMPC_AREA_JP,
+  STV_CONTROL_6B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "fpr17834.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr17836.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr17837.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr17838.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr17839.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr17840.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr17835.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr17841.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr17842.9" },
+  }
+ },
+
+ {
+  "Super Major League",
+  SMPC_AREA_NA,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr18777.13" },
+   { 0x1000001, 0x0080000, STV_MAP_BYTE,  "epr18777.13" },
+
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr18778.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr18779.9" },
+   { 0x2400000, 0x0400000, STV_MAP_16LE, "mpr18780.10" },
+   { 0x2800000, 0x0400000, STV_MAP_16LE, "mpr18781.11" },
+   { 0x2C00000, 0x0200000, STV_MAP_16LE, "mpr18782.12" },
+  }
+ },
+
+ {
+  "Taisen Tanto-R Sashissu!!",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE, "epr20542.13" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20544.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20545.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20546.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20547.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20548.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20543.1" },
+  }
+ },
+
+ {
+  "Tatacot",
+  SMPC_AREA_JP,
+  STV_CONTROL_HAMMER,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr-18790.ic13" },
+   { 0x0100001, 0x0080000, STV_MAP_BYTE,  "epr-18790.ic13" },
+
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr-18789.ic8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr-18788.ic9" },
+  }
+ },
+
+
+ // Broken
+ {
+  "Technical Bowling",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "ic22", 0xD426412C },
+   { 0x0400000, 0x0200000, STV_MAP_16LE, "ic24" },
+   { 0x0600000, 0x0200000, STV_MAP_16LE, "ic26" },
+   { 0x0800000, 0x0200000, STV_MAP_16LE, "ic28" },
+   { 0x0A00000, 0x0200000, STV_MAP_16LE, "ic30" },
+  }
+ },
+
+ // Broken(encryption)
+ {
+  "Tecmo World Cup '98",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_315_5881,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "epr20819.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20821.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20822.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20823.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20824.5" },
+  }
+ },
+
+ // Broken(encryption)
+ {
+  "Touryuu Densetsu Elan Doree",
+  SMPC_AREA_JP,
+  STV_CONTROL_6B,
+  STV_EC_CHIP_315_5881,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr21307.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr21301.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr21302.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr21303.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr21304.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr21305.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr21306.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr21308.8" },
+  }
+ },
+
+ {
+  "Virtua Fighter Kids",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "fpr18914.13" },
+
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18916.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr18917.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr18918.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr18915.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr18919.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr18920.9" },
+   { 0x2400000, 0x0400000, STV_MAP_16LE, "mpr18921.10" },
+   { 0x2800000, 0x0400000, STV_MAP_16LE, "mpr18922.11" },
+   { 0x2C00000, 0x0400000, STV_MAP_16LE, "mpr18923.12" },
+  }
+ },
+
+ {
+  "Virtua Fighter Remix",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0080000, STV_MAP_BYTE,  "epr17944.13" },
+   { 0x0100001, 0x0080000, STV_MAP_BYTE,  "epr17944.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr17946.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr17947.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr17948.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr17949.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr17950.6" },
+   { 0x1800000, 0x0200000, STV_MAP_16LE, "mpr17945.1" }
+  }
+ },
+
+ // Broken(needs special controller)
+ {
+  "Virtual Mahjong",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr19620.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr19615.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr19616.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr19617.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr19618.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr19619.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr19614.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr19621.8" },
+  }
+ },
+
+ // Broken(needs special controller)
+ {
+  "Virtual Mahjong 2: My Fair Lady",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0200000, 0x0200000, STV_MAP_16LE, "mpr21000.7" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20995.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20996.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20997.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20998.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20999.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20994.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr21001.8" },
+  }
+ },
+
+ {
+  "Winter Heat",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "fpr20108.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20110.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20111.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20112.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20113.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20114.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20109.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr20115.8" },
+  }
+ },
+
+ // Broken
+ {
+  "Yatterman Plus",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   //{ 0x0000000, 0x0080000, STV_MAP_16LE,  "epr-21122.ic13" },
+   //{ 0x0080000, 0x0080000, STV_MAP_16LE,  "epr-21122.ic13" },
+   //{ 0x0080001, 0x0020000, STV_MAP_BYTE,   "epr-21121.bin" },
+   //{ 0x0030001, 0x0020000, STV_MAP_BYTE,   "epr-21121.bin" },
+   { 0x0200000, 0x0080000, STV_MAP_16LE,  "epr-21122.ic13" },
+   { 0x0280000, 0x0080000, STV_MAP_16LE,  "epr-21122.ic13" },
+
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr-21125.ic02" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr-21130.ic03" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr-21126.ic04" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr-21131.ic05" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr-21127.ic06" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr-21132.ic07" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr-21128.ic08" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr-21133.ic09" },
+   { 0x2400000, 0x0400000, STV_MAP_16LE, "mpr-21129.ic10" },
+   { 0x2800000, 0x0400000, STV_MAP_16LE, "mpr-21124.ic11" },
+   { 0x2C00000, 0x0400000, STV_MAP_16LE, "mpr-21123.ic12" },
+  }
+ },
+
+ {
+  "Zen Nippon Pro-Wrestling Featuring Virtua",
+  SMPC_AREA_JP,
+  STV_CONTROL_3B,
+  STV_EC_CHIP_NONE,
+  STV_ROMTWIDDLE_NONE,
+  false,
+  {
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "epr20398.13" },
+
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20400.2" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20401.3" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20402.4" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20403.5" },
+   { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr20404.6" },
+   { 0x1800000, 0x0400000, STV_MAP_16LE, "mpr20399.1" },
+   { 0x1C00000, 0x0400000, STV_MAP_16LE, "mpr20405.8" },
+   { 0x2000000, 0x0400000, STV_MAP_16LE, "mpr20406.9" },
+   { 0x2400000, 0x0400000, STV_MAP_16LE, "mpr20407.10" },
+  }
+ },
+};
+
+const STVGameInfo* DB_LookupSTV(const std::string& fname, Stream* s)
+{
+ uint8 tmp[0x80];
+ uint32 dr;
+ uint32 head_crc32;
+
+ // Fork's Stream::read returns count actually read on success; throws on
+ // I/O error (no soft-fail flag like upstream Mednafen). Capture the
+ // potential short-read by reading at most sizeof(tmp), then computing
+ // CRC32 over what we got -- upstream's logic is the same.
+ dr = (uint32)s->read(tmp, sizeof(tmp));
+
+ // Fork's Stream doesn't have rewind(); use seek(0, SEEK_SET) instead.
+ s->seek(0, SEEK_SET);
+
+ head_crc32 = crc32_zip(0, tmp, dr);
+
+ for(const STVGameInfo& e : STVGI)
+ {
+  auto const& rle = e.rom_layout[0];
+
+  // strcasecmp takes const char*; fname is std::string -- pass .c_str().
+  if(!strcasecmp(fname.c_str(), rle.fname))
+  {
+   if(!rle.head_crc32 || head_crc32 == rle.head_crc32)
+    return &e;
+  }
+ }
+
+ return nullptr;
+}
 
 void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode)
 {

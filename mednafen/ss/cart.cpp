@@ -33,6 +33,7 @@
 //#include "cart/nlmodem.h"
 #include "cart/rom.h"
 #include "cart/ar4mp.h"
+#include "cart/stv.h"
 
 
 CartInfo Cart;
@@ -125,7 +126,7 @@ void CartInfo::CS2M_SetRW8W16(uint8 Ostart, uint8 Oend, void (*r16)(uint32 A, ui
 }
 
 
-void CART_Init(const int cart_type)
+void CART_Init(const int cart_type, const char* rom_dir, const char* main_fname, const STVGameInfo* sgi)
 {
  Cart.CS01_SetRW8W16(0x02000000, 0x04FFFFFF, DummyRead<uint16>, DummyWrite<uint8>, DummyWrite<uint16>);
  Cart.CS2M_SetRW8W16(0x00, 0x3F, DummyRead<uint16>, DummyWrite<uint8>, DummyWrite<uint16>);
@@ -209,6 +210,17 @@ void CART_Init(const int cart_type)
         }
     }
         break;
+
+  case CART_STV:
+   // ST-V loads a multi-file MAME-style ROM set out of rom_dir. The
+   // STVGameInfo entry (sgi) tells us which files to open and how each
+   // one maps into the Saturn A-bus address space. Caller must have
+   // populated all three of rom_dir / main_fname / sgi -- enforce here
+   // and fall through to the dummy default if anything's missing rather
+   // than crash on a null deref inside CART_STV_Init.
+   if(rom_dir && main_fname && sgi)
+      CART_STV_Init(&Cart, rom_dir, main_fname, sgi);
+   break;
 
 //  case CART_NLMODEM:
 //	CART_NLModem_Init(&Cart);

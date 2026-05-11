@@ -90,10 +90,27 @@ enum
 
  CART_NLMODEM	 = 0x600,
 
+ CART_STV	 = 0x700,	// Sega Titan Video (ST-V) arcade hardware
+
  CART_BOOTROM = 0xF00
 };
 
-void CART_Init(const int cart_type) MDFN_COLD;
+// CART_Init dispatches to the requested cart type. For most types the cart
+// loads its firmware/ROM file from the libretro firmware directory via
+// MDFN_GetSettingS+filestream_open. CART_STV is different -- it loads a
+// multi-file MAME-style ROM set, so the caller must pass:
+//
+//   rom_dir    : directory containing the ROM image files (no trailing /)
+//   main_fname : filename of the file the user actually loaded (it'll match
+//                STVGameInfo->rom_layout[0].fname for the detected game)
+//   sgi        : STVGameInfo returned by DB_LookupSTV()
+//
+// All three default to nullptr; existing CART_Init(int) call sites continue
+// to compile unchanged. Non-STV cart types ignore the extra arguments.
+struct STVGameInfo;
+void CART_Init(const int cart_type, const char* rom_dir = nullptr,
+               const char* main_fname = nullptr,
+               const STVGameInfo* sgi = nullptr) MDFN_COLD;
 static INLINE ss_event_handler CART_GetEventHandler(void) { MDFN_HIDE extern CartInfo Cart; return Cart.EventHandler; }
 static INLINE void CART_AdjustTS(const int32 delta) { MDFN_HIDE extern CartInfo Cart; Cart.AdjustTS(delta); }
 static INLINE void CART_SetCPUClock(const int32 master_clock, const int32 cpu_divider) { MDFN_HIDE extern CartInfo Cart; Cart.SetCPUClock(master_clock, cpu_divider); }
