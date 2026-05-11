@@ -4,6 +4,11 @@
 #include <rthreads/rthreads.h>
 #include <string/stdstring.h>
 #include <streams/file_stream.h>
+#include <file/file_path.h>
+
+#include "mednafen/Stream.h"
+#include "mednafen/FileStream.h"
+#include "mednafen/ss/db.h"
 
 #include <ctype.h>
 #include <time.h>
@@ -118,7 +123,10 @@ MDFNGI *MDFNGameInfo = NULL;
 extern MDFNGI EmulatedSS;
 
 // forward declarations
-bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrible_hacks, const unsigned cart_type, const unsigned smpc_area);
+// ST-V load path passes rom_dir/main_fname/sgi; CD load passes the
+// defaulted nullptrs.
+struct STVGameInfo;
+bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrible_hacks, const unsigned cart_type, const unsigned smpc_area, const char* rom_dir = nullptr, const char* main_fname = nullptr, const STVGameInfo* sgi = nullptr);
 MDFN_COLD void CloseGame(void);
 void Emulate(EmulateSpecStruct* espec_arg);
 static bool overscan;
@@ -645,6 +653,68 @@ static bool MDFNI_LoadGame(const char *name)
       } // supported extension?
 
    } // valid name?
+
+   //
+   // Not a disc image. Try ST-V: open the file and ask the ST-V game DB
+   // whether the filename + first 128 bytes match a known ROM set. The
+   // STV game database (DB_LookupSTV) handles the file-extension and
+   // CRC32 disambiguation internally -- much simpler than maintaining
+   // a separate filename-list check here.
+   //
+   if (name && name[0])
+   {
+      try
+      {
+         FileStream stvfs(name, MODE_READ);
+
+         // Extract directory + basename. path_basedir mutates its
+         // argument so work on a scratch copy.
+         char dir_buf[4096];
+         strncpy(dir_buf, name, sizeof(dir_buf) - 1);
+         dir_buf[sizeof(dir_buf) - 1] = '\0';
+         fill_pathname_basedir(dir_buf, name, sizeof(dir_buf));
+         // path_basedir leaves a trailing slash; trim it so cart/stv.cpp's
+         // JoinPath doesn't double up.
+         size_t dirlen = strlen(dir_buf);
+         while (dirlen && (dir_buf[dirlen - 1] == '/' || dir_buf[dirlen - 1] == '\\'))
+            dir_buf[--dirlen] = '\0';
+
+         const char* base = path_basename(name);
+         const std::string fname_str = base ? base : "";
+
+         const STVGameInfo* sgi = DB_LookupSTV(fname_str, &stvfs);
+
+         if (sgi)
+         {
+            // ST-V game recognised. Region comes from the game DB
+            // (cabinet region; affects BIOS selection); cart_type is
+            // forced to CART_STV. cpucache_emumode and horrible_hacks
+            // are pinned to FULL / VDP1RWDRAWSLOWDOWN since upstream
+            // hardcodes these for ST-V (the per-game CemuDB / HHDB
+            // tables don't cover ST-V).
+            log_cb(RETRO_LOG_INFO, "ST-V game: %s\n", sgi->name);
+
+            region            = sgi->area;
+            cart_type         = CART_STV;
+            cpucache_emumode  = CPUCACHE_EMUMODE_FULL;
+            horrible_hacks    = 0; // HORRIBLEHACK_VDP1RWDRAWSLOWDOWN if exposed
+
+            if (InitCommon(cpucache_emumode, horrible_hacks, cart_type,
+                           region, dir_buf, base, sgi))
+            {
+               MDFN_LoadGameCheats();
+               MDFNMP_InstallReadPatches();
+               return true;
+            }
+            log_cb(RETRO_LOG_ERROR, "ST-V InitCommon failed.\n");
+            return false;
+         }
+      }
+      catch (...)
+      {
+         // Fall through to BIOS drop below.
+      }
+   }
 
    //
    // Drop to BIOS

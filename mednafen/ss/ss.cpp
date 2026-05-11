@@ -48,6 +48,7 @@ extern uint32 IBufferCount;
 #include "scu.h"
 #include "cart.h"
 #include "db.h"
+#include "stvio.h"
 
 
 // Libretro-specific
@@ -281,6 +282,35 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
     CPU[c].SetFTI(false);
    }
   }
+  return;
+ }
+
+ //
+ // ST-V IOGA (gamepad / coin / service / test / EEPROM mux)
+ //
+ // ST-V wires the IOGA chip into the Saturn A-bus CS0 region at
+ // 0x00400000-0x0040007F as 64 byte-wide registers on every other
+ // address (the low bit selects within a 16-bit word). Only meaningful
+ // when an ST-V cart is loaded -- on Saturn this region returns the
+ // default open-bus byte.
+ //
+ if(A >= 0x00400000 && A <= 0x0040007F && ActiveCartType == CART_STV)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  const uint8 IOGA_A = (A >> 1) & 0x3F;
+
+  if(IsWrite)
+  {
+   if(sizeof(T) == 2 || (A & 1))
+    STVIO_WriteIOGA(SH7095_mem_timestamp, IOGA_A, (uint8)DB);
+  }
+  else
+   DB = (DB & 0xFFFF0000) | 0xFF00 | STVIO_ReadIOGA(SH7095_mem_timestamp, IOGA_A);
+
   return;
  }
 
@@ -648,6 +678,11 @@ void SS_Reset(bool powering_up)
  SCU_Reset(powering_up);
  CPU[0].Reset(powering_up);
 
+ // ST-V's I/O board must reset before SMPC -- SMPC's port shim
+ // (IODevice_STVSMPC) consults state that STVIO_Reset re-initialises.
+ if(ActiveCartType == CART_STV)
+   STVIO_Reset(powering_up);
+
  SMPC_Reset(powering_up);
 
  VDP1::Reset(powering_up);
@@ -672,6 +707,11 @@ static INLINE void UpdateSMPCInput(const sscpu_timestamp_t timestamp)
  int32 elapsed_time = (((int64)timestamp * cur_clock_div * 1000 * 1000) - UpdateInputLastBigTS) / (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
 
  UpdateInputLastBigTS += (int64)elapsed_time * (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
+
+ // ST-V samples gamepad/gun/coin state into its own DataIn buffer on
+ // the same cadence SMPC samples virtual ports.
+ if(ActiveCartType == CART_STV)
+   STVIO_UpdateInput(elapsed_time);
 
  SMPC_UpdateInput(elapsed_time);
 }
@@ -790,7 +830,7 @@ typedef struct
    const char *name;
 } CartName;
 
-bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrible_hacks, const unsigned cart_type, const unsigned smpc_area)
+bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrible_hacks, const unsigned cart_type, const unsigned smpc_area, const char* rom_dir, const char* main_fname, const STVGameInfo* sgi)
 {
  //
 
@@ -835,6 +875,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          { CART_ULTRAMAN, "Ultraman ROM" },
          { CART_CS1RAM_16M, _("16MiB CS1 RAM") },
          { CART_NLMODEM, _("Netlink Modem") },
+         { CART_STV, _("Sega Titan Video (ST-V)") },
          { CART_BOOTROM, _("Bootable ROM") } 
       };
       const char* cn = nullptr;
@@ -881,13 +922,17 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    MDFNMP_RegSearchable(0x00200000, WORKRAM_BANK_SIZE_BYTES);
    MDFNMP_RegSearchable(0x06000000, WORKRAM_BANK_SIZE_BYTES);
 
-   CART_Init(cart_type);
+   CART_Init(cart_type, rom_dir, main_fname, sgi);
    ActiveCartType = cart_type;
 
    //
    //
    //
-   const bool PAL = is_pal = (smpc_area & SMPC_AREA__PAL_MASK);
+   const bool is_stv = (cart_type == CART_STV);
+   // ST-V runs on a monitor, not on a TV; force 60 Hz timing
+   // regardless of region. PAL ST-V cabinets exist but the video
+   // signal is still 60 Hz.
+   const bool PAL = is_pal = (!is_stv) && (smpc_area & SMPC_AREA__PAL_MASK);
    const int32 MasterClock = PAL ? 1734687500 : 1746818182; // NTSC: 1746818181.8181818181, PAL: 1734687500-ish
    const char* bios_filename;
    int sls = MDFN_GetSettingI(PAL ? "ss.slstartp" : "ss.slstart");
@@ -897,7 +942,23 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    if(sls > sle)
       std::swap(sls, sle);
 
-   if(smpc_area == SMPC_AREA_JP || smpc_area == SMPC_AREA_ASIA_NTSC)
+   if(is_stv)
+   {
+      // ST-V BIOSes are 128 KiB (vs Saturn's 512 KiB) and live in their
+      // own filename namespace. Hardcoded to match the fork's existing
+      // BIOS-filename convention for sega_101.bin / mpr-17933.bin.
+      // Users supply the actual files in retro_base_directory.
+      //   JP / Asia-NTSC:                       epr-20091.ic8
+      //   NA / CSA-NTSC / CSA-PAL:              epr-17952a.ic8
+      //   EU / Asia-PAL / Korea / everything else: epr-17954a.ic8
+      if(smpc_area == SMPC_AREA_JP || smpc_area == SMPC_AREA_ASIA_NTSC)
+         bios_filename = "epr-20091.ic8";
+      else if(smpc_area == SMPC_AREA_NA || smpc_area == SMPC_AREA_CSA_NTSC || smpc_area == SMPC_AREA_CSA_PAL)
+         bios_filename = "epr-17952a.ic8";
+      else
+         bios_filename = "epr-17954a.ic8";
+   }
+   else if(smpc_area == SMPC_AREA_JP || smpc_area == SMPC_AREA_ASIA_NTSC)
       bios_filename = "sega_101.bin"; // Japan
    else
       bios_filename = "mpr-17933.bin"; // North America and Europe
@@ -910,25 +971,31 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
             RETRO_VFS_FILE_ACCESS_READ,
             RETRO_VFS_FILE_ACCESS_HINT_NONE);
 
+      // Saturn BIOSes are 512 KiB; ST-V BIOSes are 128 KiB
+      // (mapped into the upper half of the 512 KiB BIOSROM[] array
+      // and read by the SH-2 from the same 0x00000000-0x000FFFFF
+      // window). Accept either size.
+      const int64_t bios_size = filestream_get_size(BIOSFile);
       if(!BIOSFile)
       {
          log_cb(RETRO_LOG_ERROR, "Cannot open BIOS file \"%s\".\n", bios_path);
          return false;
       }
-      else if(filestream_get_size(BIOSFile) != 524288)
+      else if(bios_size != 524288 && !(is_stv && bios_size == 131072))
       {
          log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" is of an incorrect size.\n", bios_path);
-         filestream_close(BIOSFile);   // <-- previously leaked on this path
+         filestream_close(BIOSFile);
          return false;
       }
       else
       {
-         filestream_read(BIOSFile, BIOSROM, 512 * 1024);
+         memset(BIOSROM, 0xFF, sizeof(BIOSROM));
+         filestream_read(BIOSFile, BIOSROM, bios_size);
          filestream_close(BIOSFile);
          BIOS_SHA256 = sha256(BIOSROM, 512 * 1024);
 
          // swap endian-ness
-         for(unsigned i = 0; i < 262144; i++)
+         for(unsigned i = 0; i < (bios_size / 2); i++)
             BIOSROM[i] = MDFN_de16msb((const uint8_t*)&BIOSROM[i]);
       }
    }
@@ -936,7 +1003,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    EmulatedSS.MasterClock = MDFN_MASTERCLOCK_FIXED(MasterClock);
 
    SCU_Init();
-   SMPC_Init(smpc_area, MasterClock);
+   SMPC_Init(smpc_area, MasterClock, is_stv);
    VDP1::Init();
    VDP2::Init(PAL,vdp2_affinity);
    VDP2::SetGetVideoParams(&EmulatedSS, true, sls, sle, true, DoHBlend);
@@ -949,6 +1016,18 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    // Apply multi-tap state to SMPC
    SMPC_SetMultitap( 0, setting_multitap_port1 );
    SMPC_SetMultitap( 1, setting_multitap_port2 );
+
+   if(is_stv)
+   {
+      // ST-V provides its own SMPC port shim (handles AK93C45 EEPROM
+      // and 68K sound-CPU control), and routes player input through
+      // STVIO_SetInput / STVIO_UpdateInput rather than the standard
+      // per-virtual-port path. Init the I/O board first, then inject
+      // the port shims into SMPC super-ports 0 and 1.
+      STVIO_Init(sgi);
+      for(unsigned sp = 0; sp < 2; sp++)
+         SMPC_SetInput(sp, "extern", (uint8*)STVIO_GetSMPCDevice(sp));
+   }
 
    try { LoadRTC();       } catch(MDFN_Error& e) { if(e.GetErrno() != ENOENT) throw; }
    try { LoadBackupRAM(); } catch(MDFN_Error& e) { if(e.GetErrno() != ENOENT) throw; }
