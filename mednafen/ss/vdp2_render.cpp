@@ -3125,20 +3125,20 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
  // to DEINT_OFF alongside this flag so it doesn't try to combine
  // fields.
  //
- // Detection of "interlaced": LineWidths-touched rows go in pairs
- // (out_line and out_line ^ 1 are both in the displayed area), but
- // we can't peek InterlaceOn from the consumer thread without
- // a load. Instead we condition on (espec->DisplayRect.h is even
- // and out_line < DisplayRect.y + DisplayRect.h - 1) which is true
- // for any but the very last row of an interlaced rect -- the last
- // row's mirror would be out-of-rect and gets dropped.
+ // What we copy: only the pixel range the libretro frontend will
+ // actually read from this row -- DisplayRect.x for LineWidths
+ // pixels (= the post-HBlend, post-overscan-crop active region).
+ // Anything outside that range is either stale (untouched this
+ // frame) or border-fill that lives outside the frontend's view;
+ // mirroring it wouldn't change what the user sees and would just
+ // waste memory bandwidth.  At low-res 320 NTSC with HBlend off
+ // that drops the per-line memcpy from 2816 to ~1364 bytes.
  //
- // The memcpy width matches the rendered active width
- // (espec->LineWidths[out_line]); the rest of the surface row gets
- // border colour as already laid down by the same DrawLine call's
- // border-fill loop. We re-execute that border + active copy by
- // duplicating the whole rendered span (tvxo + w + tvxo_right
- // padding).
+ // Note that espec->LineWidths[out_line] is the FINAL width set
+ // after MixIt + (optional) HBlend; HBlend's low-res path doubles
+ // the original width but still leaves the result within
+ // DisplayRect.x + LineWidths <= 704 (asserted in DrawLine just
+ // above).
  //
  if(MDFN_UNLIKELY(DeinterlaceOff) && espec->InterlaceOn)
  {
@@ -3146,15 +3146,13 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
   const int32 rect_end = espec->DisplayRect.y + espec->DisplayRect.h;
   if(mirror_line >= espec->DisplayRect.y && mirror_line < rect_end)
   {
-   uint32* src_row = espec->surface->pixels + out_line   * espec->surface->pitchinpix;
-   uint32* dst_row = espec->surface->pixels + mirror_line * espec->surface->pitchinpix;
-   // Copy the whole pitchinpix to capture border colour on both
-   // sides of the active region. LineWidths[mirror_line] gets
-   // set to LineWidths[out_line] so the libretro frontend sees
-   // the same row geometry for both fields. (The Deinterlacer
-   // only reads LineWidths[0] but the upstream-Mednafen-style
-   // consumer might inspect more, so be tidy.)
-   memcpy(dst_row, src_row, (size_t)espec->surface->pitchinpix * sizeof(uint32));
+   const size_t   col_off  = (size_t)espec->DisplayRect.x;
+   const size_t   copy_pix = (size_t)espec->LineWidths[out_line];
+   const uint32*  src_row  = espec->surface->pixels
+                              + out_line    * espec->surface->pitchinpix + col_off;
+   uint32*        dst_row  = espec->surface->pixels
+                              + mirror_line * espec->surface->pitchinpix + col_off;
+   memcpy(dst_row, src_row, copy_pix * sizeof(uint32));
    espec->LineWidths[mirror_line] = espec->LineWidths[out_line];
   }
  }
