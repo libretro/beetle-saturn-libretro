@@ -142,7 +142,13 @@ static void ReadM3U( std::vector<std::string> &file_list, std::string path, unsi
 				goto end;
 			}
 
-			ReadM3U(file_list, efp, depth++);
+			// Pre-increment so the recursive call actually sees a
+			// deeper depth. Previously this was 'depth++', which is
+			// post-increment on a value parameter -- the recursive
+			// call always received the same value, making the
+			// depth==99 guard above unreachable and allowing
+			// stack-blowing recursion via crafted m3u chains.
+			ReadM3U(file_list, efp, depth + 1);
 		}
 		else
 		{
@@ -223,7 +229,8 @@ static unsigned disk_get_num_images(void)
 
 static bool disk_replace_image_index(unsigned index, const struct retro_game_info *info)
 {
-	if (index < 0 || index >= CDInterfaces.size())
+	// index is unsigned; the previous check `index < 0` was dead code.
+	if (index >= CDInterfaces.size())
 		return false;
 
 	if (info != NULL)
@@ -233,6 +240,17 @@ static bool disk_replace_image_index(unsigned index, const struct retro_game_inf
 		image_label[0] = '\0';
 
 		CDIF *image  = CDIF_Open(info->path, cdimagecache);
+		// CDIF_Open can either throw or return NULL on failure. The
+		// throw is handled by the caller via the outer try/catch;
+		// NULL was previously assigned without a check, leaving a
+		// NULL in CDInterfaces[] that would crash the later
+		// ReadTOC() loop. Also: the prior CDIF was leaked here on
+		// every swap (the old pointer was overwritten without
+		// deletion); now we delete it before reassignment.
+		if (image == NULL)
+			return false;
+
+		delete CDInterfaces[index];
 		CDInterfaces[index] = image;
 
 		extract_basename(image_label,
@@ -506,7 +524,9 @@ void disc_cleanup(void)
 
 bool DetectRegion( unsigned* region )
 {
-	uint8_t *buf = new uint8[2048 * 16];
+	// std::vector replaces a raw `new uint8[]` here so that a throw
+	// from ReadSector() / IsSaturnDisc() can't leak the 32 KiB buffer.
+	std::vector<uint8_t> buf(2048 * 16);
 	uint64 possible_regions = 0;
 
 	for(auto& c : CDInterfaces)
@@ -531,8 +551,6 @@ bool DetectRegion( unsigned* region )
 
 		break;
 	}
-
-	delete[] buf;
 
 	for(auto const& rs : region_strings)
 	{
@@ -667,11 +685,21 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8*
 				for(unsigned i = 0; i < disk_image_paths.size(); i++)
 				{
 					char image_label[4096];
-					bool success = true;
 					image_label[0] = '\0';
 					log_cb(RETRO_LOG_INFO, "Adding CD: \"%s\".\n", disk_image_paths[i].c_str());
 
 					CDIF *image = CDIF_Open(disk_image_paths[i].c_str(), image_memcache);
+					// CDIF_Open is documented to throw on failure but
+					// historically has also returned NULL in some
+					// build configurations. Treat NULL as a hard
+					// load failure rather than pushing a NULL onto
+					// CDInterfaces (which the ReadTOC() loop below
+					// would dereference).
+					if (image == NULL)
+					{
+						log_cb(RETRO_LOG_ERROR, "Failed to open CD: \"%s\".\n", disk_image_paths[i].c_str());
+						return false;
+					}
 					CDInterfaces.push_back(image);
 
 					extract_basename(image_label,
@@ -684,12 +712,16 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8*
 			{
 				// single disc
 				char image_label[4096];
-				bool success = true;
 
 				image_label[0] = '\0';
 
 				disk_image_paths.push_back(content_name);
 				CDIF *image  = CDIF_Open(content_name, image_memcache);
+				if (image == NULL)
+				{
+					log_cb(RETRO_LOG_ERROR, "Failed to open CD: \"%s\".\n", content_name);
+					return false;
+				}
 				CDInterfaces.push_back(image);
 
 				extract_basename(image_label,

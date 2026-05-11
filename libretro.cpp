@@ -42,7 +42,12 @@
 
 struct retro_perf_callback perf_cb;
 retro_get_cpu_features_t perf_get_cpu_features_cb = NULL;
-retro_log_printf_t log_cb                         = NULL;
+// fallback_log is defined below; we forward-declare here so log_cb has a
+// safe default before retro_init runs. The previous default of NULL would
+// have crashed if anything had logged before retro_init -- only safe by
+// virtue of frontend call order.
+static void fallback_log(enum retro_log_level level, const char *fmt, ...);
+retro_log_printf_t log_cb                         = fallback_log;
 static retro_audio_sample_t audio_cb              = NULL;
 static retro_audio_sample_batch_t audio_batch_cb  = NULL;
 static retro_input_poll_t input_poll_cb           = NULL;
@@ -54,6 +59,16 @@ static unsigned frame_count = 0;
 static unsigned internal_frame_count = 0;
 static unsigned image_offset = 0;
 static unsigned image_crop = 0;
+
+// Geometry tracking. These used to be retro_run-local function-statics,
+// which meant they persisted across retro_unload_game / retro_load_game
+// and could prevent SET_GEOMETRY from firing for a new game that happened
+// to match the previous game's dimensions. File-scope + reset in
+// retro_load_game makes the lifetime explicit.
+static unsigned cur_width = 0;
+static unsigned cur_height = 0;
+static unsigned game_width = 0;
+static unsigned game_height = 0;
 
 static unsigned h_mask = 0;
 static unsigned first_sl = 0;
@@ -675,8 +690,11 @@ bool retro_load_game(const struct retro_game_info *info)
    if (MDFNI_LoadGame(retro_cd_path) == false)
       return false;
 
-   MDFN_LoadGameCheats();
-   MDFNMP_InstallReadPatches();
+   // MDFN_LoadGameCheats() and MDFNMP_InstallReadPatches() were called
+   // here previously, but MDFNI_LoadGame already invokes both at the end
+   // of its success path. The duplicate calls were redundant (and
+   // potentially harmful if either of those functions ever becomes
+   // non-idempotent).
 
    alloc_surface();
 
@@ -693,6 +711,15 @@ bool retro_load_game(const struct retro_game_info *info)
 
    frame_count = 0;
    internal_frame_count = 0;
+
+   // Reset geometry trackers so the first SET_GEOMETRY of the new game
+   // always fires; otherwise leftover values from a previous game could
+   // accidentally match and the frontend would keep using the wrong
+   // base width/height from retro_get_system_av_info.
+   cur_width = 0;
+   cur_height = 0;
+   game_width = 0;
+   game_height = 0;
 
    struct retro_core_option_display option_display;
    option_display.visible = false;
@@ -732,6 +759,13 @@ void retro_unload_game(void)
    retro_cd_base_directory[0] = '\0';
    retro_cd_path[0]           = '\0';
    retro_cd_base_name[0]      = '\0';
+
+   // The save-state size cache is keyed on the loaded cart config
+   // (cart NV layout, multitap setup, etc.). Different games can yield
+   // different sizes, so invalidate on unload to force a fresh
+   // measurement on the next load.
+   extern size_t serialize_size;
+   serialize_size = 0;
 }
 
 void retro_run(void)
@@ -740,8 +774,11 @@ void retro_run(void)
    bool hires_h_mode;
    unsigned overscan_mask;
    unsigned linevisfirst, linevislast;
-   static unsigned width, height;
-   static unsigned game_width, game_height;
+   // width/height/game_width/game_height are file-scope statics now;
+   // see comment near their declaration. The previous function-local
+   // statics persisted across retro_unload_game / retro_load_game and
+   // could prevent a needed SET_GEOMETRY when a new game happened to
+   // start with the same dimensions as the previous one.
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
       check_variables(false);
@@ -761,7 +798,9 @@ void retro_run(void)
    else
       input_update(input_state_cb);
 
-   static int32 rects[MEDNAFEN_CORE_GEOMETRY_MAX_H];
+   // rects is 2.3KB; previously declared 'static' for no good reason
+   // (it's fully written by Emulate each frame). Plain stack-local now.
+   int32 rects[MEDNAFEN_CORE_GEOMETRY_MAX_H];
    rects[0] = ~0;
 
    EmulateSpecStruct spec;
@@ -796,10 +835,10 @@ void retro_run(void)
 
    hires_h_mode  = (rects[0] == 704) ? true : false;
    overscan_mask = (h_mask >> 1) << hires_h_mode;
-   width         = rects[0] - (h_mask << hires_h_mode);
-   height        = (linevislast + 1 - linevisfirst) << PrevInterlaced;
+   cur_width     = rects[0] - (h_mask << hires_h_mode);
+   cur_height    = (linevislast + 1 - linevisfirst) << PrevInterlaced;
 
-   if (width != game_width || height != game_height)
+   if (cur_width != game_width || cur_height != game_height)
    {
       struct retro_system_av_info av_info;
 
@@ -818,10 +857,10 @@ void retro_run(void)
 
       environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
 
-      game_width  = width;
-      game_height = height;
+      game_width  = cur_width;
+      game_height = cur_height;
 
-      input_set_geometry(width, height);
+      input_set_geometry(cur_width, cur_height);
    }
 
    pix += surf->pitchinpix * (linevisfirst << PrevInterlaced) + overscan_mask;
@@ -830,6 +869,76 @@ void retro_run(void)
 
    video_cb(fb, game_width, game_height, pitch);
    audio_batch_cb((int16_t*)&IBuffer, spec.SoundBufSize);
+
+   //
+   // Periodic Backup-RAM / cart-NV flush, moved out of Emulate().
+   //
+   // Previously SaveBackupRAM / SaveCartNV were called from inside
+   // Emulate() under a master-cycle countdown. That made run-ahead /
+   // rewind / netplay fire spurious disk writes on every simulated
+   // frame. The replacement: maintain dirty flags inside Emulate(),
+   // and flush from here -- once per real retro_run, skipped during
+   // run-ahead simulation passes (which the frontend signals by
+   // disabling video via RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE
+   // bit 0). The 3-second batching delay is preserved via a frame
+   // counter; ~180 frames at NTSC's 59.83 Hz and PAL's 49.92 Hz both
+   // round to roughly 3 seconds, close enough for save batching.
+   //
+   {
+      static unsigned bram_save_counter = 0;
+      static unsigned cart_save_counter = 0;
+      static const unsigned SAVE_INTERVAL_FRAMES = 180;
+      static const unsigned RETRY_INTERVAL_FRAMES = 60; /* used as backoff after a failed write */
+
+      int av_enable = 0x3; /* default: video + audio enabled */
+      bool is_runahead_sim = false;
+      if (environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &av_enable))
+         is_runahead_sim = !(av_enable & 1); /* video disabled => simulation pass */
+
+      if (!is_runahead_sim)
+      {
+         if (BackupRAM_Dirty)
+         {
+            if (++bram_save_counter >= SAVE_INTERVAL_FRAMES)
+            {
+               if (SS_FlushBackupRAM())
+               {
+                  BackupRAM_Dirty = false;
+                  bram_save_counter = 0;
+               }
+               else
+               {
+                  /* retry sooner; clamp counter so we don't write every frame */
+                  bram_save_counter = SAVE_INTERVAL_FRAMES - RETRY_INTERVAL_FRAMES;
+               }
+            }
+         }
+         else
+         {
+            bram_save_counter = 0;
+         }
+
+         if (CartNV_Dirty)
+         {
+            if (++cart_save_counter >= SAVE_INTERVAL_FRAMES)
+            {
+               if (SS_FlushCartNV())
+               {
+                  CartNV_Dirty = false;
+                  cart_save_counter = 0;
+               }
+               else
+               {
+                  cart_save_counter = SAVE_INTERVAL_FRAMES - RETRY_INTERVAL_FRAMES;
+               }
+            }
+         }
+         else
+         {
+            cart_save_counter = 0;
+         }
+      }
+   }
 
    /* LED interface */
    if (led_state_cb)
@@ -851,15 +960,32 @@ void retro_get_system_info(struct retro_system_info *info)
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
+   const bool pal_region = (retro_get_region() == RETRO_REGION_PAL);
+
    memset(info, 0, sizeof(*info));
    info->timing.sample_rate    = 44100;
-   info->geometry.base_width   = MEDNAFEN_CORE_GEOMETRY_BASE_W;
-   info->geometry.base_height  = MEDNAFEN_CORE_GEOMETRY_BASE_H;
+
+   // Report the same base geometry that retro_run's SET_GEOMETRY will
+   // converge on, instead of the old 320x240. The frontend uses these
+   // initial values for window sizing, aspect ratio, the first
+   // screenshot, etc., before SET_GEOMETRY is observed. Matching them
+   // to retro_run's runtime values avoids one-frame flashes of wrong
+   // aspect / scale at game start.
+   info->geometry.base_width   = 352 - h_mask;
+   info->geometry.base_height  = pal_region
+      ? (last_sl_pal + 1 - first_sl_pal)
+      : (last_sl     + 1 - first_sl);
    info->geometry.max_width    = MEDNAFEN_CORE_GEOMETRY_MAX_W;
    info->geometry.max_height   = MEDNAFEN_CORE_GEOMETRY_MAX_H;
-   info->geometry.aspect_ratio = MEDNAFEN_CORE_GEOMETRY_ASPECT_RATIO;
+   {
+      float ar = 352.0f / (pal_region ? 256.0f : 240.0f);
+      ar *= 6.0f / 7.0f;
+      ar *= (pal_region ? 288.0f : 240.0f) / (float)info->geometry.base_height;
+      ar /= 352.0f / (352 - h_mask);
+      info->geometry.aspect_ratio = ar;
+   }
 
-   if (retro_get_region() == RETRO_REGION_PAL)
+   if (pal_region)
       info->timing.fps            = 49.92012779552716;
    else
       info->timing.fps            = 59.82650314089141;
@@ -931,7 +1057,9 @@ void retro_set_video_refresh(retro_video_refresh_t cb)
    video_cb = cb;
 }
 
-static size_t serialize_size = 0;
+// serialize_size is cached at file scope (not function-static or static
+// file-scope) so retro_unload_game can invalidate it across games.
+size_t serialize_size = 0;
 
 size_t retro_serialize_size(void)
 {
@@ -1012,6 +1140,15 @@ void *retro_get_memory_data(unsigned type)
    {
       case RETRO_MEMORY_SYSTEM_RAM:
          return WorkRAM;
+      // Exposing internal Backup RAM via RETRO_MEMORY_SAVE_RAM lets the
+      // frontend manage save persistence (.srm) instead of (or in
+      // addition to) the core's own .bkr file. Critically, this allows
+      // libretro features like cloud saves, achievement-save-protect,
+      // and run-ahead to work correctly: the periodic flush in
+      // retro_run still writes the .bkr for backward compatibility,
+      // but the frontend now has its own view of the same memory.
+      case RETRO_MEMORY_SAVE_RAM:
+         return BackupRAM;
    }
 
    // not supported
@@ -1024,6 +1161,8 @@ size_t retro_get_memory_size(unsigned type)
    {
       case RETRO_MEMORY_SYSTEM_RAM:
          return sizeof(WorkRAM);
+      case RETRO_MEMORY_SAVE_RAM:
+         return sizeof(BackupRAM);
    }
 
    // not supported
@@ -1037,6 +1176,14 @@ void retro_cheat_set(unsigned, bool, const char *)
 {}
 
 // Use a simpler approach to make sure that things go right for libretro.
+// MDFN_MakeFName returns a pointer to a function-static buffer. This
+// is *not* reentrant or thread-safe: a second call from any context
+// clobbers the result of the first. All current callers consume the
+// pointer immediately on the emulation thread, which is safe, but new
+// callers must do the same -- copy the string out before any other
+// MDFN_MakeFName call. The default switch arm returns an empty string;
+// new MakeFName_Type values reach this path silently and a future
+// caller could be surprised, so log unknown types to make it visible.
 const char *MDFN_MakeFName(MakeFName_Type type, int id1, const char *cd1)
 {
    static char fullpath[4096];
@@ -1061,6 +1208,7 @@ const char *MDFN_MakeFName(MakeFName_Type type, int id1, const char *cd1)
          snprintf(fullpath, sizeof(fullpath), "%s" RETRO_SLASH "%s", retro_base_directory, cd1);
          break;
       default:
+         log_cb(RETRO_LOG_WARN, "MDFN_MakeFName called with unknown type %d\n", (int)type);
          break;
    }
 

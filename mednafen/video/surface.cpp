@@ -60,6 +60,13 @@ bool MDFN_Surface::Init(void *const p_pixels, const uint32 p_width, const uint32
    void *rpix = NULL;
    assert(nf.bpp == 16 || nf.bpp == 32);
 
+   // NOTE: p_pixels is intentionally ignored. The original mednafen
+   // interface accepted an externally-owned pixel buffer here, but this
+   // libretro port always allocates its own (via calloc below). Callers
+   // pass NULL. Kept in the signature for source-compat with upstream
+   // mednafen headers.
+   (void)p_pixels;
+
    format = nf;
 
    pixels = NULL;

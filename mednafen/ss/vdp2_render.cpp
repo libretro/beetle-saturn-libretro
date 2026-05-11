@@ -3132,8 +3132,13 @@ static bool DoWakeupIfNecessary;
 
 static INLINE void WWQ(uint16 command, uint32 arg32 = 0, uint16 arg16 = 0)
 {
+ // Queue back-pressure spin. retro_sleep(1) was problematic on Windows
+ // without timeBeginPeriod(1) -- Sleep(1) rounds up to the 15.6ms timer
+ // tick by default, which would have wedged the producer for almost a
+ // whole frame each time the queue filled. retro_sleep(0) yields to the
+ // scheduler without that minimum dwell.
  while(MDFN_UNLIKELY(WQ_InCount.load(std::memory_order_acquire) == WQ.size()))
-  retro_sleep(1);
+  retro_sleep(0);
 
  WQ_Entry* wqe = &WQ[WQ_WritePos];
 
@@ -3343,10 +3348,15 @@ void VDP2REND_StartFrame(EmulateSpecStruct* espec_arg, const bool clock28m, cons
 
 void VDP2REND_EndFrame(void)
 {
+ // Drain wait: same Sleep(1)-granularity rationale as in WWQ. The render
+ // thread signals itself via ssem_signal on each line drawn, so we
+ // mostly stay in retro_sleep(0)'s yield path and avoid Windows'
+ // ~15ms minimum dwell that the old retro_sleep(1) imposed -- which
+ // showed up as audio dropouts and frame drops on marginal hardware.
  while(MDFN_UNLIKELY(DrawCounter.load(std::memory_order_acquire) != 0))
  {
    ssem_signal(WakeupSem);
-   retro_sleep(1);
+   retro_sleep(0);
  }
 
  WWQ(COMMAND_SET_BUSYWAIT, false);

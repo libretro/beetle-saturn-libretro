@@ -497,7 +497,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "beetle_saturn_midsync",
       "Mid-frame Input Synchronization",
       NULL,
-      "Mid-frame synchronization can reduce input latency, but it will increase CPU requirements.",
+      "Mid-frame synchronization can reduce input latency, but it will increase CPU requirements. Disable this when using netplay, run-ahead, or movie recording, where it is incompatible with frame-exact replay.",
       NULL,
       "input",
       {
@@ -505,7 +505,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL },
       },
-      "disabled"
+      "enabled"
    },
    {
       "beetle_saturn_analog_stick_deadzone",

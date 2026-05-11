@@ -43,18 +43,33 @@ int32_t smem_write(StateMem *st, void *buffer, uint32_t len)
    if ((len + st->loc) > st->malloced)
    {
       uint32_t newsize = (st->malloced >= 32768) ? st->malloced : (st->initial_malloc ? st->initial_malloc : 32768);
+      uint8_t *new_data;
 
       while(newsize < (len + st->loc))
          newsize *= 2;
 
-      // Don't realloc data_frontend memory
+      // Don't realloc data_frontend memory: it is owned by the caller.
+      // Switch to our own heap allocation, copying the existing
+      // contents over.
       if (st->data == st->data_frontend && st->data != NULL)
       {
-         st->data = (uint8_t *)malloc(newsize);
-         memcpy(st->data, st->data_frontend, st->malloced);
+         new_data = (uint8_t *)malloc(newsize);
+         if (!new_data)
+            return 0;                /* allocation failure -- nothing written */
+         memcpy(new_data, st->data_frontend, st->malloced);
+         st->data = new_data;
       }
       else
-         st->data = (uint8_t *)realloc(st->data, newsize);
+      {
+         /* realloc-via-temp so we don't leak the previous allocation
+          * if realloc returns NULL. The previous code did
+          * st->data = realloc(st->data, ...) which lost the old
+          * pointer on failure and segfaulted on the memcpy below. */
+         new_data = (uint8_t *)realloc(st->data, newsize);
+         if (!new_data)
+            return 0;
+         st->data = new_data;
+      }
 
       st->malloced = newsize;
    }
@@ -90,11 +105,9 @@ int32_t smem_seek(StateMem *st, uint32_t offset, int whence)
       return(-1);
    }
 
-   if(st->loc < 0)
-   {
-      st->loc = 0;
-      return(-1);
-   }
+   /* st->loc is uint32_t; the prior `if (st->loc < 0)` branch was
+    * unreachable. SEEK_END with offset > len wraps to a huge value
+    * which is correctly clamped by the > st->len check above. */
 
    return(0);
 }

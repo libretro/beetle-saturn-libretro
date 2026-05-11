@@ -26,11 +26,17 @@ static float mouse_sensitivity			= 1.0f;
 static unsigned geometry_width			= 0;
 static unsigned geometry_height			= 0;
 
-static int pointer_pressed			= 0;
-static const int POINTER_PRESSED_CYCLES		= 4;
-static int pointer_cycles_after_released	= 0;
-static int pointer_pressed_last_x 		= 0;
-static int pointer_pressed_last_y		= 0;
+// Pointer/touchscreen state, per-player. Previously these were single
+// globals shared across all players, which broke multi-player gun setups
+// and caused player 0's hold state to clobber player 1's input.
+// POINTER_PRESSED_CYCLES was previously 4 (== 4 retro_run calls of forced
+// latency on every touch release) which baked in ~67ms of input lag on
+// the touchscreen-gun path. 1 cycle is sufficient for debounce.
+static const int POINTER_PRESSED_CYCLES		= 1;
+static int pointer_pressed[ MAX_CONTROLLERS ]			= {0};
+static int pointer_cycles_after_released[ MAX_CONTROLLERS ]	= {0};
+static int pointer_pressed_last_x[ MAX_CONTROLLERS ]		= {0};
+static int pointer_pressed_last_y[ MAX_CONTROLLERS ]		= {0};
 
 typedef union
 {
@@ -949,28 +955,33 @@ void input_update_with_bitmasks( retro_input_state_t input_state_cb )
 					}
 
 					// Touch sensitivity: Keep the gun position held for a fixed number of cycles after touch is released
-					// because a very light touch can result in a misfire
-					if ( pointer_cycles_after_released > 0 && pointer_cycles_after_released < POINTER_PRESSED_CYCLES ) {
-						pointer_cycles_after_released++;
-						p_input->gun_pos[ 0 ] = pointer_pressed_last_x;
-						p_input->gun_pos[ 1 ] = pointer_pressed_last_y;
-						return;
+					// because a very light touch can result in a misfire.
+					// NOTE: this block used 'return' previously, which aborted the entire
+					// per-player input update loop and left players 1..N with stale input
+					// from the prior frame. It also clobbered pointer state across players.
+					// Both are fixed: state is per-player, and we 'break' out of the
+					// switch so the for-loop advances to the next player.
+					if ( pointer_cycles_after_released[ iplayer ] > 0 && pointer_cycles_after_released[ iplayer ] < POINTER_PRESSED_CYCLES ) {
+						pointer_cycles_after_released[ iplayer ]++;
+						p_input->gun_pos[ 0 ] = pointer_pressed_last_x[ iplayer ];
+						p_input->gun_pos[ 1 ] = pointer_pressed_last_y[ iplayer ];
+						break;
 					}
 
 					// trigger
 					if ( input_state_cb( iplayer, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_PRESSED ) )
 					{
-						pointer_pressed = 1;
-						pointer_cycles_after_released = 0;
-						pointer_pressed_last_x = gun_x;
-						pointer_pressed_last_y = gun_y;
-					} else if ( pointer_pressed ) {
-						pointer_cycles_after_released++;
-						pointer_pressed = 0;
-						p_input->gun_pos[ 0 ] = pointer_pressed_last_x;
-						p_input->gun_pos[ 1 ] = pointer_pressed_last_y;
+						pointer_pressed[ iplayer ] = 1;
+						pointer_cycles_after_released[ iplayer ] = 0;
+						pointer_pressed_last_x[ iplayer ] = gun_x;
+						pointer_pressed_last_y[ iplayer ] = gun_y;
+					} else if ( pointer_pressed[ iplayer ] ) {
+						pointer_cycles_after_released[ iplayer ]++;
+						pointer_pressed[ iplayer ] = 0;
+						p_input->gun_pos[ 0 ] = pointer_pressed_last_x[ iplayer ];
+						p_input->gun_pos[ 1 ] = pointer_pressed_last_y[ iplayer ];
 						p_input->u8[4] &= ~0x1;
-						return;
+						break;
 					}
 
 					// position
@@ -1500,28 +1511,33 @@ void input_update( retro_input_state_t input_state_cb )
 					}
 
 					// Touch sensitivity: Keep the gun position held for a fixed number of cycles after touch is released
-					// because a very light touch can result in a misfire
-					if ( pointer_cycles_after_released > 0 && pointer_cycles_after_released < POINTER_PRESSED_CYCLES ) {
-						pointer_cycles_after_released++;
-						p_input->gun_pos[ 0 ] = pointer_pressed_last_x;
-						p_input->gun_pos[ 1 ] = pointer_pressed_last_y;
-						return;
+					// because a very light touch can result in a misfire.
+					// NOTE: this block used 'return' previously, which aborted the entire
+					// per-player input update loop and left players 1..N with stale input
+					// from the prior frame. It also clobbered pointer state across players.
+					// Both are fixed: state is per-player, and we 'break' out of the
+					// switch so the for-loop advances to the next player.
+					if ( pointer_cycles_after_released[ iplayer ] > 0 && pointer_cycles_after_released[ iplayer ] < POINTER_PRESSED_CYCLES ) {
+						pointer_cycles_after_released[ iplayer ]++;
+						p_input->gun_pos[ 0 ] = pointer_pressed_last_x[ iplayer ];
+						p_input->gun_pos[ 1 ] = pointer_pressed_last_y[ iplayer ];
+						break;
 					}
 
 					// trigger
 					if ( input_state_cb( iplayer, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_PRESSED ) )
 					{
-						pointer_pressed = 1;
-						pointer_cycles_after_released = 0;
-						pointer_pressed_last_x = gun_x;
-						pointer_pressed_last_y = gun_y;
-					} else if ( pointer_pressed ) {
-						pointer_cycles_after_released++;
-						pointer_pressed = 0;
-						p_input->gun_pos[ 0 ] = pointer_pressed_last_x;
-						p_input->gun_pos[ 1 ] = pointer_pressed_last_y;
+						pointer_pressed[ iplayer ] = 1;
+						pointer_cycles_after_released[ iplayer ] = 0;
+						pointer_pressed_last_x[ iplayer ] = gun_x;
+						pointer_pressed_last_y[ iplayer ] = gun_y;
+					} else if ( pointer_pressed[ iplayer ] ) {
+						pointer_cycles_after_released[ iplayer ]++;
+						pointer_pressed[ iplayer ] = 0;
+						p_input->gun_pos[ 0 ] = pointer_pressed_last_x[ iplayer ];
+						p_input->gun_pos[ 1 ] = pointer_pressed_last_y[ iplayer ];
 						p_input->u8[4] &= ~0x1;
-						return;
+						break;
 					}
 
 					// position

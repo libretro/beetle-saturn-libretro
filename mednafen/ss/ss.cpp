@@ -95,10 +95,14 @@ uint8 WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear acc
 // Effectively 32-bit in reality, but 16-bit here because of CPU interpreter design(regarding fastmap).
 static uint16* WorkRAML = (uint16*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*0));
 static uint16* WorkRAMH = (uint16*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*1));
-static uint8 BackupRAM[32768];
-static bool BackupRAM_Dirty;
-static int64 BackupRAM_SaveDelay;
-static int64 CartNV_SaveDelay;
+// BackupRAM is exposed (no longer file-static) so libretro.cpp can hand a
+// pointer to the frontend via retro_get_memory_data(RETRO_MEMORY_SAVE_RAM).
+// BackupRAM_Dirty and CartNV_Dirty are sticky flags maintained here and
+// drained by libretro.cpp from outside Emulate() -- see comment in
+// Emulate() above. The old master-cycle delay variables are gone.
+uint8 BackupRAM[32768];
+bool BackupRAM_Dirty;
+bool CartNV_Dirty;
 
 #define SH7095_EXT_MAP_GRAN_BITS 16
 static uintptr_t SH7095_FastMap[1U << (32 - SH7095_EXT_MAP_GRAN_BITS)];
@@ -752,48 +756,26 @@ void Emulate(EmulateSpecStruct* espec_arg)
 
  SMPC_UpdateOutput();
  //
+ // Backup-RAM and cart-NV dirty tracking.
  //
+ // Previously this block performed synchronous file I/O from inside
+ // Emulate() (SaveBackupRAM/SaveCartNV under a master-cycle countdown).
+ // That had two big problems for a libretro core:
+ //   1. Run-ahead / rewind / netplay re-emulate frames repeatedly. The
+ //      cycle-counted delay fires identically on each pass, so a single
+ //      real frame could produce two or three full SaveBackupRAM disk
+ //      writes -- visible as stutter and unstable frame pacing.
+ //   2. The save is fully synchronous (FileStream::write+close) on the
+ //      emulation thread, so the duration is unpredictable under load.
  //
- if(BackupRAM_Dirty)
- {
-  BackupRAM_SaveDelay = (int64)3 * (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));  // 3 second delay
-  BackupRAM_Dirty = false;
- }
- else if(BackupRAM_SaveDelay > 0)
- {
-  BackupRAM_SaveDelay -= espec->MasterCycles;
-
-  if(BackupRAM_SaveDelay <= 0)
-  {
-   try
-   {
-    SaveBackupRAM();
-   }
-   catch(std::exception& e)
-   {
-    BackupRAM_SaveDelay = (int64)60 * (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));  // 60 second retry delay.
-   }
-  }
- }
-
+ // The fix is to keep BackupRAM_Dirty (and the cart-NV dirty bit) as
+ // pure flags here, and let libretro.cpp flush them from retro_run --
+ // outside Emulate, with awareness of RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE
+ // so run-ahead simulation frames don't trigger writes. The frontend
+ // can also manage Backup RAM directly via RETRO_MEMORY_SAVE_RAM.
+ //
  if(CART_GetClearNVDirty())
-  CartNV_SaveDelay = (int64)3 * (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));  // 3 second delay
- else if(CartNV_SaveDelay > 0)
- {
-  CartNV_SaveDelay -= espec->MasterCycles;
-
-  if(CartNV_SaveDelay <= 0)
-  {
-   try
-   {
-    SaveCartNV();
-   }
-   catch(std::exception& e)
-   {
-    CartNV_SaveDelay = (int64)60 * (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));  // 60 second retry delay.
-   }
-  }
- }
+  CartNV_Dirty = true;
 }
 
 //
@@ -946,6 +928,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       else if(filestream_get_size(BIOSFile) != 524288)
       {
          log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" is of an incorrect size.\n", bios_path);
+         filestream_close(BIOSFile);   // <-- previously leaked on this path
          return false;
       }
       else
@@ -984,11 +967,11 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    BackupBackupRAM();
    BackupCartNV();
 
+   // Just-loaded state is by definition clean. The cycle-counted
+   // SaveDelay variables are gone -- see comment in Emulate().
    BackupRAM_Dirty = false;
-   BackupRAM_SaveDelay = 0;
-
    CART_GetClearNVDirty();
-   CartNV_SaveDelay = 0;
+   CartNV_Dirty = false;
    //
    if(MDFN_GetSettingB("ss.smpc.autortc"))
    {
@@ -999,6 +982,11 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       {
          log_cb(RETRO_LOG_ERROR,
                "AutoRTC error #1\n");
+         // Previously this just returned false, leaving the VDP2
+         // render thread, semaphore, queue, SCU, SMPC, etc. fully
+         // initialised. A subsequent load would then double-init
+         // and race with the orphaned render thread.
+         Cleanup();
          return false;
       }
 
@@ -1006,6 +994,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       {
          log_cb(RETRO_LOG_ERROR,
                "AutoRTC error #2\n");
+         Cleanup();
          return false;
       }
 
@@ -1135,6 +1124,50 @@ static MDFN_COLD void SaveCartNV(void)
 
       nvs.close();
    }
+}
+
+//
+// Public flush entry points for libretro.cpp.
+//
+// These wrap the (still static) SaveBackupRAM / SaveCartNV functions so
+// the file I/O can happen from outside Emulate(), after retro_run() has
+// emulated a frame and before it returns. Calling these from outside
+// Emulate() is what makes run-ahead / rewind / netplay friendly: those
+// features re-run Emulate() multiple times per real frame, and the
+// previous design issued a disk write on every re-run when the BRAM/cart
+// dirty timer expired.
+//
+// Both return true on success and false on failure (so the caller can
+// schedule a retry); they swallow exceptions because they're called from
+// the libretro retro_run boundary where letting an exception escape
+// would unwind through the frontend.
+//
+bool SS_FlushBackupRAM(void)
+{
+ try
+ {
+  SaveBackupRAM();
+  return true;
+ }
+ catch(std::exception& e)
+ {
+  log_cb(RETRO_LOG_ERROR, "SS_FlushBackupRAM failed: %s\n", e.what());
+  return false;
+ }
+}
+
+bool SS_FlushCartNV(void)
+{
+ try
+ {
+  SaveCartNV();
+  return true;
+ }
+ catch(std::exception& e)
+ {
+  log_cb(RETRO_LOG_ERROR, "SS_FlushCartNV failed: %s\n", e.what());
+  return false;
+ }
 }
 
 static MDFN_COLD void SaveRTC(void)
