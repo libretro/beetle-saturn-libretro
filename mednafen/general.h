@@ -30,7 +30,9 @@ typedef enum
  MDFNMKF_FIRMWARE
 } MakeFName_Type;
 
-const char *MDFN_MakeFName(MakeFName_Type type, int id1, const char *cd1);
+// Caller-allocated buffer (buf, buflen). Returns buf for chaining.
+// See libretro.cpp definition for the migration rationale.
+char *MDFN_MakeFName(char *buf, size_t buflen, MakeFName_Type type, int id1, const char *cd1);
 
 const char * GetFNComponent(const char *str);
 

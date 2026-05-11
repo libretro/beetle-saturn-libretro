@@ -1025,7 +1025,8 @@ void MDFN_BackupSavFile(const uint8 max_backup_count, const char* sav_ext)
 
 static MDFN_COLD void SaveBackupRAM(void)
 {
- FileStream brs(MDFN_MakeFName(MDFNMKF_SAV, 0, "bkr"), MODE_WRITE_INPLACE);
+ char fpath[4096];
+ FileStream brs(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr"), MODE_WRITE_INPLACE);
 
  brs.write(BackupRAM, sizeof(BackupRAM));
 
@@ -1034,7 +1035,8 @@ static MDFN_COLD void SaveBackupRAM(void)
 
 static MDFN_COLD void LoadBackupRAM(void)
 {
- RFILE *brs = filestream_open(MDFN_MakeFName(MDFNMKF_SAV, 0, "bkr"),
+ char fpath[4096];
+ RFILE *brs = filestream_open(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr"),
        RETRO_VFS_FILE_ACCESS_READ,
        RETRO_VFS_FILE_ACCESS_HINT_NONE);
 
@@ -1071,6 +1073,7 @@ static MDFN_COLD void LoadCartNV(void)
    void* nv_ptr    = nullptr;
    bool nv16       = false;
    uint64 nv_size  = 0;
+   char fpath[4096];
 
    CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
 
@@ -1078,7 +1081,7 @@ static MDFN_COLD void LoadCartNV(void)
       return;
 
    nvs = filestream_open(
-         MDFN_MakeFName(MDFNMKF_CART, 0, ext),
+         MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, ext),
          RETRO_VFS_FILE_ACCESS_READ,
          RETRO_VFS_FILE_ACCESS_HINT_NONE);
 
@@ -1105,12 +1108,13 @@ static MDFN_COLD void SaveCartNV(void)
    void* nv_ptr = nullptr;
    bool nv16 = false;
    uint64 nv_size = 0;
+   char fpath[4096];
 
    CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
 
    if(ext)
    {
-      FileStream nvs(MDFN_MakeFName(MDFNMKF_CART, 0, ext), MODE_WRITE_INPLACE);
+      FileStream nvs(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, ext), MODE_WRITE_INPLACE);
 
       if(nv16)
       {
@@ -1172,7 +1176,8 @@ bool SS_FlushCartNV(void)
 
 static MDFN_COLD void SaveRTC(void)
 {
-   FileStream sds(MDFN_MakeFName(MDFNMKF_SAV, 0, "smpc"), MODE_WRITE_INPLACE);
+   char fpath[4096];
+   FileStream sds(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "smpc"), MODE_WRITE_INPLACE);
 
    SMPC_SaveNV(&sds);
 
@@ -1181,7 +1186,8 @@ static MDFN_COLD void SaveRTC(void)
 
 static MDFN_COLD void LoadRTC(void)
 {
-   FileStream sds(MDFN_MakeFName(MDFNMKF_SAV, 0, "smpc"), MODE_READ);
+   char fpath[4096];
+   FileStream sds(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "smpc"), MODE_READ);
 
    SMPC_LoadNV(&sds);
 }

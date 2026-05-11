@@ -157,8 +157,9 @@ void CART_Init(const int cart_type)
   case CART_KOF95:
   case CART_ULTRAMAN:
    {
+      char fpath[4096];
       const std::string path_cxx = MDFN_GetSettingS((cart_type == CART_KOF95) ? "ss.cart.kof95_path" : "ss.cart.ultraman_path");
-      const char *path = MDFN_MakeFName(MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
+      const char *path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
       RFILE      *fp   = filestream_open(path,
             RETRO_VFS_FILE_ACCESS_READ,
             RETRO_VFS_FILE_ACCESS_HINT_NONE);
@@ -173,8 +174,9 @@ void CART_Init(const int cart_type)
 
   case CART_AR4MP:
    {
+      char fpath[4096];
       const std::string path_cxx = MDFN_GetSettingS("ss.cart.satar4mp_path");
-      const char *path = MDFN_MakeFName(MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
+      const char *path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
       RFILE      *fp   = filestream_open(path,
             RETRO_VFS_FILE_ACCESS_READ,
             RETRO_VFS_FILE_ACCESS_HINT_NONE);
@@ -193,8 +195,9 @@ void CART_Init(const int cart_type)
 
   case CART_BOOTROM:
    {
+        char fpath[4096];
         const std::string path_cxx = MDFN_GetSettingS("ss.cart.bootrom_path");
-        const char *path = MDFN_MakeFName(MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
+        const char *path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
         RFILE      *fp   = filestream_open(path,
               RETRO_VFS_FILE_ACCESS_READ,
               RETRO_VFS_FILE_ACCESS_HINT_NONE);

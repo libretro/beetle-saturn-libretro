@@ -2613,24 +2613,31 @@ static int32 ApplyHBlend(uint32* const target, int32 w)
  #undef BHALF
 }
 
-static void ReorderRGB(uint32* target, const unsigned w, const unsigned Rshift, const unsigned Gshift, const unsigned Bshift)
+// Reorder per-pixel RGB layout. The VDP2 internal pipeline produces
+// pixels with R at bits 0-7, G at 8-15, B at 16-23, alpha don't-care.
+// The libretro framebuffer expects R at RED_SHIFT (16), G at
+// GREEN_SHIFT (8), B at BLUE_SHIFT (0), alpha at ALPHA_SHIFT (24).
+// In other words: swap R and B byte positions, keep G, zero alpha.
+//
+// That's exactly __builtin_bswap32(val) >> 8 with the trailing zeros
+// landing in the high (alpha) byte. The previous implementation took
+// the three shift values as runtime parameters and did the manual
+// shift/mask/or sequence (8+ instructions on x86); this lowers to
+// a single bswap + shr (2 instructions) and is loop-vectorizable by
+// any modern compiler. Marking INLINE so the single call site below
+// doesn't carry the per-line call/ret overhead.
+static INLINE void ReorderRGB(uint32* target, const unsigned w)
 {
  assert(!(w & 1));
+ static_assert(RED_SHIFT == 16 && GREEN_SHIFT == 8 && BLUE_SHIFT == 0,
+   "ReorderRGB fast-path assumes R<<16 | G<<8 | B<<0 output layout");
+
  uint32* const bound = target + w;
 
  while(MDFN_LIKELY(target != bound))
  {
-  const uint32 tmp0 = target[0];
-  const uint32 tmp1 = target[1];
-
-  target[0] = ((uint8)(tmp0 >>  0) << Rshift) |
-	      ((uint8)(tmp0 >>  8) << Gshift) |
-	      ((uint8)(tmp0 >> 16) << Bshift);
-
-  target[1] = ((uint8)(tmp1 >>  0) << Rshift) |
-	      ((uint8)(tmp1 >>  8) << Gshift) |
-	      ((uint8)(tmp1 >> 16) << Bshift);
-
+  target[0] = __builtin_bswap32(target[0]) >> 8;
+  target[1] = __builtin_bswap32(target[1]) >> 8;
   target += 2;
  }
 }
@@ -3064,11 +3071,10 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
      special = MIXIT_SPECIAL_HIRES_CRAM12;
    }
    MixIt[rbgdualen][special][CCRTMD][CCMD](target + tvxo, vdp2_line, w, back_rgb24, blursrc);
-   // surface->format.{R,G,B}shift was always {16,8,0} for the libretro
-   // 32bpp RGBA layout. Now that MDFN_PixelFormat is gone (see the
-   // beetle-psx surface.h header port), pass the compile-time
-   // constants from surface.h directly. Functionally identical.
-   ReorderRGB(target + tvxo, w, RED_SHIFT, GREEN_SHIFT, BLUE_SHIFT);
+   // ReorderRGB now hardcodes the R/G/B shift positions (which were
+   // always RED_SHIFT/GREEN_SHIFT/BLUE_SHIFT anyway) and uses
+   // __builtin_bswap32 to do the byte swap in one instruction.
+   ReorderRGB(target + tvxo, w);
   }
   //
   //
@@ -3132,6 +3138,25 @@ static std::atomic_uint_least32_t WQ_InCount;
 static std::atomic_int_least32_t DrawCounter;
 static bool DoBusyWait;
 ssem_t* WakeupSem;
+
+// Drain coordination: when EndFrame is called the producer has to wait
+// for the consumer thread to drain the rest of this frame's DRAW_LINE
+// commands (DrawCounter going back to zero). The old implementation
+// spun: ssem_signal(WakeupSem) + retro_sleep(0) repeatedly until the
+// counter hit zero. That works but burns producer CPU on every frame
+// transition for as long as the consumer takes -- and on some systems
+// retro_sleep(0) is implemented as sched_yield() which keeps the
+// producer at the head of the runqueue, defeating the yield.
+//
+// Replacement: a mutex+condvar pair. EndFrame waits on scond_wait
+// (proper kernel block, zero spinning); the consumer's COMMAND_DRAW_LINE
+// handler signals on the fetch_sub that takes DrawCounter to zero.
+// Per-frame overhead: 1 lock+unlock+wait on the producer, 1 lock+
+// signal+unlock on the consumer (only for the line that hits zero,
+// not every line). Net change: a few microseconds of overhead per
+// frame, in exchange for zero CPU spent spinning during the drain.
+static slock_t  *DrainLock = NULL;
+static scond_t  *DrainCond = NULL;
 static bool DoWakeupIfNecessary;
 
 static INLINE void WWQ(uint16 command, uint32 arg32 = 0, uint16 arg16 = 0)
@@ -3199,7 +3224,20 @@ static void/*int*/ RThreadEntry(void* data)
 	//for(unsigned i = 0; i < 2; i++)
 	DrawLine((uint16)wqe->Arg32, wqe->Arg32 >> 16, wqe->Arg16);
 	//
-	DrawCounter.fetch_sub(1, std::memory_order_release);
+	// fetch_sub returns the old value, so the transition-to-zero is
+	// when the OLD value was 1. Signal the drain condvar only on that
+	// transition -- the producer is waiting in EndFrame for this
+	// exact moment. The slock_lock / unlock pair around scond_signal
+	// is required by the POSIX-style API even though our visible
+	// state is the atomic DrawCounter; without the lock there's a
+	// classic missed-wakeup race window between the producer's
+	// load() and its scond_wait().
+	if (DrawCounter.fetch_sub(1, std::memory_order_release) == 1)
+	{
+	   slock_lock(DrainLock);
+	   scond_signal(DrainCond);
+	   slock_unlock(DrainLock);
+	}
 	break;
 
    case COMMAND_RESET:
@@ -3247,6 +3285,8 @@ void VDP2REND_Init(const bool IsPAL, const uint64 affinity)
  WQ_InCount.store(0, std::memory_order_release); 
  DrawCounter.store(0, std::memory_order_release);
  WakeupSem = ssem_new(0);
+ DrainLock = slock_new();
+ DrainCond = scond_new();
  RThread = sthread_create(RThreadEntry, NULL);
 }
 
@@ -3326,6 +3366,21 @@ void VDP2REND_Kill(void)
   ssem_free(WakeupSem);
   WakeupSem = NULL;
  }
+
+ // Drain primitives are freed after sthread_join above so we can't be
+ // racing with a consumer that's still alive and might try to signal
+ // the cond. Producer (this thread) is the only remaining accessor at
+ // this point.
+ if (DrainCond != NULL)
+ {
+  scond_free(DrainCond);
+  DrainCond = NULL;
+ }
+ if (DrainLock != NULL)
+ {
+  slock_free(DrainLock);
+  DrainLock = NULL;
+ }
 }
 
 void VDP2REND_StartFrame(EmulateSpecStruct* espec_arg, const bool clock28m, const int SurfInterlaceField)
@@ -3352,15 +3407,26 @@ void VDP2REND_StartFrame(EmulateSpecStruct* espec_arg, const bool clock28m, cons
 
 void VDP2REND_EndFrame(void)
 {
- // Drain wait: same Sleep(1)-granularity rationale as in WWQ. The render
- // thread signals itself via ssem_signal on each line drawn, so we
- // mostly stay in retro_sleep(0)'s yield path and avoid Windows'
- // ~15ms minimum dwell that the old retro_sleep(1) imposed -- which
- // showed up as audio dropouts and frame drops on marginal hardware.
- while(MDFN_UNLIKELY(DrawCounter.load(std::memory_order_acquire) != 0))
+ // Wait for the consumer thread to finish all queued DRAW_LINE
+ // commands for this frame. Replaces an old spin-yield loop
+ // (ssem_signal(WakeupSem) + retro_sleep(0) repeatedly) with a
+ // condvar wait. The consumer's DRAW_LINE handler now signals
+ // DrainCond on the fetch_sub that takes DrawCounter to zero;
+ // see the case in RThreadEntry. The slock around scond_wait is
+ // POSIX-required even though we never write any shared state
+ // while holding it -- the lock is what closes the missed-wakeup
+ // race between checking DrawCounter and entering scond_wait.
+ //
+ // The initial WakeupSem signal is still needed: it kicks the
+ // consumer out of any ssem_wait it might be in on an empty
+ // command queue, so progress on DrawCounter can resume.
+ if (MDFN_UNLIKELY(DrawCounter.load(std::memory_order_acquire) != 0))
  {
-   ssem_signal(WakeupSem);
-   retro_sleep(0);
+  ssem_signal(WakeupSem);
+  slock_lock(DrainLock);
+  while (DrawCounter.load(std::memory_order_acquire) != 0)
+   scond_wait(DrainCond, DrainLock);
+  slock_unlock(DrainLock);
  }
 
  WWQ(COMMAND_SET_BUSYWAIT, false);

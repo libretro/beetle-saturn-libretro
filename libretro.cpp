@@ -1206,43 +1206,45 @@ void retro_cheat_set(unsigned, bool, const char *)
 {}
 
 // Use a simpler approach to make sure that things go right for libretro.
-// MDFN_MakeFName returns a pointer to a function-static buffer. This
-// is *not* reentrant or thread-safe: a second call from any context
-// clobbers the result of the first. All current callers consume the
-// pointer immediately on the emulation thread, which is safe, but new
-// callers must do the same -- copy the string out before any other
-// MDFN_MakeFName call. The default switch arm returns an empty string;
-// new MakeFName_Type values reach this path silently and a future
-// caller could be surprised, so log unknown types to make it visible.
-const char *MDFN_MakeFName(MakeFName_Type type, int id1, const char *cd1)
+// Caller-allocated buffer rather than a function-static return area.
+// The previous signature returned a pointer to a 4KB function-static
+// buffer that was clobbered by every subsequent call from any thread.
+// All current callers used the result immediately so the bug was
+// latent, but it was the kind of footgun that bites the moment a
+// future caller stashes the pointer or another thread calls in
+// between. Caller-allocated buffer eliminates the class of bug; we
+// return the buf parameter so the call still flows into a single
+// expression (`FileStream f(MDFN_MakeFName(buf, sizeof buf, ...))`).
+//
+// On unknown MakeFName_Type, log and return an empty string in buf.
+char *MDFN_MakeFName(char *buf, size_t buflen, MakeFName_Type type, int id1, const char *cd1)
 {
-   static char fullpath[4096];
-
-   fullpath[0] = '\0';
+   if (buflen)
+      buf[0] = '\0';
 
    switch (type)
    {
       case MDFNMKF_SAV:
-         snprintf(fullpath, sizeof(fullpath), "%s" RETRO_SLASH "%s.%s",
+         snprintf(buf, buflen, "%s" RETRO_SLASH "%s.%s",
                retro_save_directory,
                (!shared_intmemory) ? retro_cd_base_name : "mednafen_saturn_libretro_shared",
                cd1);
          break;
       case MDFNMKF_CART:
-         snprintf(fullpath, sizeof(fullpath), "%s" RETRO_SLASH "%s.%s",
+         snprintf(buf, buflen, "%s" RETRO_SLASH "%s.%s",
                retro_save_directory,
                (!shared_backup) ? retro_cd_base_name : "mednafen_saturn_libretro_shared",
                cd1);
          break;
       case MDFNMKF_FIRMWARE:
-         snprintf(fullpath, sizeof(fullpath), "%s" RETRO_SLASH "%s", retro_base_directory, cd1);
+         snprintf(buf, buflen, "%s" RETRO_SLASH "%s", retro_base_directory, cd1);
          break;
       default:
          log_cb(RETRO_LOG_WARN, "MDFN_MakeFName called with unknown type %d\n", (int)type);
          break;
    }
 
-   return fullpath;
+   return buf;
 }
 
 void MDFN_MidSync(void)
