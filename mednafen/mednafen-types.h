@@ -114,12 +114,23 @@ typedef struct
 // MDFN_FORCE_INLINE is new -- there were ad-hoc places in the renderer
 // audit that wanted an unconditional inline; this gives a portable
 // spelling for it. Maps to __forceinline on MSVC.
+//
+// MDFN_HIDE specifically needs an extra guard: the
+// __attribute__((visibility)) form is only meaningful on ELF / Mach-O
+// targets (Linux, macOS, BSD). On Windows PE/COFF -- including MinGW
+// builds, which still use GCC -- the attribute is parsed but ignored
+// with a warning at every use site (and we have 60+ of them). Disable
+// it cleanly for that target so MinGW builds compile quietly.
 #if defined(__GNUC__)
  #define MDFN_HOT          __attribute__((hot))
  #define MDFN_COLD         __attribute__((cold))
- #define MDFN_HIDE         __attribute__((visibility("hidden")))
  #define NO_CLONE          __attribute__((noclone))
  #define MDFN_FORCE_INLINE __attribute__((always_inline)) inline
+ #if defined(_WIN32) || defined(__CYGWIN__)
+  #define MDFN_HIDE
+ #else
+  #define MDFN_HIDE        __attribute__((visibility("hidden")))
+ #endif
 #elif defined(_MSC_VER)
  #define MDFN_HOT
  #define MDFN_COLD
