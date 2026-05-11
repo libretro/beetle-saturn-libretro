@@ -50,10 +50,16 @@ static void crosshair_plot( MDFN_Surface* surface,
 							int chair_g,
 							int chair_b )
 {
-	int r, g, b;
+	int r, g, b, a;
 	int nr, ng, nb;
 
-	surface->DecodeColor( lpix[x], r, g, b );
+	// surface->DecodeColor(...) used to do this via a member function on
+	// MDFN_Surface; the surface header port from beetle-psx-libretro made
+	// MDFN_DecodeColor a free function and removed the (unused) palette
+	// and per-instance format. We don't need alpha here; just take it as
+	// a sink.
+	MDFN_DecodeColor( lpix[x], &r, &g, &b, &a );
+	(void)a;
 
 	//
 	nr = (r + chair_r * 3) >> 2;

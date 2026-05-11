@@ -3064,7 +3064,11 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
      special = MIXIT_SPECIAL_HIRES_CRAM12;
    }
    MixIt[rbgdualen][special][CCRTMD][CCMD](target + tvxo, vdp2_line, w, back_rgb24, blursrc);
-   ReorderRGB(target + tvxo, w, espec->surface->format.Rshift, espec->surface->format.Gshift, espec->surface->format.Bshift);
+   // surface->format.{R,G,B}shift was always {16,8,0} for the libretro
+   // 32bpp RGBA layout. Now that MDFN_PixelFormat is gone (see the
+   // beetle-psx surface.h header port), pass the compile-time
+   // constants from surface.h directly. Functionally identical.
+   ReorderRGB(target + tvxo, w, RED_SHIFT, GREEN_SHIFT, BLUE_SHIFT);
   }
   //
   //

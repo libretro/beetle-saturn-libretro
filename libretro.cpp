@@ -133,14 +133,16 @@ static MDFN_Surface *surf = NULL;
 
 static void alloc_surface(void)
 {
-  MDFN_PixelFormat pix_fmt(MDFN_COLORSPACE_RGB, 16, 8, 0, 24);
   uint32_t width  = MEDNAFEN_CORE_GEOMETRY_MAX_W;
   uint32_t height = MEDNAFEN_CORE_GEOMETRY_MAX_H;
 
-  if (surf != NULL)
-    delete surf;
-
-  surf = new MDFN_Surface(NULL, width, height, width, pix_fmt);
+  // The MDFN_PixelFormat construction is gone; the new surface API
+  // (ported in from beetle-psx-libretro) hard-codes a single
+  // 32bpp RGBA layout via the RED_SHIFT/GREEN_SHIFT/etc macros in
+  // surface.h. Every call site was already passing the same
+  // R=16/G=8/B=0/A=24 shifts anyway.
+  MDFN_Surface_Delete(surf);
+  surf = MDFN_Surface_New(width, height, width);
 }
 
 static void check_system_specs(void)
@@ -222,6 +224,13 @@ void retro_init(void)
 
    CDUtility_Init();
    disc_init(environ_cb);
+
+#ifdef NEED_DEINTERLACER
+   // C struct now, not a C++ class with a constructor. Init zeroes
+   // StateValid/PrevDRect_* and sets DeintType = DEINT_WEAVE, matching
+   // the previous default-constructed Saturn Deinterlacer behaviour.
+   Deinterlacer_Init(&deint);
+#endif
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_PERF_INTERFACE, &perf_cb))
       perf_get_cpu_features_cb = perf_cb.get_cpu_features;
@@ -450,9 +459,9 @@ static void check_variables(bool startup)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "bob") == 0)
-         deint.SetType(Deinterlacer::DEINT_BOB);
+         Deinterlacer_SetType(&deint, DEINT_BOB);
       else
-         deint.SetType(Deinterlacer::DEINT_WEAVE);
+         Deinterlacer_SetType(&deint, DEINT_WEAVE);
    }
 
    var.key = "beetle_saturn_analog_stick_deadzone";
@@ -700,7 +709,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
 #ifdef NEED_DEINTERLACER
    PrevInterlaced = false;
-   deint.ClearState();
+   Deinterlacer_ClearState(&deint);
 #endif
 
    input_init();
@@ -768,6 +777,13 @@ void retro_unload_game(void)
    serialize_size = 0;
 }
 
+// current_frame_is_sim is set at the top of retro_run() to indicate
+// whether this retro_run call is a run-ahead simulation pass (frame
+// the frontend will throw away) vs a real visible frame. MidSync
+// consults this to decide whether to re-poll input mid-frame -- see
+// MDFN_MidSync below for the full rationale.
+static bool current_frame_is_sim = false;
+
 void retro_run(void)
 {
    bool updated = false;
@@ -779,6 +795,21 @@ void retro_run(void)
    // statics persisted across retro_unload_game / retro_load_game and
    // could prevent a needed SET_GEOMETRY when a new game happened to
    // start with the same dimensions as the previous one.
+
+   // Decide once, up front, whether this retro_run is a run-ahead
+   // simulation pass (video disabled => the frame will be discarded).
+   // The decision is used in two places: by MDFN_MidSync to decide
+   // whether to re-poll input mid-frame (skip on sim frames so the
+   // simulated input timeline matches the eventual visible frame's
+   // timeline), and by the BRAM / cart-NV flush block at the bottom
+   // of this function to skip disk writes during simulation.
+   {
+      int av_enable = 0x3; /* default: video + audio enabled */
+      if (environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &av_enable))
+         current_frame_is_sim = !(av_enable & 1);
+      else
+         current_frame_is_sim = false;
+   }
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
       check_variables(false);
@@ -816,11 +847,11 @@ void retro_run(void)
    if (spec.InterlaceOn)
    {
       if (!PrevInterlaced)
-         deint.ClearState();
+         Deinterlacer_ClearState(&deint);
 
-      deint.Process(spec.surface, spec.DisplayRect, spec.LineWidths, spec.InterlaceField);
+      Deinterlacer_Process(&deint, spec.surface, &spec.DisplayRect, spec.LineWidths, spec.InterlaceField);
 
-      PrevInterlaced = (deint.GetType() == Deinterlacer::DEINT_WEAVE) ? true : false;
+      PrevInterlaced = (Deinterlacer_GetType(&deint) == DEINT_WEAVE) ? true : false;
 
       spec.InterlaceOn = false;
       spec.InterlaceField = 0;
@@ -878,8 +909,8 @@ void retro_run(void)
    // rewind / netplay fire spurious disk writes on every simulated
    // frame. The replacement: maintain dirty flags inside Emulate(),
    // and flush from here -- once per real retro_run, skipped during
-   // run-ahead simulation passes (which the frontend signals by
-   // disabling video via RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE
+   // run-ahead simulation passes (current_frame_is_sim was set at the
+   // top of this function from RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE
    // bit 0). The 3-second batching delay is preserved via a frame
    // counter; ~180 frames at NTSC's 59.83 Hz and PAL's 49.92 Hz both
    // round to roughly 3 seconds, close enough for save batching.
@@ -890,12 +921,7 @@ void retro_run(void)
       static const unsigned SAVE_INTERVAL_FRAMES = 180;
       static const unsigned RETRY_INTERVAL_FRAMES = 60; /* used as backoff after a failed write */
 
-      int av_enable = 0x3; /* default: video + audio enabled */
-      bool is_runahead_sim = false;
-      if (environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &av_enable))
-         is_runahead_sim = !(av_enable & 1); /* video disabled => simulation pass */
-
-      if (!is_runahead_sim)
+      if (!current_frame_is_sim)
       {
          if (BackupRAM_Dirty)
          {
@@ -993,8 +1019,12 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
 void retro_deinit(void)
 {
-   delete surf;
+   MDFN_Surface_Delete(surf);
    surf = NULL;
+
+#ifdef NEED_DEINTERLACER
+   Deinterlacer_Cleanup(&deint);
+#endif
 
    libretro_supports_option_categories = false;
    libretro_supports_bitmasks          = false;
@@ -1217,6 +1247,27 @@ const char *MDFN_MakeFName(MakeFName_Type type, int id1, const char *cd1)
 
 void MDFN_MidSync(void)
 {
+   // Mid-frame input re-poll. This is what hooks the freshest available
+   // user input into the SMPC cache right before the emulated VBLANK
+   // (where most Saturn games run their INTBACK), shaving roughly half
+   // a frame off input-to-response latency.
+   //
+   // Mid-frame polling is, however, fundamentally at odds with features
+   // that re-execute frames to compute input-to-pixel paths -- run-ahead,
+   // rewind, netplay rollback, movie replay. Those features all assume
+   // a given retro_run() produces the same output for the same inputs;
+   // a fresh poll mid-frame can return different OS-side input state on
+   // the simulation pass versus the visible pass, breaking that
+   // assumption.
+   //
+   // Resolution: skip the re-poll on simulation frames (video disabled,
+   // detected via RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE bit 0 at the
+   // top of retro_run). Visible frames still get the latency reduction;
+   // run-ahead simulation frames see exactly the same input timeline
+   // the visible frame will, so input determinism holds.
+   if (current_frame_is_sim)
+      return;
+
    input_poll_cb();
    if (libretro_supports_bitmasks)
       input_update_with_bitmasks(input_state_cb);
