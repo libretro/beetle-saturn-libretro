@@ -4213,6 +4213,58 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   }
   if(CDDevConn >= 0x18 && CDDevConn != 0xFF)
    CDDevConn = 0xFF;
+
+  // Drive state machine sanitization.
+  //
+  // DrivePhase is loaded as int32 from the state file. The drive loop
+  // (Drive_Run -> switch(DrivePhase)) handles every value the
+  // emulation can legitimately produce, but the switch has no default
+  // case and several enum values either go unused (DRIVEPHASE_SCAN)
+  // or are "frozen" states relying on DriveCounter == INT64_MAX to
+  // keep the `while(DriveCounter <= 0)` loop from entering
+  // (DRIVEPHASE_RESETTING). A crafted save state that combines a
+  // small DriveCounter with one of those (or any out-of-enum) values
+  // makes the loop body a no-op while the loop condition stays true:
+  // CDB_Update never returns. Pinning the phase to RESETTING with the
+  // counters set to INT64_MAX is exactly the recovery path
+  // CDB_ResetCD uses, so reuse it.
+  switch(DrivePhase)
+  {
+   case DRIVEPHASE_STOPPED:
+   case DRIVEPHASE_PLAY:
+   case DRIVEPHASE_SEEK_START3:
+   case DRIVEPHASE_SEEK:
+   case DRIVEPHASE_EJECTED0:
+   case DRIVEPHASE_EJECTED1:
+   case DRIVEPHASE_EJECTED_WAITING:
+   case DRIVEPHASE_STARTUP:
+   case DRIVEPHASE_SEEK_START1:
+   case DRIVEPHASE_SEEK_START2:
+   case DRIVEPHASE_PAUSE:
+    break;
+   case DRIVEPHASE_RESETTING:
+    // Valid but only safe with INT64_MAX counters; enforce that.
+    DriveCounter = 0x7FFFFFFFFFFFFFFFLL;
+    PeriodicIdleCounter = 0x7FFFFFFFFFFFFFFFLL;
+    break;
+   default:
+    DrivePhase = DRIVEPHASE_RESETTING;
+    DriveCounter = 0x7FFFFFFFFFFFFFFFLL;
+    PeriodicIdleCounter = 0x7FFFFFFFFFFFFFFFLL;
+    break;
+  }
+
+  // GetSecLen / PutSecLen are uint8 fed straight to the DTW_OffsTab /
+  // DTW_CountTab 4-entry lookup arrays in DT_SetIBOffsCount (Writing
+  // mode, line ~1101) and to a switch with constants 0..3 (non-Writing
+  // mode). The runtime command Set Sector Length validates incoming
+  // values, but state load can carry any uint8. Any value outside
+  // [SECLEN__FIRST, SECLEN__LAST] is rejected the same way the
+  // command processor rejects it.
+  if(GetSecLen > SECLEN__LAST)
+   GetSecLen = SECLEN_2048;
+  if(PutSecLen > SECLEN__LAST)
+   PutSecLen = SECLEN_2048;
   //
   //
   //

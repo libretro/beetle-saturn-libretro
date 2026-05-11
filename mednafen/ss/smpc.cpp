@@ -281,7 +281,16 @@ static void MapPorts(void)
   else
    nd = VirtualPorts[vp++];
 
-  if(IOPorts[sp] != nd)
+  // The original code assumed nd != nullptr here. That's true when
+  // every VirtualPort has been populated by SMPC_SetInput before any
+  // call to MapPorts() that touches that port. Init carefully arranges
+  // for this to hold by calling SetInput in order, so the (vp - 1)
+  // VirtualPort is always the freshly-set one. But the assumption is
+  // fragile: any future code path that disables a multitap before
+  // populating the corresponding VirtualPort would hit a null Power()
+  // call here. The in-multitap-loop branch already has an analogous
+  // `if (!tsd) continue;` guard; mirror it on the non-multitap branch.
+  if(nd && IOPorts[sp] != nd)
    nd->Power();
 
   IOPorts[sp] = nd;

@@ -103,10 +103,36 @@ typedef struct
  };
 } Uuint32;
 
-#define MDFN_HOT
-#define MDFN_COLD
-#define MDFN_HIDE
-#define NO_CLONE
+// Compiler hint macros previously expanded to nothing. The codebase
+// already tags 41 functions with MDFN_HOT and 164 with MDFN_COLD --
+// activating the underlying attributes is a free codegen improvement
+// on GCC and Clang (changes branch-prediction defaults, hot/cold
+// section placement, and inlining decisions). MSVC has no direct
+// equivalents; the empty defines are kept for that path. Same idea
+// for MDFN_HIDE (symbol visibility) and NO_CLONE (cloning suppression).
+//
+// MDFN_FORCE_INLINE is new -- there were ad-hoc places in the renderer
+// audit that wanted an unconditional inline; this gives a portable
+// spelling for it. Maps to __forceinline on MSVC.
+#if defined(__GNUC__)
+ #define MDFN_HOT          __attribute__((hot))
+ #define MDFN_COLD         __attribute__((cold))
+ #define MDFN_HIDE         __attribute__((visibility("hidden")))
+ #define NO_CLONE          __attribute__((noclone))
+ #define MDFN_FORCE_INLINE __attribute__((always_inline)) inline
+#elif defined(_MSC_VER)
+ #define MDFN_HOT
+ #define MDFN_COLD
+ #define MDFN_HIDE
+ #define NO_CLONE
+ #define MDFN_FORCE_INLINE __forceinline
+#else
+ #define MDFN_HOT
+ #define MDFN_COLD
+ #define MDFN_HIDE
+ #define NO_CLONE
+ #define MDFN_FORCE_INLINE inline
+#endif
 
 #ifdef __cplusplus
 template<typename T> typename std::remove_all_extents<T>::type* MDAP(T* v) { return (typename std::remove_all_extents<T>::type*)v; }
