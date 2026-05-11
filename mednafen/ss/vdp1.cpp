@@ -1306,9 +1306,21 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
  if(load)
  {
-  CurCommandAddr &= 0x3FFFF;
+  // The drawing loop fetches 16 uint16s from VRAM[CurCommandAddr]
+  // via memcpy (search for "Fetch command data"). VRAM has 0x40000
+  // entries, so the largest in-bounds index for a 16-element read
+  // is 0x3FFF0. The previous mask of 0x3FFFF let a hostile save
+  // state push CurCommandAddr into [0x3FFF1, 0x3FFFF], producing a
+  // 30-byte out-of-bounds read of adjacent memory into the next
+  // command's data buffer.
+  //
+  // Mask to 0x3FFF0 instead. This also enforces the 0x10-alignment
+  // invariant maintained by every other writer (init=0, increment
+  // by 0x10, jumps masked with `& ~0xF`), which the drawing loop
+  // implicitly assumes.
+  CurCommandAddr &= 0x3FFF0;
   if(RetCommandAddr >= 0)
-   RetCommandAddr &= 0x3FFFF;
+   RetCommandAddr &= 0x3FFF0;
 
   DTACounter &= 0xFF;
 

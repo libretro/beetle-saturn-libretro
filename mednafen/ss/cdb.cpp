@@ -1031,13 +1031,32 @@ static int DT_CheckSanity(void)
   if(DT.CurBufIndex >= NumBuffers)
    return -__LINE__;
   //
-  if(DT.Writing)
+  // Validate every BufList entry in [0, BufCount), not just the one
+  // at CurBufIndex. When DT_ReadIntoFIFO drains an entry's worth of
+  // data the index advances (line ~1154) and the new entry is fed
+  // straight to `Buffers[BufList[CurBufIndex]].Data` via
+  // DT_SetIBOffsCount, with no further validation in the hot path.
+  // The previous code only validated all entries in Writing mode --
+  // in non-Writing mode it only checked CurBufIndex's slot, so a
+  // crafted save state with a valid entry at CurBufIndex and an
+  // out-of-range entry at CurBufIndex+1 would survive sanity and
+  // then OOB-read Buffers[] on the next advance.
+  //
+  // In Writing mode every entry must be a real Buffer index (< NumBuffers).
+  // In non-Writing mode entries may also be the special sentinels
+  // 0xF0 (FileInfo), 0xFD (SubCodeRWBuf), 0xFE (SubCodeQBuf), 0xFF
+  // (TOC_Buffer); these are dispatched by the MDFN_UNLIKELY branch
+  // in DT_ReadIntoFIFO. The previous CurBufIndex-only check used the
+  // same set, so we reuse it here.
+  for(unsigned i = 0; i < DT.BufCount; i++)
   {
-   for(unsigned i = 0; i < DT.BufCount; i++)
-   {
-    if(DT.BufList[i] >= NumBuffers)
-     return -__LINE__;
-   }
+   const uint8 e = DT.BufList[i];
+   if(e < NumBuffers)
+    continue;
+   if(DT.Writing)
+    return -__LINE__;
+   if(e != 0xF0 && e != 0xFD && e != 0xFE && e != 0xFF)
+    return -__LINE__;
   }
   //
   const uint8 t = DT.BufList[DT.CurBufIndex];
@@ -4156,6 +4175,44 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   if(need_reset_buffers)
    ResetBuffers();
+
+  //
+  // Filter connection sanitization. Each Filter's TrueConn / FalseConn
+  // is a uint8 holding a partition index in [0, 0x18) or the sentinel
+  // 0xFF ("not connected"). The command processor (Set Filter
+  // Connection, line ~2843) validates these values on the way in, but
+  // a save state could carry any uint8. The values feed:
+  //
+  //   - Partition_LinkBuffer(Filters[cur].TrueConn, bfsidx)
+  //       in FilterBuf, which indexes Partitions[] -- so an invalid
+  //       TrueConn here is an out-of-bounds write of a uint8 to
+  //       memory adjacent to the Partitions[0x18] array.
+  //
+  //   - cur = Filters[cur].FalseConn; then Filters[cur].*
+  //       in the FilterBuf chain walk, which indexes Filters[] -- so
+  //       an invalid FalseConn here is an out-of-bounds read on the
+  //       next iteration AND a propagated invalid index into the
+  //       TrueConn write described above.
+  //
+  // Reject anything outside [0, 0x18) ∪ {0xFF} by reverting it to the
+  // 0xFF sentinel. This is the same behaviour as
+  // Filter_DisconnectInput()'s reset path, so the side effects are
+  // already understood by callers.
+  //
+  // CDDevConn is similarly used as a filter chain entry point by
+  // FilterBuf (line 2043, FilterBuf(CDDevConn, ...)); sanitize it the
+  // same way.
+  //
+  for(unsigned i = 0; i < 0x18; i++)
+  {
+   auto& f = Filters[i];
+   if(f.TrueConn >= 0x18 && f.TrueConn != 0xFF)
+    f.TrueConn = 0xFF;
+   if(f.FalseConn >= 0x18 && f.FalseConn != 0xFF)
+    f.FalseConn = 0xFF;
+  }
+  if(CDDevConn >= 0x18 && CDDevConn != 0xFF)
+   CDDevConn = 0xFF;
   //
   //
   //
