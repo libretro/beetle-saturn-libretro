@@ -232,8 +232,6 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32 size)
 
 	while (st->loc < (temp + size))
 	{
-		int where_are_we = st->loc;
-
 		uint32_t recorded_size;	// In bytes
 		uint8_t toa[1 + 256];	// Don't change to char unless cast toa[0] to unsigned to smem_read() and other places.
 
@@ -334,8 +332,6 @@ static int MDFNSS_StateAction_internal( void *st_p, int load, int data_only, SSD
 
 		while ( smem_read(st, (uint8_t *)sname, 32 ) == 32 )
 		{
-			int where_are_we = st->loc - 32;
-
 			if(smem_read32le(st, &tmp_size) != 4)
 				return(0);
 

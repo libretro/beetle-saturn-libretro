@@ -358,12 +358,17 @@ static uint32_t apply_trigger_deadzone( uint32_t input )
 	// Inner deadzone
 	if ( trigger_deadzone > 0 )
 	{
+		// trigger_deadzone is a signed int (user-configurable from libretro
+		// core options) but the > 0 guard above means it's safe to treat
+		// as unsigned for the comparison/subtraction against the uint32_t
+		// input. The alias also silences a sign-compare warning.
+		const uint32_t deadzone = (uint32_t)trigger_deadzone;
 		const float scale = ((float)TRIGGER_MAX/(float)(TRIGGER_MAX - trigger_deadzone));
 
-		if ( input > trigger_deadzone )
+		if ( input > deadzone )
 		{
 			// Re-scale analog range
-			float scaled = (input - trigger_deadzone)*scale;
+			float scaled = (input - deadzone)*scale;
 			input        = (int)round(scaled);
 		}
 		else

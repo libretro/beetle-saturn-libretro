@@ -27,7 +27,13 @@ extern bool cdimagecache;
 
 static bool g_eject_state;
 
-static int g_current_disc;
+// Was previously `static int g_current_disc;` which created a sign-compare
+// warning at the < CDInterfaces.size() check and required an `(int)` cast
+// where a derived index was assigned. The value is never negative -- every
+// assignment is from a non-negative source (0, an unsigned index, or the
+// frontend's image index, all u32 in practice) -- so unsigned is the type
+// the variable actually wants to be.
+static unsigned g_current_disc;
 
 static unsigned g_initial_disc;
 static std::string g_initial_disc_path;
@@ -740,7 +746,7 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8*
 					disk_image_paths[
 					g_initial_disc].c_str(),
 					g_initial_disc_path.c_str()))
-						g_current_disc = (int)
+						g_current_disc =
 							g_initial_disc;
 		}
 	}

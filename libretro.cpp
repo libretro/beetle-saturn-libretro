@@ -460,6 +460,8 @@ static void check_variables(bool startup)
    {
       if (strcmp(var.value, "bob") == 0)
          Deinterlacer_SetType(&deint, DEINT_BOB);
+      else if (strcmp(var.value, "bob_offset") == 0)
+         Deinterlacer_SetType(&deint, DEINT_BOB_OFFSET);
       else
          Deinterlacer_SetType(&deint, DEINT_WEAVE);
    }
@@ -669,7 +671,6 @@ static bool MDFNI_LoadGame(const char *name)
 bool retro_load_game(const struct retro_game_info *info)
 {
    char tocbasepath[4096];
-   bool ret = false;
 
    if (!info)
       return false;
@@ -851,7 +852,14 @@ void retro_run(void)
 
       Deinterlacer_Process(&deint, spec.surface, &spec.DisplayRect, spec.LineWidths, spec.InterlaceField);
 
-      PrevInterlaced = (Deinterlacer_GetType(&deint) == DEINT_WEAVE) ? true : false;
+      // PrevInterlaced governs whether the libretro output presents at
+      // full interlaced height (true) or half-height (false). WEAVE
+      // and BOB_OFFSET both produce a full-height surface; only BOB
+      // compacts to half-height.
+      {
+         const unsigned dt = Deinterlacer_GetType(&deint);
+         PrevInterlaced = (dt == DEINT_WEAVE || dt == DEINT_BOB_OFFSET);
+      }
 
       spec.InterlaceOn = false;
       spec.InterlaceField = 0;

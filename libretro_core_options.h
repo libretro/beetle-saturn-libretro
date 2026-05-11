@@ -441,12 +441,13 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "beetle_saturn_deinterlacer",
       "Deinterlace Method",
       NULL,
-      "'Weave' shows both fields on the same frame for full high resolution still image, 'Bob' sacrificies resolution clarity for motion clarity.",
+      "How to combine the two fields of an interlaced signal. 'Weave' shows both the current and previous field together on every frame for full vertical resolution, with combing visible on moving content. 'Bob' shows only the current field, halved in height -- no comb, but half the vertical resolution. 'Bob (Offset)' shows only the current field doubled into full surface height with a one-line offset between fields; preserves the libretro output resolution while giving Bob-style smooth motion.",
       NULL,
       "video",
       {
-         { "weave", "Weave" },
-         { "bob",   "Bob" },
+         { "weave",      "Weave" },
+         { "bob",        "Bob" },
+         { "bob_offset", "Bob (Offset)" },
          { NULL, NULL },
       },
       "weave"
