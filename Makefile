@@ -411,8 +411,15 @@ else
 endif
 
 ifneq ($(LTO),)
-   FLAGS   += -flto=auto -fipa-pta
-   LDFLAGS += -flto=auto -fipa-pta -O2
+   FLAGS   += -flto=auto
+   LDFLAGS += -flto=auto -O2
+   # -fipa-pta is a GCC-only optimization; clang (used on Apple targets,
+   # and on some Linux/BSD setups) errors out on it as an unknown argument.
+   CC_IS_CLANG := $(shell $(firstword $(CC)) --version 2>/dev/null | grep -ic clang)
+   ifeq ($(CC_IS_CLANG),0)
+      FLAGS   += -fipa-pta
+      LDFLAGS += -fipa-pta
+   endif
 endif
 
 LDFLAGS += $(fpic) $(SHARED)
