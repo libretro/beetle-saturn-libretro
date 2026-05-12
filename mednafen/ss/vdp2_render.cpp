@@ -2958,6 +2958,21 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
    // identical to the original rbg_w-wide call.
    MDFN_FastArraySet(LB.lc, CurLCColor & 0x7F, w);
    SetupRotVars(LIB[vdp2_line].rv, rbg_w);
+   // SetupRotVars writes LB.rotabsel / LB.rotv / LB.rotcoeff (and the
+   // MDFN_FastArraySet of LB.rotabsel further down inside the RBG1
+   // branch likewise). All three of those scratch arrays live in the
+   // SAME union as LB.nbg[], specifically aliasing the start of
+   // LB.nbg[1] (rotabsel + rotv + rotcoeff together cover the first
+   // ~1968 bytes of nbg[1], well past where MixIt reads at
+   // (LB.nbg[1] + 8)[i] for i in [0, w)). So calling SetupRotVars
+   // unconditionally corrupts nbg[1]'s storage and the lazy-zero
+   // optimisation's "clean" flag must reflect that, or a later
+   // line with NBG1 disabled will skip its zero-fill and MixIt will
+   // read the aliased rotabsel/rotv/rotcoeff bytes as nbg[1] pixel
+   // data -- exactly the vertical-line artifact that surfaced in
+   // Sega Rally and any other game that toggles between RBG-mode
+   // and NBG1-disabled-NBG-only frames.
+   LB_clean_nbg[1] = false;
    if((HRes & 0x2) && ((KTCTL[0] | KTCTL[1]) & 0x10))
     Doubleize(LB.lc, rbg_w);
 
@@ -3065,7 +3080,18 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
   }
 
   if(SCRCTL & 0x0101)
+  {
    FetchVCScroll(w);	// Call after handling line scroll, and before DrawNBG() stuff
+   // FetchVCScroll writes LB.vcscr[0..1][tile], which aliases the
+   // first ~360 bytes of LB.nbg[2] via the union. Conservatively
+   // invalidate the lazy-zero clean flag for nbg[2] -- vcscr writes
+   // are gated internally on vcon[0]/vcon[1], but the call-site
+   // condition (SCRCTL & 0x0101) is what matters externally and
+   // the cost of a stray flag clear is one byte store. See
+   // companion comment at the SetupRotVars call above for the same
+   // union-aliasing situation hitting nbg[1].
+   LB_clean_nbg[2] = false;
+  }
 
   if((BGON & 0x30) != 0x30)
   {
