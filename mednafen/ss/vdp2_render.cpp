@@ -4003,10 +4003,38 @@ void VDP2REND_SetLayerEnableMask(uint64 mask)
 
 void VDP2REND_SetDeinterlaceOff(bool off)
 {
- // Routed through the consumer command queue (not a direct atomic
- // store) so the flag flips exactly between scanlines, never
+ // Normally routed through the consumer command queue (not a direct
+ // atomic store) so the flag flips exactly between scanlines, never
  // mid-line. Matches the SetLayerEnableMask threading pattern.
- WWQ(COMMAND_SET_DEINT_OFF, (uint32)off);
+ //
+ // Pre-Init path (RThread NULL): libretro's check_variables(true)
+ // fires from retro_load_game *before* MDFNI_LoadGame brings up
+ // VDP2REND_Init, so a WWQ here would land in a ring that
+ // VDP2REND_Init then zeroes out (Prod/Cons reset, WQ_PushCount
+ // store=0) before the consumer thread is ever created and starts
+ // pulling. The COMMAND_SET_DEINT_OFF entry stays in WQ[0] memory
+ // but is unreachable: the consumer sees PushCount==PopLocal==0 on
+ // startup and waits.
+ //
+ // Without this guard, the very first frames after boot run with
+ // DeinterlaceOff = false even when the user has the option set
+ // to "off". On interlaced content (VF Kids, anything that flips
+ // TVMD into IM_DOUBLE) the mirror at DrawLine never fires and
+ // VDP2 just writes one field per frame on top of the previous
+ // field's lines -- weave-style combing, visible on VDP1 polygon
+ // output. Toggling the option mid-run re-fires SetDeinterlaceOff
+ // from check_variables(false) when the WQ is alive, which is why
+ // cycling the option through any other mode and back to "off"
+ // appears to "fix" the combing (it actually engages the mirror
+ // for the first time since boot).
+ //
+ // The pre-Init write is unsynchronized but safe: no consumer
+ // thread exists yet, and the only writer is the emulator main
+ // thread (the same one that will create RThread shortly).
+ if (RThread == NULL)
+  DeinterlaceOff = off;
+ else
+  WWQ(COMMAND_SET_DEINT_OFF, (uint32)off);
 }
 
 void VDP2REND_Write8_DB(uint32 A, uint16 DB)
