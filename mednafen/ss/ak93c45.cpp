@@ -155,15 +155,10 @@ bool AK93C45::UpdateBus(int32 timestamp, bool cs, bool sk, bool di)
 	 if(opcode == 0x2)	// Read
 	 {
 	  phase++;
-#if 0
-	  data_buffer = 0x0000;
-	  counter = 1;
-#else
 	  dout = false;
 	  data_buffer = mem[addr & 0x3F];
 	  addr = (addr + 1) & 0x3F;
 	  counter = 16;
-#endif
 	 }
 	 else if(opcode == 0x1)	// Write
 	 {

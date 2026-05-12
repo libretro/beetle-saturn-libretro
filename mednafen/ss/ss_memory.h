@@ -99,8 +99,4 @@ static INLINE void MDFN_FastArraySet(uint8* const dst, const uint16 value, const
  }
 }
 
-// memset() replacement that will work on uncachable memory.
-//void *MDFN_memset_safe(void *s, int c, size_t n);
-
-
 #endif

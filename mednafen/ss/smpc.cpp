@@ -365,14 +365,6 @@ void SMPC_SetInput(unsigned port, const char* type, uint8* ptr)
  MapPorts();
 }
 
-#if 0
-static void RTC_Reset(void)
-{
-
-
-}
-#endif
-
 void SMPC_LoadNV(Stream* s)
 {
  RTC.Valid = s->get_u8();

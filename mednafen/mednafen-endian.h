@@ -125,9 +125,7 @@ static inline uint32_t MDFN_de32lsb(const uint8_t *morp)
 
 static inline uint64_t MDFN_de64lsb(const uint8_t *morp)
 {
- uint64_t ret = 0;
-
- ret |= (uint64_t)morp[0];
+ uint64_t ret = (uint64_t)morp[0];
  ret |= (uint64_t)morp[1] << 8;
  ret |= (uint64_t)morp[2] << 16;
  ret |= (uint64_t)morp[3] << 24;

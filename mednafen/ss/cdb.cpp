@@ -1831,15 +1831,11 @@ static void CheckBufPauseResume(void)
 
   if(!end_met && FreeBufferCount)
   {
-#if 0
-  CurPosInfo.status = STATUS_BUSY;
-#else
    SecPreBuf_In = false;
    CurPosInfo.status = STATUS_BUSY;
    DrivePhase = DRIVEPHASE_SEEK_START2;
    DriveCounter = (int64)SeekCPIUpdateDelay << 32;
    PeriodicIdleCounter = PeriodicIdleCounter_Reload;
-#endif
   }
  }
 }
@@ -3466,28 +3462,8 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       FLS.fiaoffs = 0;
       FLS.pnum = fnum;
 
-#if 0
-      if(FLS.fioffs > FileInfoOffs && !FileInfoMore)
-      {
-       {
-        const uint32 bo = (FLS.fioffs - FileInfoOffs);
-
-        if(bo < FileInfoValidCount)
-        {
-	 FileInfoOffs = FLS.fioffs;
-         FileInfoValidCount -= bo;
-         memmove(&FileInfo[2], &FileInfo[2 + bo], FileInfoValidCount * sizeof(FileInfoS));
-        }
-       }
-       CMD_EAT_CLOCKS(400);
-       TriggerIRQ(HIRQ_EFLS);
-      }
-      else
-#endif
-      {
-       FLS.DoAuth = false;
-       FLS.Active = true;
-      }
+      FLS.DoAuth = false;
+      FLS.Active = true;
       //
       // Check (attr & 2) first?  and & 0x80 for XA?
       //

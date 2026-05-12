@@ -139,12 +139,7 @@ static size_t UnQuotify(const std::string &src, size_t source_offset, std::strin
          {
             source_offset++;
             // Not sure which behavior is most useful(or correct :b).
-#if 0
-            in_quote = false;
-            already_normal = true;
-#else
             break;
-#endif
          }
          else
             in_quote = 1;

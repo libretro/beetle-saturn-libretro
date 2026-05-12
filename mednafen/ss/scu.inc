@@ -2440,13 +2440,6 @@ void SCU_SetRegister(const unsigned id, const uint32 value)
 
  }
 
- // Not quite right:
-#if 0
- Timer0_Check();
- Timer1_Check();
- SCU_SetHBVB(0, HB_FromVDP2, VB_FromVDP2);
-#endif
-
  if(CheckDoMasterInt())
   CPU[0].SetIRL(ILevel);
 }

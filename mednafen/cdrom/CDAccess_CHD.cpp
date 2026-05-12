@@ -82,10 +82,6 @@ bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
   hunkmem = (uint8_t *)malloc(head->hunkbytes);
   oldhunk = -1;
 
-#if 0
-  log_cb(RETRO_LOG_DEBUG, "chd_load '%s' hunkbytes=%d\n", path.c_str(), head->hunkbytes);
-#endif
-
   int plba = -150;
   int numsectors = 0;
   int chd_offset = 0;

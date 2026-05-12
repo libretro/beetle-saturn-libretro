@@ -2354,6 +2354,12 @@ enum
  MIXIT_SPECIAL_HIRES_CRAM12 = 0x6
 };
 
+#ifdef MSB_FIRST
+#define MIXIT_TO_SURFACE(v) (((uint32)(v)) >> 8)
+#else
+#define MIXIT_TO_SURFACE(v) (__builtin_bswap32((uint32)(v)) >> 8)
+#endif
+
 template<bool TA_rbgdualen, unsigned TA_Special, bool TA_CCRTMD, bool TA_CCMD>
 static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, const uint32 back_rgb24, const uint64* blursrc)
 {
@@ -2596,7 +2602,7 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
   // active row (8 bytes/pixel of memory traffic, ~3 ops/pixel).
   // Border pixels are written by the border-fill loops in DrawLine
   // already in output format, so they don't need any swap.
-  target[i] = __builtin_bswap32((uint32)(pix >> PIX_RGB_SHIFT)) >> 8;
+  target[i] = MIXIT_TO_SURFACE(pix >> PIX_RGB_SHIFT);
  }
 }
 

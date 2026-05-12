@@ -177,9 +177,7 @@ static void SubWrite(StateMem *st, const SFORMAT *sf)
 			}
 		}
 		else
-		{
 			smem_write(st, (void*)p, bytesize);
-		}
 	} while(p += repstride, repcount--);
 
       sf++;
