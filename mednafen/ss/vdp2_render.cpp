@@ -2092,6 +2092,165 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
  }
 };
 
+//
+// Constant-AB specialization of T_DrawRBG.
+//
+// When SetupRotVars fills LB.rotabsel[] with a single rotation-param
+// index that doesn't change for the rest of the scanline -- which is
+// the common case for any 3D game using single-parameter rotation
+// (RPMD 0 or 1, EffRPMD < 2) and also the only mode RBG1 ever uses --
+// the per-pixel byte-load of LB.rotabsel[i], the dependent pointer
+// indirection into LB.rotv[ab], and the four-to-eight scalar field
+// loads off `r` are all loop-invariant. The base T_DrawRBG template
+// can't see that through the rotabsel pointer, so every pixel pays for
+// the chain. Specializing on "ab is line-constant" lets us hoist `r`
+// and its scalars out of the loop once, leaving the per-pixel body
+// with just the rotation math, the Fetch, the rotabsel writeback (RBGPP
+// at line 2115 reads it for transparency), and the MakeNBGRBGPix call.
+//
+// Generated via C macros rather than another C++ template parameter
+// because the existing dispatch table is already 240 entries; pulling
+// another bool dimension in via templates would double the
+// hand-written initializer list, which is the worst part of the file.
+// The macro approach instantiates only the new 240-entry parallel
+// table and keeps the existing T_DrawRBG / DrawRBG path untouched.
+//
+// The (bpp, isrgb) pair isn't a free 2x5 Cartesian product, it's the
+// same five (4,0)/(8,0)/(16,0)/(16,1)/(32,1) tuples the existing
+// table uses, indexed by colornum 0..4. The COLORMODE fold macro
+// encodes that mapping.
+//
+#define T_DrawRBG_CAB_BODY(BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE)                                    \
+{                                                                                                     \
+ int16 sfcode_lut[8];                                                                                 \
+                                                                                                      \
+ MakeSFCodeLUT<PMODE, CCMODE>((rn ? 0 : 4), sfcode_lut);                                              \
+                                                                                                      \
+ auto& r           = LB.rotv[const_ab];                                                               \
+ auto& tf          = r.tf;                                                                            \
+ const int32  r_Xp     = r.Xp;                                                                        \
+ const int32  r_Yp     = r.Yp;                                                                        \
+ const int32  r_Xsp    = r.Xsp;                                                                       \
+ const int32  r_Ysp    = r.Ysp;                                                                       \
+ const int32  r_dX     = r.dX;                                                                        \
+ const int32  r_dY     = r.dY;                                                                        \
+ const int32  r_kx0    = r.kx;                                                                        \
+ const int32  r_ky0    = r.ky;                                                                        \
+ const bool   r_use_co = r.use_coeff;                                                                 \
+ const uint32 r_base_c = r.base_coeff;                                                                \
+ const uint8  ktctl_md = (KTCTL[const_ab] >> 2) & 0x3;                                                \
+                                                                                                      \
+ for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                         \
+ {                                                                                                    \
+  uint32 Xp = r_Xp;                                                                                   \
+  int32  kx = r_kx0;                                                                                  \
+  int32  ky = r_ky0;                                                                                  \
+  bool   rot_tp = false;                                                                              \
+                                                                                                      \
+  if(r_use_co)                                                                                        \
+  {                                                                                                   \
+   const uint32 coeff = (rn ? r_base_c : LB.rotcoeff[i]);                                             \
+                                                                                                      \
+   rot_tp = ((int32)coeff < 0);                                                                       \
+                                                                                                      \
+   const uint32 sext = sign_x_to_s32(24, coeff);                                                      \
+                                                                                                      \
+   switch(ktctl_md)                                                                                   \
+   {                                                                                                  \
+    case 0: kx = ky = sext; break;                                                                    \
+    case 1: kx = sext; break;                                                                         \
+    case 2: ky = sext; break;                                                                         \
+    case 3: Xp = sext << 2; break;                                                                    \
+   }                                                                                                  \
+  }                                                                                                   \
+                                                                                                      \
+  const uint32 ix = (  Xp + (uint32)(((int64)kx * (int32)(r_Xsp + (r_dX * i))) >> 16)) >> 10;         \
+  const uint32 iy = (r_Yp + (uint32)(((int64)ky * (int32)(r_Ysp + (r_dY * i))) >> 16)) >> 10;         \
+                                                                                                      \
+  rot_tp |= tf.Fetch<BPP>(BMEN, ix, iy);                                                              \
+                                                                                                      \
+  LB.rotabsel[i] = rot_tp;                                                                            \
+  bgbuf[i] = MakeNBGRBGPix<BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE>(tf, pix_base_or, sfcode_lut, ix, iy); \
+ }                                                                                                    \
+}
+
+#define T_DrawRBG_CAB_NAME(BMEN, CM, IGNTP, PMODE, CCMODE) \
+ T_DrawRBG_CAB_##BMEN##_##CM##_##IGNTP##_##PMODE##_##CCMODE
+
+#define DEFINE_T_DrawRBG_CAB(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, CCMODE)                              \
+ static void T_DrawRBG_CAB_NAME(BMEN, CM, IGNTP, PMODE, CCMODE)(                                      \
+   const bool rn, const unsigned const_ab,                                                            \
+   uint64* bgbuf, const unsigned w, const uint32 pix_base_or)                                         \
+ T_DrawRBG_CAB_BODY(BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE)
+
+// One-level enumerators. Each calls M once per value at its dimension
+// and threads the supplied prefix args through. Two different
+// composition trees are built below: one for function definitions
+// (bottoms out at the 7-arg DEFINE), one for the table initializer
+// (which wraps each non-leaf level in braces).
+#define DRBG_ENUM_CC(M, BMEN, CM, BPP, ISRGB, IGNTP, PMODE) \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 0)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 1)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 2)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 3)
+
+#define DRBG_ENUM_PM(M, BMEN, CM, BPP, ISRGB, IGNTP) \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, 0)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, 1)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, 2)
+
+#define DRBG_ENUM_IG(M, BMEN, CM, BPP, ISRGB) \
+ M(BMEN, CM, BPP, ISRGB, 0)                   \
+ M(BMEN, CM, BPP, ISRGB, 1)
+
+#define DRBG_ENUM_CM(M, BMEN) \
+ M(BMEN, 0, 4,  0)            \
+ M(BMEN, 1, 8,  0)            \
+ M(BMEN, 2, 16, 0)            \
+ M(BMEN, 3, 16, 1)            \
+ M(BMEN, 4, 32, 1)
+
+// Function-definition composition: descend through every level,
+// invoking DEFINE_T_DrawRBG_CAB at the leaf.
+#define DRBG_FN_AT_PM(BMEN, CM, BPP, ISRGB, IGNTP, PMODE) DRBG_ENUM_CC(DEFINE_T_DrawRBG_CAB, BMEN, CM, BPP, ISRGB, IGNTP, PMODE)
+#define DRBG_FN_AT_IG(BMEN, CM, BPP, ISRGB, IGNTP)        DRBG_ENUM_PM(DRBG_FN_AT_PM, BMEN, CM, BPP, ISRGB, IGNTP)
+#define DRBG_FN_AT_CM(BMEN, CM, BPP, ISRGB)               DRBG_ENUM_IG(DRBG_FN_AT_IG, BMEN, CM, BPP, ISRGB)
+#define DRBG_FN_AT_BM(BMEN)                               DRBG_ENUM_CM(DRBG_FN_AT_CM, BMEN)
+
+DRBG_FN_AT_BM(0)
+DRBG_FN_AT_BM(1)
+
+// Table composition: same descent but each non-leaf wraps its inner
+// expansion in braces, producing the nested [2][5][2][3][4] initializer.
+#define DRBG_TBL_AT_CC(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, CCMODE) T_DrawRBG_CAB_NAME(BMEN, CM, IGNTP, PMODE, CCMODE),
+#define DRBG_TBL_AT_PM(BMEN, CM, BPP, ISRGB, IGNTP, PMODE) { DRBG_ENUM_CC(DRBG_TBL_AT_CC, BMEN, CM, BPP, ISRGB, IGNTP, PMODE) },
+#define DRBG_TBL_AT_IG(BMEN, CM, BPP, ISRGB, IGNTP)        { DRBG_ENUM_PM(DRBG_TBL_AT_PM, BMEN, CM, BPP, ISRGB, IGNTP) },
+#define DRBG_TBL_AT_CM(BMEN, CM, BPP, ISRGB)               { DRBG_ENUM_IG(DRBG_TBL_AT_IG, BMEN, CM, BPP, ISRGB) },
+#define DRBG_TBL_AT_BM(BMEN)                               { DRBG_ENUM_CM(DRBG_TBL_AT_CM, BMEN) },
+
+static void (*DrawRBG_ConstAB[2 /*bitmap enable*/][5 /*col mode*/][2 /*igntp*/][3 /*priomode*/][4 /*ccmode*/])(const bool rn, const unsigned const_ab, uint64* bgbuf, const unsigned w, const uint32 pix_base_or) =
+{
+ DRBG_TBL_AT_BM(0)
+ DRBG_TBL_AT_BM(1)
+};
+
+#undef DRBG_TBL_AT_BM
+#undef DRBG_TBL_AT_CM
+#undef DRBG_TBL_AT_IG
+#undef DRBG_TBL_AT_PM
+#undef DRBG_TBL_AT_CC
+#undef DRBG_FN_AT_BM
+#undef DRBG_FN_AT_CM
+#undef DRBG_FN_AT_IG
+#undef DRBG_FN_AT_PM
+#undef DRBG_ENUM_CM
+#undef DRBG_ENUM_IG
+#undef DRBG_ENUM_PM
+#undef DRBG_ENUM_CC
+#undef DEFINE_T_DrawRBG_CAB
+#undef T_DrawRBG_CAB_NAME
+#undef T_DrawRBG_CAB_BODY
+
 template<typename T>
 static INLINE void Doubleize(T* ptr, const int orig_len)
 {
@@ -3017,7 +3176,19 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
     else
      pix_base_or |= (prio << PIX_PRIO_SHIFT);
 
-    DrawRBG[bmen][colornum][igntp][priomode % 3][ccmode](0, LB.rbg0, rbg_w, pix_base_or);
+    // ConstAB dispatch: when RPMD < 2, SetupRotVars filled
+    // LB.rotabsel[] uniformly with RPMD (see line 1899) and that value
+    // is < 2 so LB.rotv[const_ab] is always in-bounds. This covers the
+    // common 3D-game cases -- single rotation parameter, EffRPMD == 0
+    // (RBG1 forces this too) or 1. The variable-ab fallback handles
+    // RPMD == 2 (per-coefficient runtime switching) and RPMD == 3
+    // (window-decided), plus the pathological RPMD >= 2 with BGON&0x20
+    // case which was already producing rotabsel >= 2 in the existing
+    // path and tripping the same out-of-bounds on LB.rotv[2].
+    if(RPMD < 2)
+     DrawRBG_ConstAB[bmen][colornum][igntp][priomode % 3][ccmode](0, RPMD, LB.rbg0, rbg_w, pix_base_or);
+    else
+     DrawRBG[bmen][colornum][igntp][priomode % 3][ccmode](0, LB.rbg0, rbg_w, pix_base_or);
     RBGPP(4, LB.rbg0, rbg_w);
     LB_clean_rbg0 = false;
    }
@@ -3055,7 +3226,13 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
      pix_base_or |= (prio << PIX_PRIO_SHIFT);
 
     MDFN_FastArraySet(LB.rotabsel, 1, rbg_w);
-    DrawRBG[false][colornum][igntp][priomode % 3][ccmode](1, LB.nbg[0] + 8, rbg_w, pix_base_or);
+    // RBG1 always uses rotation parameter B (ab == 1) -- the
+    // MDFN_FastArraySet above pins rotabsel uniformly to 1, so this is
+    // an unconditional ConstAB dispatch. Pre-fill kept anyway because
+    // a future change to make RBGPP read rotabsel beyond w would
+    // otherwise see stale content; T_DrawRBG_CAB only writes the [0,w)
+    // range like its variable-ab sibling.
+    DrawRBG_ConstAB[false][colornum][igntp][priomode % 3][ccmode](1, 1, LB.nbg[0] + 8, rbg_w, pix_base_or);
     RBGPP(0, LB.nbg[0] + 8, rbg_w);
     LB_clean_nbg[0] = false;
    }
