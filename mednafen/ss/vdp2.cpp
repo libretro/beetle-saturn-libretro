@@ -481,44 +481,64 @@ static INLINE int32 AddHCounter(const sscpu_timestamp_t event_timestamp, int32 c
 
     if(!InternalVB)
     {
+     // The rotation-parameter fetch AND the per-line matrix-multiply
+     // that populates lib->rv[0..1] are both only useful when the
+     // VDP2 is actually rendering an RBG (rotating background) layer.
+     // SetupRotVars in vdp2_render.cpp's consumer DrawLine is the
+     // sole reader of LIB[].rv, and it's gated on the same
+     // BGON & 0x30 check. Because BGON updates are synchronous from
+     // the SH-2 side (RegsWrite at register 0x20 writes BGON
+     // directly, line 639 of this file) and AddHCounter doesn't
+     // interleave with SH-2 execution, the producer's BGON here is
+     // identical to what the consumer will see for this same
+     // scanline (the COMMAND_WRITE16 carrying any BGON change is
+     // ordered behind COMMAND_DRAW_LINE in the queue only if it
+     // arrived after, otherwise it's already been applied). So
+     // skipping the rv compute when BGON & 0x30 == 0 is observably
+     // identical to running it -- LIB[].rv just goes unread.
+     //
+     // For non-RBG games (the vast majority of 2D titles) this
+     // saves ~30 multiplications + 2 int64 shifts per scanline x
+     // 240 lines x 60 fps ~= 0.5 M ops/s of producer-thread work
+     // that was producing dead data.
      if(BGON & 0x30)
      {
       if(VCounter == 0)
        RPRCTL[0] = RPRCTL[1] = 0x07;
       FetchRotParams(false/*field*/);
       RPRCTL[0] = RPRCTL[1] = 0;
-     }
 
-     for(unsigned i = 0; i < 2; i++)
-     {
-      auto const& rp = RotParams[i];
-      auto& r = lib->rv[i];
+      for(unsigned i = 0; i < 2; i++)
+      {
+       auto const& rp = RotParams[i];
+       auto& r = lib->rv[i];
 
-      r.Xsp = ((int64)rp.RotMatrix[0] * ((int32)rp.XstAccum - (rp.Px * 1024)) +
-	      (int64)rp.RotMatrix[1] * ((int32)rp.YstAccum - (rp.Py * 1024)) +
-	      (int64)rp.RotMatrix[2] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
-      r.Ysp = ((int64)rp.RotMatrix[3] * ((int32)rp.XstAccum - (rp.Px * 1024)) +
-	      (int64)rp.RotMatrix[4] * ((int32)rp.YstAccum - (rp.Py * 1024)) +
-	      (int64)rp.RotMatrix[5] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
- 
-      r.Xp = rp.RotMatrix[0] * (rp.Px - rp.Cx) +
-	    rp.RotMatrix[1] * (rp.Py - rp.Cy) +
-	    rp.RotMatrix[2] * (rp.Pz - rp.Cz) +
-	    (rp.Cx * 1024) + rp.Mx;
+       r.Xsp = ((int64)rp.RotMatrix[0] * ((int32)rp.XstAccum - (rp.Px * 1024)) +
+	       (int64)rp.RotMatrix[1] * ((int32)rp.YstAccum - (rp.Py * 1024)) +
+	       (int64)rp.RotMatrix[2] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
+       r.Ysp = ((int64)rp.RotMatrix[3] * ((int32)rp.XstAccum - (rp.Px * 1024)) +
+	       (int64)rp.RotMatrix[4] * ((int32)rp.YstAccum - (rp.Py * 1024)) +
+	       (int64)rp.RotMatrix[5] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
+  
+       r.Xp = rp.RotMatrix[0] * (rp.Px - rp.Cx) +
+	     rp.RotMatrix[1] * (rp.Py - rp.Cy) +
+	     rp.RotMatrix[2] * (rp.Pz - rp.Cz) +
+	     (rp.Cx * 1024) + rp.Mx;
 
-      r.Yp = rp.RotMatrix[3] * (rp.Px - rp.Cx) +
-	    rp.RotMatrix[4] * (rp.Py - rp.Cy) +
-	    rp.RotMatrix[5] * (rp.Pz - rp.Cz) +
-	    (rp.Cy * 1024) + rp.My;
+       r.Yp = rp.RotMatrix[3] * (rp.Px - rp.Cx) +
+	     rp.RotMatrix[4] * (rp.Py - rp.Cy) +
+	     rp.RotMatrix[5] * (rp.Pz - rp.Cz) +
+	     (rp.Cy * 1024) + rp.My;
 
-      r.dX = (rp.RotMatrix[0] * rp.DX + rp.RotMatrix[1] * rp.DY) >> 10;
-      r.dY = (rp.RotMatrix[3] * rp.DX + rp.RotMatrix[4] * rp.DY) >> 10;
+       r.dX = (rp.RotMatrix[0] * rp.DX + rp.RotMatrix[1] * rp.DY) >> 10;
+       r.dY = (rp.RotMatrix[3] * rp.DX + rp.RotMatrix[4] * rp.DY) >> 10;
 
-      r.kx = rp.kx;
-      r.ky = rp.ky;
+       r.kx = rp.kx;
+       r.ky = rp.ky;
 
-      r.KAstAccum = rp.KAstAccum;
-      r.DKAx = rp.DKAx;
+       r.KAstAccum = rp.KAstAccum;
+       r.DKAx = rp.DKAx;
+      }
      }
     }
     lib->vdp1_hires8 = VDP1::GetLine(VCounter, lib->vdp1_line, (HRes & 1) ? 352 : 320, (int32)RotParams[0].XstAccum >> 1, (int32)RotParams[0].YstAccum >> 1, (int32)RotParams[0].DX >> 1, (int32)RotParams[0].DY >> 1); // Always call, has side effects.
