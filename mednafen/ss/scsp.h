@@ -274,7 +274,6 @@ class SS_SCSP
   uint8 TRA;	// 7 bits, MDEC_CT added at runtime
   uint8 YSEL;	// 2 bits
   uint32 flags;	// see DSPF_*
-  uint8 hazard_next;	// bit 0: step N+1 RAW-depends on step N
   uint8 reads;	// DSPR_* bitmask of carried state this step consumes
   uint8 writes;	// DSPW_* bitmask of carried state this step produces
   uint8 live;	// 0 = dead step, RunDSP skips it
@@ -302,16 +301,10 @@ class SS_SCSP
   DSPF_TWT    = 1u << 17
  };
 
- // Carried-state read/write bitmasks. Same bit positions for parallel R/W;
- // distinct prefixes for clarity at use sites.
+ // Carried-state write bitmask, plus the one read-side bit the liveness pass needs.
  enum
  {
-  DSPR_SFT  = 1u << 0,	// SFT_REG consumed (any of EWT/TWT/FRCL/ADRL/MWT or BSEL)
-  DSPR_FRC  = 1u << 1,	// FRC_REG consumed (YSEL == 0)
-  DSPR_Y    = 1u << 2,	// Y_REG consumed (YSEL == 2 or 3)
-  DSPR_ADRS = 1u << 3,	// ADRS_REG consumed (ADRGB)
-  DSPR_TEMP = 1u << 4,	// TEMP[TRA] value consumed (XSEL == 0 or BSEL == 0)
-  DSPR_MEMS = 1u << 5,	// MEMS[IRA] consumed ((IRA & 0x20) == 0)
+  DSPR_SFT  = 1u << 0,	// step consumes SFT_REG (any of EWT/TWT/FRCL/ADRL/MWT or BSEL)
 
   DSPW_SFT   = 1u << 0,	// SFT_REG written (always)
   DSPW_FRC   = 1u << 1,	// FRC_REG written (FRCL)
