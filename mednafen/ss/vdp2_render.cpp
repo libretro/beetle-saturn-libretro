@@ -2929,51 +2929,64 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
 
   if(BGON & 0x30)
   {
-   // Pre-fill LB.lc[0 .. w-1] with the line-color index. SetupRotVars
-   // optionally writes LB.lc[x] for x in [0, rbg_w) and only when its
-   // active rotation param's KTCTL has bit 0x10 set
-   // ("line-colour-per-coefficient" mode -- KTCTL[i] is checked
-   // inline at the write site in SetupRotVars).
+   // LB.lc handling: pre-fill the line-colour-index buffer at
+   // width `w`, run SetupRotVars (which may overwrite parts of it),
+   // then expand the rbg_w-wide writes to w via Doubleize in
+   // hi-res mode IF SetupRotVars actually wrote.
    //
-   // In the common case ((KTCTL[0] | KTCTL[1]) & 0x10 == 0,
-   // ~"no game uses per-coefficient line colour"), SetupRotVars
-   // writes nothing to LB.lc -- the unconditional
-   //   if(HRes & 0x2) Doubleize(LB.lc, rbg_w);
-   // call below was then expanding rbg_w uniform bytes into
-   // 2*rbg_w identical bytes, which has the same effect as simply
-   // having filled LB.lc[0 .. w-1] in one shot up front. Doing the
-   // wider FastArraySet here (w bytes, vs rbg_w) lets us skip the
-   // Doubleize for that case entirely. rep-stosq fills the extra
-   // bytes essentially for free; Doubleize was a real backward
-   // scan loop with read-modify-write per element.
+   // -- Width: filling at `w` instead of `rbg_w` lets us drop
+   // Doubleize for the common case where SetupRotVars writes
+   // nothing to LB.lc (KTCTL bit 0x10 clear on both active rotation
+   // params -- "no per-coefficient line colour"). rep-stosq covers
+   // the extra w - rbg_w bytes essentially for free; Doubleize was
+   // a real backward read-modify-write scan. In low-res
+   // w == rbg_w so the fill matches the original rbg_w-wide
+   // semantics exactly. When KTCTL bit 0x10 IS set on at least
+   // one param, SetupRotVars writes non-uniform values into
+   // [0, rbg_w) and Doubleize is needed to overwrite [rbg_w, w)
+   // with the doubled results -- the hi-res + KTCTL-set gate
+   // below picks that up.
    //
-   // When KTCTL bit 0x10 IS set on at least one active param,
-   // SetupRotVars writes non-uniform values into LB.lc[0 .. rbg_w),
-   // and the back half [rbg_w, w) still has to be the doubled
-   // version of those writes -- so we still call Doubleize, which
-   // backward-scans and overwrites [rbg_w, w) with the doubled
-   // SetupRotVars results, exactly as before.
+   // -- LineColorEn: when LineColorEn == 0 the entire chain is
+   // dead. Every site that sets PIX_LCE_SHIFT on a pixel's
+   // pix_base_or (sprite, RBG0, RBG1, all 4 NBGs) ANDs its
+   // corresponding LineColorEn bit, so LineColorEn == 0 means no
+   // pixel ever has the LCE bit set and MixIt's
+   //   else if(pix & (1U << PIX_LCE_SHIFT))
+   // line-colour-blend branch at line 2512 never fires. With
+   // nothing reading LB.lc this scanline, neither the FastArraySet
+   // nor the Doubleize have any observable effect, and skipping
+   // them saves w bytes/line of memory traffic plus the Doubleize
+   // call in the rare hi-res + KTCTL-set case.
    //
-   // w == rbg_w when (HRes & 0x2) == 0, so in low-res this fill is
-   // identical to the original rbg_w-wide call.
-   MDFN_FastArraySet(LB.lc, CurLCColor & 0x7F, w);
+   // SetupRotVars's own conditional write to LB.lc[x] (under
+   // KTCTL[i] & 0x10) isn't gated by LineColorEn here -- it's
+   // per-pixel inside SetupRotVars's existing loop and the writes
+   // are likewise dead when LineColorEn == 0, harmless but
+   // technically wasted. Conservatively rare; not worth threading
+   // the extra parameter through.
+   //
+   // LB.lc lives OUTSIDE the LB union (alignas(16) uint8 lc[704]
+   // is a sibling of the nbg union, not part of it), so stale
+   // content from a prior LineColorEn != 0 frame can never alias
+   // any nbg buffer -- the Sega Rally aliasing failure mode from
+   // commit b9f8b4e doesn't apply to LB.lc.
+   if(LineColorEn)
+    MDFN_FastArraySet(LB.lc, CurLCColor & 0x7F, w);
    SetupRotVars(LIB[vdp2_line].rv, rbg_w);
-   // SetupRotVars writes LB.rotabsel / LB.rotv / LB.rotcoeff (and the
-   // MDFN_FastArraySet of LB.rotabsel further down inside the RBG1
-   // branch likewise). All three of those scratch arrays live in the
-   // SAME union as LB.nbg[], specifically aliasing the start of
-   // LB.nbg[1] (rotabsel + rotv + rotcoeff together cover the first
-   // ~1968 bytes of nbg[1], well past where MixIt reads at
-   // (LB.nbg[1] + 8)[i] for i in [0, w)). So calling SetupRotVars
-   // unconditionally corrupts nbg[1]'s storage and the lazy-zero
-   // optimisation's "clean" flag must reflect that, or a later
-   // line with NBG1 disabled will skip its zero-fill and MixIt will
-   // read the aliased rotabsel/rotv/rotcoeff bytes as nbg[1] pixel
-   // data -- exactly the vertical-line artifact that surfaced in
-   // Sega Rally and any other game that toggles between RBG-mode
-   // and NBG1-disabled-NBG-only frames.
+   // SetupRotVars writes LB.rotabsel / LB.rotv / LB.rotcoeff (and
+   // the MDFN_FastArraySet of LB.rotabsel further down inside the
+   // RBG1 branch likewise). All three of those scratch arrays
+   // alias the start of LB.nbg[1] via the LB union -- they cover
+   // the first ~1968 bytes, well past where MixIt reads at
+   // (LB.nbg[1] + 8)[i] for i in [0, w). So SetupRotVars
+   // unconditionally corrupts nbg[1]'s storage, and the lazy-zero
+   // clean flag has to reflect that or a later line with NBG1
+   // disabled will skip its zero-fill and MixIt will read the
+   // aliased rotabsel/rotv/rotcoeff bytes as nbg[1] pixel data --
+   // the Sega Rally vertical-line regression cause.
    LB_clean_nbg[1] = false;
-   if((HRes & 0x2) && ((KTCTL[0] | KTCTL[1]) & 0x10))
+   if(LineColorEn && (HRes & 0x2) && ((KTCTL[0] | KTCTL[1]) & 0x10))
     Doubleize(LB.lc, rbg_w);
 
    // RBG0
@@ -3054,7 +3067,10 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
   }
   else
   {
-   MDFN_FastArraySet(LB.lc, CurLCColor & 0x7F, w);
+   // Same LineColorEn-dead-fill argument as the RBG path's
+   // companion fill above.
+   if(LineColorEn)
+    MDFN_FastArraySet(LB.lc, CurLCColor & 0x7F, w);
    if(!LB_clean_rbg0)
    {
     MDFN_FastArraySet(LB.rbg0, 0, w);
