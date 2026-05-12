@@ -1989,31 +1989,74 @@ static void SetupRotVars(const T* rs, const unsigned rbg_w)
   for(unsigned i = 0; i < 2; i++)
    LB.rotv[i].base_coeff = coeff[i] = ReadCoeff(i, GetCoeffAddr(i, rs[i].KAstAccum));
 
-  for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
+  // Const-i specialization: when RPMD < 2 SetupRotVars's earlier fill
+  // (line 1899) wrote LB.rotabsel[x] = RPMD uniformly across the line.
+  // EffRPMD is also < 2 (RPMD < 2 makes the (BGON & 0x20 ? 0 : RPMD)
+  // expression < 2 regardless of BGON), so the `i = ((EffRPMD == 2)
+  // ? 0 : LB.rotabsel[x])` lookup is loop-constant and equal to RPMD,
+  // and the EffRPMD == 2 branch never fires. Hoist rs[i], KTCTL[i],
+  // and coeff[i] to scalars; drop the per-pixel rotabsel byte-load and
+  // the EffRPMD == 2 write back to rotabsel/rotcoeff. The two paths
+  // share the perdot_mask / bank_tab / ReadCoeff plumbing above, which
+  // is already loop-invariant.
+  //
+  // Same gate as the T_DrawRBG ConstAB patch (commit 9739bf2). Falling
+  // back to the original variable-i loop covers EffRPMD == 2 (runtime
+  // per-coefficient switching), EffRPMD == 3 (window-decided), and the
+  // pathological BGON & 0x20 with RPMD >= 2 hardware-invalid case
+  // (which would land an out-of-bounds rs[2] / rs[3] on either path --
+  // existing behavior preserved).
+  if(RPMD < 2)
   {
-   const unsigned i = ((EffRPMD == 2) ? 0 : LB.rotabsel[x]);
-   const uint32 addr = GetCoeffAddr(i, rs[i].KAstAccum + (x * rs[i].DKAx));
+   const unsigned ci    = RPMD;
+   const auto&    rsi   = rs[ci];
+   const int32    rs_KA = rsi.KAstAccum;
+   const int32    rs_DK = rsi.DKAx;
+   const bool     wr_lc = (KTCTL[ci] & 0x10);
+   uint32         cur_c = coeff[ci];
 
-   coeff[i] &= perdot_mask;
-   if(bank_tab[addr >> 16])
-    coeff[i] = ReadCoeff(i, addr);
-
-   if(KTCTL[i] & 0x10)
-    LB.lc[x] = (coeff[i] >> 24) & 0x7F;
-
-   if(EffRPMD == 2)
+   for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
    {
-    uint32 tmp = coeff[0];
+    const uint32 addr = GetCoeffAddr(ci, rs_KA + (x * rs_DK));
 
-    LB.rotabsel[x] = tmp >> 31;
+    cur_c &= perdot_mask;
+    if(bank_tab[addr >> 16])
+     cur_c = ReadCoeff(ci, addr);
 
-    if((int32)tmp < 0)
-     tmp = coeff[1];
+    if(wr_lc)
+     LB.lc[x] = (cur_c >> 24) & 0x7F;
 
-    LB.rotcoeff[x] = tmp;
+    LB.rotcoeff[x] = cur_c;
    }
-   else
-    LB.rotcoeff[x] = coeff[i];
+  }
+  else
+  {
+   for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
+   {
+    const unsigned i = ((EffRPMD == 2) ? 0 : LB.rotabsel[x]);
+    const uint32 addr = GetCoeffAddr(i, rs[i].KAstAccum + (x * rs[i].DKAx));
+
+    coeff[i] &= perdot_mask;
+    if(bank_tab[addr >> 16])
+     coeff[i] = ReadCoeff(i, addr);
+
+    if(KTCTL[i] & 0x10)
+     LB.lc[x] = (coeff[i] >> 24) & 0x7F;
+
+    if(EffRPMD == 2)
+    {
+     uint32 tmp = coeff[0];
+
+     LB.rotabsel[x] = tmp >> 31;
+
+     if((int32)tmp < 0)
+      tmp = coeff[1];
+
+     LB.rotcoeff[x] = tmp;
+    }
+    else
+     LB.rotcoeff[x] = coeff[i];
+   }
   }
  }
 }
