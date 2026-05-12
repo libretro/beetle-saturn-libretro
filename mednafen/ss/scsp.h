@@ -274,7 +274,7 @@ class SS_SCSP
   uint8 TRA;	// 7 bits, MDEC_CT added at runtime
   uint8 YSEL;	// 2 bits
   uint32 flags;	// see DSPF_*
-  uint8 hazard_next;	// bit 0: step N+1 RAW-depends on step N
+  uint8 hazard_next;	// DSPH_* bitmask describing the step N -> step N+1 edge
   uint8 reads;	// DSPR_* bitmask of carried state this step consumes
   uint8 writes;	// DSPW_* bitmask of carried state this step produces
   uint8 live;	// 0 = dead step, RunDSP skips it
@@ -321,6 +321,13 @@ class SS_SCSP
   DSPW_MEMS  = 1u << 5,	// MEMS[IWA] written (IWT)
   DSPW_EFREG = 1u << 6,	// EFREG[EWA] written (EWT)
   DSPW_RAM   = 1u << 7	// RAM pipeline state advanced (MRT or MWT)
+ };
+
+ // Hazard annotations for the step N -> step N+1 edge (hazard_next[N]).
+ enum
+ {
+  DSPH_RAW  = 1u << 0,	// step N+1 reads carried state step N produced (blocks reordering/fusion across the edge)
+  DSPH_PIPE = 1u << 1	// step N triggered an MRT/MWT; step N+1's body services that RAM op, so it must execute
  };
 
  struct DSPS
