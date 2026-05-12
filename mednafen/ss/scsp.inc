@@ -1207,15 +1207,7 @@ void SS_SCSP::DecodeMPROG(void)
   f |= ((instr >> 55) & 1) ? DSPF_TWT    : 0;
   s.flags = f;
 
-  uint8 reads = 0;
-  if(f & (DSPF_EWT | DSPF_TWT | DSPF_FRCL | DSPF_ADRL | DSPF_MWT | DSPF_BSEL))
-   reads |= DSPR_SFT;
-  if(s.YSEL == 0)                            reads |= DSPR_FRC;
-  if(s.YSEL == 2 || s.YSEL == 3)             reads |= DSPR_Y;
-  if(f & DSPF_ADRGB)                         reads |= DSPR_ADRS;
-  if(!(f & DSPF_XSEL) || !(f & DSPF_BSEL))   reads |= DSPR_TEMP;
-  if(!(s.IRA & 0x20))                        reads |= DSPR_MEMS;
-  s.reads = reads;
+  s.reads = (f & (DSPF_EWT | DSPF_TWT | DSPF_FRCL | DSPF_ADRL | DSPF_MWT | DSPF_BSEL)) ? DSPR_SFT : 0;
 
   uint8 writes = DSPW_SFT;
   if(f & DSPF_FRCL)                  writes |= DSPW_FRC;
@@ -1227,33 +1219,7 @@ void SS_SCSP::DecodeMPROG(void)
   if(f & (DSPF_MRT | DSPF_MWT))      writes |= DSPW_RAM;
   s.writes = writes;
 
-  s.hazard_next = 0;	// filled in by hazard pass
   s.live = 1;		// filled in by liveness pass
- }
-
- // Hazard pass: annotate each step N -> step N+1 edge (wrapping at the sample
- // boundary -- carried state and the RAM read/write pipeline persist into the
- // next RunDSP).  DSPH_RAW marks a read-after-write on carried state (a future
- // fusion/reorder pass must not cross it); DSPH_PIPE marks that step N kicked off
- // a RAM op whose service happens in step N+1's body.
- for(unsigned step = 0; step < 128; step++)
- {
-  const DSPStep& cur = DSP.MPROG_Decoded[step];
-  const DSPStep& nxt = DSP.MPROG_Decoded[(step + 1) & 0x7F];
-  uint8 haz = 0;
-
-  if((nxt.reads & DSPR_SFT) ||
-     ((cur.writes & DSPW_FRC)  && (nxt.reads & DSPR_FRC))  ||
-     ((cur.writes & DSPW_Y)    && (nxt.reads & DSPR_Y))    ||
-     ((cur.writes & DSPW_ADRS) && (nxt.reads & DSPR_ADRS)) ||
-     ((cur.writes & DSPW_TEMP) && (nxt.reads & DSPR_TEMP) && cur.TWA == nxt.TRA) ||
-     ((cur.writes & DSPW_MEMS) && (nxt.reads & DSPR_MEMS) && cur.IWA == (nxt.IRA & 0x1F)))
-   haz |= DSPH_RAW;
-
-  if(cur.writes & DSPW_RAM)
-   haz |= DSPH_PIPE;
-
-  DSP.MPROG_Decoded[step].hazard_next = haz;
  }
 
  // Liveness pass: a step is dead if its only observable writes are SFT_REG and/or
@@ -1278,15 +1244,16 @@ void SS_SCSP::DecodeMPROG(void)
   DSP.MPROG_Decoded[step].live = (has_other_writes || sft_observed || inputs_observed) ? 1 : 0;
  }
 
- // A RAM op triggered by step N (DSPH_PIPE) is not serviced in that step:
+ // A RAM op triggered by step N (MRT/MWT) is not serviced in that step:
  // RWAddr/ReadPending/WritePending are latched at its tail, and step N+1's body
  // commits it (RAM read -> ReadValue, or RAM <- WriteValue) *before* doing its
  // own IWT.  If step N+1 were elided, that commit would slip onto a later live
  // step, past the IWT consumer at N+2, which would then latch a stale ReadValue.
- // So a DSPH_PIPE edge pins the successor live regardless of its own outputs.
+ // So pin the successor live, wrapping at the sample boundary (the RAM pipeline
+ // persists into the next RunDSP).
  for(unsigned step = 0; step < 128; step++)
  {
-  if(DSP.MPROG_Decoded[step].hazard_next & DSPH_PIPE)
+  if(DSP.MPROG_Decoded[step].flags & (DSPF_MRT | DSPF_MWT))
    DSP.MPROG_Decoded[(step + 1) & 0x7F].live = 1;
  }
 
