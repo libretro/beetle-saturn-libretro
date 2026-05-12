@@ -498,6 +498,40 @@ static struct
  alignas(16) uint8 lc[704];
 } LB;
 
+// LB.* zero-fill skip state.
+//
+// Six layer buffers in LB (sprite, rbg0, nbg[0..3]) get zero-filled
+// per scanline when their corresponding layer is disabled, so MixIt
+// can read 0 for them while still doing its priority comparisons.
+// Each fill is w * sizeof(uint64) bytes (2.5 - 5.5 KB depending on
+// resolution). For a game with one or two layers permanently
+// disabled that is 5 - 10 KB / line * 240 lines * 60 fps =
+// ~70 - 150 MB/s of pure zero-writing.
+//
+// But the buffers are static, so once we have zeroed one, it stays
+// zero until something writes content to it. Track per-buffer
+// "is currently all zeros in the [0, cleared_w) range" state; skip
+// the fill if it is still clean. Mark dirty whenever a real render
+// (DrawSpriteData / DrawRBG / DrawNBG / DrawNBG23) writes content.
+//
+// Because all six buffers always get filled at the same `w` on any
+// given scanline, a single shared "last width zero-filled" suffices
+// instead of a per-buffer cleared_w; when w changes between lines
+// (resolution / HRes register change) we invalidate every flag in
+// one shot at the top of DrawLine and the next clean line re-zeros
+// at the new width.
+//
+// State is process-lifetime: zero-initialised at startup matches
+// the layer buffers themselves being zero-initialised
+// (uninitialised static data in C++), and Reset paths in this file
+// memset whole regions so the all-zero invariant always holds at
+// the boundary.
+//
+static bool     LB_clean_spr;     // LB.spr[0 .. LB_cleaned_w) is all zeros
+static bool     LB_clean_rbg0;    // LB.rbg0[0 .. LB_cleaned_w) is all zeros
+static bool     LB_clean_nbg[4];  // LB.nbg[n][8 .. 8 + LB_cleaned_w) is all zeros
+static unsigned LB_cleaned_w;     // width at which the clean flags were established
+
 // ColorOffsEn, etc. ?...hmm, discrepancy with ColorCalcEn and LineColorEn...
 enum
 {
@@ -2668,6 +2702,22 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
  uint32 border_ncf;
  uint32 *target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
 
+ // Invalidate LB clean flags whenever w changes -- a flag means
+ // "buffer is zero in [0, LB_cleaned_w)", and after a width change
+ // a flag of true would falsely cover stale memory in
+ // [LB_cleaned_w, w). Cheap (one compare + six byte stores in the
+ // rare miss case) and runs once per DrawLine.
+ if(MDFN_UNLIKELY(w != LB_cleaned_w))
+ {
+  LB_clean_spr     = false;
+  LB_clean_rbg0    = false;
+  LB_clean_nbg[0]  = false;
+  LB_clean_nbg[1]  = false;
+  LB_clean_nbg[2]  = false;
+  LB_clean_nbg[3]  = false;
+  LB_cleaned_w     = w;
+ }
+
  espec->LineWidths[out_line] = tvdw;
 
  if(!ShowHOverscan)
@@ -2869,9 +2919,13 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
   {
    MakeSpriteCCLUT();
    DrawSpriteData[(HRes & 0x2) >> 0x1][(SDCTL >> 8) & 0x1][SPCTL_Low](LIB[vdp2_line].vdp1_line, LIB[vdp2_line].vdp1_hires8, w);
+   LB_clean_spr = false;
   }
-  else
+  else if(!LB_clean_spr)
+  {
    MDFN_FastArraySet(LB.spr, 0, w);
+   LB_clean_spr = true;
+  }
 
   if(BGON & 0x30)
   {
@@ -2910,9 +2964,13 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
 
     DrawRBG[bmen][colornum][igntp][priomode % 3][ccmode](0, LB.rbg0, rbg_w, pix_base_or);
     RBGPP(4, LB.rbg0, rbg_w);
+    LB_clean_rbg0 = false;
    }
-   else
+   else if(!LB_clean_rbg0)
+   {
     MDFN_FastArraySet(LB.rbg0, 0, w);
+    LB_clean_rbg0 = true;
+   }
 
    // RBG1
    if(BGON & UserLayerEnableMask & 0x20)
@@ -2944,14 +3002,22 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
     MDFN_FastArraySet(LB.rotabsel, 1, rbg_w);
     DrawRBG[false][colornum][igntp][priomode % 3][ccmode](1, LB.nbg[0] + 8, rbg_w, pix_base_or);
     RBGPP(0, LB.nbg[0] + 8, rbg_w);
+    LB_clean_nbg[0] = false;
    }
-   else if(BGON & 0x20)
+   else if((BGON & 0x20) && !LB_clean_nbg[0])
+   {
     MDFN_FastArraySet(LB.nbg[0] + 8, 0, w);
+    LB_clean_nbg[0] = true;
+   }
   }
   else
   {
    MDFN_FastArraySet(LB.lc, CurLCColor & 0x7F, w);
-   MDFN_FastArraySet(LB.rbg0, 0, w);
+   if(!LB_clean_rbg0)
+   {
+    MDFN_FastArraySet(LB.rbg0, 0, w);
+    LB_clean_rbg0 = true;
+   }
   }
   //
   //
@@ -3036,9 +3102,13 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
 
      ApplyHMosaic(n, LB.nbg[n] + 8, w);
      ApplyWin(n, LB.nbg[n] + 8);
+     LB_clean_nbg[n] = false;
     }
-    else
+    else if(!LB_clean_nbg[n])
+    {
      MDFN_FastArraySet(LB.nbg[n] + 8, 0, w);
+     LB_clean_nbg[n] = true;
+    }
    }
   }
 
