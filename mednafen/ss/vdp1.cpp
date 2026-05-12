@@ -927,8 +927,14 @@ bool GetLine(const int line, uint16* buf, unsigned w, uint32 rot_x, uint32 rot_y
   if(TVMR & TVMR_8BPP)
    ret = true;
 
-  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
-   buf[i] = fbyptr[i];
+  // Plain contiguous copy of w uint16 framebuffer cells into the
+  // per-scanline sprite buffer. Same job in both 16bpp (each cell =
+  // one pixel) and 8bpp (each cell = two pixels) modes, since the
+  // copy is byte-for-byte either way. memcpy guarantees a vectorised
+  // path on every backend (rep-movsq on x86-64, LDP/STP on AArch64);
+  // the previous scalar for-loop with MDFN_LIKELY was at the mercy
+  // of the compiler's autovectorisation heuristics.
+  memcpy(buf, fbyptr, (size_t)w * sizeof(uint16));
  }
 
  //
