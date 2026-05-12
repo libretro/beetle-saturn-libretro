@@ -2929,9 +2929,36 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
 
   if(BGON & 0x30)
   {
-   MDFN_FastArraySet(LB.lc, CurLCColor & 0x7F, rbg_w);
+   // Pre-fill LB.lc[0 .. w-1] with the line-color index. SetupRotVars
+   // optionally writes LB.lc[x] for x in [0, rbg_w) and only when its
+   // active rotation param's KTCTL has bit 0x10 set
+   // ("line-colour-per-coefficient" mode -- KTCTL[i] is checked
+   // inline at the write site in SetupRotVars).
+   //
+   // In the common case ((KTCTL[0] | KTCTL[1]) & 0x10 == 0,
+   // ~"no game uses per-coefficient line colour"), SetupRotVars
+   // writes nothing to LB.lc -- the unconditional
+   //   if(HRes & 0x2) Doubleize(LB.lc, rbg_w);
+   // call below was then expanding rbg_w uniform bytes into
+   // 2*rbg_w identical bytes, which has the same effect as simply
+   // having filled LB.lc[0 .. w-1] in one shot up front. Doing the
+   // wider FastArraySet here (w bytes, vs rbg_w) lets us skip the
+   // Doubleize for that case entirely. rep-stosq fills the extra
+   // bytes essentially for free; Doubleize was a real backward
+   // scan loop with read-modify-write per element.
+   //
+   // When KTCTL bit 0x10 IS set on at least one active param,
+   // SetupRotVars writes non-uniform values into LB.lc[0 .. rbg_w),
+   // and the back half [rbg_w, w) still has to be the doubled
+   // version of those writes -- so we still call Doubleize, which
+   // backward-scans and overwrites [rbg_w, w) with the doubled
+   // SetupRotVars results, exactly as before.
+   //
+   // w == rbg_w when (HRes & 0x2) == 0, so in low-res this fill is
+   // identical to the original rbg_w-wide call.
+   MDFN_FastArraySet(LB.lc, CurLCColor & 0x7F, w);
    SetupRotVars(LIB[vdp2_line].rv, rbg_w);
-   if(HRes & 0x2)
+   if((HRes & 0x2) && ((KTCTL[0] | KTCTL[1]) & 0x10))
     Doubleize(LB.lc, rbg_w);
 
    // RBG0
