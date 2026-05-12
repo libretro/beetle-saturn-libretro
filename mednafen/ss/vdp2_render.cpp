@@ -3750,8 +3750,20 @@ void VDP2REND_WriteBurst16_DB(uint32 base, uint32 n16, uint32 add_mode, const ui
    retro_sleep(1);
  }
 
- for(uint32 i = 0; i < n16; i++)
-  BurstBuf[(Prod.BurstWritePos + i) & BurstBufMask] = words[i];
+ // Copy `words` into BurstBuf at offset (BurstWritePos & mask). With
+ // BurstBufSize = 1MB and n16 capped at 512 (~1 KB), the ring almost
+ // never wraps mid-burst -- but it can, when BurstWritePos is near
+ // BurstBufSize. Split into the contiguous prefix and (rarely) a
+ // wrap-around tail so each chunk is a single memcpy and the compiler
+ // can lower to SIMD / rep-movsq without the per-iteration & mask
+ // that defeated autovectorisation in the original scalar loop.
+ {
+  const uint32 wpos = Prod.BurstWritePos & BurstBufMask;
+  const uint32 first = (n16 <= BurstBufSize - wpos) ? n16 : (BurstBufSize - wpos);
+  memcpy(&BurstBuf[wpos], words, (size_t)first * sizeof(uint16));
+  if(MDFN_UNLIKELY(first < n16))
+   memcpy(&BurstBuf[0], words + first, (size_t)(n16 - first) * sizeof(uint16));
+ }
  Prod.BurstWritePos += n16;
 
  WWQ(COMMAND_WRITE16_BURST, base, (uint16)(n16 | (add_mode << 13)));
