@@ -919,7 +919,9 @@ void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, 
  vbcdpending |= old_vb_status ^ vb_status;
 }
 
-bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 rot_x, uint32 rot_y, uint32 rot_xinc, uint32 rot_yinc)
+bool GetLine(const int line, uint16* buf, uint16* mesh_buf,
+             const uint16** out_sprite_src, const uint16** out_mesh_src,
+             unsigned w, uint32 rot_x, uint32 rot_y, uint32 rot_xinc, uint32 rot_yinc)
 {
  bool ret = false;
  //
@@ -983,6 +985,11 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
     rot_y += rot_yinc;
    }
   }
+  // Rotation path: the scratch buffers above are what consumers
+  // must read from, since each entry is a transform of a scattered
+  // FB pixel rather than a contiguous FB row.
+  *out_sprite_src = buf;
+  *out_mesh_src   = mesh_buf;
  }
  else
  {
@@ -992,15 +999,24 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
   if(TVMR & TVMR_8BPP)
    ret = true;
 
-  // Plain contiguous copy of w uint16 framebuffer cells into the
-  // per-scanline sprite buffer. Same job in both 16bpp (each cell =
-  // one pixel) and 8bpp (each cell = two pixels) modes, since the
-  // copy is byte-for-byte either way. memcpy guarantees a vectorised
-  // path on every backend (rep-movsq on x86-64, LDP/STP on AArch64);
-  // the previous scalar for-loop with MDFN_LIKELY was at the mercy
-  // of the compiler's autovectorisation heuristics.
-  memcpy(buf, fbyptr, (size_t)w * sizeof(uint16));
-  memcpy(mesh_buf, mfbyptr, (size_t)w * sizeof(uint16));
+  // Contiguous-row path: w uint16 cells starting at fbyptr are
+  // exactly the row consumers need. Hand them the FB / MeshFB
+  // row pointer directly instead of doing two w-element memcpys
+  // into the scratch buffers above -- the scratch would be a
+  // byte-for-byte duplicate of the FB row in this path. The
+  // display side of FB / MeshFB (the !FBDrawWhich half) is not
+  // written by VDP1 during a scanline's render, so the consumers
+  // can safely read from FB in place for the duration of
+  // T_DrawSpriteData / ApplyMeshOverlay.
+  //
+  // Saved memory traffic: 2 * w * sizeof(uint16) bytes per
+  // scanline. At 352-wide x 224 lines x 60 Hz that's ~19 MB/s of
+  // L1-hot memcpy traffic that used to evict cache lines the
+  // downstream MixIt / DrawSpriteData paths immediately re-read.
+  *out_sprite_src = fbyptr;
+  *out_mesh_src   = mfbyptr;
+  (void)buf;
+  (void)mesh_buf;
  }
 
  //

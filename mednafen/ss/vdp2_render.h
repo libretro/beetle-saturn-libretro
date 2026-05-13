@@ -57,6 +57,19 @@ struct VDP2Rend_LIB
  // T_DrawSpriteData would and 50%-blends the result onto the surface.
  // All zeros when the option is off.
  uint16 vdp1_mesh_line[352];
+ // Source pointers populated by VDP1::GetLine. T_DrawSpriteData and
+ // ApplyMeshOverlay read from these rather than from vdp1_line /
+ // vdp1_mesh_line directly. In the rotation path the pointers point
+ // at the scratch buffers above (which GetLine fills via scattered
+ // per-pixel FB reads); in the contiguous-row path they point
+ // straight at &FB[!FBDrawWhich][...] / &MeshFB[!FBDrawWhich][...],
+ // skipping the redundant row memcpy that used to populate the
+ // scratch from the FB row byte-for-byte. The display side of FB
+ // and MeshFB is not written during a scanline's render (VDP1 draws
+ // into the other side), so reading those rows in place is safe for
+ // the duration of T_DrawSpriteData / ApplyMeshOverlay.
+ const uint16* vdp1_line_src;
+ const uint16* vdp1_mesh_line_src;
  // Winning-layer priority per output pixel, captured at T_MixIt's
  // terminal store. ApplyMeshOverlay reads this to gate the mesh blend:
  // a mesh pixel is suppressed where a higher-priority VDP2 layer
