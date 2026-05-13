@@ -8,25 +8,20 @@
 #include "mednafen-types.h"
 
 /* MDFN_ASSUME_ALIGNED: alignment hint for memcpy targets in the
- * MDFN_deXsb / ne16_* template chain.  Compiles to nothing on
- * MSVC and to the gcc/clang builtin elsewhere. */
+ * MDFN_de16msb / MDFN_en64msb / ne16_* / ne64_* templates.
+ * Compiles to nothing on MSVC and to the gcc/clang builtin
+ * elsewhere. */
 #ifndef _MSC_VER
 #define MDFN_ASSUME_ALIGNED(p, align) ((decltype(p))__builtin_assume_aligned((p), (align)))
 #else
 #define MDFN_ASSUME_ALIGNED(p, align) p
 #endif
 
-/* Compile-time host-endian flag, driven entirely by MSB_FIRST from
- * the build flags.  No runtime detection - MSB_FIRST defined means
- * big-endian, undefined means little-endian.  Used by the
- * MDFN_deXsb / MDFN_enXsb templates to elide byteswap
- * branches at compile time when the requested target endian
- * matches the host. */
-#ifdef MSB_FIRST
-#define MDFN_ENDIANH_IS_BIGENDIAN 1
-#else
-#define MDFN_ENDIANH_IS_BIGENDIAN 0
-#endif
+/* Endianness is driven entirely by the build flag MSB_FIRST.
+ * Defined means big-endian target; undefined means little-endian.
+ * There is no runtime endian detection anywhere in this header -
+ * every endian-conditional branch is a #ifdef MSB_FIRST that the
+ * preprocessor resolves at compile time. */
 
 #if defined(__cplusplus)
 extern "C" {
@@ -158,86 +153,36 @@ static INLINE uint64 MDFN_bswap64(uint64 v)
                        * index math on little-endian hosts */
 #include <type_traits>
 
-/* X-endian decode template.
- * `isbigendian = -1` means "host endian" (always-match branch).
- * Otherwise compared against MDFN_ENDIANH_IS_BIGENDIAN at compile
- * time; the byteswap branch is elided when host matches the
- * requested target endian. */
-template<int isbigendian, typename T, bool aligned>
-static INLINE T MDFN_deXsb(const void *ptr)
-{
-   T tmp;
-
-   memcpy(&tmp, MDFN_ASSUME_ALIGNED(ptr, (aligned ? sizeof(T) : 1)), sizeof(T));
-
-   if (isbigendian != -1 && isbigendian != MDFN_ENDIANH_IS_BIGENDIAN)
-   {
-      static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
-            "Unsupported scalar size");
-
-      if (sizeof(T) == 8)
-         return MDFN_bswap64(tmp);
-      else if (sizeof(T) == 4)
-         return MDFN_bswap32(tmp);
-      else if (sizeof(T) == 2)
-         return MDFN_bswap16(tmp);
-   }
-
-   return tmp;
-}
-
-/* Host-endian variant: byteswap branch is statically dead. */
-template<typename T, bool aligned = false>
-static INLINE T MDFN_densb(const void *ptr)
-{
-   return MDFN_deXsb<-1, T, aligned>(ptr);
-}
-
-/* Big-endian 16-bit decode (aligned/unaligned via template param). */
+/* Big-endian 16-bit decode (aligned/unaligned via template param).
+ *
+ * On MSB_FIRST host: pure memcpy.
+ * On !MSB_FIRST host: memcpy + bswap.
+ *
+ * The aligned=true branch hands the compiler an alignment hint
+ * which lets it pick movbe / lhbrx / equivalent single-instruction
+ * decoders on capable targets instead of a byte-by-byte load. */
 template<bool aligned = false>
 static INLINE uint16 MDFN_de16msb(const void *ptr)
 {
-   return MDFN_deXsb<1, uint16, aligned>(ptr);
-}
-
-/* X-endian encode template, mirror of MDFN_deXsb.  Same compile-
- * time-elided byteswap branch. */
-template<int isbigendian, typename T, bool aligned>
-static INLINE void MDFN_enXsb(void *ptr, T value)
-{
-   T tmp = value;
-
-   if (isbigendian != -1 && isbigendian != MDFN_ENDIANH_IS_BIGENDIAN)
-   {
-      static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
-            "Unsupported scalar size");
-
-      if (sizeof(T) == 8)
-         tmp = MDFN_bswap64(value);
-      else if (sizeof(T) == 4)
-         tmp = MDFN_bswap32(value);
-      else if (sizeof(T) == 2)
-         tmp = MDFN_bswap16(value);
-   }
-
-   memcpy(MDFN_ASSUME_ALIGNED(ptr, (aligned ? sizeof(T) : 1)), &tmp, sizeof(T));
-}
-
-/* Host-endian encode: byteswap branch is statically dead. */
-template<typename T, bool aligned = false>
-static INLINE void MDFN_ennsb(void *ptr, T value)
-{
-   MDFN_enXsb<-1, T, aligned>(ptr, value);
+   uint16 tmp;
+   memcpy(&tmp, MDFN_ASSUME_ALIGNED(ptr, (aligned ? 2 : 1)), 2);
+#ifndef MSB_FIRST
+   tmp = MDFN_bswap16(tmp);
+#endif
+   return tmp;
 }
 
 /* Big-endian 64-bit encode (aligned/unaligned via template param).
- * Sole caller is the SHA-256 final-block writer (hash/sha256.cpp);
- * the non-template MDFN_en64msb(uint8_t*, uint64_t) above is the
- * byte-wise fallback for unaligned save-state buffers. */
+ * Sole caller is hash/sha256.cpp's final-block writer; the non-
+ * template MDFN_en64msb(uint8_t*, uint64_t) above is the byte-
+ * wise fallback for unaligned save-state buffers. */
 template<bool aligned = false>
 static INLINE void MDFN_en64msb(void *ptr, uint64 value)
 {
-   MDFN_enXsb<1, uint64, aligned>(ptr, value);
+#ifndef MSB_FIRST
+   value = MDFN_bswap64(value);
+#endif
+   memcpy(MDFN_ASSUME_ALIGNED(ptr, (aligned ? 8 : 1)), &value, 8);
 }
 
 /* neX_ptr_be: address of the host-endian X-bit word that the

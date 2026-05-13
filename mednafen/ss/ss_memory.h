@@ -46,7 +46,7 @@ static INLINE void MDFN_FastArraySet(uint64* const dst, const uint64 value, cons
  #else
 
  for(uint64 *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
-  MDFN_ennsb<uint64, true>(ai, value);
+  *ai = value;
 
  #endif
 }
@@ -72,7 +72,7 @@ static INLINE void MDFN_FastArraySet(uint32* const dst, const uint32 value, cons
  else
  {
   for(uint32 *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
-   MDFN_ennsb<uint32, true>(ai, value);
+   *ai = value;
  }
  #endif
 }
@@ -84,7 +84,7 @@ static INLINE void MDFN_FastArraySet(uint16* const dst, const uint16 value, cons
  else
  {
   for(uint16 *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
-   MDFN_ennsb<uint16, true>(ai, value);
+   *ai = value;
  }
 }
 

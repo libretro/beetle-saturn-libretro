@@ -2190,7 +2190,10 @@ INLINE void SH7095::Cache_WriteUpdate(uint32 A, T V)
  if(MDFN_LIKELY(way_match >= 0)) // Cache hit!
  {
   Cache_LRU[ena] = (Cache_LRU[ena] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;
-  MDFN_ennsb<T, true>(&cent->Data[way_match][NE32ASU8_IDX_ADJ(T, A & 0x0F)], V);	// Ignore CCR OD bit here.
+  /* Host-endian sub-word store into cache line; the BE / LE
+   * dispatch is done by NE32ASU8_IDX_ADJ above, so the actual
+   * write is just a memcpy of sizeof(T) bytes. */
+  memcpy(&cent->Data[way_match][NE32ASU8_IDX_ADJ(T, A & 0x0F)], &V, sizeof(T));	// Ignore CCR OD bit here.
  }
 }
 
@@ -2210,7 +2213,7 @@ INLINE void SH7095::Cache_WriteDataArray(uint32 A, T V)
  const unsigned way = (A >> 10) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
 
- MDFN_ennsb<T, true>(&Cache[ena].Data[way][NE32ASU8_IDX_ADJ(T, A & 0x0F)], V);
+ memcpy(&Cache[ena].Data[way][NE32ASU8_IDX_ADJ(T, A & 0x0F)], &V, sizeof(T));
 }
 
 template<typename T>
@@ -2227,8 +2230,10 @@ INLINE T SH7095::Cache_ReadDataArray(uint32 A)
 {
  const unsigned way = (A >> 10) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
+ T tmp;
 
- return MDFN_densb<T, true>(&Cache[ena].Data[way][NE32ASU8_IDX_ADJ(T, A & 0x0F)]);
+ memcpy(&tmp, &Cache[ena].Data[way][NE32ASU8_IDX_ADJ(T, A & 0x0F)], sizeof(T));
+ return tmp;
 }
 
 template<typename T>
@@ -2285,11 +2290,11 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	  /* Don't use ATM after this point. */									\
 	  CHECK_EXIT_RESUME();											\
 	  {													\
-	   unsigned di = (A + 4 + 0) & 0xC; MDFN_ennsb<uint32, true>(&cent->Data[way_match][di], ExtBusRead(uint32, false, (A &~ 0xF) + di));	\
+	   unsigned di = (A + 4 + 0) & 0xC; { uint32 vtmp__ = ExtBusRead(uint32, false, (A &~ 0xF) + di); memcpy(&cent->Data[way_match][di], &vtmp__, 4); }	\
 	  }													\
 	  for(unsigned i = 4; i < 16; i += 4)									\
 	  {													\
-	   unsigned di = (A + 4 + i) & 0xC; MDFN_ennsb<uint32, true>(&cent->Data[way_match][di], ExtBusRead(uint32,  true, (A &~ 0xF) + di));	\
+	   unsigned di = (A + 4 + i) & 0xC; { uint32 vtmp__ = ExtBusRead(uint32,  true, (A &~ 0xF) + di); memcpy(&cent->Data[way_match][di], &vtmp__, 4); }	\
 	  }													\
 	  if(IsInstr <= 0)											\
 	   MA_until = std::max<sscpu_timestamp_t>(MA_until, SH7095_mem_timestamp + 1);				\
@@ -2308,7 +2313,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	  goto MemReturn;											\
 	 }													\
 														\
-  	 retval = MDFN_densb<T, true>(&cent->Data[way_match][NE32ASU8_IDX_ADJ(T, A & 0x0F)]);			\
+  	 memcpy(&retval, &cent->Data[way_match][NE32ASU8_IDX_ADJ(T, A & 0x0F)], sizeof(T));			\
 	 goto MemReturn;											\
 	}													\
 	/* Fall-through, no break here */									\
@@ -3453,7 +3458,7 @@ void SH7095::PostStateLoad(const unsigned state_version, const bool recorded_nee
   const uint32 A = (PC - 2) & ~3;
 
   if((int32)A < 0)
-   IBuffer = MDFN_densb<uint32, true>(&Cache[(A >> 4) & 0x3F].Data[(A >> 10) & 0x3][NE32ASU8_IDX_ADJ(uint32, A & 0x0F)]);
+   memcpy(&IBuffer, &Cache[(A >> 4) & 0x3F].Data[(A >> 10) & 0x3][NE32ASU8_IDX_ADJ(uint32, A & 0x0F)], sizeof(uint32));
   else
    IBuffer = ne16_rbo_be<uint32>(SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);
 

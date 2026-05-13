@@ -1168,12 +1168,22 @@ static MDFN_COLD void LoadCartNV(void)
    if (!nv16)
       return;
 
+   /* nv16-flagged carts store NVRAM as big-endian uint16s.  On
+    * MSB_FIRST host the on-disk layout already matches host
+    * order, nothing to do.  On LE host we byteswap the buffer
+    * in place. */
+#ifndef MSB_FIRST
    for(i = 0; i < nv_size; i += 2)
    {
-      void* p = (uint8*)nv_ptr + i;
-
-      MDFN_ennsb<uint16>(p, MDFN_de16msb(p));
+      uint8* p = (uint8*)nv_ptr + i;
+      uint16 v;
+      memcpy(&v, p, 2);
+      v = (uint16)((v << 8) | (v >> 8));
+      memcpy(p, &v, 2);
    }
+#else
+   (void)i;
+#endif
 }
 
 static MDFN_COLD void SaveCartNV(void)
@@ -1195,9 +1205,15 @@ static MDFN_COLD void SaveCartNV(void)
       if(nv16)
       {
          uint64_t i;
-         /* Slow... */
+         /* nv_ptr is host-endian uint16s; cdstream_write_be_u16
+          * takes host-endian and emits big-endian bytes.  Just a
+          * misalignment-safe 2-byte load. */
          for(i = 0; i < nv_size; i += 2)
-            cdstream_write_be_u16(&nvs, MDFN_densb<uint16>((uint8*)nv_ptr + i));
+         {
+            uint16 v;
+            memcpy(&v, (uint8*)nv_ptr + i, 2);
+            cdstream_write_be_u16(&nvs, v);
+         }
       }
       else
          cdstream_write(&nvs, nv_ptr, nv_size);
