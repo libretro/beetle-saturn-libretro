@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_CDB_H
 #define __MDFN_SS_CDB_H
 
+#include <mednafen/state.h>
+
 class CDIF;
 
 

@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_INPUT_MULTITAP_H
 #define __MDFN_SS_INPUT_MULTITAP_H
 
+#include <mednafen/state.h>
+
 
 class IODevice_Multitap final : public IODevice
 {

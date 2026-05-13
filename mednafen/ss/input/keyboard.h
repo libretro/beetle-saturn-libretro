@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_INPUT_KEYBOARD_H
 #define __MDFN_SS_INPUT_KEYBOARD_H
 
+#include <mednafen/state.h>
+
 class IODevice_Keyboard final : public IODevice
 {
  public:

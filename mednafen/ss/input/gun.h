@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_INPUT_GUN_H
 #define __MDFN_SS_INPUT_GUN_H
 
+#include <mednafen/state.h>
+
 class IODevice_Gun final : public IODevice
 {
  public:

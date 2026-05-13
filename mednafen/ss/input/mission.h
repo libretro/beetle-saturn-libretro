@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_INPUT_MISSION_H
 #define __MDFN_SS_INPUT_MISSION_H
 
+#include <mednafen/state.h>
+
 class IODevice_Mission final : public IODevice
 {
  public:

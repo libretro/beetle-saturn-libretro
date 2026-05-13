@@ -24,6 +24,9 @@
 #ifndef __MDFN_SS_SMPC_H
 #define __MDFN_SS_SMPC_H
 
+#include <mednafen/state.h>
+#include <mednafen/git.h>
+
 #include "../cdstream.h"
 
 enum

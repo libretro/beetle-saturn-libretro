@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_AK93C45_H
 #define __MDFN_SS_AK93C45_H
 
+#include <mednafen/state.h>
+
 
 class AK93C45
 {

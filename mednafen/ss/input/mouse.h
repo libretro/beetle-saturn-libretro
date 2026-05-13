@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_INPUT_MOUSE_H
 #define __MDFN_SS_INPUT_MOUSE_H
 
+#include <mednafen/state.h>
+
 class IODevice_Mouse final : public IODevice
 {
  public:

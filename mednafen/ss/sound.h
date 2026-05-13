@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_SOUND_H
 #define __MDFN_SS_SOUND_H
 
+#include <mednafen/state.h>
+
 #include <stdint.h>
 
 extern int16_t IBuffer[1024][2];

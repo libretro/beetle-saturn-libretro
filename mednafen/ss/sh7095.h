@@ -22,6 +22,8 @@
 #ifndef __MDFN_SH7095_H
 #define __MDFN_SH7095_H
 
+#include <mednafen/state.h>
+
 class SH7095 final
 {
  public:

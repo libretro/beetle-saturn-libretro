@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_STVIO_H
 #define __MDFN_SS_STVIO_H
 
+#include <mednafen/state.h>
+
 #include "../cdstream.h"
 
 #include "smpc_iodevice.h"

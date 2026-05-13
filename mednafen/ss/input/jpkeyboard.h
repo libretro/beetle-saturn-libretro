@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_INPUT_JPKEYBOARD_H
 #define __MDFN_SS_INPUT_JPKEYBOARD_H
 
+#include <mednafen/state.h>
+
 
 class IODevice_JPKeyboard final : public IODevice
 {

@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_INPUT_WHEEL_H
 #define __MDFN_SS_INPUT_WHEEL_H
 
+#include <mednafen/state.h>
+
 class IODevice_Wheel final : public IODevice
 {
  public:

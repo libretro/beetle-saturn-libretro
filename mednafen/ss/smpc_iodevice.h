@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_SMPC_IODEVICE_H
 #define __MDFN_SS_SMPC_IODEVICE_H
 
+#include <mednafen/state.h>
+
 class IODevice
 {
  public:

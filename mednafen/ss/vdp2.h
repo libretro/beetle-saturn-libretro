@@ -22,6 +22,9 @@
 #ifndef __MDFN_SS_VDP2_H
 #define __MDFN_SS_VDP2_H
 
+#include <mednafen/state.h>
+#include <mednafen/git.h>
+
 namespace VDP2
 {
 

@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_INPUT_3DPAD_H
 #define __MDFN_SS_INPUT_3DPAD_H
 
+#include <mednafen/state.h>
+
 
 class IODevice_3DPad final : public IODevice
 {

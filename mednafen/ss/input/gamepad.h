@@ -22,6 +22,8 @@
 #ifndef __MDFN_SS_INPUT_GAMEPAD_H
 #define __MDFN_SS_INPUT_GAMEPAD_H
 
+#include <mednafen/state.h>
+
 class IODevice_Gamepad final : public IODevice
 {
  public:
