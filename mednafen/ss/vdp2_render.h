@@ -49,6 +49,22 @@ struct VDP2Rend_LIB
  bool vdp1_hires8;
  bool win_ymet[2];
  uint16 vdp1_line[352];
+ // Mesh side-buffer scanline staged here by VDP1::GetLine when the
+ // improved-mesh-transparency option is on. Per-pixel: raw VDP1 texel
+ // (CRAM offset / colour-bank-OR / priority-CC bits for paletted types
+ // 0-4, or RGB555 for direct-colour types 5-7); 0 = no mesh. The
+ // composite tail (ApplyMeshOverlay) decodes each entry the same way
+ // T_DrawSpriteData would and 50%-blends the result onto the surface.
+ // All zeros when the option is off.
+ uint16 vdp1_mesh_line[352];
+ // Winning-layer priority per output pixel, captured at T_MixIt's
+ // terminal store. ApplyMeshOverlay reads this to gate the mesh blend:
+ // a mesh pixel is suppressed where a higher-priority VDP2 layer
+ // already occludes the would-be VDP1 sprite at that position
+ // (matches Kronos's `if (i <= FBMeshPrio)` rule, using the mesh
+ // texel's own priority bits + SpritePrioNum[] lookup as FBMeshPrio).
+ // Sized to the hires output width.
+ uint8 vdp1_winprio[704];
 };
 
 VDP2Rend_LIB* VDP2REND_GetLIB(unsigned line);

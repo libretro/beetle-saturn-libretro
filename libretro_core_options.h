@@ -455,6 +455,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "weave"
    },
    {
+      "beetle_saturn_mesh_transparency",
+      "Improved Mesh Transparencies",
+      NULL,
+      "Replace VDP1's hardware-accurate (x ^ y) & 1 stipple, used by mesh-bit primitives, with a 50% blend against the final composited surface. The stipple looks like a visible checker on a flat panel (it relied on CRT phosphor blur). Improves the look of smoke, shadows, water, and fade effects in many games. CPU port of Kronos's GL-side improved mesh: mesh-bit pixels are routed to a parallel side-buffer instead of the main framebuffer, then VDP2 composites the side-buffer over the final surface in a late blend pass. 16-bit framebuffer only -- 8-bit paletted mode keeps the stipple regardless. Known limitation: a few games (e.g. Grandia) can show mesh residue for a frame or two during scene transitions where the game suppresses the VDP1 sprite layer through a path the side-buffer doesn't observe; toggle the option off if this is bothersome.",
+      NULL,
+      "video",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled"
+   },
+   {
       "beetle_saturn_multitap_port1",
       "6Player Adaptor on Port 1",
       NULL,

@@ -45,7 +45,22 @@ MDFN_FASTCALL uint16 Read16_DB(uint32 A) MDFN_HOT;
 
 void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, const bool new_vb_status);
 
-bool GetLine(const int line, uint16* buf, unsigned w, uint32 rot_x, uint32 rot_y, uint32 rot_xinc, uint32 rot_yinc);
+bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 rot_x, uint32 rot_y, uint32 rot_xinc, uint32 rot_yinc);
+
+// Toggle the "improved mesh transparency" mode for VDP1 mesh-bit
+// primitives (mode bit 8 / MSH). When false (default), mesh
+// primitives use the hardware-accurate (x ^ y) & 1 stipple, which
+// looks like a visible checker pattern on a flat-panel display.
+// When true, mesh primitives instead get routed to a parallel side-
+// buffer (MeshFB) and VDP2's MixIt path blends them 50% over the
+// final composited surface -- a CPU port of Kronos's GL "improved
+// mesh" mechanism (outMeshSurface side-buffer + composite-time
+// blend).
+//
+// Setter is called from the libretro option-update path on the
+// emulator main thread; the same thread runs SH-2 / VDP1
+// rasterisation, so no synchronisation is needed.
+void SetMeshImproved(bool improved) MDFN_COLD;
 
 //
 //

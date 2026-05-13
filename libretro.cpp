@@ -27,6 +27,7 @@
 #include "mednafen/ss/cart.h"
 #include "mednafen/ss/db.h"
 #include "mednafen/ss/smpc.h"
+#include "mednafen/ss/vdp1.h"
 #include "mednafen/ss/vdp2.h"
 #include "mednafen/ss/sound.h"
 
@@ -488,6 +489,16 @@ static void check_variables(bool startup)
          Deinterlacer_SetType(&deint, DEINT_OFF);
       else
          Deinterlacer_SetType(&deint, DEINT_WEAVE);
+   }
+
+   var.key = "beetle_saturn_mesh_transparency";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      // Forwarded to VDP1::SetMeshImproved which sets a module-level
+      // bool. PlotPixel reads it inside its MeshEn=true template
+      // path. Called from the same thread that runs SH-2 / VDP1
+      // rasterisation, so no synchronisation needed.
+      VDP1::SetMeshImproved(strcmp(var.value, "enabled") == 0);
    }
 
    var.key = "beetle_saturn_analog_stick_deadzone";
