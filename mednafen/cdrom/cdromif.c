@@ -370,18 +370,28 @@ static void CDIF_MT_ReadThreadBody(CDIF *self)
 
       if (self->ra_count)
       {
-         uint8_t tmpbuf[2352 + 96];
-
-         self->disc_cdaccess->Read_Raw_Sector(self->disc_cdaccess, tmpbuf, self->ra_lba);
+         /* Read directly into the ring slot.  Flip valid=false
+          * outside the mutex so a racing reader won't snapshot a
+          * half-written buffer; the Read_Raw_Sector call writes
+          * the 2448-byte payload in place, then we relock to
+          * publish valid=true + signal.  Saves a 2448-byte memcpy
+          * per read-ahead sector versus the previous tmpbuf+copy
+          * pattern.  Same shape as beetle-psx-libretro's
+          * cdromif.c read thread. */
+         const unsigned slot = self->SBWritePos;
 
          slock_lock(self->SBMutex);
+         self->SectorBuffers[slot].valid = false;
+         slock_unlock(self->SBMutex);
 
-         self->SectorBuffers[self->SBWritePos].lba   = self->ra_lba;
-         memcpy(self->SectorBuffers[self->SBWritePos].data, tmpbuf, 2352 + 96);
-         self->SectorBuffers[self->SBWritePos].valid = true;
-         self->SectorBuffers[self->SBWritePos].error = false;
-         self->SBWritePos = (self->SBWritePos + 1) % CDIF_SBSIZE;
+         self->disc_cdaccess->Read_Raw_Sector(self->disc_cdaccess,
+               self->SectorBuffers[slot].data, self->ra_lba);
 
+         slock_lock(self->SBMutex);
+         self->SectorBuffers[slot].lba   = self->ra_lba;
+         self->SectorBuffers[slot].error = false;
+         self->SectorBuffers[slot].valid = true;
+         self->SBWritePos = (slot + 1) % CDIF_SBSIZE;
          scond_signal(self->SBCond);
          slock_unlock(self->SBMutex);
 
