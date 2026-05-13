@@ -47,8 +47,6 @@
 
 #include "audioreader.h"
 
-#include <map>
-
 enum
 {
    CDRF_SUBM_NONE = 0,
@@ -162,6 +160,41 @@ static const uint8_t *subq_map_find(const subq_map *m, uint32_t aba)
    }
 }
 
+/* ---- toc_streamcache operations ---------------------------------
+ * Replaces std::map<std::string, cdstream*> for the CUE/TOC parser's
+ * per-disc-image file dedup.  Linear scan on insert/find - parser
+ * is one-shot at disc load, runs maybe a few dozen lookups for the
+ * worst-case multi-bin CUE, no perf cost worth optimising.  Drops
+ * the last std::string-keyed STL container from the CD layer. */
+
+static void toc_streamcache_init(toc_streamcache *c)
+{
+   c->count = 0;
+}
+
+static cdstream *toc_streamcache_find(const toc_streamcache *c, const char *filename)
+{
+   unsigned i;
+   for (i = 0; i < c->count; i++)
+      if (strcmp(c->entries[i].filename, filename) == 0)
+         return c->entries[i].fp;
+   return NULL;
+}
+
+static void toc_streamcache_insert(toc_streamcache *c, const char *filename, cdstream *fp)
+{
+   size_t n;
+   if (c->count >= TOC_STREAMCACHE_MAX)
+      return;
+   n = strlen(filename);
+   if (n >= TOC_STREAMCACHE_NAME)
+      n = TOC_STREAMCACHE_NAME - 1;
+   memcpy(c->entries[c->count].filename, filename, n);
+   c->entries[c->count].filename[n] = '\0';
+   c->entries[c->count].fp          = fp;
+   c->count++;
+}
+
 static const char *DI_CDRDAO_Strings[8] = 
 {
    "AUDIO",
@@ -266,20 +299,20 @@ uint32_t CDAccess_Image::GetSectorCount(CDRFILE_TRACK_INFO *track)
    return(0);
 }
 
-bool CDAccess_Image::ParseTOCFileLineInfo(CDRFILE_TRACK_INFO *track, const int tracknum, const std::string &filename, const char *binoffset, const char *msfoffset, const char *length, bool image_memcache, std::map<std::string, cdstream*> &toc_streamcache)
+bool CDAccess_Image::ParseTOCFileLineInfo(CDRFILE_TRACK_INFO *track, const int tracknum, const std::string &filename, const char *binoffset, const char *msfoffset, const char *length, bool image_memcache, toc_streamcache *cache)
 {
    long offset = 0; // In bytes!
    long tmp_long;
    int m, s, f;
    uint32_t sector_mult;
    long sectors;
-   std::map<std::string, cdstream*>::iterator ribbit = toc_streamcache.find(filename);
+   cdstream *cached_fp = toc_streamcache_find(cache, filename.c_str());
 
-   if(ribbit != toc_streamcache.end())
+   if(cached_fp)
    {
       track->FirstFileInstance = 0;
 
-      track->fp = ribbit->second;
+      track->fp = cached_fp;
    }
    else
    {
@@ -297,7 +330,7 @@ bool CDAccess_Image::ParseTOCFileLineInfo(CDRFILE_TRACK_INFO *track, const int t
       if(!track->fp)
          return false;
 
-      toc_streamcache[filename] = track->fp;
+      toc_streamcache_insert(cache, filename.c_str(), track->fp);
    }
 
    if(filename.length() >= 4 && !strcasecmp(filename.c_str() + filename.length() - 4, ".wav"))
@@ -458,10 +491,11 @@ bool CDAccess_Image::ImageOpen(const std::string& path, bool image_memcache)
    int32_t AutoTrackInc = 1; // For TOC
    CDRFILE_TRACK_INFO TmpTrack;
    std::string file_base, file_ext;
-   std::map<std::string, cdstream*> toc_streamcache;
+   toc_streamcache toc_streamcache;
 
    disc_type = DISC_TYPE_CDDA_OR_M1;
    memset(&TmpTrack, 0, sizeof(TmpTrack));
+   toc_streamcache_init(&toc_streamcache);
 
    MDFN_GetFilePathComponents(path, &base_dir, &file_base, &file_ext);
 
@@ -595,7 +629,7 @@ bool CDAccess_Image::ImageOpen(const std::string& path, bool image_memcache)
                msfoffset = args[1].c_str();
                length = args[2].c_str();
             }
-            if (!ParseTOCFileLineInfo(&TmpTrack, active_track, args[0], binoffset, msfoffset, length, image_memcache, toc_streamcache))
+            if (!ParseTOCFileLineInfo(&TmpTrack, active_track, args[0], binoffset, msfoffset, length, image_memcache, &toc_streamcache))
                return false;
          }
          else if(cmdbuf == "DATAFILE")
@@ -611,7 +645,7 @@ bool CDAccess_Image::ImageOpen(const std::string& path, bool image_memcache)
             else
                length = args[1].c_str();
 
-            if (!ParseTOCFileLineInfo(&TmpTrack, active_track, args[0], binoffset, NULL, length, image_memcache, toc_streamcache))
+            if (!ParseTOCFileLineInfo(&TmpTrack, active_track, args[0], binoffset, NULL, length, image_memcache, &toc_streamcache))
                return false;
          }
          else if(cmdbuf == "INDEX")
@@ -1338,8 +1372,8 @@ void CDAccess_Image::GenerateTOC(void)
    {
       if(Tracks[i].DIFormat == DI_FORMAT_CDI_RAW)
       {
-         toc.first_track = std::min<int>(99, i + 1);
-         toc.last_track = std::max<int>(toc.first_track, toc.last_track);
+         toc.first_track = (99 < (i + 1)) ? 99 : (i + 1);
+         toc.last_track  = (toc.first_track > toc.last_track) ? toc.first_track : toc.last_track;
       }
 
       toc.tracks[i].lba = Tracks[i].LBA;

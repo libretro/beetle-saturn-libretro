@@ -1,8 +1,6 @@
 #ifndef __MDFN_CDACCESS_IMAGE_H
 #define __MDFN_CDACCESS_IMAGE_H
 
-#include <map>
-
 #include "CDUtility.h"
 #include "../cdstream.h"
 #include "audioreader.h"
@@ -56,22 +54,36 @@ struct CDRFILE_TRACK_INFO
    AudioReader *AReader;
 };
 
-template<typename T, size_t N>
-class stl_array {
-   T m_data[N];
-   public:
-   T* begin()              { return m_data; }
-   T* end()                { return m_data + N; }
-   T& operator[](size_t i) { return m_data[i]; }
-   size_t size()           { return N; }
-   bool empty()            { return N == 0; }
-   T* data()               { return m_data; }
+/* Per-disc-image cdstream dedupe table.  CUE / TOC files often
+ * reference the same backing .bin / .wav across multiple track
+ * lines (track-in-file layout); the cache lets us open each file
+ * once and share the cdstream pointer between tracks instead of
+ * re-opening per reference.
+ *
+ * Was std::map<std::string, cdstream*> in the C++ source.  Replaced
+ * here with a fixed-size insert-once-find-many sorted array, same
+ * shape as subq_map above.  Lookups happen once per track-line
+ * during parse and never on the gameplay hot path, so the linear
+ * insert cost is irrelevant - what matters is dropping the last
+ * std::map from the CD layer and getting rid of std::string keys.
+ *
+ * Filename strings up to 255 chars; cap 100 unique files per disc
+ * image (any real Saturn rip is well under that). */
+#define TOC_STREAMCACHE_MAX     100
+#define TOC_STREAMCACHE_NAME    256
 
-   const T* begin() const  { return m_data; }
-   const T*   end() const  { return m_data + N; }
-   const T& operator[](size_t i) const { return m_data[i]; }
-   const T*  data() const  { return m_data; }
+struct toc_streamcache_entry
+{
+   char       filename[TOC_STREAMCACHE_NAME];
+   cdstream  *fp;
 };
+
+struct toc_streamcache
+{
+   struct toc_streamcache_entry entries[TOC_STREAMCACHE_MAX];
+   unsigned                     count;
+};
+typedef struct toc_streamcache toc_streamcache;
 
 class CDAccess_Image
 {
@@ -113,7 +125,7 @@ class CDAccess_Image
       // MakeSubPQ will OR the simulated P and Q subchannel data into SubPWBuf.
       int32_t MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const;
 
-      bool ParseTOCFileLineInfo(CDRFILE_TRACK_INFO *track, const int tracknum, const std::string &filename, const char *binoffset, const char *msfoffset, const char *length, bool image_memcache, std::map<std::string, cdstream*> &toc_streamcache);
+      bool ParseTOCFileLineInfo(CDRFILE_TRACK_INFO *track, const int tracknum, const std::string &filename, const char *binoffset, const char *msfoffset, const char *length, bool image_memcache, toc_streamcache *cache);
       uint32_t GetSectorCount(CDRFILE_TRACK_INFO *track);
 };
 
