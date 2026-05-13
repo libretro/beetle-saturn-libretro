@@ -19,10 +19,19 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
+#ifndef __MDFN_CDACCESS_CHD_H
+#define __MDFN_CDACCESS_CHD_H
+
+#include <stdint.h>
+#include <boolean.h>
 
 #include "CDAccess.h"
 #include <libchdr/chd.h>
 #include <libchdr/cdrom.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct CHDFILE_TRACK_INFO
 {
@@ -40,58 +49,52 @@ struct CHDFILE_TRACK_INFO
 
    int32_t index[100];
 
-   int32_t sectors; // Not including pregap sectors!
+   int32_t sectors; /* Not including pregap sectors! */
    bool FirstFileInstance;
    bool RawAudioMSBFirst;
    unsigned int SubchannelMode;
 
    uint32_t LastSamplePos;
-
 };
 
-class CDAccess_CHD
+typedef struct CHDFILE_TRACK_INFO CHDFILE_TRACK_INFO;
+
+/* Concrete backend for the CDAccess vtable defined in CDAccess.h.
+ * Was a C++ class until the Phase-3 / Phase-4 conversion of the CD
+ * layer to C; the layout still matches the old class so the
+ * vtable cast in CDAccess_CHD_New() is layout-compatible.
+ *
+ * CDAccess base MUST be the first member - the dispatch path in
+ * cdromif casts a CDAccess* back to this type via a cast from the
+ * embedded `base` pointer's address. */
+struct CDAccess_CHD
 {
- public:
+   CDAccess base;
 
- CDAccess_CHD(const std::string& path, bool image_memcache);
- ~CDAccess_CHD();
+   int32_t NumTracks;
+   int32_t FirstTrack;
+   int32_t LastTrack;
+   int32_t total_sectors;
+   uint8_t disc_type;
+   TOC     toc;
+   CHDFILE_TRACK_INFO Tracks[CD_MAX_TRACKS + 1];
 
- bool Read_Raw_Sector(uint8 *buf, int32 lba);
+   int num_sessions;
+   int num_tracks;
 
- bool Fast_Read_Raw_PW_TSRE(uint8* pwbuf, int32 lba);
-
- bool Read_TOC(TOC *toc);
-
- /* CDAccess vtable base.  MUST be the first member. */
- CDAccess base;
-
- private:
-
- bool Load(const std::string& path, bool image_memcache);
- void Cleanup(void);
-
-  // MakeSubPQ will OR the simulated P and Q subchannel data into SubPWBuf.
-  int32_t MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const;
-
-  int32_t NumTracks;
-  int32_t FirstTrack;
-  int32_t LastTrack;
-  int32_t total_sectors;
-  uint8_t disc_type;
-  TOC toc;
-  CHDFILE_TRACK_INFO Tracks[CD_MAX_TRACKS + 1];
-
-  //struct disc;
-  //struct session sessions[DISC_MAX_SESSIONS];
-  int num_sessions;
-  //struct track tracks[DISC_MAX_TRACKS];
-  int num_tracks;
-
-  chd_file *chd;
-  /* hunk data cache */
-  uint8_t *hunkmem;
-  /* last hunknum read */
-  int oldhunk;
+   chd_file *chd;
+   /* hunk data cache */
+   uint8_t *hunkmem;
+   /* last hunknum read */
+   int oldhunk;
 };
 
-extern "C" CDAccess *CDAccess_CHD_New(const char *path, bool image_memcache);
+typedef struct CDAccess_CHD CDAccess_CHD;
+
+CDAccess *CDAccess_CHD_New(const char *path, bool image_memcache);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

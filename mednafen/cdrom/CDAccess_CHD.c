@@ -19,12 +19,27 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "../mednafen.h"
-#include "../general.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+#include <boolean.h>
+
 
 #include <stdio.h>
 
+#include <libretro.h>
+
+#include "../mednafen-endian.h"
 #include "CDAccess_CHD.h"
+
+extern retro_log_printf_t log_cb;
+
+/* Forward declarations - methods reference each other regardless of
+ * source order. */
+static bool    CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, bool image_memcache);
+static int32_t CDAccess_CHD_MakeSubPQ    (const CDAccess_CHD *self, int32_t lba, uint8_t *SubPWBuf);
+static void    CDAccess_CHD_cleanup      (CDAccess_CHD *self);
 
 // Disk-image(rip) track/sector formats
 enum
@@ -52,38 +67,51 @@ static const int32_t DI_Size_Table[8] =
   2352  // CD-I RAW
 };
 
-CDAccess_CHD::CDAccess_CHD(const std::string &path, bool image_memcache) : NumTracks(0), total_sectors(0)
+/* Init helper.  Was the C++ ctor; now an explicit function called
+ * from CDAccess_CHD_New.  Zeroes the struct's variable state (the
+ * fields that the C++ ctor's member-initializer list used to handle)
+ * and clears the embedded TOC before Load populates it. */
+static bool CDAccess_CHD_init(CDAccess_CHD *self, const char *path, bool image_memcache)
 {
-  // Same rationale as CDAccess_CCD - TOC no longer has a default ctor,
-  // so zero the embedded toc explicitly before Load() populates it.
-  TOC_Clear(&toc);
-  Load(path, image_memcache);
+  self->NumTracks     = 0;
+  self->FirstTrack    = 0;
+  self->LastTrack     = 0;
+  self->total_sectors = 0;
+  self->disc_type     = 0;
+  self->chd           = NULL;
+  self->hunkmem       = NULL;
+  self->oldhunk       = -1;
+  self->num_sessions  = 0;
+  self->num_tracks    = 0;
+  memset(self->Tracks, 0, sizeof(self->Tracks));
+  TOC_Clear(&self->toc);
+  return CDAccess_CHD_Load_internal(self, path, image_memcache);
 }
 
-bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
+static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, bool image_memcache)
 {
-  chd_error err = chd_open(path.c_str(), CHD_OPEN_READ, NULL, &chd);
+  chd_error err = chd_open(path, CHD_OPEN_READ, NULL, &self->chd);
   if (err != CHDERR_NONE)
   {
-    log_cb(RETRO_LOG_ERROR, "Failed to load CHD image: %s", path.c_str());
+    log_cb(RETRO_LOG_ERROR, "Failed to load CHD image: %s", path);
     return false;
   }
 
   if (image_memcache)
   {
-    err = chd_precache(chd);
+    err = chd_precache(self->chd);
 
     if (err != CHDERR_NONE)
     {
-      log_cb(RETRO_LOG_ERROR, "Failed to pre-cache CHD image: %s", path.c_str());
+      log_cb(RETRO_LOG_ERROR, "Failed to pre-cache CHD image: %s", path);
       return false;
     }
   }
 
   /* allocate storage for sector reads */
-  const chd_header *head = chd_get_header(chd);
-  hunkmem = (uint8_t *)malloc(head->hunkbytes);
-  oldhunk = -1;
+  const chd_header *head = chd_get_header(self->chd);
+  self->hunkmem = (uint8_t *)malloc(head->hunkbytes);
+  self->oldhunk = -1;
 
   int plba = -150;
   int numsectors = 0;
@@ -94,7 +122,7 @@ bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
     char type[64], subtype[32], pgtype[32], pgsub[32];
     char tmp[512];
 
-    err = chd_get_metadata(chd, CDROM_TRACK_METADATA2_TAG, NumTracks, tmp, sizeof(tmp), NULL, NULL, NULL);
+    err = chd_get_metadata(self->chd, CDROM_TRACK_METADATA2_TAG, self->NumTracks, tmp, sizeof(tmp), NULL, NULL, NULL);
     if (err == CHDERR_NONE)
     {
       sscanf(tmp, CDROM_TRACK_METADATA2_FORMAT, &tkid, type, subtype, &frames, &pregap, pgtype, pgsub, &postgap);
@@ -102,8 +130,8 @@ bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
     else
     {
       /* try to read the old v3/v4 metadata tag */
-      err = chd_get_metadata(chd, CDROM_TRACK_METADATA_TAG,
-                             NumTracks, tmp, sizeof(tmp), NULL, NULL,
+      err = chd_get_metadata(self->chd, CDROM_TRACK_METADATA_TAG,
+                             self->NumTracks, tmp, sizeof(tmp), NULL, NULL,
                              NULL);
       if (err == CHDERR_NONE)
       {
@@ -131,44 +159,44 @@ bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
     }
 
     /* add track */
-    NumTracks++;
-    toc.tracks[NumTracks].adr = 1;
-    toc.tracks[NumTracks].control = strcmp(type, "AUDIO") == 0 ? 0 : 4;
-    toc.tracks[NumTracks].valid = true;
+    self->NumTracks++;
+    self->toc.tracks[self->NumTracks].adr = 1;
+    self->toc.tracks[self->NumTracks].control = strcmp(type, "AUDIO") == 0 ? 0 : 4;
+    self->toc.tracks[self->NumTracks].valid = true;
 
-    Tracks[NumTracks].pregap = (NumTracks == 1) ? 150 : 0;
-    Tracks[NumTracks].pregap_dv = pregap;
-    plba += Tracks[NumTracks].pregap + Tracks[NumTracks].pregap_dv;
-    Tracks[NumTracks].LBA = toc.tracks[NumTracks].lba = plba;
-    Tracks[NumTracks].postgap = postgap;
-    Tracks[NumTracks].chd_offset = chd_offset;
-    Tracks[NumTracks].sectors = frames - Tracks[NumTracks].pregap_dv;
-    Tracks[NumTracks].SubchannelMode = 0;
-    Tracks[NumTracks].index[0] = -1;
-    Tracks[NumTracks].index[1] = 0;
+    self->Tracks[self->NumTracks].pregap = (self->NumTracks == 1) ? 150 : 0;
+    self->Tracks[self->NumTracks].pregap_dv = pregap;
+    plba += self->Tracks[self->NumTracks].pregap + self->Tracks[self->NumTracks].pregap_dv;
+    self->Tracks[self->NumTracks].LBA = self->toc.tracks[self->NumTracks].lba = plba;
+    self->Tracks[self->NumTracks].postgap = postgap;
+    self->Tracks[self->NumTracks].chd_offset = chd_offset;
+    self->Tracks[self->NumTracks].sectors = frames - self->Tracks[self->NumTracks].pregap_dv;
+    self->Tracks[self->NumTracks].SubchannelMode = 0;
+    self->Tracks[self->NumTracks].index[0] = -1;
+    self->Tracks[self->NumTracks].index[1] = 0;
     for (int32_t i = 2; i < 100; i++)
-      Tracks[NumTracks].index[i] = -1;
+      self->Tracks[self->NumTracks].index[i] = -1;
 
-    toc.tracks[NumTracks].lba = plba;
+    self->toc.tracks[self->NumTracks].lba = plba;
 
     if (strcmp(type, "AUDIO") == 0)
     {
-      Tracks[NumTracks].DIFormat = DI_FORMAT_AUDIO;
-      Tracks[NumTracks].RawAudioMSBFirst = 1;
+      self->Tracks[self->NumTracks].DIFormat = DI_FORMAT_AUDIO;
+      self->Tracks[self->NumTracks].RawAudioMSBFirst = 1;
     }
     else if (strcmp(type, "MODE1_RAW") == 0)
-      Tracks[NumTracks].DIFormat = DI_FORMAT_MODE1_RAW;
+      self->Tracks[self->NumTracks].DIFormat = DI_FORMAT_MODE1_RAW;
     else if (strcmp(type, "MODE2_RAW") == 0)
-      Tracks[NumTracks].DIFormat = DI_FORMAT_MODE2_RAW;
+      self->Tracks[self->NumTracks].DIFormat = DI_FORMAT_MODE2_RAW;
     else if (strcmp(type, "MODE1") == 0)
-      Tracks[NumTracks].DIFormat = DI_FORMAT_MODE1;
+      self->Tracks[self->NumTracks].DIFormat = DI_FORMAT_MODE1;
 
-    Tracks[NumTracks].subq_control = strcmp(type, "AUDIO") == 0 ? 0 : 4;
+    self->Tracks[self->NumTracks].subq_control = strcmp(type, "AUDIO") == 0 ? 0 : 4;
 
-    //log_cb(RETRO_LOG_INFO, "chd_parse '%s' track=%d lba=%d, pregap=%d pregap_dv=%d postgap=%d sectors=%d\n", tmp, NumTracks, Tracks[NumTracks].LBA, Tracks[NumTracks].pregap, Tracks[NumTracks].pregap_dv, Tracks[NumTracks].postgap, Tracks[NumTracks].sectors);
+    //log_cb(RETRO_LOG_INFO, "chd_parse '%s' track=%d lba=%d, pregap=%d pregap_dv=%d postgap=%d sectors=%d\n", tmp, self->NumTracks, self->Tracks[self->NumTracks].LBA, self->Tracks[self->NumTracks].pregap, self->Tracks[self->NumTracks].pregap_dv, self->Tracks[self->NumTracks].postgap, self->Tracks[self->NumTracks].sectors);
 
-    plba += frames - Tracks[NumTracks].pregap_dv;
-    plba += Tracks[NumTracks].postgap;
+    plba += frames - self->Tracks[self->NumTracks].pregap_dv;
+    plba += self->Tracks[self->NumTracks].postgap;
 
     // tracks are padded to a 4-frame boundary in chds, calculate the
     // next track's offset to generate correct block addresses
@@ -176,51 +204,51 @@ bool CDAccess_CHD::Load(const std::string &path, bool image_memcache)
       chd_offset += (frames + (CD_TRACK_PADDING - frames % CD_TRACK_PADDING)) - frames;
 
     numsectors += frames;
-    toc.first_track = 1;
-    toc.last_track = NumTracks;
+    self->toc.first_track = 1;
+    self->toc.last_track = self->NumTracks;
   }
 
-  FirstTrack = 1;
-  LastTrack = NumTracks;
-  total_sectors = numsectors;
-  //log_cb(RETRO_LOG_INFO, "chd total_sectors '%d'\n", total_sectors);
+  self->FirstTrack = 1;
+  self->LastTrack = self->NumTracks;
+  self->total_sectors = numsectors;
+  //log_cb(RETRO_LOG_INFO, "self->chd self->total_sectors '%d'\n", self->total_sectors);
 
   /* add track */
-  toc.tracks[100].adr = 1;
-  toc.tracks[100].control = 0;
-  toc.tracks[100].lba = numsectors; // HACK
-  toc.tracks[100].valid = true;
+  self->toc.tracks[100].adr = 1;
+  self->toc.tracks[100].control = 0;
+  self->toc.tracks[100].lba = numsectors; // HACK
+  self->toc.tracks[100].valid = true;
 
   //
   // Adjust indexes for MakeSubPQ()
   //
-  for (int x = FirstTrack; x < (FirstTrack + NumTracks); x++)
+  for (int x = self->FirstTrack; x < (self->FirstTrack + self->NumTracks); x++)
   {
-    const int32_t base = Tracks[x].index[1];
+    const int32_t base = self->Tracks[x].index[1];
     for (int32_t i = 0; i < 100; i++)
     {
-      if (i == 0 || Tracks[x].index[i] == -1)
-        Tracks[x].index[i] = INT32_MAX;
+      if (i == 0 || self->Tracks[x].index[i] == -1)
+        self->Tracks[x].index[i] = INT32_MAX;
       else
-        Tracks[x].index[i] = Tracks[x].LBA + (Tracks[x].index[i] - base);
+        self->Tracks[x].index[i] = self->Tracks[x].LBA + (self->Tracks[x].index[i] - base);
 
-      assert(Tracks[x].index[i] >= 0);
+      assert(self->Tracks[x].index[i] >= 0);
     }
   }
 
   return true;
 }
 
-CDAccess_CHD::~CDAccess_CHD()
+static void CDAccess_CHD_cleanup(CDAccess_CHD *self)
 {
-  if (chd != NULL)
-    chd_close(chd);
+  if (self->chd != NULL)
+    chd_close(self->chd);
 
-  if (hunkmem)
-    free(hunkmem);
+  if (self->hunkmem)
+    free(self->hunkmem);
 }
 
-bool CDAccess_CHD::Read_Raw_Sector(uint8_t *buf, int32_t lba)
+static bool CDAccess_CHD_Read_Raw_Sector(CDAccess_CHD *self, uint8_t *buf, int32_t lba)
 {
   uint8_t SimuQ[0xC];
   int32_t track;
@@ -229,11 +257,11 @@ bool CDAccess_CHD::Read_Raw_Sector(uint8_t *buf, int32_t lba)
   //
   // Leadout synthesis
   //
-  if (lba >= total_sectors)
+  if (lba >= self->total_sectors)
   {
     uint8_t data_synth_mode = 0x01; // Default for DISC_TYPE_CDDA_OR_M1, would be 0x02 for DISC_TYPE_CD_XA
 
-    switch (Tracks[LastTrack].DIFormat)
+    switch (self->Tracks[self->LastTrack].DIFormat)
     {
     case DI_FORMAT_AUDIO:
       break;
@@ -252,15 +280,21 @@ bool CDAccess_CHD::Read_Raw_Sector(uint8_t *buf, int32_t lba)
       break;
     }
 
-    synth_leadout_sector_lba(data_synth_mode, &toc, lba, buf);
+    synth_leadout_sector_lba(data_synth_mode, &self->toc, lba, buf);
     return true;
   }
 
   memset(buf + 2352, 0, 96);
-  track = MakeSubPQ(lba, buf + 2352);
+  track = CDAccess_CHD_MakeSubPQ(self, lba, buf + 2352);
+  /* MakeSubPQ used to throw on track-not-found; now it returns -1.
+   * Treat as a synthesised-failure -> zeroed sector + false return so
+   * callers fall back to their error path the same way the C++
+   * exception used to. */
+  if (track < 0)
+    return false;
   subq_deinterleave(buf + 2352, SimuQ);
 
-  ct = &Tracks[track];
+  ct = &self->Tracks[track];
 
   //
   // Handle pregap and postgap reading
@@ -272,8 +306,8 @@ bool CDAccess_CHD::Read_Raw_Sector(uint8_t *buf, int32_t lba)
 
     if (pg_offset < -150)
     {
-      if ((Tracks[track].subq_control & SUBQ_CTRLF_DATA) && (FirstTrack < track) && !(Tracks[track - 1].subq_control & SUBQ_CTRLF_DATA))
-        et = &Tracks[track - 1];
+      if ((self->Tracks[track].subq_control & SUBQ_CTRLF_DATA) && (self->FirstTrack < track) && !(self->Tracks[track - 1].subq_control & SUBQ_CTRLF_DATA))
+        et = &self->Tracks[track - 1];
     }
 
     memset(buf, 0, 2352);
@@ -301,24 +335,24 @@ bool CDAccess_CHD::Read_Raw_Sector(uint8_t *buf, int32_t lba)
   }
   else
   {
-    const chd_header *head = chd_get_header(chd);
+    const chd_header *head = chd_get_header(self->chd);
     int cad                = lba + ct->chd_offset;
     int hunkid             = (cad * CD_FRAME_SIZE) / head->hunkbytes;
     int hunkofs            = (cad * CD_FRAME_SIZE) % head->hunkbytes;
     int err                = CHDERR_NONE;
 
     /* each hunk holds ~8 sectors, optimize when reading contiguous sectors */
-    if (hunkid != oldhunk)
+    if (hunkid != self->oldhunk)
     {
-      err = chd_read(chd, hunkid, hunkmem);
+      err = chd_read(self->chd, hunkid, self->hunkmem);
       if (err == CHDERR_NONE)
-        oldhunk = hunkid;
+        self->oldhunk = hunkid;
     }
 
     if (ct->DIFormat == DI_FORMAT_MODE1 || ct->DIFormat == DI_FORMAT_MODE2) {
-        memcpy(buf + 16, hunkmem + hunkofs, DI_Size_Table[ct->DIFormat]);
+        memcpy(buf + 16, self->hunkmem + hunkofs, DI_Size_Table[ct->DIFormat]);
     } else {
-        memcpy(buf, hunkmem + hunkofs, DI_Size_Table[ct->DIFormat]);
+        memcpy(buf, self->hunkmem + hunkofs, DI_Size_Table[ct->DIFormat]);
     }
 
     switch(ct->DIFormat)
@@ -345,7 +379,7 @@ bool CDAccess_CHD::Read_Raw_Sector(uint8_t *buf, int32_t lba)
 //
 // Note: this function makes use of the current contents(as in |=) in SubPWBuf.
 //
-int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
+static int32_t CDAccess_CHD_MakeSubPQ(const CDAccess_CHD *self, int32_t lba, uint8_t *SubPWBuf)
 {
   uint8_t buf[0xC];
   int32_t track;
@@ -355,9 +389,9 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
   uint8_t pause_or = 0x00;
   bool track_found = false;
 
-  for (track = FirstTrack; track < (FirstTrack + NumTracks); track++)
+  for (track = self->FirstTrack; track < (self->FirstTrack + self->NumTracks); track++)
   {
-    if (lba >= (Tracks[track].LBA - Tracks[track].pregap_dv - Tracks[track].pregap) && lba < (Tracks[track].LBA + Tracks[track].sectors + Tracks[track].postgap))
+    if (lba >= (self->Tracks[track].LBA - self->Tracks[track].pregap_dv - self->Tracks[track].pregap) && lba < (self->Tracks[track].LBA + self->Tracks[track].sectors + self->Tracks[track].postgap))
     {
       track_found = true;
       break;
@@ -365,12 +399,12 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
   }
 
   if (!track_found)
-    throw(MDFN_Error(0, "Could not find track for sector %u!", lba));
+    return -1;
 
-  if (lba < Tracks[track].LBA)
-    lba_relative = Tracks[track].LBA - 1 - lba;
+  if (lba < self->Tracks[track].LBA)
+    lba_relative = self->Tracks[track].LBA - 1 - lba;
   else
-    lba_relative = lba - Tracks[track].LBA;
+    lba_relative = lba - self->Tracks[track].LBA;
 
   f = (lba_relative % 75);
   s = ((lba_relative / 75) % 60);
@@ -381,15 +415,15 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
   ma = ((lba + 150) / 75 / 60);
 
   uint8_t adr = 0x1; // Q channel data encodes position
-  uint8_t control = Tracks[track].subq_control;
+  uint8_t control = self->Tracks[track].subq_control;
 
   // Handle pause(D7 of interleaved subchannel byte) bit, should be set to 1 when in pregap or postgap.
-  if ((lba < Tracks[track].LBA) || (lba >= Tracks[track].LBA + Tracks[track].sectors))
+  if ((lba < self->Tracks[track].LBA) || (lba >= self->Tracks[track].LBA + self->Tracks[track].sectors))
     pause_or = 0x80;
 
   // Handle pregap between audio->data track
   {
-    int32_t pg_offset = (int32_t)lba - Tracks[track].LBA;
+    int32_t pg_offset = (int32_t)lba - self->Tracks[track].LBA;
 
     // If we're more than 2 seconds(150 sectors) from the real "start" of the track/INDEX 01, and the track is a data track,
     // and the preceding track is an audio track, encode it as audio(by taking the SubQ control field from the preceding track).
@@ -398,8 +432,8 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
     //
     if (pg_offset < -150)
     {
-      if ((Tracks[track].subq_control & SUBQ_CTRLF_DATA) && (FirstTrack < track) && !(Tracks[track - 1].subq_control & SUBQ_CTRLF_DATA))
-        control = Tracks[track - 1].subq_control;
+      if ((self->Tracks[track].subq_control & SUBQ_CTRLF_DATA) && (self->FirstTrack < track) && !(self->Tracks[track - 1].subq_control & SUBQ_CTRLF_DATA))
+        control = self->Tracks[track - 1].subq_control;
     }
   }
 
@@ -408,7 +442,7 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
   buf[1] = U8_to_BCD(track);
 
   // Index
-  //if(lba < Tracks[track].LBA) // Index is 00 in pregap
+  //if(lba < self->Tracks[track].LBA) // Index is 00 in pregap
   // buf[2] = U8_to_BCD(0x00);
   //else
   // buf[2] = U8_to_BCD(0x01);
@@ -417,7 +451,7 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
 
     for (int32_t i = 0; i < 100; i++)
     {
-      if (lba >= Tracks[track].index[i])
+      if (lba >= self->Tracks[track].index[i])
         index = i;
     }
     buf[2] = U8_to_BCD(index);
@@ -443,71 +477,76 @@ int32_t CDAccess_CHD::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
   return track;
 }
 
-bool CDAccess_CHD::Fast_Read_Raw_PW_TSRE(uint8_t *pwbuf, int32_t lba)
+static bool CDAccess_CHD_Fast_Read_Raw_PW_TSRE(CDAccess_CHD *self, uint8_t *pwbuf, int32_t lba)
 {
   int32_t track;
 
-  if (lba >= total_sectors)
+  if (lba >= self->total_sectors)
   {
-    subpw_synth_leadout_lba(&toc, lba, pwbuf);
+    subpw_synth_leadout_lba(&self->toc, lba, pwbuf);
     return (true);
   }
 
   memset(pwbuf, 0, 96);
-  track = MakeSubPQ(lba, pwbuf);
-
+  track = CDAccess_CHD_MakeSubPQ(self, lba, pwbuf);
+  if (track < 0)
+    return false;
   //
   // If TOC+BIN has embedded subchannel data, we can't fast-read(synthesize) it...
   //
-  if (Tracks[track].SubchannelMode && lba >= (Tracks[track].LBA - Tracks[track].pregap_dv) && (lba < Tracks[track].LBA + Tracks[track].sectors))
+  if (self->Tracks[track].SubchannelMode && lba >= (self->Tracks[track].LBA - self->Tracks[track].pregap_dv) && (lba < self->Tracks[track].LBA + self->Tracks[track].sectors))
     return (false);
 
   return (true);
 }
 
-bool CDAccess_CHD::Read_TOC(TOC *toc)
+static bool CDAccess_CHD_Read_TOC(CDAccess_CHD *self, TOC *out_toc)
 {
-  *toc = this->toc;
+  *out_toc = self->toc;
   return true;
 }
 
 /* ---------------------------------------------------------------- */
-/* CDAccess vtable adapters.                                        */
+/* CDAccess vtable adapters.  Each forwards to the static C method  */
+/* of the same name above; the wrapper exists to bridge the         */
+/* (CDAccess*,...) function-pointer shape declared in CDAccess.h    */
+/* to the (CDAccess_CHD*,...) static-method shape.                  */
 /* ---------------------------------------------------------------- */
 
 static bool CDAccess_CHD_RRS_vt(CDAccess *base, uint8_t *buf, int32_t lba)
 {
-   CDAccess_CHD *self = (CDAccess_CHD *)base;
-   return self->Read_Raw_Sector(buf, lba);
+   return CDAccess_CHD_Read_Raw_Sector((CDAccess_CHD *)base, buf, lba);
 }
 
 static bool CDAccess_CHD_FRPT_vt(CDAccess *base, uint8_t *pwbuf, int32_t lba)
 {
-   CDAccess_CHD *self = (CDAccess_CHD *)base;
-   return self->Fast_Read_Raw_PW_TSRE(pwbuf, lba);
+   return CDAccess_CHD_Fast_Read_Raw_PW_TSRE((CDAccess_CHD *)base, pwbuf, lba);
 }
 
-static bool CDAccess_CHD_RTOC_vt(CDAccess *base, TOC *toc)
+static bool CDAccess_CHD_RTOC_vt(CDAccess *base, TOC *out_toc)
 {
-   CDAccess_CHD *self = (CDAccess_CHD *)base;
-   return self->Read_TOC(toc);
+   return CDAccess_CHD_Read_TOC((CDAccess_CHD *)base, out_toc);
 }
 
 static void CDAccess_CHD_destroy_vt(CDAccess *base)
 {
    CDAccess_CHD *self = (CDAccess_CHD *)base;
-   delete self;
+   CDAccess_CHD_cleanup(self);
+   free(self);
 }
 
-extern "C" CDAccess *CDAccess_CHD_New(const char *path, bool image_memcache)
+CDAccess *CDAccess_CHD_New(const char *path, bool image_memcache)
 {
-   CDAccess_CHD *self;
-   try
+   CDAccess_CHD *self = (CDAccess_CHD *)calloc(1, sizeof(*self));
+   if (!self)
+      return NULL;
+
+   if (!CDAccess_CHD_init(self, path, image_memcache))
    {
-      self = new CDAccess_CHD(std::string(path), image_memcache);
-   }
-   catch (...)
-   {
+      /* init's Load may have partially populated chd / hunkmem
+       * before failing - run cleanup so we don't leak. */
+      CDAccess_CHD_cleanup(self);
+      free(self);
       return NULL;
    }
 

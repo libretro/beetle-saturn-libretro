@@ -154,7 +154,7 @@ SOURCES_C += \
 	$(DEPS_DIR)/zstd/lib/decompress/zstd_decompress_block.c
 endif
 
-SOURCES_CXX += $(CDROM_DIR)/CDAccess_CHD.cpp
+SOURCES_C += $(CDROM_DIR)/CDAccess_CHD.c
 endif
 
 SOURCES_CXX += \
