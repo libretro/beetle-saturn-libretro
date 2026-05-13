@@ -1,9 +1,17 @@
 #ifndef __MDFN_CDACCESS_IMAGE_H
 #define __MDFN_CDACCESS_IMAGE_H
 
+#include <stdint.h>
+#include <boolean.h>
+
 #include "CDUtility.h"
 #include "../cdstream.h"
 #include "audioreader.h"
+#include "CDAccess.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Sorted-array SubQ replacement table, replaces the former
  * std::map<uint32_t, stl_array<uint8_t, 12>> SubQReplaceMap.
@@ -42,7 +50,7 @@ struct CDRFILE_TRACK_INFO
 
    int32_t index[100];
 
-   int32_t sectors;	// Not including pregap sectors!
+   int32_t sectors; /* Not including pregap sectors! */
    cdstream *fp;
    bool FirstFileInstance;
    bool RawAudioMSBFirst;
@@ -53,6 +61,8 @@ struct CDRFILE_TRACK_INFO
 
    AudioReader *AReader;
 };
+
+typedef struct CDRFILE_TRACK_INFO CDRFILE_TRACK_INFO;
 
 /* Per-disc-image cdstream dedupe table.  CUE / TOC files often
  * reference the same backing .bin / .wav across multiple track
@@ -85,52 +95,36 @@ struct toc_streamcache
 };
 typedef struct toc_streamcache toc_streamcache;
 
-class CDAccess_Image
+/* Concrete CDAccess_Image backend.  All fields top-level (was
+ * private state on the C++ class).  CDAccess base MUST be the
+ * first member so the dispatch path in CDAccess.h can cast a
+ * CDAccess* back to this struct via its embedded base pointer's
+ * address. */
+struct CDAccess_Image
 {
-   public:
+   CDAccess base;
 
-      CDAccess_Image(const std::string& path, bool image_memcache);
-      ~CDAccess_Image();
+   int32_t  NumTracks;
+   int32_t  FirstTrack;
+   int32_t  LastTrack;
+   int32_t  total_sectors;
+   uint8_t  disc_type;
+   CDRFILE_TRACK_INFO Tracks[100];
+   TOC      toc;
 
-      bool Read_Raw_Sector(uint8_t *buf, int32_t lba);
+   subq_map SubQReplaceMap;
 
-      bool Fast_Read_Raw_PW_TSRE(uint8_t* pwbuf, int32_t lba);
-
-      bool Read_TOC(TOC *toc);
-
-      /* CDAccess vtable base.  MUST be the first member so the
-       * dispatch function pointers in CDAccess.h can be reached
-       * via a CDAccess* alias of this object's address. */
-      CDAccess base;
-
-   private:
-
-      int32_t NumTracks;
-      int32_t FirstTrack;
-      int32_t LastTrack;
-      int32_t total_sectors;
-      uint8_t disc_type;
-      CDRFILE_TRACK_INFO Tracks[100]; // Track #0(HMM?) through 99
-      TOC toc;
-
-      subq_map SubQReplaceMap;
-
-      std::string base_dir;
-
-      bool ImageOpen(const std::string& path, bool image_memcache);
-      bool LoadSBI(const std::string& sbi_path);
-      void GenerateTOC(void);
-      void Cleanup(void);
-
-      // MakeSubPQ will OR the simulated P and Q subchannel data into SubPWBuf.
-      int32_t MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const;
-
-      bool ParseTOCFileLineInfo(CDRFILE_TRACK_INFO *track, const int tracknum, const std::string &filename, const char *binoffset, const char *msfoffset, const char *length, bool image_memcache, toc_streamcache *cache);
-      uint32_t GetSectorCount(CDRFILE_TRACK_INFO *track);
+   /* Was std::string base_dir.  1024 chars is generous for any
+    * real disc-image path's directory component. */
+   char     base_dir[1024];
 };
 
-/* C-callable factory used by CDAccess.c.  Returns NULL on failure
- * (catches the ImageOpen exception). */
-extern "C" CDAccess *CDAccess_Image_New(const char *path, bool image_memcache);
+typedef struct CDAccess_Image CDAccess_Image;
+
+CDAccess *CDAccess_Image_New(const char *path, bool image_memcache);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
