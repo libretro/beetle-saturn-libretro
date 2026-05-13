@@ -325,7 +325,14 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
  //if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))
  // RunSCSP();
 
- SCSP.RW<uint16_t, false>(A & 0x1FFFFF, ret);
+ // Fast path: instruction fetch goes to sound RAM (0x000000-0x07FFFF).
+ // The 68K can't sensibly execute from the mirror region or SCSP registers,
+ // so fall back to SCSP.RW only for the unlikely pathological case (which
+ // preserves its existing open-bus-returns-0 / register-read behavior).
+ if(MDFN_LIKELY(A < 0x80000))
+  ret = SCSP.GetRAMPtr()[A >> 1];
+ else
+  SCSP.RW<uint16_t, false>(A & 0x1FFFFF, ret);
 
  SoundCPU.timestamp += 2;
 
