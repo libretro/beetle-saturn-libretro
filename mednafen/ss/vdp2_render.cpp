@@ -3273,7 +3273,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
   if(MDFN_LIKELY(UserLayerEnableMask & (1U << 6)))
   {
    MakeSpriteCCLUT();
-   DrawSpriteData[(HRes & 0x2) >> 0x1][(SDCTL >> 8) & 0x1][SPCTL_Low](LIB[vdp2_line].vdp1_line_src, LIB[vdp2_line].vdp1_hires8, w);
+   DrawSpriteData[(HRes & 0x2) >> 0x1][(SDCTL >> 8) & 0x1][SPCTL_Low](LIB[vdp2_line].vdp1_line, LIB[vdp2_line].vdp1_hires8, w);
    LB_clean_spr = false;
   }
   else if(!LB_clean_spr)
@@ -3615,7 +3615,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
    // zeroed unconditionally by VBErase, so flipping the option on
    // mid-session can't bleed stale data through.
    if(VDP1::MeshImproved)
-    ApplyMeshOverlay(target + tvxo, LIB[vdp2_line].vdp1_mesh_line_src, LIB[vdp2_line].vdp1_winprio, w, (HRes & 0x2) >> 1);
+    ApplyMeshOverlay(target + tvxo, LIB[vdp2_line].vdp1_mesh_line, LIB[vdp2_line].vdp1_winprio, w, (HRes & 0x2) >> 1);
   }
   //
   //

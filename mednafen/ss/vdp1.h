@@ -46,18 +46,7 @@ MDFN_FASTCALL uint16 Read16_DB(uint32 A) MDFN_HOT;
 
 void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, const bool new_vb_status);
 
-// Stage VDP1's framebuffer row for VDP2's scanline composite. The two
-// buf args are scratch the rotation path writes into pixel-by-pixel
-// (the rotation transform produces a scattered access pattern that
-// genuinely needs a contiguous staging row). The contiguous-row path
-// skips the scratch entirely and writes the FB / MeshFB row addresses
-// into *out_sprite_src / *out_mesh_src directly, saving two per-line
-// memcpys of w * sizeof(uint16). Callers must always read from
-// *out_sprite_src / *out_mesh_src, not from the scratch buffers --
-// the two are only the same in the rotation path.
-bool GetLine(const int line, uint16* buf, uint16* mesh_buf,
-             const uint16** out_sprite_src, const uint16** out_mesh_src,
-             unsigned w, uint32 rot_x, uint32 rot_y, uint32 rot_xinc, uint32 rot_yinc);
+bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 rot_x, uint32 rot_y, uint32 rot_xinc, uint32 rot_yinc);
 
 // Toggle the "improved mesh transparency" mode for VDP1 mesh-bit
 // primitives (mode bit 8 / MSH). When false (default), mesh
