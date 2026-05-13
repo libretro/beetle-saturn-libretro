@@ -1281,7 +1281,7 @@ void CDB_SetDisc(bool tray_open, CDIF* cdif)
   }
  }
  else
-  Cur_CDIF->ReadTOC(&toc);
+  CDIF_ReadTOC(Cur_CDIF, &toc);
 }
 
 static INLINE void RecalcIRQOut(void)
@@ -1704,7 +1704,7 @@ static void SeekStart2(int delay_sub = 0)
  CurPosInfo.repcount = PlayRepeatCounter & 0xF;
  DrivePhase = DRIVEPHASE_SEEK_START3;
 
- Cur_CDIF->HintReadSector(CurPosInfo.fad - 150);
+ CDIF_HintReadSector(Cur_CDIF, CurPosInfo.fad - 150);
 
  DriveCounter = (int64)(256000 - delay_sub) << 32;
  SeekIndexPhase = 0;
@@ -1963,7 +1963,7 @@ static void Drive_Run(int64 clocks)
 	 static uint8 pwbuf[96];
          const bool old_safe_valid = SubQBuf_Safe_Valid;
 
-	 Cur_CDIF->ReadRawSectorPWOnly(pwbuf, CurSector - 150, false);
+	 CDIF_ReadRawSectorPWOnly(Cur_CDIF, pwbuf, CurSector - 150, false);
 	 DecodeSubQ(pwbuf);
 
 	 if(!SubQBuf_Safe_Valid)
@@ -2081,7 +2081,7 @@ static void Drive_Run(int64 clocks)
 	    else
 	     CurSector -= std::min<uint32>(CurSector, 104 + (((uint64)2180000 * CurSector + ((uint64)1 << 31)) >> 32));
 
-	    Cur_CDIF->HintReadSector(CurSector - 150);
+	    CDIF_HintReadSector(Cur_CDIF, CurSector - 150);
            }
            else
 	    CurSector++;
@@ -2097,7 +2097,7 @@ static void Drive_Run(int64 clocks)
 	if(SecPreBuf_In) { }
 	else
 	{
-	 Cur_CDIF->ReadRawSector(SecPreBuf, CurSector - 150);
+	 CDIF_ReadRawSector(Cur_CDIF, SecPreBuf, CurSector - 150);
 	 SecPreBuf_In = true;
 
 	 // TODO:(maybe pointless...)

@@ -256,7 +256,7 @@ static bool disk_replace_image_index(unsigned index, const struct retro_game_inf
 		if (image == NULL)
 			return false;
 
-		delete CDInterfaces[index];
+		CDIF_Close(CDInterfaces[index]);
 		CDInterfaces[index] = image;
 
 		extract_basename(image_label,
@@ -458,7 +458,7 @@ static void CalcGameID( uint8* id_out16, uint8* fd_id_out16, char* sgid, char* s
 		CDIF *c = CDInterfaces[x];
 		TOC toc;
 
-		c->ReadTOC(&toc);
+		CDIF_ReadTOC(c, &toc);
 
 		mctx.update_u32_as_lsb(toc.first_track);
 		mctx.update_u32_as_lsb(toc.last_track);
@@ -476,7 +476,7 @@ static void CalcGameID( uint8* id_out16, uint8* fd_id_out16, char* sgid, char* s
 
 		for(unsigned i = 0; i < 512; i++)
 		{
-			if(c->ReadSector((uint8_t*)&buf[0], i, 1) >= 0x1)
+			if(CDIF_ReadSector(c, (uint8_t*)&buf[0], i, 1) >= 0x1)
 			{
 				if(i == 0)
 				{
@@ -518,7 +518,7 @@ static void CalcGameID( uint8* id_out16, uint8* fd_id_out16, char* sgid, char* s
 void disc_cleanup(void)
 {
 	for(unsigned i = 0; i < CDInterfaces.size(); i++) {
-		delete CDInterfaces[i];
+		CDIF_Close(CDInterfaces[i]);
 	}
 	CDInterfaces.clear();
 
@@ -537,7 +537,7 @@ bool DetectRegion( unsigned* region )
 
 	for(auto& c : CDInterfaces)
 	{
-		if(c->ReadSector(&buf[0], 0, 16) != 0x1)
+		if(CDIF_ReadSector(c, &buf[0], 0, 16) != 0x1)
 			continue;
 
 		if(!IsSaturnDisc(&buf[0]))
@@ -580,7 +580,7 @@ bool DiscSanityChecks(void)
 	{
 		TOC toc;
 
-		CDInterfaces[i]->ReadTOC(&toc);
+		CDIF_ReadTOC(CDInterfaces[i], &toc);
 
 		// For each track
 		for( int32 track = 1; track <= 99; track++)
@@ -604,7 +604,7 @@ bool DiscSanityChecks(void)
 				uint8 pwbuf[96];
 				uint8 qbuf[12];
 
-				if(!CDInterfaces[i]->ReadRawSectorPWOnly(pwbuf, lba, false))
+				if(!CDIF_ReadRawSectorPWOnly(CDInterfaces[i], pwbuf, lba, false))
 				{
 					log_cb(RETRO_LOG_ERROR,
 						"Testing Disc %zu of %zu: Error reading sector at LBA %d.\n",
@@ -760,7 +760,7 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8*
 	for(unsigned i = 0; i < CDInterfaces.size(); i++)
 	{
 		TOC toc;
-		CDInterfaces[i]->ReadTOC(&toc);
+		CDIF_ReadTOC(CDInterfaces[i], &toc);
 		log_cb(RETRO_LOG_DEBUG, "Disc %d\n", i + 1);
 		for(int32 track = toc.first_track; track <= toc.last_track; track++) {
 			log_cb(RETRO_LOG_DEBUG, "- Track %2d, LBA: %6d  %s\n", track, toc.tracks[track].lba, (toc.tracks[track].control & 0x4) ? "DATA" : "AUDIO");
@@ -779,7 +779,7 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8*
 		{
 			TOC toc;
 
-			CDInterfaces[i]->ReadTOC(&toc);
+			CDIF_ReadTOC(CDInterfaces[i], &toc);
 
 			layout_md5.update_u32_as_lsb(toc.first_track);
 			layout_md5.update_u32_as_lsb(toc.last_track);

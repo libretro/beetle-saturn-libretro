@@ -24,7 +24,7 @@
 
 #include <mednafen/state.h>
 
-class CDIF;
+#include "../cdrom/cdromif.h"
 
 
 void CDB_Init(void) MDFN_COLD;
