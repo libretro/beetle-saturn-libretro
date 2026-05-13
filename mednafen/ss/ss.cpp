@@ -525,7 +525,7 @@ static NO_INLINE sscpu_timestamp_t FindNextEventTS(void)
 {
  sscpu_timestamp_t m = SS_EVENT_DISABLED_TS;
  for(unsigned i = 0; i < SS_EVENT__SIMD_COUNT; i++)
-  m = std::min(m, events[i].event_time);
+  m = ((m) < (events[i].event_time) ? (m) : (events[i].event_time));
  return m;
 }
 

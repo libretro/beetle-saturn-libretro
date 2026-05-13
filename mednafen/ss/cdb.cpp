@@ -1819,8 +1819,8 @@ static bool CheckEndMet(void)
    end_met |= (CurPosInfo.fad >= (CurPlayEnd & 0x7FFFFF));
   else
   {
-   const unsigned end_track = std::min<unsigned>(toc.last_track, std::max<unsigned>(toc.first_track, (CurPlayEnd >> 8) & 0xFF));
-   const unsigned end_index = std::min<unsigned>(99, std::max<unsigned>(1, CurPlayEnd & 0xFF));
+   const unsigned end_track = ((unsigned)(toc.last_track) < (unsigned)(((unsigned)(toc.first_track) > (unsigned)((CurPlayEnd >> 8) & 0xFF) ? (unsigned)(toc.first_track) : (unsigned)((CurPlayEnd >> 8) & 0xFF))) ? (unsigned)(toc.last_track) : (unsigned)(((unsigned)(toc.first_track) > (unsigned)((CurPlayEnd >> 8) & 0xFF) ? (unsigned)(toc.first_track) : (unsigned)((CurPlayEnd >> 8) & 0xFF))));
+   const unsigned end_index = ((unsigned)(99) < (unsigned)(((unsigned)(1) > (unsigned)(CurPlayEnd & 0xFF) ? (unsigned)(1) : (unsigned)(CurPlayEnd & 0xFF))) ? (unsigned)(99) : (unsigned)(((unsigned)(1) > (unsigned)(CurPlayEnd & 0xFF) ? (unsigned)(1) : (unsigned)(CurPlayEnd & 0xFF))));
 
    end_met |= (CurPosInfo.tno > end_track) || (CurPosInfo.tno == end_track && CurPosInfo.idx > end_index);
   }
@@ -1835,8 +1835,8 @@ static bool CheckEndMet(void)
  }
  else
  {
-  const unsigned start_track = std::min<unsigned>(toc.last_track, std::max<unsigned>(toc.first_track, (CurPlayStart >> 8) & 0xFF));
-  //const unsigned start_index = std::min<unsigned>(99, std::max<unsigned>(1, CurPlayStart & 0xFF));
+  const unsigned start_track = ((unsigned)(toc.last_track) < (unsigned)(((unsigned)(toc.first_track) > (unsigned)((CurPlayStart >> 8) & 0xFF) ? (unsigned)(toc.first_track) : (unsigned)((CurPlayStart >> 8) & 0xFF))) ? (unsigned)(toc.last_track) : (unsigned)(((unsigned)(toc.first_track) > (unsigned)((CurPlayStart >> 8) & 0xFF) ? (unsigned)(toc.first_track) : (unsigned)((CurPlayStart >> 8) & 0xFF))));
+  //const unsigned start_index = ((unsigned)(99) < (unsigned)(((unsigned)(1) > (unsigned)(CurPlayStart & 0xFF) ? (unsigned)(1) : (unsigned)(CurPlayStart & 0xFF))) ? (unsigned)(99) : (unsigned)(((unsigned)(1) > (unsigned)(CurPlayStart & 0xFF) ? (unsigned)(1) : (unsigned)(CurPlayStart & 0xFF))));
 
   end_met |= (CurPosInfo.tno < start_track); //|| (CurPosInfo.tno == start_track && CurPosInfo.idx < start_index);
  }
@@ -2001,8 +2001,8 @@ static void Drive_Run(int64 clocks)
 
 	  if(!(CurPlayStart & 0x800000))
 	  {
-	   const unsigned start_track = std::min<unsigned>(toc.last_track, std::max<unsigned>(toc.first_track, (CurPlayStart >> 8) & 0xFF));
-	   const unsigned start_index = std::min<unsigned>(99, std::max<unsigned>(1, CurPlayStart & 0xFF));
+	   const unsigned start_track = ((unsigned)(toc.last_track) < (unsigned)(((unsigned)(toc.first_track) > (unsigned)((CurPlayStart >> 8) & 0xFF) ? (unsigned)(toc.first_track) : (unsigned)((CurPlayStart >> 8) & 0xFF))) ? (unsigned)(toc.last_track) : (unsigned)(((unsigned)(toc.first_track) > (unsigned)((CurPlayStart >> 8) & 0xFF) ? (unsigned)(toc.first_track) : (unsigned)((CurPlayStart >> 8) & 0xFF))));
+	   const unsigned start_index = ((unsigned)(99) < (unsigned)(((unsigned)(1) > (unsigned)(CurPlayStart & 0xFF) ? (unsigned)(1) : (unsigned)(CurPlayStart & 0xFF))) ? (unsigned)(99) : (unsigned)(((unsigned)(1) > (unsigned)(CurPlayStart & 0xFF) ? (unsigned)(1) : (unsigned)(CurPlayStart & 0xFF))));
 	   const unsigned sq_idx = BCD_to_U8(SubQBuf_Safe[0x2]);
 	   const unsigned sq_tno = (SubQBuf_Safe[0x1] >= 0xA0) ? SubQBuf_Safe[0x1] : BCD_to_U8(SubQBuf_Safe[0x1]);
 
@@ -2100,7 +2100,7 @@ static void Drive_Run(int64 clocks)
 	    if(!ScanMode)
 	     CurSector += 102 + (((uint64)1773936 * CurSector + ((uint64)1 << 31)) >> 32);
 	    else
-	     CurSector -= std::min<uint32>(CurSector, 104 + (((uint64)2180000 * CurSector + ((uint64)1 << 31)) >> 32));
+	     CurSector -= ((uint32)(CurSector) < (uint32)(104 + (((uint64)2180000 * CurSector + ((uint64)1 << 31)) >> 32)) ? (uint32)(CurSector) : (uint32)(104 + (((uint64)2180000 * CurSector + ((uint64)1 << 31)) >> 32)));
 
 	    CDIF_HintReadSector(Cur_CDIF, CurSector - 150);
            }

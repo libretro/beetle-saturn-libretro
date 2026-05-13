@@ -146,7 +146,7 @@ void Init(void)
 
  for(int i = 0; i < 0x40; i++)
  {
-  gouraud_lut[i] = std::min<int>(31, std::max<int>(0, i - 16));
+  gouraud_lut[i] = ((int)(31) < (int)(((int)(0) > (int)(i - 16) ? (int)(0) : (int)(i - 16))) ? (int)(31) : (int)(((int)(0) > (int)(i - 16) ? (int)(0) : (int)(i - 16))));
  }
 
  for(int i = 0; i < 8; i++)
@@ -460,7 +460,7 @@ bool SetupDrawLine(int32* const cycle_counter, const bool AA, const bool Texture
  const int32 dy = sign_x_to_s32(13, p1.y - p0.y);
  const int32 abs_dx = abs(dx); // & 0xFFF;
  const int32 abs_dy = abs(dy); // & 0xFFF;
- const int32 max_adx_ady = std::max<int32>(abs_dx, abs_dy);
+ const int32 max_adx_ady = ((int32)(abs_dx) > (int32)(abs_dy) ? (int32)(abs_dx) : (int32)(abs_dy));
  const int32 x_inc = (dx >= 0) ? 1 : -1;
  const int32 y_inc = (dy >= 0) ? 1 : -1;
  const int32 lid_x_inc = (x_inc & 0x7FF) <<  0;
@@ -574,7 +574,7 @@ void EdgeStepper::Setup(const bool gourauden, const line_vertex& p0, const line_
   int32 dy = sign_x_to_s32(13, p1.y - p0.y);
   int32 abs_dx = abs(dx);
   int32 abs_dy = abs(dy);
-  int32 max_adxdy = std::max<int32>(abs_dx, abs_dy);
+  int32 max_adxdy = ((int32)(abs_dx) > (int32)(abs_dy) ? (int32)(abs_dx) : (int32)(abs_dy));
 
   x = p0.x;
   x_inc = (dx >= 0) ? 1 : -1;
@@ -762,7 +762,7 @@ sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
  else if(DrawingActive)
   DoDrawing();
 
- return timestamp + (DrawingActive ? std::max<int32>(VDP1_UpdateTimingGran, 0 - CycleCounter) : VDP1_IdleTimingGran);
+ return timestamp + (DrawingActive ? ((int32)(VDP1_UpdateTimingGran) > (int32)(0 - CycleCounter) ? (int32)(VDP1_UpdateTimingGran) : (int32)(0 - CycleCounter)) : VDP1_IdleTimingGran);
 }
 
 // Draw-clear minimum x amount is 2(16-bit units) for normal and 8bpp, and 8 for rotate...actually, seems like
@@ -1055,7 +1055,7 @@ void AdjustTS(const int32 delta)
  if(FBVBEraseActive)
   FBVBEraseLastTS += delta;
 
- LastRWTS = std::max<sscpu_timestamp_t>(-1000000, LastRWTS + delta);
+ LastRWTS = ((sscpu_timestamp_t)(-1000000) > (sscpu_timestamp_t)(LastRWTS + delta) ? (sscpu_timestamp_t)(-1000000) : (sscpu_timestamp_t)(LastRWTS + delta));
 }
 
 static INLINE void WriteReg(const unsigned which, const uint16 value)
@@ -1163,7 +1163,7 @@ MDFN_FASTCALL void Write_CheckDrawSlowdown(uint32 A, sscpu_timestamp_t time_thin
  if(DrawingActive && time_thing > LastRWTS && (ss_horrible_hacks & HORRIBLEHACK_VDP1RWDRAWSLOWDOWN))
  {
   const int32 count = (A & 0x100000) ? 22 : 25;
-  const uint32 a = std::min<uint32>(count, time_thing - LastRWTS);
+  const uint32 a = ((uint32)(count) < (uint32)(time_thing - LastRWTS) ? (uint32)(count) : (uint32)(time_thing - LastRWTS));
 
   CycleCounter -= a;
   LastRWTS = time_thing;
@@ -1175,7 +1175,7 @@ MDFN_FASTCALL void Read_CheckDrawSlowdown(uint32 A, sscpu_timestamp_t time_thing
  if(!(A & 0x100000) && time_thing > LastRWTS && DrawingActive && (ss_horrible_hacks & HORRIBLEHACK_VDP1RWDRAWSLOWDOWN))
  {
   const int32 count = (A & 0x80000) ? 44 : 41;
-  const uint32 a = std::min<uint32>(count, time_thing - LastRWTS);
+  const uint32 a = ((uint32)(count) < (uint32)(time_thing - LastRWTS) ? (uint32)(count) : (uint32)(time_thing - LastRWTS));
 
   CycleCounter -= a;
   LastRWTS = time_thing;

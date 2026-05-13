@@ -123,8 +123,8 @@ void IODevice_Gun::Draw( MDFN_Surface* surface,
 				xmax += ehw;
 			}
 
-			xmin = std::max<int32>(drect.x, xmin);
-			xmax = std::min<int32>(drect.x + lw[y] - 1, xmax);
+			xmin = ((int32)(drect.x) > (int32)(xmin) ? (int32)(drect.x) : (int32)(xmin));
+			xmax = ((int32)(drect.x + lw[y] - 1) < (int32)(xmax) ? (int32)(drect.x + lw[y] - 1) : (int32)(xmax));
 
 			for( int32 x = xmin; x <= xmax; x++ )
 			{
@@ -155,8 +155,8 @@ void IODevice_Gun::Draw( MDFN_Surface* surface,
 			xmin -= ehw;
 			xmax += ehw;
 
-			xmin = std::max<int32>(drect.x, xmin);
-			xmax = std::min<int32>(drect.x + lw[y] - 1, xmax);
+			xmin = ((int32)(drect.x) > (int32)(xmin) ? (int32)(drect.x) : (int32)(xmin));
+			xmax = ((int32)(drect.x + lw[y] - 1) < (int32)(xmax) ? (int32)(drect.x + lw[y] - 1) : (int32)(xmax));
 
 			for( int32 x = xmin; x <= xmax; x++ )
 			{
@@ -183,7 +183,7 @@ void IODevice_Gun::TransformInput(uint8* const data, float gun_x_scale, float gu
  int32 tmp = (int16)(uint16)(data[0] | (data[1] << 8));
 
  tmp = floorf(0.5 + tmp * gun_x_scale + gun_x_offs);
- tmp = std::max<int32>(-32768, std::min<int32>(32767, tmp));
+ tmp = ((int32)(-32768) > (int32)(((int32)(32767) < (int32)(tmp) ? (int32)(32767) : (int32)(tmp))) ? (int32)(-32768) : (int32)(((int32)(32767) < (int32)(tmp) ? (int32)(32767) : (int32)(tmp))));
 
  /* MDFN_en16lsb folded: write host int into 2 LE bytes. */
  data[0] = tmp;

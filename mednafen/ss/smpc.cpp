@@ -405,11 +405,11 @@ void SMPC_SetRTC(const struct tm* ht, const uint8 lang)
   RTC.Valid = true; //false;
   RTC.year[0] = U8_to_BCD(19 + year_adj / 100);
   RTC.year[1] = U8_to_BCD(year_adj % 100);
-  RTC.wday_mon = (std::min<unsigned>(6, ht->tm_wday) << 4) | ((std::min<unsigned>(11, ht->tm_mon) + 1) << 0);
-  RTC.mday = U8_to_BCD(std::min<unsigned>(31, ht->tm_mday));
-  RTC.hour = U8_to_BCD(std::min<unsigned>(23, ht->tm_hour));
-  RTC.minute = U8_to_BCD(std::min<unsigned>(59, ht->tm_min));
-  RTC.second = U8_to_BCD(std::min<unsigned>(59, ht->tm_sec));
+  RTC.wday_mon = (((unsigned)(6) < (unsigned)(ht->tm_wday) ? (unsigned)(6) : (unsigned)(ht->tm_wday)) << 4) | ((((unsigned)(11) < (unsigned)(ht->tm_mon) ? (unsigned)(11) : (unsigned)(ht->tm_mon)) + 1) << 0);
+  RTC.mday = U8_to_BCD(((unsigned)(31) < (unsigned)(ht->tm_mday) ? (unsigned)(31) : (unsigned)(ht->tm_mday)));
+  RTC.hour = U8_to_BCD(((unsigned)(23) < (unsigned)(ht->tm_hour) ? (unsigned)(23) : (unsigned)(ht->tm_hour)));
+  RTC.minute = U8_to_BCD(((unsigned)(59) < (unsigned)(ht->tm_min) ? (unsigned)(59) : (unsigned)(ht->tm_min)));
+  RTC.second = U8_to_BCD(((unsigned)(59) < (unsigned)(ht->tm_sec) ? (unsigned)(59) : (unsigned)(ht->tm_sec)));
 
   //if((SaveMem[3] & 0x0F) <= 0x05 || (SaveMem[3] & 0x0F) == 0xF)
   SaveMem[3] = (SaveMem[3] & 0xF0) | lang;
@@ -639,7 +639,7 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
    if(load < 0x00102600 && p->NextEventTS >= 0x40000000)
     p->NextEventTS = SS_EVENT_DISABLED_TS;
    else
-    p->NextEventTS = std::max<sscpu_timestamp_t>(0, p->NextEventTS);
+    p->NextEventTS = ((sscpu_timestamp_t)(0) > (sscpu_timestamp_t)(p->NextEventTS) ? (sscpu_timestamp_t)(0) : (sscpu_timestamp_t)(p->NextEventTS));
   }
 
   if(load < 0x00103100)
@@ -833,7 +833,7 @@ void SMPC_Write(const sscpu_timestamp_t timestamp, uint8 A, uint8 V)
  if(PendingCommand >= 0)
   nt = timestamp + 1;
 
- nt = std::min<sscpu_timestamp_t>(nt, std::min<sscpu_timestamp_t>(IOPorts[0]->NextEventTS, IOPorts[1]->NextEventTS));
+ if((((sscpu_timestamp_t)(IOPorts[0]->NextEventTS) < (sscpu_timestamp_t)(IOPorts[1]->NextEventTS) ? (sscpu_timestamp_t)(IOPorts[0]->NextEventTS) : (sscpu_timestamp_t)(IOPorts[1]->NextEventTS))) < nt) nt = (((sscpu_timestamp_t)(IOPorts[0]->NextEventTS) < (sscpu_timestamp_t)(IOPorts[1]->NextEventTS) ? (sscpu_timestamp_t)(IOPorts[0]->NextEventTS) : (sscpu_timestamp_t)(IOPorts[1]->NextEventTS)));
 
  SS_SetEventNT(&events[SS_EVENT_SMPC], nt);
 }
@@ -1053,7 +1053,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
     PendingVB = false;
 
     if(JRS.OptReadTime)
-     JRS.OptWaitUntilTime = std::max<int32>(0, (JRS.TimeCounter >> 32) - JRS.OptReadTime - 5000);
+     JRS.OptWaitUntilTime = ((int32)(0) > (int32)((JRS.TimeCounter >> 32) - JRS.OptReadTime - 5000) ? (int32)(0) : (int32)((JRS.TimeCounter >> 32) - JRS.OptReadTime - 5000));
     else
      JRS.OptWaitUntilTime = 0;
     JRS.TimeCounter = 0;
@@ -1275,7 +1275,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
       JRS.Mode[1] = (IREG[1] >> 6) & 0x3;
 
       JRS.OptReadTime = 0;
-      JRS.OptEatTime = std::max<int32>(0, (JRS.OptWaitUntilTime - (JRS.TimeCounter >> 32)));
+      JRS.OptEatTime = ((int32)(0) > (int32)((JRS.OptWaitUntilTime - (JRS.TimeCounter >> 32))) ? (int32)(0) : (int32)((JRS.OptWaitUntilTime - (JRS.TimeCounter >> 32))));
       JRS.OptWaitUntilTime = 0;
 
       if(JRS.TimeOptEn)
@@ -1465,7 +1465,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
       SCU_SetInt(SCU_INT_SMPC, false);
 
       if(JRS.TimeOptEn)
-       JRS.OptReadTime = std::max<int32>(0, (JRS.TimeCounter >> 32) - JRS.StartTime);
+       JRS.OptReadTime = ((int32)(0) > (int32)((JRS.TimeCounter >> 32) - JRS.StartTime) ? (int32)(0) : (int32)((JRS.TimeCounter >> 32) - JRS.StartTime));
      }
     }
     else if(ExecutingCommand == CMD_SETTIME)	// Warning: Execute RTC setting atomically(all values or none) in regards to emulator exit/power toggle.
@@ -1536,7 +1536,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
  }
  Breakout:;
 
- return std::min<sscpu_timestamp_t>(next_event_ts, std::min<sscpu_timestamp_t>(IOPorts[0]->NextEventTS, IOPorts[1]->NextEventTS));
+ return ((sscpu_timestamp_t)(next_event_ts) < (sscpu_timestamp_t)(((sscpu_timestamp_t)(IOPorts[0]->NextEventTS) < (sscpu_timestamp_t)(IOPorts[1]->NextEventTS) ? (sscpu_timestamp_t)(IOPorts[0]->NextEventTS) : (sscpu_timestamp_t)(IOPorts[1]->NextEventTS))) ? (sscpu_timestamp_t)(next_event_ts) : (sscpu_timestamp_t)(((sscpu_timestamp_t)(IOPorts[0]->NextEventTS) < (sscpu_timestamp_t)(IOPorts[1]->NextEventTS) ? (sscpu_timestamp_t)(IOPorts[0]->NextEventTS) : (sscpu_timestamp_t)(IOPorts[1]->NextEventTS))));
 }
 
 void SMPC_SetVBVS(sscpu_timestamp_t event_timestamp, bool vb_status, bool vsync_status)
@@ -1564,7 +1564,7 @@ void SMPC_LineHook(sscpu_timestamp_t event_timestamp, int32 out_line, int32 div,
  IOPorts[1]->LineHook(event_timestamp, out_line, div, coord_adj);
  //
  //
- sscpu_timestamp_t nets = std::min<sscpu_timestamp_t>(events[SS_EVENT_SMPC].event_time, std::min<sscpu_timestamp_t>(IOPorts[0]->NextEventTS, IOPorts[1]->NextEventTS));
+ sscpu_timestamp_t nets = ((sscpu_timestamp_t)(events[SS_EVENT_SMPC].event_time) < (sscpu_timestamp_t)(((sscpu_timestamp_t)(IOPorts[0]->NextEventTS) < (sscpu_timestamp_t)(IOPorts[1]->NextEventTS) ? (sscpu_timestamp_t)(IOPorts[0]->NextEventTS) : (sscpu_timestamp_t)(IOPorts[1]->NextEventTS))) ? (sscpu_timestamp_t)(events[SS_EVENT_SMPC].event_time) : (sscpu_timestamp_t)(((sscpu_timestamp_t)(IOPorts[0]->NextEventTS) < (sscpu_timestamp_t)(IOPorts[1]->NextEventTS) ? (sscpu_timestamp_t)(IOPorts[0]->NextEventTS) : (sscpu_timestamp_t)(IOPorts[1]->NextEventTS))));
 
  SS_SetEventNT(&events[SS_EVENT_SMPC], nets);
 }

@@ -227,7 +227,7 @@ sscpu_timestamp_t SOUND_Update(sscpu_timestamp_t timestamp)
  {
   do
   {
-   int32 next_time = std::min<int32>(next_scsp_time, run_until_time >> 32);
+   int32 next_time = ((int32)(next_scsp_time) < (int32)(run_until_time >> 32) ? (int32)(next_scsp_time) : (int32)(run_until_time >> 32));
 
    SoundCPU.Run(next_time);
 

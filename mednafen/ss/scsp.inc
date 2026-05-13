@@ -1047,8 +1047,8 @@ INLINE void SS_SCSP::RunEG(Slot* s, const unsigned key_eg_scale, const uint32 sc
 {
  const uint32 EnvLevelCache = s->EnvLevel;
  const unsigned ERateNoScale = s->EnvRates[s->EnvPhase];
- const unsigned ERate = std::min<unsigned>(0x1F, key_eg_scale + ERateNoScale);
- const unsigned ERateWBT = (0x18 - std::min<unsigned>(0x18, ERate)) >> 1;
+ const unsigned ERate = ((unsigned)(0x1F) < (unsigned)(key_eg_scale + ERateNoScale) ? (unsigned)(0x1F) : (unsigned)(key_eg_scale + ERateNoScale));
+ const unsigned ERateWBT = (0x18 - ((unsigned)(0x18) < (unsigned)(ERate) ? (unsigned)(0x18) : (unsigned)(ERate))) >> 1;
  const bool ShiftAdj = (ERate < 0x18) & ERate;
  bool ClockEG;
 
@@ -1069,7 +1069,7 @@ INLINE void SS_SCSP::RunEG(Slot* s, const unsigned key_eg_scale, const uint32 sc
  if(ClockEG)
  {
   const int32 inc_base = (s->EnvPhase == ENV_PHASE_ATTACK) ? ~EnvLevelCache : 16;
-  const unsigned ermaxo = std::max<unsigned>(0x18, std::min<unsigned>(0x1E, ERate));
+  const unsigned ermaxo = ((unsigned)(0x18) > (unsigned)(((unsigned)(0x1E) < (unsigned)(ERate) ? (unsigned)(0x1E) : (unsigned)(ERate))) ? (unsigned)(0x18) : (unsigned)(((unsigned)(0x1E) < (unsigned)(ERate) ? (unsigned)(0x1E) : (unsigned)(ERate))));
   const uint32 srac = ((0x20 - ermaxo) >> 1) + (ermaxo & 1 & (sc >> (ERateWBT + 1)));
   int32 NewEnvLevel;
 
@@ -1199,7 +1199,7 @@ static INLINE uint32 dspfloat_to_int(const uint16 inv)
   ret |= 0x800;
  ret <<= 11 + 8;
  ret ^= sign_xor;
- ret = (int32)ret >> (8 + std::min<unsigned>(11, exp));
+ ret = (int32)ret >> (8 + ((unsigned)(11) < (unsigned)(exp) ? (unsigned)(11) : (unsigned)(exp)));
 
  return ret & 0xFFFFFF;
 }
@@ -1212,7 +1212,7 @@ static INLINE uint32 int_to_dspfloat(const uint32 inv)
  uint32 ret;
 
  exp = MDFN_lzcount32(((invsl8 ^ sign_xor) << 1) | (1 << 19));
- shift = exp - (bool)(exp == 12); //std::min<uint32>(11, exp);
+ shift = exp - (bool)(exp == 12); //((uint32)(11) < (uint32)(exp) ? (uint32)(11) : (uint32)(exp));
 
  ret = (int32)invsl8 >> (19 - shift);
  ret &= 0x87FF;
@@ -1557,7 +1557,7 @@ INLINE void SS_SCSP::RunSample(T_out* outlr)
   if(s->KRS == 0xF)
    key_eg_scale = 0x00;
   else
-   key_eg_scale = std::max<int>(0x00, std::min<int>(0x0F, s->KRS + (s->Octave ^ 0x8) - 0x8));
+   key_eg_scale = ((int)(0x00) > (int)(((int)(0x0F) < (int)(s->KRS + (s->Octave ^ 0x8) - 0x8) ? (int)(0x0F) : (int)(s->KRS + (s->Octave ^ 0x8) - 0x8))) ? (int)(0x00) : (int)(((int)(0x0F) < (int)(s->KRS + (s->Octave ^ 0x8) - 0x8) ? (int)(0x0F) : (int)(s->KRS + (s->Octave ^ 0x8) - 0x8))));
 
   RunEG(s, key_eg_scale, SampleCounter, SampleCounterXC);
 
@@ -1786,8 +1786,8 @@ INLINE void SS_SCSP::RunSample(T_out* outlr)
  out_accum[0] = (out_accum[0] * MasterVolume) >> 8;
  out_accum[1] = (out_accum[1] * MasterVolume) >> 8;
 
- out_accum[0] = std::min<int32>(32767, std::max<int32>(-32768, out_accum[0]));
- out_accum[1] = std::min<int32>(32767, std::max<int32>(-32768, out_accum[1]));
+ out_accum[0] = ((int32)(32767) < (int32)(((int32)(-32768) > (int32)(out_accum[0]) ? (int32)(-32768) : (int32)(out_accum[0]))) ? (int32)(32767) : (int32)(((int32)(-32768) > (int32)(out_accum[0]) ? (int32)(-32768) : (int32)(out_accum[0]))));
+ out_accum[1] = ((int32)(32767) < (int32)(((int32)(-32768) > (int32)(out_accum[1]) ? (int32)(-32768) : (int32)(out_accum[1]))) ? (int32)(32767) : (int32)(((int32)(-32768) > (int32)(out_accum[1]) ? (int32)(-32768) : (int32)(out_accum[1]))));
 
  if(DAC18bit)
  {

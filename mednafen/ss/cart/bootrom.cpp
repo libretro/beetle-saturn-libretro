@@ -97,7 +97,7 @@ void CART_BootROM_Init(CartInfo* c, RFILE* str)
 #endif
   }
 
-  SS_SetPhysMemMap (0x02000000, 0x03FFFFFF, ROM, std::min<uint32>(0x02000000, ROM_Size), false);
+  SS_SetPhysMemMap (0x02000000, 0x03FFFFFF, ROM, ((uint32)(0x02000000) < (uint32)(ROM_Size) ? (uint32)(0x02000000) : (uint32)(ROM_Size)), false);
   c->CS01_SetRW8W16(0x02000000, 0x03FFFFFF, CS0_ROM_Read);
 
   c->Kill = Kill;

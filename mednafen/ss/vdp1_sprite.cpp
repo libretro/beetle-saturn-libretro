@@ -165,11 +165,11 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
   p[0].x = sign_x_to_s32(13, cmd_data[0x6]) + LocalX;
   p[0].y = sign_x_to_s32(13, cmd_data[0x7]) + LocalY;
 
-  p[1].x = p[0].x + (std::max<uint32>(w, 1) - 1);
+  p[1].x = p[0].x + (((uint32)(w) > (uint32)(1) ? (uint32)(w) : (uint32)(1)) - 1);
   p[1].y = p[0].y;
 
   p[2].x = p[1].x;
-  p[2].y = p[0].y + (std::max<uint32>(h, 1) - 1);
+  p[2].y = p[0].y + (((uint32)(h) > (uint32)(1) ? (uint32)(h) : (uint32)(1)) - 1);
 
   p[3].x = p[0].x;
   p[3].y = p[2].y;
@@ -293,9 +293,9 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
  int32 dmax;
 
  dmax = 		      abs(sign_x_to_s32(13, p[3].x - p[0].x));
- dmax = std::max<int32>(dmax, abs(sign_x_to_s32(13, p[3].y - p[0].y)));
- dmax = std::max<int32>(dmax, abs(sign_x_to_s32(13, p[2].x - p[1].x)));
- dmax = std::max<int32>(dmax, abs(sign_x_to_s32(13, p[2].y - p[1].y)));
+ if((abs(sign_x_to_s32(13, p[3].y - p[0].y))) > dmax) dmax = (abs(sign_x_to_s32(13, p[3].y - p[0].y)));
+ if((abs(sign_x_to_s32(13, p[2].x - p[1].x))) > dmax) dmax = (abs(sign_x_to_s32(13, p[2].x - p[1].x)));
+ if((abs(sign_x_to_s32(13, p[2].y - p[1].y))) > dmax) dmax = (abs(sign_x_to_s32(13, p[2].y - p[1].y)));
  dmax &= 0xFFF;
 
  int32 tex_base = cmd_data[0x4] << 2;

@@ -344,7 +344,7 @@ static void CDIF_MT_ReadThreadBody(CDIF *self)
                   if (how_far_ahead <= max_ra)
                   {
                      candidate = 1 + max_ra - how_far_ahead;
-                     /* The old C++ code used std::min(speedmult_ra, candidate). */
+                     /* The old C++ code used ((speedmult_ra) < (candidate) ? (speedmult_ra) : (candidate)). */
                      self->ra_count = (speedmult_ra < candidate) ? speedmult_ra : candidate;
                   }
                   else

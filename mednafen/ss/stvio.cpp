@@ -114,8 +114,8 @@ void STVIO_UpdateInput(int32 elapsed_time)
 
   if((tmp_data[4] & 0x01) && x >= (0 - 3) && x <= (62 + 3) && y >= (0 - 3) && y <= (46 + 3))
   {
-   HammerX = std::min<int32>(62, std::max<int32>(0, x));
-   HammerY = std::min<int32>(46, std::max<int32>(0, y));
+   HammerX = ((int32)(62) < (int32)(((int32)(0) > (int32)(x) ? (int32)(0) : (int32)(x))) ? (int32)(62) : (int32)(((int32)(0) > (int32)(x) ? (int32)(0) : (int32)(x))));
+   HammerY = ((int32)(46) < (int32)(((int32)(0) > (int32)(y) ? (int32)(0) : (int32)(y))) ? (int32)(46) : (int32)(((int32)(0) > (int32)(y) ? (int32)(0) : (int32)(y))));
 
    // HAMMERTIME:
    DataIn[0x2] &= ~0x10;
@@ -173,7 +173,7 @@ void STVIO_UpdateInput(int32 elapsed_time)
  // Pause
  DataIn[0x2] ^= (DPtr[12][0] & 0x10) << 3;
 
- CoinActiveCounter = std::max<int32>(-75000, CoinActiveCounter - elapsed_time);
+ CoinActiveCounter = ((int32)(-75000) > (int32)(CoinActiveCounter - elapsed_time) ? (int32)(-75000) : (int32)(CoinActiveCounter - elapsed_time));
 
  if(CoinPending && CoinActiveCounter == -75000)
  {

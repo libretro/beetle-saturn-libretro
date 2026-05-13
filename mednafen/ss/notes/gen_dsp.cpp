@@ -30,8 +30,8 @@ int main(int argc, char* argv[])
       static const unsigned alu_map[16] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x00, 0x08, 0x09, 0x0A, 0x0B, 0x00, 0x00, 0x00, 0x0F };
       static const unsigned x_map[8] = { 0x00, 0x00, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 };
       static const unsigned d1s_map[16] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x00, 0x09, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00 };
-      const int d1_op = std::min<int>(3, d1_op_s);
-      const int d1_s = std::max<int>(0, d1_op_s - 3);
+      const int d1_op = ((int)(3) < (int)(d1_op_s) ? (int)(3) : (int)(d1_op_s));
+      const int d1_s = ((int)(0) > (int)(d1_op_s - 3) ? (int)(0) : (int)(d1_op_s - 3));
       //char label_name[256];
       //snprintf(label_name, sizeof(label_name), "gen_%01x%01x%01x%01x%01x", looped, alu_op, x_op, y_op, d1_op);
       //printf("GENSIN(%s, %s, 0x%01x, 0x%01x, 0x%01x, 0x%01x)\n", label_name, looped ? "true" : "false", alu_op, x_op, y_op, d1_op);

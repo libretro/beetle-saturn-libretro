@@ -401,7 +401,7 @@ static void SCU_AdjustTS(const int32 delta)
  if(DSP.T0_Until > 0x10000000)
   DSP.T0_Until = 0x10000000;
 
- //DSP.LastTS = std::max<sscpu_timestamp_t>(-1000000, DSP.LastTS + delta);
+ //DSP.LastTS = ((sscpu_timestamp_t)(-1000000) > (sscpu_timestamp_t)(DSP.LastTS + delta) ? (sscpu_timestamp_t)(-1000000) : (sscpu_timestamp_t)(DSP.LastTS + delta));
 
  DSP.LastTS += delta;
  // TODO: Fix properly.
@@ -410,7 +410,7 @@ static void SCU_AdjustTS(const int32 delta)
  //
  //
  //
- BBus_SH2_WriteFinishTS = std::max<sscpu_timestamp_t>(-1000000, BBus_SH2_WriteFinishTS + delta);
+ BBus_SH2_WriteFinishTS = ((sscpu_timestamp_t)(-1000000) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS + delta) ? (sscpu_timestamp_t)(-1000000) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS + delta));
 }
 
 //
@@ -782,7 +782,7 @@ static INLINE void BBusRW_DB(uint32 A, uint16* DB, int32* time_thing, int32* dma
  {
   if(!SH32)
   {
-   *time_thing = std::max<sscpu_timestamp_t>(*time_thing, BBus_SH2_WriteFinishTS);
+   *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
    if(IsWrite)
    {
@@ -1502,7 +1502,7 @@ static INLINE void DMA_Write(DMALevelS* d, uint32 DB)
  }
 
  SCU_DMA_TimeCounter -= WriteOverhead;
- SCU_DMA_ReadOverhead = std::min<int32>(0, SCU_DMA_ReadOverhead - WriteOverhead);
+ SCU_DMA_ReadOverhead = ((int32)(0) < (int32)(SCU_DMA_ReadOverhead - WriteOverhead) ? (int32)(0) : (int32)(SCU_DMA_ReadOverhead - WriteOverhead));
  d->CurByteCount -= sizeof(T);
 }
 
@@ -1582,7 +1582,7 @@ sscpu_timestamp_t SCU_UpdateDMA(sscpu_timestamp_t timestamp)
  //
  //
  //
- SCU_DMA_TimeCounter = std::max<int32>(std::min<int32>(SCU_DMA_RunUntil, timestamp), SCU_DMA_TimeCounter);
+ SCU_DMA_TimeCounter = ((int32)(((int32)(SCU_DMA_RunUntil) < (int32)(timestamp) ? (int32)(SCU_DMA_RunUntil) : (int32)(timestamp))) > (int32)(SCU_DMA_TimeCounter) ? (int32)(((int32)(SCU_DMA_RunUntil) < (int32)(timestamp) ? (int32)(SCU_DMA_RunUntil) : (int32)(timestamp))) : (int32)(SCU_DMA_TimeCounter));
  SCU_DMA_RunUntil = timestamp + DMA_UpdateTimingGran;
 
  for(int level = 2; level >= 0; level--)
@@ -2226,7 +2226,7 @@ static MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const b
   if(load < 0x00102102)
    DSP.PRAMDMABufCount = 0;
   else
-   DSP.PRAMDMABufCount = std::min<uint32>(DSP.PRAMDMABufCount, 0x100);
+   DSP.PRAMDMABufCount = ((uint32)(DSP.PRAMDMABufCount) < (uint32)(0x100) ? (uint32)(DSP.PRAMDMABufCount) : (uint32)(0x100));
 
   //
   //

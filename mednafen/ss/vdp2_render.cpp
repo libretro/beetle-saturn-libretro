@@ -2804,9 +2804,9 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
 
    if(TA_CCMD)	// Ignore ratio, add as-is.
    {
-    new_rgb =  std::min<unsigned>(0x0000FF, (fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF));
-    new_rgb |= std::min<unsigned>(0x00FF00, (fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00));
-    new_rgb |= std::min<unsigned>(0xFF0000, (fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000));
+    new_rgb =  ((unsigned)(0x0000FF) < (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)) ? (unsigned)(0x0000FF) : (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)));
+    new_rgb |= ((unsigned)(0x00FF00) < (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)) ? (unsigned)(0x00FF00) : (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)));
+    new_rgb |= ((unsigned)(0xFF0000) < (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)) ? (unsigned)(0xFF0000) : (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)));
    }
    else
    {
@@ -3070,7 +3070,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
  const int32 tvdw = ((!CorrectAspect || Clock28M) ? 352 : 330) << ((HRes & 0x2) >> 1);
  const unsigned rbg_w = ((HRes & 0x1) ? 352 : 320);
  const unsigned w = ((HRes & 0x1) ? 352 : 320) << ((HRes & 0x2) >> 1);
- const int32 tvxo = std::max<int32>(0, (int32)(tvdw - w) >> 1);
+ const int32 tvxo = ((int32)(0) > (int32)((int32)(tvdw - w) >> 1) ? (int32)(0) : (int32)((int32)(tvdw - w) >> 1));
  uint32 back_rgb24;
  uint32 border_ncf;
  uint32 *target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
@@ -3096,7 +3096,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
  if(!ShowHOverscan)
  {
   const int32 ntdw = tvdw * 1024 / 1056;
-  const int32 tadj = std::max<int32>(0, espec->DisplayRect.x - ((tvdw - ntdw) >> 1));
+  const int32 tadj = ((int32)(0) > (int32)(espec->DisplayRect.x - ((tvdw - ntdw) >> 1)) ? (int32)(0) : (int32)(espec->DisplayRect.x - ((tvdw - ntdw) >> 1)));
 
   assert((tvdw + tadj) <= 704);
 
@@ -3279,7 +3279,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
    WinPieces[4] = w;
 
    for(unsigned piece = 0; piece < WinPieces.size(); piece++)
-    WinPieces[piece] = std::min<unsigned>(w, WinPieces[piece]);	// Almost forgot to do this...
+    WinPieces[piece] = ((unsigned)(w) < (unsigned)(WinPieces[piece]) ? (unsigned)(w) : (unsigned)(WinPieces[piece]));	// Almost forgot to do this...
 
    std::sort(WinPieces.begin(), WinPieces.end());
   }
@@ -3367,7 +3367,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
    {
     const bool igntp = (BGON >> 12) & 1;
     const bool bmen = (CHCTLB >> 9) & 1;
-    const unsigned colornum = std::min<unsigned>(4, (CHCTLB >> 12) & 0x7);	// TODO: Test 5 ... 7
+    const unsigned colornum = ((unsigned)(4) < (unsigned)((CHCTLB >> 12) & 0x7) ? (unsigned)(4) : (unsigned)((CHCTLB >> 12) & 0x7));	// TODO: Test 5 ... 7
     const unsigned priomode = (SFPRMD >> 8) & 0x3;
     const unsigned ccmode = (CCCTL & 0x10) ? ((SFCCMD >> 8) & 0x3) : 0;
     const uint32 prio = RBG0PrioNum;
@@ -3416,7 +3416,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
    if(BGON & UserLayerEnableMask & 0x20)
    {
     const bool igntp = (BGON >> 8) & 1;
-    const unsigned colornum = std::min<unsigned>(4, (CHCTLA >> 4) & 0x7);	// TODO: Test 5 ... 7
+    const unsigned colornum = ((unsigned)(4) < (unsigned)((CHCTLA >> 4) & 0x7) ? (unsigned)(4) : (unsigned)((CHCTLA >> 4) & 0x7));	// TODO: Test 5 ... 7
     const unsigned priomode = (SFPRMD >> 0) & 0x3;
     const unsigned ccmode = (CCCTL & 0x01) ? ((SFCCMD >> 0) & 0x3) : 0;
     const uint32 prio = NBGPrioNum[0];

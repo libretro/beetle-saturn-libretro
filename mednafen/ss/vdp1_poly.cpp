@@ -156,9 +156,9 @@ static INLINE int32 CMD_PolygonG_T(const uint16* cmd_data)
  int32 dmax;
 
  dmax = 		      abs(sign_x_to_s32(13, p[3].x - p[0].x));
- dmax = std::max<int32>(dmax, abs(sign_x_to_s32(13, p[3].y - p[0].y)));
- dmax = std::max<int32>(dmax, abs(sign_x_to_s32(13, p[2].x - p[1].x)));
- dmax = std::max<int32>(dmax, abs(sign_x_to_s32(13, p[2].y - p[1].y)));
+ if((abs(sign_x_to_s32(13, p[3].y - p[0].y))) > dmax) dmax = (abs(sign_x_to_s32(13, p[3].y - p[0].y)));
+ if((abs(sign_x_to_s32(13, p[2].x - p[1].x))) > dmax) dmax = (abs(sign_x_to_s32(13, p[2].x - p[1].x)));
+ if((abs(sign_x_to_s32(13, p[2].y - p[1].y))) > dmax) dmax = (abs(sign_x_to_s32(13, p[2].y - p[1].y)));
  dmax &= 0xFFF;
 
  PrimData.e[0].Setup(gourauden, p[0], p[3], dmax);

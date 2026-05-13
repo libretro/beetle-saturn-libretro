@@ -219,7 +219,7 @@ void sha256_hasher::process(const void* data, size_t len)
  {
   if(buf_count || len < 0x40)
   {
-   const size_t copy_len = std::min<size_t>(0x40 - buf_count, len);
+   const size_t copy_len = ((size_t)(0x40 - buf_count) < (size_t)(len) ? (size_t)(0x40 - buf_count) : (size_t)(len));
 
    memcpy(&buf[buf_count], d8, copy_len);
    len -= copy_len;

@@ -987,7 +987,7 @@ switch(Pipe_ID >> 24)
 	{
 	 timestamp++;
 
-	 MA_until = std::max<sscpu_timestamp_t>(std::max<sscpu_timestamp_t>(MA_until, MM_until), timestamp + 1);
+	 { sscpu_timestamp_t t__ = timestamp + 1; if(MM_until > MA_until) MA_until = MM_until; if(t__ > MA_until) MA_until = t__; }
 	 MM_until = MA_until + 4;
 	 PART_OP_NORMIDIF
 	}
@@ -1008,7 +1008,7 @@ switch(Pipe_ID >> 24)
 	{
 	 timestamp++;
 
-	 MA_until = std::max<sscpu_timestamp_t>(std::max<sscpu_timestamp_t>(MA_until, MM_until), timestamp + 1);
+	 { sscpu_timestamp_t t__ = timestamp + 1; if(MM_until > MA_until) MA_until = MM_until; if(t__ > MA_until) MA_until = t__; }
 	 MM_until = MA_until + 4;
 	 PART_OP_NORMIDIF
 	}
@@ -1029,7 +1029,7 @@ switch(Pipe_ID >> 24)
 	{
 	 timestamp++;
 
-	 MA_until = std::max<sscpu_timestamp_t>(std::max<sscpu_timestamp_t>(MA_until, MM_until), timestamp + 1);
+	 { sscpu_timestamp_t t__ = timestamp + 1; if(MM_until > MA_until) MA_until = MM_until; if(t__ > MA_until) MA_until = t__; }
 	 MM_until = MA_until + 4;
 	 PART_OP_NORMIDIF
 	}
@@ -1048,7 +1048,7 @@ switch(Pipe_ID >> 24)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
 
-	MA_until = std::max<sscpu_timestamp_t>(std::max<sscpu_timestamp_t>(MA_until, MM_until), timestamp + 1);
+	{ sscpu_timestamp_t t__ = timestamp + 1; if(MM_until > MA_until) MA_until = MM_until; if(t__ > MA_until) MA_until = t__; }
 	MM_until = MA_until + 2;
 
 	MACL = (int16)R[n] * (int16)R[m];
@@ -1063,7 +1063,7 @@ switch(Pipe_ID >> 24)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
 
-	MA_until = std::max<sscpu_timestamp_t>(std::max<sscpu_timestamp_t>(MA_until, MM_until), timestamp + 1);
+	{ sscpu_timestamp_t t__ = timestamp + 1; if(MM_until > MA_until) MA_until = MM_until; if(t__ > MA_until) MA_until = t__; }
 	MM_until = MA_until + 2;
 
 	MACL = (uint32)(uint16)R[n] * (uint32)(uint16)R[m];

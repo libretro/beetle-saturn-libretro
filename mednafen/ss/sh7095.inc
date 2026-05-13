@@ -472,7 +472,7 @@ void SH7095::AdjustTS(int32 delta)
  timestamp += delta;
  FRT.lastts += delta;
 
-#define ATSD(v) v = std::max<sscpu_timestamp_t>(-1000000, v + (delta))
+#define ATSD(v) v = ((sscpu_timestamp_t)(-1000000) > (sscpu_timestamp_t)(v + (delta)) ? (sscpu_timestamp_t)(-1000000) : (sscpu_timestamp_t)(v + (delta)))
  ATSD(DMA_Timestamp);
  ATSD(DMA_SGEndTimestamp);
 
@@ -695,7 +695,7 @@ sscpu_timestamp_t SH7095::DMA_Update(sscpu_timestamp_t et)
   TimeOver:;
 
   DMA_RoundRobinRockinBoppin = rr;
-  DMA_Timestamp = std::max<sscpu_timestamp_t>(DMA_Timestamp, et - 128);
+  if((et - 128) > DMA_Timestamp) DMA_Timestamp = (et - 128);
 
   DMA_CheckEnterBurstHack();
   RecalcPendingIntPEX();	// TODO: conditionalize(or make RecalcPendingIntPEX() less expensive).
@@ -727,7 +727,7 @@ NO_INLINE void SH7095::DMA_RecalcRunning(void)
   {
    const int32 npka = (((DMACH[ch].CHCR >> 10) & 3) == 3 && (DMACH[ch].SAR & DMACH[ch].DAR & 0x06000000) != 0x06000000) ? 23 : 19;
 
-   DMA_PenaltyKludgeAmount = std::max<int32>(DMA_PenaltyKludgeAmount, npka);
+   if((npka) > DMA_PenaltyKludgeAmount) DMA_PenaltyKludgeAmount = (npka);
   }
  }
 
@@ -842,7 +842,7 @@ void SH7095::FRT_WDT_Recalc_NET(void)
   int32 wdt_rt;
 
   wdt_rt = ((0x100 - WDT.WTCNT) << wdt_clockshift) - (FRT_WDT_ClockDivider & ((1 << wdt_clockshift) - 1));
-  rt = std::min<int32>(rt, wdt_rt);
+  if((wdt_rt) < rt) rt = (wdt_rt);
  }
 
  assert(rt > 0);
@@ -1545,7 +1545,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
    case 0x22:
    case 0x00:
    case 0x02:
-	MA_until = std::max<sscpu_timestamp_t>(MA_until, divide_finish_timestamp);
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
 	ret = DVSR;
 	break;
 
@@ -1553,7 +1553,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
    case 0x26:
    case 0x04:
    case 0x06:
-	MA_until = std::max<sscpu_timestamp_t>(MA_until, divide_finish_timestamp);
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
 	ret = DVDNT;
 	break;
 
@@ -1561,7 +1561,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
    case 0x2A:
    case 0x08:
    case 0x0A:
-	MA_until = std::max<sscpu_timestamp_t>(MA_until, divide_finish_timestamp);
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
 	ret = DVCR;
 	break;
 
@@ -1569,7 +1569,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
    case 0x2E:
    case 0x0C:
    case 0x0E:
-	MA_until = std::max<sscpu_timestamp_t>(MA_until, divide_finish_timestamp);
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
 	ret = VCRDIV;
 	break;
 
@@ -1577,7 +1577,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
    case 0x32:
    case 0x10:
    case 0x12:
-	MA_until = std::max<sscpu_timestamp_t>(MA_until, divide_finish_timestamp);
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
 	ret = DVDNTH;
 	break;
 
@@ -1585,7 +1585,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
    case 0x36:
    case 0x14:
    case 0x16:
-	MA_until = std::max<sscpu_timestamp_t>(MA_until, divide_finish_timestamp);
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
 	ret = DVDNTL;
 	break;
 
@@ -1594,7 +1594,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
    case 0x3A:
    case 0x18:
    case 0x1A:
-	MA_until = std::max<sscpu_timestamp_t>(MA_until, divide_finish_timestamp);
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
 	ret = DVDNTH_Shadow;
 	break;
 
@@ -1602,7 +1602,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
    case 0x3E:
    case 0x1C:
    case 0x1E:
-	MA_until = std::max<sscpu_timestamp_t>(MA_until, divide_finish_timestamp);
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
 	ret = DVDNTL_Shadow;
 	break;
    //
@@ -2272,9 +2272,9 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
  }														\
 														\
  if(IsInstr <= 0)												\
-  MA_until = std::max<sscpu_timestamp_t>(MA_until, timestamp + 1);						\
+  if((timestamp + 1) > MA_until) MA_until = (timestamp + 1);						\
  else														\
-  timestamp = std::max<sscpu_timestamp_t>(MA_until, timestamp);							\
+  timestamp = ((sscpu_timestamp_t)(MA_until) > (sscpu_timestamp_t)(timestamp) ? (sscpu_timestamp_t)(MA_until) : (sscpu_timestamp_t)(timestamp));							\
 														\
 														\
  switch(region)													\
@@ -2310,7 +2310,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	   unsigned di = (A + 4 + i) & 0xC; { uint32 vtmp__ = ExtBusRead(uint32,  true, (A &~ 0xF) + di); memcpy(&cent->Data[way_match][di], &vtmp__, 4); }	\
 	  }													\
 	  if(IsInstr <= 0)											\
-	   MA_until = std::max<sscpu_timestamp_t>(MA_until, SH7095_mem_timestamp + 1);				\
+	   if((SH7095_mem_timestamp + 1) > MA_until) MA_until = (SH7095_mem_timestamp + 1);				\
 	  else													\
 	   timestamp = SH7095_mem_timestamp;									\
 	 }													\
@@ -2337,7 +2337,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	 retval = ExtBusRead(T, false, A);								\
 														\
 	 if(IsInstr <= 0)											\
-	  MA_until = std::max<sscpu_timestamp_t>(MA_until, SH7095_mem_timestamp + 1);				\
+	  if((SH7095_mem_timestamp + 1) > MA_until) MA_until = (SH7095_mem_timestamp + 1);				\
 	 else													\
 	 {													\
 	  timestamp = SH7095_mem_timestamp;									\
@@ -2393,7 +2393,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
   SetPEX(PEX_CPUADDR);								\
  }										\
 										\
- MA_until = std::max<sscpu_timestamp_t>(MA_until, timestamp + 1);		\
+ if((timestamp + 1) > MA_until) MA_until = (timestamp + 1);		\
 										\
 										\
  switch(region)									\
@@ -2403,7 +2403,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	 Cache_WriteUpdate<T>(A, V);						\
 	/* Fall-through, no break */						\
   case 1:									\
-  	MA_until = std::max<sscpu_timestamp_t>(MA_until, write_finish_timestamp + 1);	\
+  	if((write_finish_timestamp + 1) > MA_until) MA_until = (write_finish_timestamp + 1);	\
 										\
 	if(!SH7095_BusLock) { CHECK_EXIT_RESUME(); }				\
 	ExtBusWrite(T, A, V);							\
@@ -2423,7 +2423,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	/*				   */					\
 	/* TODO: Check non-32 bit access   */					\
 	timestamp++;								\
-	MA_until = std::max<sscpu_timestamp_t>(MA_until, timestamp + 1);	\
+	if((timestamp + 1) > MA_until) MA_until = (timestamp + 1);	\
 										\
 	Cache_WriteAddressArray<T>(A, V);					\
 	break;									\
@@ -2977,7 +2977,7 @@ void SS_DumpOpPairProfile(void)
 #define Exception_ResPow(vecnum, new_PC)				\
 {									\
  timestamp += 2;							\
- timestamp = std::max<sscpu_timestamp_t>(MA_until, timestamp);		\
+ timestamp = ((sscpu_timestamp_t)(MA_until) > (sscpu_timestamp_t)(timestamp) ? (sscpu_timestamp_t)(MA_until) : (sscpu_timestamp_t)(timestamp));		\
 									\
  MemRead32(((vecnum) + 0) << 2, new_PC);				\
  MemRead32(((vecnum) + 1) << 2, R[15]);					\
@@ -2986,7 +2986,7 @@ void SS_DumpOpPairProfile(void)
 #define Exception(vecnum, new_PC)				\
 {									\
  timestamp += 2;							\
- timestamp = std::max<sscpu_timestamp_t>(MA_until, timestamp);		\
+ timestamp = ((sscpu_timestamp_t)(MA_until) > (sscpu_timestamp_t)(timestamp) ? (sscpu_timestamp_t)(MA_until) : (sscpu_timestamp_t)(timestamp));		\
 									\
  /* Save SR to stack */							\
  /* Save PC to stack */							\
@@ -3425,7 +3425,7 @@ void SH7095::StateAction_SlaveResume(StateMem* sm, const unsigned load, const bo
   Resume_uint16_A &= ~1;
   Resume_uint32_A &= ~3;
   Resume_cent = &Cache[Resume_cent_I & 0x3F];
-  Resume_way_match = std::max<int>(-1, std::min<int>(3, Resume_way_match));
+  Resume_way_match = ((int)(-1) > (int)(((int)(3) < (int)(Resume_way_match) ? (int)(3) : (int)(Resume_way_match))) ? (int)(-1) : (int)(((int)(3) < (int)(Resume_way_match) ? (int)(3) : (int)(Resume_way_match))));
   Resume_instr &= 0xFFFF;
  }
 }

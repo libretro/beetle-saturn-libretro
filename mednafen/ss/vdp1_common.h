@@ -23,6 +23,8 @@
 #ifndef __MDFN_SS_VDP1_COMMON_H
 #define __MDFN_SS_VDP1_COMMON_H
 
+#include <cstdlib>	/* abs() */
+
 namespace VDP1
 {
 
