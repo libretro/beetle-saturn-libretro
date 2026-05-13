@@ -71,9 +71,22 @@
 
 #ifdef MSB_FIRST
  #define NE32ASU8_IDX_ADJ(T, idx) (idx)
+ #define SH7095_RBO_BE_U8(base, A) (((const uint8*)(base))[(A)])
 #else
  #define NE32ASU8_IDX_ADJ(T, idx) ( ((idx) & ~(sizeof(T) - 1)) ^ (4 - (sizeof(T))) )
+ #define SH7095_RBO_BE_U8(base, A) (((const uint8*)(base))[(A) ^ 1])
 #endif
+
+/* SH7095_RBO_BE_T: BE-bus read of type T (uint8/16/32) over a
+ * uint16-array fast-map slot.  Replaces the old ne16_rbo_be<T>
+ * template call inside the MemRead macro and the IBuffer prefetch.
+ * sizeof(T) is compile-time per instantiation, so all branches but
+ * one fold out.  uint16 and uint32 paths are host-endian-agnostic;
+ * the uint8 path depends on host endian (see SH7095_RBO_BE_U8). */
+#define SH7095_RBO_BE_T(T, base, A) \
+   ( (sizeof(T) == 1) ? (T)SH7095_RBO_BE_U8((base), (A)) : \
+     (sizeof(T) == 2) ? (T)((const uint16*)(base))[(A) >> 1] : \
+     (T)(((uint32)((const uint16*)(base))[(A) >> 1] << 16) | ((const uint16*)(base))[((A) >> 1) + 1]) )
 
 SH7095::SH7095(const char* const name_arg, const unsigned event_id_dma_arg, uint8 (*exivecfn_arg)(void)) : event_id_dma(event_id_dma_arg), ExIVecFetch(exivecfn_arg), CBH_Setting(false), EIC_Setting(false), DM_Setting(false), cpu_name(name_arg)
 {
@@ -2309,7 +2322,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
          /* Ugggghhhh.... */											\
          if(CacheBypassHack && FMIsWriteable[A >> SH7095_EXT_MAP_GRAN_BITS])					\
 	 {													\
-          retval = ne16_rbo_be<T>(SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);				\
+          retval = SH7095_RBO_BE_T(T, SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);				\
 	  goto MemReturn;											\
 	 }													\
 														\
@@ -3460,7 +3473,7 @@ void SH7095::PostStateLoad(const unsigned state_version, const bool recorded_nee
   if((int32)A < 0)
    memcpy(&IBuffer, &Cache[(A >> 4) & 0x3F].Data[(A >> 10) & 0x3][NE32ASU8_IDX_ADJ(uint32, A & 0x0F)], sizeof(uint32));
   else
-   IBuffer = ne16_rbo_be<uint32>(SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);
+   IBuffer = SH7095_RBO_BE_T(uint32, SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);
 
  }
  //

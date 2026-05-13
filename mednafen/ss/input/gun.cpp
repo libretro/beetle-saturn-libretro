@@ -180,18 +180,20 @@ void IODevice_Gun::Power(void)
 
 void IODevice_Gun::TransformInput(uint8* const data, float gun_x_scale, float gun_x_offs) const
 {
- int32 tmp = (int16)MDFN_de16lsb(&data[0]);
+ int32 tmp = (int16)(uint16)(data[0] | (data[1] << 8));
 
  tmp = floorf(0.5 + tmp * gun_x_scale + gun_x_offs);
  tmp = std::max<int32>(-32768, std::min<int32>(32767, tmp));
 
- MDFN_en16lsb(&data[0], tmp);
+ /* MDFN_en16lsb folded: write host int into 2 LE bytes. */
+ data[0] = tmp;
+ data[1] = tmp >> 8;
 }
 
 void IODevice_Gun::UpdateInput(const uint8* data, const int32 time_elapsed)
 {
- nom_coord[0] = (int16)MDFN_de16lsb(&data[0]);
- nom_coord[1] = (int16)MDFN_de16lsb(&data[2]);
+ nom_coord[0] = (int16)(uint16)(data[0] | (data[1] << 8));
+ nom_coord[1] = (int16)(uint16)(data[2] | (data[3] << 8));
 
  state = ((((~(unsigned)data[4]) << 4) & 0x30) | 0x0C) | (state & 0x40);
 

@@ -53,7 +53,23 @@ class sha256_hasher
   {
    alignas(T) uint8 tmp[sizeof(T)];
 
-   MDFN_enlsb(&tmp[0], v, sizeof(v[0]));
+   /* MDFN_enlsb folded inline: size-dispatched LE byte store.
+    * Only ever instantiated for T sizes 2 or 4 - other sizes are
+    * a no-op same as before. */
+   if(sizeof(v[0]) == 2)
+   {
+    uint16 val__ = *(const uint16*)v;
+    tmp[0] = val__;
+    tmp[1] = val__ >> 8;
+   }
+   else if(sizeof(v[0]) == 4)
+   {
+    uint32 val__ = *(const uint32*)v;
+    tmp[0] = val__;
+    tmp[1] = val__ >> 8;
+    tmp[2] = val__ >> 16;
+    tmp[3] = val__ >> 24;
+   }
 
    process(tmp, sizeof(tmp));
   }

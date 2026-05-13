@@ -947,7 +947,14 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
     else
     {
      const uint16* fbyptr = fbptr + ((fb_y & 0xFF) << 9);
-     uint8 tmp = ne16_rbo_be<uint8>(fbyptr, (fb_x & 0x1FF) | ((fb_y & 0x100) << 1));
+     /* ne16_rbo_be<uint8>(base_u16, byte_off) folded:
+      * byte read from BE bus over uint16-array. */
+     const uint32 boff_ = (fb_x & 0x1FF) | ((fb_y & 0x100) << 1);
+#ifdef MSB_FIRST
+     uint8 tmp = ((const uint8*)fbyptr)[boff_];
+#else
+     uint8 tmp = ((const uint8*)fbyptr)[boff_ ^ 1];
+#endif
 
      buf[i] = 0xFF00 | tmp;
      // 8bpp paletted mode doesn't use mesh-improved (PlotPixel
@@ -955,7 +962,11 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
      // is guaranteed clear in 8bpp mode -- but read it anyway
      // in case mode bits changed mid-frame.
      const uint16* mfbyptr = mfbptr + ((fb_y & 0xFF) << 9);
-     uint8 mtmp = ne16_rbo_be<uint8>(mfbyptr, (fb_x & 0x1FF) | ((fb_y & 0x100) << 1));
+#ifdef MSB_FIRST
+     uint8 mtmp = ((const uint8*)mfbyptr)[boff_];
+#else
+     uint8 mtmp = ((const uint8*)mfbyptr)[boff_ ^ 1];
+#endif
      mesh_buf[i] = mtmp;
     }
 
@@ -1177,7 +1188,13 @@ MDFN_FASTCALL void Write8_DB(uint32 A, uint16 DB)
 
  if(A < 0x80000)
  {
-  ne16_wbo_be<uint8>(VRAM, A, DB >> (((A & 1) ^ 1) << 3) );
+  /* ne16_wbo_be<uint8>(VRAM, A, val) folded. */
+  const uint8 val_ = DB >> (((A & 1) ^ 1) << 3);
+#ifdef MSB_FIRST
+  ((uint8*)VRAM)[A] = val_;
+#else
+  ((uint8*)VRAM)[A ^ 1] = val_;
+#endif
   return;
  }
 
@@ -1188,7 +1205,14 @@ MDFN_FASTCALL void Write8_DB(uint32 A, uint16 DB)
   if((TVMR & (TVMR_8BPP | TVMR_ROTATE)) == (TVMR_8BPP | TVMR_ROTATE))
    FBA = (FBA & 0x1FF) | ((FBA << 1) & 0x3FC00) | ((FBA >> 8) & 0x200);
 
-  ne16_wbo_be<uint8>(FB[FBDrawWhich], FBA & 0x3FFFF, DB >> (((A & 1) ^ 1) << 3) );
+  /* ne16_wbo_be<uint8>(FB[..], offs, val) folded. */
+  const uint32 fbo_ = FBA & 0x3FFFF;
+  const uint8 val_ = DB >> (((A & 1) ^ 1) << 3);
+#ifdef MSB_FIRST
+  ((uint8*)FB[FBDrawWhich])[fbo_] = val_;
+#else
+  ((uint8*)FB[FBDrawWhich])[fbo_ ^ 1] = val_;
+#endif
   return;
  }
 

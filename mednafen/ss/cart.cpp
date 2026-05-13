@@ -23,7 +23,6 @@
 #include "../mednafen.h"
 #include "../general.h"
 #include <streams/file_stream.h>
-#include "../mednafen-endian.h"
 
 #include "cart.h"
 #include "cart/backup.h"

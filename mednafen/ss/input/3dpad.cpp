@@ -41,14 +41,15 @@ void IODevice_3DPad::Power(void)
 
 void IODevice_3DPad::UpdateInput(const uint8* data, const int32 time_elapsed)
 {
- const uint16 dtmp = MDFN_de16lsb(&data[0]);
+ const uint16 dtmp = (uint16)(data[0] | (data[1] << 8));
 
  dbuttons = (dbuttons & 0x8800) | (dtmp & 0x0FFF);
  mode = (bool)(dtmp & 0x1000);
 
  for(unsigned axis = 0; axis < 2; axis++)
  {
-  int32 tmp = MDFN_de16lsb(&data[0x2 + (axis << 1)]);
+  const unsigned off = 0x2 + (axis << 1);
+  int32 tmp = (uint16)(data[off] | (data[off + 1] << 8));
 
   if(tmp >= (32768 - 128) && tmp < 32768)
    tmp = 32768;
@@ -59,7 +60,8 @@ void IODevice_3DPad::UpdateInput(const uint8* data, const int32 time_elapsed)
 
  for(unsigned w = 0; w < 2; w++)
  {
-  shoulder[w] = (MDFN_de16lsb(&data[0x6 + (w << 1)]) * 255 + 32767) / 65535;
+  const unsigned off = 0x6 + (w << 1);
+  shoulder[w] = (((uint16)(data[off] | (data[off + 1] << 8))) * 255 + 32767) / 65535;
 
   // May not be right for digital mode, but shouldn't matter too much:
   if(shoulder[w] <= 0x55)

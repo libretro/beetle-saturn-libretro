@@ -80,7 +80,11 @@ static INLINE void block(std::array<uint32, 8> &h, void* blk_data)
  alignas(16) auto v = h;
 
  for(unsigned t = 0; t < 16; t++)
-  w[t] = MDFN_de32msb((uint8*)blk_data + (t << 2));
+ {
+  /* MDFN_de32msb folded: 4 BE bytes -> host uint32. */
+  const uint8 *bp__ = (const uint8*)blk_data + (t << 2);
+  w[t] = ((uint32)bp__[0] << 24) | ((uint32)bp__[1] << 16) | ((uint32)bp__[2] << 8) | (uint32)bp__[3];
+ }
 
  for(unsigned t = 16; t < 64; t++)
   w[t] = ls1(w[t - 2]) + w[t - 7] + ls0(w[t - 15]) + w[t - 16];
@@ -128,7 +132,18 @@ sha256_digest sha256(const void* data, const uint64 len)
 
   dc = ((dc + 8) &~ 63) + 56;
 
-  MDFN_en64msb<true>(&tmp[dc], len * 8);
+  /* MDFN_en64msb<true>(ptr, len*8) folded: aligned BE 64-bit store.
+   * On MSB_FIRST host: plain memcpy. On LE host: bswap64 then memcpy. */
+  {
+   uint64 v__ = len * 8;
+#ifndef MSB_FIRST
+   v__ =  (v__ << 56) | (v__ >> 56)
+       | ((v__ & 0xFF00ULL) << 40) | ((v__ >> 40) & 0xFF00ULL)
+       | ((v__ & 0xFF0000ULL) << 24) | ((v__ >> 24) & 0xFF0000ULL)
+       | ((v__ & 0xFF000000ULL) <<  8) | ((v__ >>  8) & 0xFF000000ULL);
+#endif
+   memcpy(&tmp[dc], &v__, 8);
+  }
 
   block(h, tmp);
   if(dc >= 64)
@@ -136,7 +151,14 @@ sha256_digest sha256(const void* data, const uint64 len)
  }
 
  for(unsigned i = 0; i < 8; i++)
-  MDFN_en32msb(&ret[i * 4], h[i]);
+ {
+  /* MDFN_en32msb folded: write host uint32 as 4 BE bytes. */
+  const uint32 v__ = h[i];
+  ret[i * 4 + 0] = v__ >> 24;
+  ret[i * 4 + 1] = v__ >> 16;
+  ret[i * 4 + 2] = v__ >>  8;
+  ret[i * 4 + 3] = v__;
+ }
  return ret;
 }
 
@@ -159,7 +181,11 @@ INLINE void sha256_hasher::process_block(const uint8* blk_data)
  alignas(16) auto v = h;
 
  for(unsigned t = 0; t < 16; t++)
-  w[t] = MDFN_de32msb(blk_data + (t << 2));
+ {
+  /* MDFN_de32msb folded: 4 BE bytes -> host uint32. */
+  const uint8 *bp__ = blk_data + (t << 2);
+  w[t] = ((uint32)bp__[0] << 24) | ((uint32)bp__[1] << 16) | ((uint32)bp__[2] << 8) | (uint32)bp__[3];
+ }
 
  for(unsigned t = 16; t < 64; t++)
   w[t] = ls1(w[t - 2]) + w[t - 7] + ls0(w[t - 15]) + w[t - 16];
@@ -225,12 +251,32 @@ sha256_digest sha256_hasher::digest(void) const
  memset(footer, 0, sizeof(footer));
  footer[0] |= 0x80;
 
- MDFN_en64msb(&footer[footer_len - 8], bytes_processed * 8);
+ /* MDFN_en64msb folded: byte-by-byte BE 64-bit store (no MSB_FIRST
+  * needed - explicit byte arithmetic gives BE bytes on any host). */
+ {
+  uint8 *fp__ = &footer[footer_len - 8];
+  uint64 v__ = bytes_processed * 8;
+  fp__[0] = v__ >> 56;
+  fp__[1] = v__ >> 48;
+  fp__[2] = v__ >> 40;
+  fp__[3] = v__ >> 32;
+  fp__[4] = v__ >> 24;
+  fp__[5] = v__ >> 16;
+  fp__[6] = v__ >>  8;
+  fp__[7] = v__;
+ }
 
  tmp.process(footer, footer_len);
 
  for(unsigned i = 0; i < 8; i++)
-  MDFN_en32msb(&ret[i * 4], tmp.h[i]);
+ {
+  /* MDFN_en32msb folded: write host uint32 as 4 BE bytes. */
+  const uint32 v__ = tmp.h[i];
+  ret[i * 4 + 0] = v__ >> 24;
+  ret[i * 4 + 1] = v__ >> 16;
+  ret[i * 4 + 2] = v__ >>  8;
+  ret[i * 4 + 3] = v__;
+ }
 
  return ret;
 }

@@ -94,7 +94,6 @@ static const char* IntNames[0x20] =
 
 #include <compat/intrinsics.h>
 #include "scu_dsp_common.inc"
-#include "../mednafen-endian.h"
 
 static void DSP_Reset(bool powering_up);
 
@@ -1245,7 +1244,13 @@ static uint32 DMA_ReadCBus(uint32 offset)
   SCU_DMA_ReadOverhead -= 6;
  }
 
- return ne16_rbo_be<uint32>(WorkRAMH, offset & 0xFFFFC);
+ /* ne16_rbo_be<uint32>(WorkRAMH, byte_off): aligned BE 32-bit
+  * read from uint16 array.  Both halves are host-endian; MSB-first
+  * combination gives host-endian uint32 on any host. */
+ {
+  const uint32 idx_ = (offset & 0xFFFFC) >> 1;
+  return ((uint32)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
+ }
 }
 
 static INLINE int AddressToBus(uint32 A)
@@ -1476,7 +1481,24 @@ static INLINE void DMA_Write(DMALevelS* d, uint32 DB)
  }
  else
  {
-  ne16_wbo_be<T>(WorkRAMH, A & 0xFFFFF, DB >> (((A & 3) ^ (4 - sizeof(T))) << 3));
+  /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded. */
+  const uint32 boff_ = A & 0xFFFFF;
+  const T val_ = DB >> (((A & 3) ^ (4 - sizeof(T))) << 3);
+  if(sizeof(T) == 1)
+  {
+#ifdef MSB_FIRST
+   ((uint8*)WorkRAMH)[boff_] = val_;
+#else
+   ((uint8*)WorkRAMH)[boff_ ^ 1] = val_;
+#endif
+  }
+  else if(sizeof(T) == 2)
+   WorkRAMH[boff_ >> 1] = val_;
+  else /* sizeof(T) == 4 */
+  {
+   WorkRAMH[(boff_ >> 1) + 0] = (uint32)val_ >> 16;
+   WorkRAMH[(boff_ >> 1) + 1] = val_;
+  }
  }
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -1824,7 +1846,10 @@ static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
 
    if(WriteBus == 2)
    {
-    ne16_wbo_be<uint32>(WorkRAMH, addr & 0xFFFFC, DB);
+    /* ne16_wbo_be<uint32>(WorkRAMH, byte_off, DB) folded. */
+    const uint32 idx_ = (addr & 0xFFFFC) >> 1;
+    WorkRAMH[idx_ + 0] = DB >> 16;
+    WorkRAMH[idx_ + 1] = DB;
     addr += addr_add_amount;
     dsp->T0_Until -= 2;
    }
@@ -1873,7 +1898,9 @@ static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
 
    if(ReadBus == 2)
    {
-    DB = ne16_rbo_be<uint32>(WorkRAMH, addr & 0xFFFFF);
+    /* ne16_rbo_be<uint32>(WorkRAMH, byte_off) folded. */
+    const uint32 idx_ = (addr & 0xFFFFF) >> 1;
+    DB = ((uint32)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
     dsp->T0_Until -= 2;
 
     addr += addr_add_amount;

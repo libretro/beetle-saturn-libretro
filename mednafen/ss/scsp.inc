@@ -44,6 +44,86 @@
 	DSP: Test IWT=1 when MRT=0 and MWT=1 for the intruction a couple back.
 */
 
+/* Local big-endian-bus access macros replacing the old ne16_*_be /
+ * ne64_*_be template family.  T is uint8 / uint16 / uint32.  base
+ * is either a uint16-array (for ne16-style 16-bit-bus storage) or
+ * a uint64-array (for ne64-style 64-bit-bus storage, MPROG only).
+ * sizeof(T) decides the access width; #ifdef MSB_FIRST picks the
+ * sub-word byte/half index for non-aligned-T accesses. */
+#ifdef MSB_FIRST
+ #define SCSP_RBO_BE_U8(base, A)   (((const uint8*)(base))[(A)])
+ #define SCSP_WBO_BE_U8(base, A, V) (((uint8*)(base))[(A)] = (V))
+#else
+ #define SCSP_RBO_BE_U8(base, A)   (((const uint8*)(base))[(A) ^ 1])
+ #define SCSP_WBO_BE_U8(base, A, V) (((uint8*)(base))[(A) ^ 1] = (V))
+#endif
+
+/* ne16_rwbo_be<T, IsWrite> equivalent.  pDB points at the host
+ * uint32 carrying the bus value (low bits hold the actual T).  All
+ * width branches resolve at compile time. */
+#define SCSP_NE16_RW(T, IsWrite, base, byte_off, pDB)                          \
+do {                                                                           \
+   uint32 boff__ = (byte_off);                                                 \
+   if(IsWrite)                                                                 \
+   {                                                                           \
+      if(sizeof(T) == 1)                                                       \
+         SCSP_WBO_BE_U8((base), boff__, (uint8)*(pDB));                        \
+      else if(sizeof(T) == 2)                                                  \
+         ((uint16*)(base))[boff__ >> 1] = (uint16)*(pDB);                      \
+      else /* sizeof(T) == 4 */                                                \
+      {                                                                        \
+         ((uint16*)(base))[(boff__ >> 1) + 0] = (uint32)*(pDB) >> 16;          \
+         ((uint16*)(base))[(boff__ >> 1) + 1] = (uint32)*(pDB);                \
+      }                                                                        \
+   }                                                                           \
+   else                                                                       \
+   {                                                                           \
+      if(sizeof(T) == 1)                                                       \
+         *(pDB) = SCSP_RBO_BE_U8((base), boff__);                              \
+      else if(sizeof(T) == 2)                                                  \
+         *(pDB) = ((const uint16*)(base))[boff__ >> 1];                        \
+      else /* sizeof(T) == 4 */                                                \
+         *(pDB) = ((uint32)((const uint16*)(base))[boff__ >> 1] << 16)         \
+                | ((const uint16*)(base))[(boff__ >> 1) + 1];                  \
+   }                                                                           \
+} while(0)
+
+/* ne16_rbo_be<T> equivalent (read-only). */
+#define SCSP_NE16_R(T, base, byte_off) \
+   ( (sizeof(T) == 1) ? (T)SCSP_RBO_BE_U8((base), (byte_off)) :                \
+     (sizeof(T) == 2) ? (T)((const uint16*)(base))[(byte_off) >> 1] :          \
+     (T)(((uint32)((const uint16*)(base))[(byte_off) >> 1] << 16)              \
+       | ((const uint16*)(base))[((byte_off) >> 1) + 1]) )
+
+/* ne64_rwbo_be<T, IsWrite> equivalent.  T is uint16/uint32 for
+ * MPROG accesses.  base is uint64[].  The BE 64-bit bus arranges
+ * bytes within each uint64 such that the byte at offset (8 - sizeof(T) - sub)
+ * within the host word is the T at sub-byte offset (for MSB host)
+ * — or the XOR'd offset on LE host.  We compute the byte address
+ * of the T inside the uint64 array, then memcpy/typed-load. */
+#ifdef MSB_FIRST
+ #define SCSP_NE64_BYTE_OFF(T, byte_off) ((byte_off) &~ (sizeof(T) - 1))
+#else
+ #define SCSP_NE64_BYTE_OFF(T, byte_off) \
+    ( ((byte_off) &~ (sizeof(T) - 1)) ^ (8 - (sizeof(T))) )
+#endif
+
+#define SCSP_NE64_RW(T, IsWrite, base, byte_off, pDB)                          \
+do {                                                                           \
+   uint8 *ptr__ = (uint8*)(base) + SCSP_NE64_BYTE_OFF(T, (byte_off));          \
+   if(IsWrite)                                                                 \
+   {                                                                           \
+      T v__ = (T)*(pDB);                                                       \
+      memcpy(ptr__, &v__, sizeof(T));                                          \
+   }                                                                           \
+   else                                                                       \
+   {                                                                           \
+      T v__;                                                                   \
+      memcpy(&v__, ptr__, sizeof(T));                                          \
+      *(pDB) = v__;                                                            \
+   }                                                                           \
+} while(0)
+
 SS_SCSP::SS_SCSP()
 {
  memset(&RAM[0x40000], 0x00, 0x40000 * sizeof(uint16));	// Zero out dummy part.
@@ -352,7 +432,7 @@ INLINE void SS_SCSP::RW(uint32 A, T& DBV)
   }
   else
   {
-   ne16_rwbo_be<T, IsWrite>(RAM, A, &DBV);
+   SCSP_NE16_RW(T, IsWrite, RAM, A, &DBV);
   }
   return;
  }
@@ -366,7 +446,7 @@ INLINE void SS_SCSP::RW(uint32 A, T& DBV)
   //
   const unsigned slotnum = (A >> 5) & 0x1F;
 
-  ne16_rwbo_be<T, IsWrite>(SlotRegs[slotnum], A & 0x1F, &DBV);
+  SCSP_NE16_RW(T, IsWrite, SlotRegs[slotnum], A & 0x1F, &DBV);
 
   if(IsWrite)
   {
@@ -754,7 +834,7 @@ INLINE void SS_SCSP::RW(uint32 A, T& DBV)
   //
   // Sound stack data
   //
-  ne16_rwbo_be<T, IsWrite>(SoundStack, A & 0x7F, &DBV);
+  SCSP_NE16_RW(T, IsWrite, SoundStack, A & 0x7F, &DBV);
 
   return;
  }
@@ -787,7 +867,7 @@ INLINE void SS_SCSP::RW(uint32 A, T& DBV)
   //
   // DSP memory addresses
   //
-  ne16_rwbo_be<T, IsWrite>(DSP.MADRS, A & 0x3F, &DBV);
+  SCSP_NE16_RW(T, IsWrite, DSP.MADRS, A & 0x3F, &DBV);
 
   return;
  }
@@ -797,7 +877,7 @@ INLINE void SS_SCSP::RW(uint32 A, T& DBV)
   //
   // DSP microprogram
   //
-  ne64_rwbo_be<T, IsWrite>(DSP.MPROG, A & 0x3FF, &DBV);
+  SCSP_NE64_RW(T, IsWrite, DSP.MPROG, A & 0x3FF, &DBV);
 
   if(IsWrite)
    DSP.MPROG_Dirty = true;
@@ -894,7 +974,7 @@ INLINE void SS_SCSP::RW(uint32 A, T& DBV)
  //
  if(A >= 0xEC0 && A <= 0xEDF)
  {
-  ne16_rwbo_be<T, IsWrite>(DSP.EFREG, A & 0x1F, &DBV);
+  SCSP_NE16_RW(T, IsWrite, DSP.EFREG, A & 0x1F, &DBV);
 
   return;
  }
@@ -902,7 +982,7 @@ INLINE void SS_SCSP::RW(uint32 A, T& DBV)
  if(A >= 0xEE0 && A <= 0xEE3)
  {
   if(!IsWrite)
-   DBV = ne16_rbo_be<T>(EXTS, A & 0x3);
+   DBV = SCSP_NE16_R(T, EXTS, A & 0x3);
 
   return;
  }
@@ -1605,8 +1685,8 @@ INLINE void SS_SCSP::RunSample(T_out* outlr)
     const uint32 addr0 = (s->StartAddr + ((modalizer_int[0] + (uint16)(tmpa + 0)) & s->ShortWaveMask)) & 0xFFFFF;
     const uint32 addr1 = (s->StartAddr + ((modalizer_int[1] + (uint16)(tmpa + 1)) & s->ShortWaveMask)) & 0xFFFFF;
 
-    s0 = ne16_rbo_be<uint8>(RAM, addr0) << 8;
-    s1 = ne16_rbo_be<uint8>(RAM, addr1) << 8;
+    s0 = SCSP_RBO_BE_U8(RAM, addr0) << 8;
+    s1 = SCSP_RBO_BE_U8(RAM, addr1) << 8;
    }
    else
    {

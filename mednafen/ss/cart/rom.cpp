@@ -36,7 +36,12 @@ void CART_ROM_Init(CartInfo* c, RFILE *str)
 
    for(unsigned i = 0; i < 0x100000; i++)
    {
-      ROM[i] = MDFN_de16msb<true>(&ROM[i]);
+      /* MDFN_de16msb<true> folded: aligned BE 16-bit decode.
+       * On MSB_FIRST host: ROM[i] = ROM[i] (no-op). On LE host:
+       * byteswap each ROM[i] to convert BE-on-disk to host-endian. */
+#ifndef MSB_FIRST
+      ROM[i] = (uint16)((ROM[i] << 8) | (ROM[i] >> 8));
+#endif
    }
 
    SS_SetPhysMemMap (0x02000000, 0x03FFFFFF, ROM, 0x200000, false);

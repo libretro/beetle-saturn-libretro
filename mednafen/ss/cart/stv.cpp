@@ -55,7 +55,12 @@ static MDFN_HOT void ROM_Read(uint32 A, uint16* DB)
 uint8 CART_STV_PeekROM(uint32 A)
 {
  assert(A < 0x3000000);
- return ne16_rbo_be<uint8>(ROM, A);
+ /* ne16_rbo_be<uint8>(ROM, A) folded. */
+#ifdef MSB_FIRST
+ return ((const uint8*)ROM)[A];
+#else
+ return ((const uint8*)ROM)[A ^ 1];
+#endif
 }
 
 template<typename T>
@@ -143,8 +148,17 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
     {
      for(uint32 j = 0; j < rle->size; j++)
      {
-      uint8 tmp = ne16_rbo_be<uint8>(ROM, prev_rle->offset + (j << 1));
-      ne16_wbo_be<uint8>(ROM, rle->offset + (j << 1), tmp);
+      const uint32 src_off = prev_rle->offset + (j << 1);
+      const uint32 dst_off = rle->offset + (j << 1);
+      uint8 tmp;
+      /* ne16_rbo_be<uint8>(ROM, src) / ne16_wbo_be<uint8>(ROM, dst, val). */
+#ifdef MSB_FIRST
+      tmp = ((const uint8*)ROM)[src_off];
+      ((uint8*)ROM)[dst_off] = tmp;
+#else
+      tmp = ((const uint8*)ROM)[src_off ^ 1];
+      ((uint8*)ROM)[dst_off ^ 1] = tmp;
+#endif
      }
     }
     else
@@ -172,7 +186,13 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
       uint8 tmp;
       if(filestream_read(fp, &tmp, 1) != 1)
        throw MDFN_Error(0, _("ST-V: ROM image \"%s\" shorter than expected (need %u bytes)"), fpath.c_str(), rle->size);
-      ne16_wbo_be<uint8>(ROM, rle->offset + (j << 1), tmp);
+      /* ne16_wbo_be<uint8>(ROM, offs, tmp) folded. */
+      const uint32 dst_off = rle->offset + (j << 1);
+#ifdef MSB_FIRST
+      ((uint8*)ROM)[dst_off] = tmp;
+#else
+      ((uint8*)ROM)[dst_off ^ 1] = tmp;
+#endif
      }
     }
     else
@@ -190,7 +210,18 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
      // matches, so this is a no-op. For 16BE-packed source: byteswap each
      // 16-bit word to get native LE.
      if(rle->map == STV_MAP_16BE)
-      Endian_A16_Swap(dest, rle->size >> 1);
+     {
+      /* Endian_A16_Swap folded: byte-pair swap loop. */
+      uint8 *p__ = (uint8*)dest;
+      uint32 n__ = rle->size >> 1;
+      uint32 k__;
+      for(k__ = 0; k__ < n__; k__++)
+      {
+       uint8 t = p__[k__ * 2];
+       p__[k__ * 2]     = p__[k__ * 2 + 1];
+       p__[k__ * 2 + 1] = t;
+      }
+     }
      // STV_MAP_16LE: no-op on LSB host.
     }
    }

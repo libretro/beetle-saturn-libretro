@@ -131,7 +131,10 @@ void CART_AR4MP_Init(CartInfo* c, RFILE* str)
 
  for(unsigned i = 0; i < 0x20000; i++)
  {
-  FLASH[i] = MDFN_de16msb<true>(&FLASH[i]);
+  /* MDFN_de16msb<true> folded: BE-on-disk to host-endian. */
+#ifndef MSB_FIRST
+  FLASH[i] = (uint16)((FLASH[i] << 8) | (FLASH[i] >> 8));
+#endif
  }
 
  SS_SetPhysMemMap (0x02000000, 0x020FFFFF, FLASH, 0x40000, false);

@@ -81,9 +81,12 @@ void IODevice_Keyboard::Power(void)
 
 void IODevice_Keyboard::UpdateInput(const uint8* data, const int32 time_elapsed)
 {
- phys[0] = MDFN_de64lsb(&data[0x00]);
- phys[1] = MDFN_de64lsb(&data[0x08]);
- phys[2] = MDFN_de16lsb(&data[0x10]);
+ /* MDFN_de64lsb / MDFN_de16lsb folded: byte-wise LE construction. */
+ phys[0] = (uint64)data[0x00] | ((uint64)data[0x01] << 8) | ((uint64)data[0x02] << 16) | ((uint64)data[0x03] << 24)
+         | ((uint64)data[0x04] << 32) | ((uint64)data[0x05] << 40) | ((uint64)data[0x06] << 48) | ((uint64)data[0x07] << 56);
+ phys[1] = (uint64)data[0x08] | ((uint64)data[0x09] << 8) | ((uint64)data[0x0A] << 16) | ((uint64)data[0x0B] << 24)
+         | ((uint64)data[0x0C] << 32) | ((uint64)data[0x0D] << 40) | ((uint64)data[0x0E] << 48) | ((uint64)data[0x0F] << 56);
+ phys[2] = (uint16)(data[0x10] | (data[0x11] << 8));
  phys[3] = 0;
  //
  if(rep_dcnt > 0)

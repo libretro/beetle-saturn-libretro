@@ -186,9 +186,35 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
   }
 
   if(IsWrite)
-   ne16_wbo_be<T>(WorkRAML, A & 0xFFFFF, DB >> (((A & 1) ^ (2 - sizeof(T))) << 3));
+  {
+   /* ne16_wbo_be<T>(WorkRAML, byte_off, val) folded.  T can be
+    * uint8, uint16, or uint32; sizeof(T) dispatches the right
+    * write width.  Compiler folds away the dead branches per
+    * template instantiation. */
+   const uint32 boff_ = A & 0xFFFFF;
+   const T val_ = DB >> (((A & 1) ^ (2 - sizeof(T))) << 3);
+   if(sizeof(T) == 1)
+   {
+#ifdef MSB_FIRST
+    ((uint8*)WorkRAML)[boff_] = val_;
+#else
+    ((uint8*)WorkRAML)[boff_ ^ 1] = val_;
+#endif
+   }
+   else if(sizeof(T) == 2)
+    WorkRAML[boff_ >> 1] = val_;
+   else /* sizeof(T) == 4 */
+   {
+    WorkRAML[(boff_ >> 1) + 0] = (uint32)val_ >> 16;
+    WorkRAML[(boff_ >> 1) + 1] = val_;
+   }
+  }
   else
-   DB = (DB & 0xFFFF0000) | ne16_rbo_be<uint16>(WorkRAML, A & 0xFFFFE);
+  {
+   /* ne16_rbo_be<uint16>(WorkRAML, byte_off): aligned u16 read
+    * — host-endian-stored slot, direct index. */
+   DB = (DB & 0xFFFF0000) | WorkRAML[(A & 0xFFFFE) >> 1];
+  }
 
   return;
  }
@@ -204,7 +230,7 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
    *SH2DMAHax += 8;
 
   if(!IsWrite) 
-   DB = (DB & 0xFFFF0000) | ne16_rbo_be<uint16>(BIOSROM, A & 0x7FFFE);
+   DB = (DB & 0xFFFF0000) | BIOSROM[(A & 0x7FFFE) >> 1];
 
   return;
  }
@@ -344,9 +370,38 @@ static INLINE void BusRW_DB_CS3(const uint32 A, uint32& DB, const bool BurstHax,
  //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
  //
  if(!IsWrite || sizeof(T) == 4)
-  ne16_rwbo_be<uint32, IsWrite>(WorkRAMH, A & 0xFFFFC, &DB);
+ {
+  /* ne16_rwbo_be<uint32, IsWrite>(WorkRAMH, byte_off, &DB) folded:
+   * aligned uint32 BE bus read or write over uint16 array.  Two
+   * uint16 halves: upper at index, lower at index+1.  Same on
+   * BE and LE hosts (host-endian uint16s combined in MSB-first
+   * order). */
+  const uint32 idx_ = (A & 0xFFFFC) >> 1;
+  if(IsWrite)
+  {
+   WorkRAMH[idx_ + 0] = DB >> 16;
+   WorkRAMH[idx_ + 1] = DB;
+  }
+  else
+   DB = ((uint32)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
+ }
  else
-  ne16_wbo_be<T>(WorkRAMH, A & 0xFFFFF, DB >> (((A & 3) ^ (4 - sizeof(T))) << 3));
+ {
+  /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded.  T is uint8
+   * or uint16 here (uint32 caught above). */
+  const uint32 boff_ = A & 0xFFFFF;
+  const T val_ = DB >> (((A & 3) ^ (4 - sizeof(T))) << 3);
+  if(sizeof(T) == 1)
+  {
+#ifdef MSB_FIRST
+   ((uint8*)WorkRAMH)[boff_] = val_;
+#else
+   ((uint8*)WorkRAMH)[boff_ ^ 1] = val_;
+#endif
+  }
+  else /* sizeof(T) == 2 */
+   WorkRAMH[boff_ >> 1] = val_;
+ }
 }
 
 //
@@ -356,7 +411,13 @@ static MDFN_COLD uint8 CheatMemRead(uint32 A)
 {
  A &= (1U << 27) - 1;
 
- return ne16_rbo_be<uint8>(SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);
+ /* ne16_rbo_be<uint8>(base, A) folded - byte read from BE bus
+  * over uint16 fast-map slot. */
+#ifdef MSB_FIRST
+ return ((const uint8*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A];
+#else
+ return ((const uint8*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A ^ 1];
+#endif
 }
 
 static MDFN_COLD void CheatMemWrite(uint32 A, uint8 V)
@@ -365,7 +426,12 @@ static MDFN_COLD void CheatMemWrite(uint32 A, uint8 V)
 
  if(FMIsWriteable[A >> SH7095_EXT_MAP_GRAN_BITS])
  {
-  ne16_wbo_be<uint8>(SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A, V);
+  /* ne16_wbo_be<uint8>(base, A, V) folded. */
+#ifdef MSB_FIRST
+  ((uint8*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A] = V;
+#else
+  ((uint8*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A ^ 1] = V;
+#endif
 
   for(unsigned c = 0; c < 2; c++)
   {
@@ -996,7 +1062,12 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
 
          // swap endian-ness
          for(unsigned i = 0; i < (bios_size / 2); i++)
-            BIOSROM[i] = MDFN_de16msb((const uint8_t*)&BIOSROM[i]);
+         {
+            /* MDFN_de16msb folded: BE-on-disk to host-endian. */
+#ifndef MSB_FIRST
+            BIOSROM[i] = (uint16)((BIOSROM[i] << 8) | (BIOSROM[i] >> 8));
+#endif
+         }
       }
    }
 

@@ -23,7 +23,6 @@
 #define __MDFN_SS_VDP1_H
 
 #include <mednafen/state.h>
-#include <mednafen/mednafen-endian.h>
 
 
 namespace VDP1
@@ -70,29 +69,44 @@ void SetMeshImproved(bool improved) MDFN_COLD;
 INLINE uint8 PeekVRAM(const uint32 addr)
 {
  MDFN_HIDE extern uint16 VRAM[0x40000];
-
- return ne16_rbo_be<uint8>(VRAM, addr & 0x7FFFF);
+ /* ne16_rbo_be<uint8> folded: byte read from uint16-array BE bus.
+  * MSB_FIRST: natural byte index. LE host: XOR with 1 to swap
+  * the byte halves of each uint16. */
+#ifdef MSB_FIRST
+ return ((const uint8*)VRAM)[addr & 0x7FFFF];
+#else
+ return ((const uint8*)VRAM)[(addr & 0x7FFFF) ^ 1];
+#endif
 }
 
 INLINE void PokeVRAM(const uint32 addr, const uint8 val)
 {
  MDFN_HIDE extern uint16 VRAM[0x40000];
-
- ne16_wbo_be<uint8>(VRAM, addr & 0x7FFFF, val);
+#ifdef MSB_FIRST
+ ((uint8*)VRAM)[addr & 0x7FFFF] = val;
+#else
+ ((uint8*)VRAM)[(addr & 0x7FFFF) ^ 1] = val;
+#endif
 }
 
 INLINE uint8 PeekFB(const bool which, const uint32 addr)
 {
  MDFN_HIDE extern uint16 FB[2][0x20000];
-
- return ne16_rbo_be<uint8>(FB[which], addr & 0x3FFFF);
+#ifdef MSB_FIRST
+ return ((const uint8*)FB[which])[addr & 0x3FFFF];
+#else
+ return ((const uint8*)FB[which])[(addr & 0x3FFFF) ^ 1];
+#endif
 }
 
 INLINE void PokeFB(const bool which, const uint32 addr, const uint8 val)
 {
  MDFN_HIDE extern uint16 FB[2][0x20000];
-
- ne16_wbo_be<uint8>(FB[which], addr & 0x3FFFF, val);
+#ifdef MSB_FIRST
+ ((uint8*)FB[which])[addr & 0x3FFFF] = val;
+#else
+ ((uint8*)FB[which])[(addr & 0x3FFFF) ^ 1] = val;
+#endif
 }
 
 enum

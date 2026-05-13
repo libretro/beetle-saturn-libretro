@@ -40,7 +40,6 @@
 #include <streams/file_stream.h>
 #include <libretro.h>
 
-#include "../mednafen-endian.h"
 #include "../cdstream.h"
 
 #include "CDAccess.h"
@@ -1259,7 +1258,12 @@ static bool CDAccess_Image_Read_Raw_Sector(CDAccess_Image *self, uint8_t *buf, i
                   (588 - frames_read) * 2 * sizeof(int16_t));
 
          for (i = 0; i < 588 * 2; i++)
-            MDFN_en16lsb(buf + i * 2, AudioBuf[i]);
+         {
+            /* MDFN_en16lsb folded: write host int16 as 2 LE bytes. */
+            uint16_t v__ = (uint16_t)AudioBuf[i];
+            buf[i * 2 + 0] = (uint8_t)v__;
+            buf[i * 2 + 1] = (uint8_t)(v__ >> 8);
+         }
       }
       else /* Binary */
       {
@@ -1278,7 +1282,18 @@ static bool CDAccess_Image_Read_Raw_Sector(CDAccess_Image *self, uint8_t *buf, i
          case DI_FORMAT_AUDIO:
             cdstream_read(ct->fp, buf, 2352);
             if (ct->RawAudioMSBFirst)
-               Endian_A16_Swap(buf, 588 * 2);
+            {
+               /* Endian_A16_Swap folded: byte-pair swap, unconditional
+                * (RawAudioMSBFirst means the on-disk samples are stored
+                * MSB-first; the Saturn expects native LSB). */
+               uint32_t k;
+               for (k = 0; k < 588 * 2; k++)
+               {
+                  uint8_t t = buf[k * 2];
+                  buf[k * 2]     = buf[k * 2 + 1];
+                  buf[k * 2 + 1] = t;
+               }
+            }
             break;
          case DI_FORMAT_MODE1:
             cdstream_read(ct->fp, buf + 12 + 3 + 1, 2048);

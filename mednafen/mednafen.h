@@ -29,6 +29,5 @@ void MDFN_FlushGameCheats(void);
 
 #include "mednafen-driver.h"
 
-#include "mednafen-endian.h"
 
 #endif

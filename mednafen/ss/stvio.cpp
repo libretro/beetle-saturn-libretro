@@ -105,8 +105,8 @@ void STVIO_UpdateInput(int32 elapsed_time)
    tmp_data[4] = DPtr[0][4] & 0x1;
   }
 
-  nom_x = (int16)MDFN_de16lsb(tmp_data + 0);
-  nom_y = (int16)MDFN_de16lsb(tmp_data + 2);
+  nom_x = (int16)(uint16)(tmp_data[0] | (tmp_data[1] << 8));
+  nom_y = (int16)(uint16)(tmp_data[2] | (tmp_data[3] << 8));
   x = ((nom_x * 193) + 32768) >> 16;
   y = ((nom_y + 7) * 49 + 128) >> 8; //55;
 
@@ -133,7 +133,7 @@ void STVIO_UpdateInput(int32 elapsed_time)
  {
   for(unsigned i = 0; i < 2; i++)
   {
-   uint16 tmp = DPtr[i] ? MDFN_de16lsb(DPtr[i] + 0x0) : 0;
+   uint16 tmp = DPtr[i] ? (uint16)(DPtr[i][0] | (DPtr[i][1] << 8)) : 0;
    {
     // SW1, SW2, SW3:
     DataIn[i] ^= (((tmp & 0xA0) >> 1) | ((tmp & 0x50) << 1)) | ((tmp >> 10) & 0x01) | ((tmp >> 7) & 0x06);
@@ -314,19 +314,29 @@ static void InitEEPROM(const STVGameInfo* sgi)
  tmp[0x18] = 0x00; // ?
  tmp[0x19] = 0x08; // ?
 
- MDFN_en16msb(tmp + 0x1A, settings);
+ /* MDFN_en16msb folded: write host uint16 as 2 BE bytes. */
+ tmp[0x1A] = settings >> 8;
+ tmp[0x1B] = settings;
 
  memcpy(tmp + 0x1C, rom_data.get() + 0xF40, 0x2);
  memcpy(tmp + 0x1E, rom_data.get() + 0xF48, 0x8);
 
  crc16 = crc16_ccitt(0x5A81, tmp + 0x0C, 0x38 - 0x02);
- crc16 ^= MDFN_de16msb(tmp + 0x42);
- MDFN_en16msb(tmp + 0x8, crc16);
+ /* MDFN_de16msb folded: 2 BE bytes -> host uint16.  This is the
+  * one MSB_FIRST-aware fold in the file: result is the SAME on
+  * either endian since the byte arithmetic is explicit. */
+ crc16 ^= (uint16)((tmp[0x42] << 8) | tmp[0x43]);
+ /* MDFN_en16msb folded again. */
+ tmp[0x8] = crc16 >> 8;
+ tmp[0x9] = crc16;
 
  memcpy(tmp + 0x44, tmp + 0x08, 0x3C);
  //
  for(unsigned addr = 0; addr < 0x40; addr++)
-  eep.PokeMem(addr, MDFN_de16msb(tmp + (addr << 1)));
+ {
+  const uint8 *bp__ = tmp + (addr << 1);
+  eep.PokeMem(addr, (uint16)((bp__[0] << 8) | bp__[1]));
+ }
 }
 
 void STVIO_Init(const STVGameInfo* sgi)
@@ -348,7 +358,10 @@ void STVIO_LoadNV(cdstream* s)
  cdstream_read(s, tmp, sizeof(tmp));
 
  for(unsigned addr = 0; addr < 0x40; addr++)
-  eep.PokeMem(addr, MDFN_de16msb(tmp + (addr << 1)));
+ {
+  const uint8 *bp__ = tmp + (addr << 1);
+  eep.PokeMem(addr, (uint16)((bp__[0] << 8) | bp__[1]));
+ }
 }
 
 void STVIO_SaveNV(cdstream* s)
@@ -356,7 +369,12 @@ void STVIO_SaveNV(cdstream* s)
  uint8 tmp[0x80];
 
  for(unsigned addr = 0; addr < 0x40; addr++)
-  MDFN_en16msb(tmp + (addr << 1), eep.PeekMem(addr));
+ {
+  uint8 *bp__ = tmp + (addr << 1);
+  uint16 v__ = eep.PeekMem(addr);
+  bp__[0] = v__ >> 8;
+  bp__[1] = v__;
+ }
 
  cdstream_write(s, tmp, sizeof(tmp));
 }

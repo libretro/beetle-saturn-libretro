@@ -30,7 +30,6 @@
 
 #include <libretro.h>
 
-#include "../mednafen-endian.h"
 #include "CDAccess_CHD.h"
 
 extern retro_log_printf_t log_cb;
@@ -359,7 +358,16 @@ static bool CDAccess_CHD_Read_Raw_Sector(CDAccess_CHD *self, uint8_t *buf, int32
     {
       case DI_FORMAT_AUDIO:
         if (ct->RawAudioMSBFirst)
-          Endian_A16_Swap(buf, 588 * 2);
+        {
+          /* Endian_A16_Swap folded: unconditional byte-pair swap. */
+          uint32_t k;
+          for (k = 0; k < 588 * 2; k++)
+          {
+            uint8_t t = buf[k * 2];
+            buf[k * 2]     = buf[k * 2 + 1];
+            buf[k * 2 + 1] = t;
+          }
+        }
         break;
 
       case DI_FORMAT_MODE1:

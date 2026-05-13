@@ -32,14 +32,17 @@ static MDFN_HOT void CS0_ROM_Read(uint32 A, uint16* DB)
 {
  const uint32 offs = (A - 0x02000000) & ROM_Mask[0];
 
- *DB = ne16_rbo_be<uint16>(ROM, offs);
+ /* ne16_rbo_be<uint16>(ROM, byte_off) folded: aligned uint16
+  * read from uint16 array.  Same on both BE and LE hosts since
+  * each uint16 slot is stored host-endian. */
+ *DB = ROM[offs >> 1];
 }
 
 static MDFN_HOT void CS1_ROM_Read(uint32 A, uint16* DB)
 {
  const uint32 offs = 0x02000000 + ((A - 0x04000000) & ROM_Mask[1]);
 
- *DB = ne16_rbo_be<uint16>(ROM, offs);
+ *DB = ROM[offs >> 1];
 }
 
 static MDFN_COLD void Kill(void)
@@ -87,7 +90,12 @@ void CART_BootROM_Init(CartInfo* c, RFILE* str)
   memcpy(MDFNGameInfo->MD5, dig.data(), 16);
 
   for(unsigned i = 0; i < ROM_Size / sizeof(uint16); i++)
-   ROM[i] = MDFN_de16msb<true>(&ROM[i]);
+  {
+   /* MDFN_de16msb<true> folded: BE-on-disk to host-endian. */
+#ifndef MSB_FIRST
+   ROM[i] = (uint16)((ROM[i] << 8) | (ROM[i] >> 8));
+#endif
+  }
 
   SS_SetPhysMemMap (0x02000000, 0x03FFFFFF, ROM, std::min<uint32>(0x02000000, ROM_Size), false);
   c->CS01_SetRW8W16(0x02000000, 0x03FFFFFF, CS0_ROM_Read);

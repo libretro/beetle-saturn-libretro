@@ -392,9 +392,10 @@ int MDFNSS_SaveSM(void *st_p, uint32_t ver, const void*, const void*, const void
 	// Write header.
 	memset( header, 0, sizeof(header) );
 	memcpy( header, header_magic, 8 );
-	MDFN_en32lsb(header + 16, ver);
-	MDFN_en32lsb(header + 24, neowidth);
-	MDFN_en32lsb(header + 28, neoheight);
+	/* MDFN_en32lsb folded inline: 4 LE byte stores per uint32. */
+	header[16] = ver;       header[17] = ver >> 8;       header[18] = ver >> 16;       header[19] = ver >> 24;
+	header[24] = neowidth;  header[25] = neowidth >> 8;  header[26] = neowidth >> 16;  header[27] = neowidth >> 24;
+	header[28] = neoheight; header[29] = neoheight >> 8; header[30] = neoheight >> 16; header[31] = neoheight >> 24;
 	smem_write(st, header, 32);
 
 	// Call out to main save state function.
@@ -422,7 +423,8 @@ int MDFNSS_LoadSM(void *st_p, uint32_t ver)
 		return(0);
 
 	// Unsupported state version?
-	stateversion = MDFN_de32lsb( header + 16 );
+	/* MDFN_de32lsb folded inline: build host-endian uint32 from 4 LE bytes. */
+	stateversion = (uint32_t)header[16] | ((uint32_t)header[17] << 8) | ((uint32_t)header[18] << 16) | ((uint32_t)header[19] << 24);
 	if ( stateversion < 0x900 )
 		return(0);
 

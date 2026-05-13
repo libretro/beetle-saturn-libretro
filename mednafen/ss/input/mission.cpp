@@ -51,7 +51,7 @@ void IODevice_Mission::Power(void)
 
 void IODevice_Mission::UpdateInput(const uint8* data, const int32 time_elapsed)
 {
- const uint32 dtmp = MDFN_de32lsb(&data[0]);
+ const uint32 dtmp = (uint32)data[0] | ((uint32)data[1] << 8) | ((uint32)data[2] << 16) | ((uint32)data[3] << 24);
 
  dbuttons = (dbuttons & 0xF) | ((dtmp & 0xFFF) << 4);
  afeswitches = ((dtmp >> 12) & 0x8FF) << 4;
@@ -61,7 +61,8 @@ void IODevice_Mission::UpdateInput(const uint8* data, const int32 time_elapsed)
  {
   for(unsigned axis = 0; axis < 3; axis++)
   {
-   int32 tmp = MDFN_de16lsb(&data[0x3 + ((axis + (stick * 3)) * 2)]);
+   const unsigned off = 0x3 + ((axis + (stick * 3)) * 2);
+   int32 tmp = (uint16)(data[off] | (data[off + 1] << 8));
 
    axes[stick][axis] = (tmp * 255 + 32767) / 65535;
   }

@@ -702,8 +702,8 @@ static struct FileInfoS
  uint8 fad_be[4];
  uint8 size_be[4];
 
- INLINE uint32 fad(void) const { return MDFN_de32msb(fad_be); }
- INLINE uint32 size(void) const { return MDFN_de32msb(size_be); }
+ INLINE uint32 fad(void)  const { return ((uint32)fad_be[0] << 24)  | ((uint32)fad_be[1] << 16)  | ((uint32)fad_be[2] << 8)  | (uint32)fad_be[3]; }
+ INLINE uint32 size(void) const { return ((uint32)size_be[0] << 24) | ((uint32)size_be[1] << 16) | ((uint32)size_be[2] << 8) | (uint32)size_be[3]; }
 
  uint8 unit_size;
  uint8 gap_size;
@@ -815,8 +815,23 @@ static void ReadRecord(FileInfoS* fi, const uint8* rr)
  const uint8 rec_len = rr[0];
  const uint8 fi_len = rr[32];
 
- MDFN_en32msb(fi->fad_be, 150 + MDFN_de32msb(&rr[6]));
- MDFN_en32msb(fi->size_be, MDFN_de32msb(&rr[14]));
+ {
+  /* Read BE u32 from &rr[6], add 150, write back as BE u32. */
+  uint32 v__ = ((uint32)rr[6] << 24) | ((uint32)rr[7] << 16) | ((uint32)rr[8] << 8) | (uint32)rr[9];
+  v__ += 150;
+  fi->fad_be[0] = v__ >> 24;
+  fi->fad_be[1] = v__ >> 16;
+  fi->fad_be[2] = v__ >> 8;
+  fi->fad_be[3] = v__;
+ }
+ {
+  /* Read BE u32 from &rr[14], copy through. */
+  uint32 v__ = ((uint32)rr[14] << 24) | ((uint32)rr[15] << 16) | ((uint32)rr[16] << 8) | (uint32)rr[17];
+  fi->size_be[0] = v__ >> 24;
+  fi->size_be[1] = v__ >> 16;
+  fi->size_be[2] = v__ >> 8;
+  fi->size_be[3] = v__;
+ }
 
  fi->attr = rr[25] & 0x2;
  fi->unit_size = rr[26];
@@ -1148,18 +1163,24 @@ static void DT_ReadIntoFIFO(void)
  if(MDFN_UNLIKELY(DT.BufList[DT.CurBufIndex] >= 0xF0))
  {
   const uint8 t = DT.BufList[DT.CurBufIndex];
+  const uint8 *bp__;
 
   if(t == 0xFF)
-   tmp = MDFN_de16msb(&TOC_Buffer[DT.InBufOffs << 1]);
+   bp__ = &TOC_Buffer[DT.InBufOffs << 1];
   else if(t == 0xFE)
-   tmp = MDFN_de16msb(&SubCodeQBuf[DT.InBufOffs << 1]);
+   bp__ = &SubCodeQBuf[DT.InBufOffs << 1];
   else if(t == 0xFD)
-   tmp = MDFN_de16msb(&SubCodeRWBuf[DT.InBufOffs << 1]);
+   bp__ = &SubCodeRWBuf[DT.InBufOffs << 1];
   else
-   tmp = MDFN_de16msb((uint8*)FileInfo + (DT.InBufOffs << 1));
+   bp__ = (uint8*)FileInfo + (DT.InBufOffs << 1);
+  /* MDFN_de16msb folded: 2 BE bytes -> host uint16. */
+  tmp = (uint16)((bp__[0] << 8) | bp__[1]);
  }
  else
-  tmp = MDFN_de16msb(&Buffers[DT.BufList[DT.CurBufIndex]].Data[DT.InBufOffs << 1]);
+ {
+  const uint8 *bp__ = &Buffers[DT.BufList[DT.CurBufIndex]].Data[DT.InBufOffs << 1];
+  tmp = (uint16)((bp__[0] << 8) | bp__[1]);
+ }
 
  DT.FIFO[DT.FIFO_WP] = tmp;
  DT.FIFO_WP = (DT.FIFO_WP + 1) % (sizeof(DT.FIFO) / sizeof(DT.FIFO[0]));
@@ -1856,8 +1877,8 @@ static INLINE void BufferCDDA(const uint8* inbuf)
 
  for(int i = 0; i < 588 && CDDABuf_Count < CDDABuf_MaxCount; i++)
  {
-  CDDABuf[CDDABuf_WP][0] = (int16)MDFN_de16lsb(&inbuf[i * 4 + 0]) >> sample_shift;
-  CDDABuf[CDDABuf_WP][1] = (int16)MDFN_de16lsb(&inbuf[i * 4 + 2]) >> sample_shift;
+  CDDABuf[CDDABuf_WP][0] = (int16)(uint16)(inbuf[i * 4 + 0] | (inbuf[i * 4 + 1] << 8)) >> sample_shift;
+  CDDABuf[CDDABuf_WP][1] = (int16)(uint16)(inbuf[i * 4 + 2] | (inbuf[i * 4 + 3] << 8)) >> sample_shift;
   CDDABuf_WP = (CDDABuf_WP + 1) % CDDABuf_MaxCount;
   CDDABuf_Count++;
  }
@@ -3825,7 +3846,12 @@ void CDB_Write_DBM(uint32 offset, uint16 DB, uint16 mask)
 	  DT.FIFO_WP = (DT.FIFO_WP + 1) % (sizeof(DT.FIFO) / sizeof(DT.FIFO[0]));
 	  DT.FIFO_In++;
 
-	  MDFN_en16msb(&Buffers[DT.BufList[DT.CurBufIndex]].Data[DT.InBufOffs << 1], DT.FIFO[DT.FIFO_RP]);
+	  {
+	   uint8 *bp__ = &Buffers[DT.BufList[DT.CurBufIndex]].Data[DT.InBufOffs << 1];
+	   uint16 v__ = DT.FIFO[DT.FIFO_RP];
+	   bp__[0] = v__ >> 8;
+	   bp__[1] = v__;
+	  }
           DT.InBufOffs++;
 	  DT.FIFO_RP = (DT.FIFO_RP + 1) % (sizeof(DT.FIFO) / sizeof(DT.FIFO[0]));
 	  DT.FIFO_In--;

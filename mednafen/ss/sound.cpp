@@ -105,12 +105,22 @@ void SOUND_Init(void)
 
 uint8 SOUND_PeekRAM(uint32 A)
 {
- return ne16_rbo_be<uint8>(SCSP.GetRAMPtr(), A & 0x7FFFF);
+ /* ne16_rbo_be<uint8> folded. */
+#ifdef MSB_FIRST
+ return ((const uint8*)SCSP.GetRAMPtr())[A & 0x7FFFF];
+#else
+ return ((const uint8*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1];
+#endif
 }
 
 void SOUND_PokeRAM(uint32 A, uint8 V)
 {
- ne16_wbo_be<uint8>(SCSP.GetRAMPtr(), A & 0x7FFFF, V);
+ /* ne16_wbo_be<uint8> folded. */
+#ifdef MSB_FIRST
+ ((uint8*)SCSP.GetRAMPtr())[A & 0x7FFFF] = V;
+#else
+ ((uint8*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1] = V;
+#endif
 }
 
 static INLINE void ResetTS_68K(void)

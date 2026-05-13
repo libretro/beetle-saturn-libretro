@@ -41,11 +41,13 @@ void IODevice_Wheel::Power(void)
 
 void IODevice_Wheel::UpdateInput(const uint8* data, const int32 time_elapsed)
 {
- dbuttons = (dbuttons & 0xC) | (MDFN_de16lsb(&data[0]) & 0x07F3);
+ dbuttons = (dbuttons & 0xC) | (((uint16)(data[0] | (data[1] << 8))) & 0x07F3);
 
  //
  {
-  int32 tmp = 32767 + MDFN_de16lsb(&data[0x2 + 2]) - MDFN_de16lsb(&data[0x2 + 0]);
+  int32 tmp = 32767
+            + (uint16)(data[0x2 + 2] | (data[0x2 + 2 + 1] << 8))
+            - (uint16)(data[0x2 + 0] | (data[0x2 + 0 + 1] << 8));
 
   wheel = 1 + tmp * 253 / 65534;
 

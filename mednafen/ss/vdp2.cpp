@@ -25,7 +25,6 @@
 // SMPC clock change code.
 
 #include "ss.h"
-#include "../mednafen-endian.h"
 #include <mednafen/mednafen.h>
 #include <mednafen/general.h>
 #include "vdp1.h"
@@ -116,23 +115,32 @@ static void FetchRotParams(const bool field)
 {
  uint32 a = RPTA & 0x7FFBE;
 
+ /* ne16_rbo_be<uint32>(VRAM, idx*2) folded.  VRAM is uint16[]
+  * holding a big-endian 16-bit bus.  A 32-bit big-endian read
+  * from byte-offset (idx*2) is two consecutive uint16 reads
+  * where the first holds the upper half and the second holds
+  * the lower half.  Expression works identically on BE and LE
+  * host: the result is always a host-endian uint32 built from
+  * host-endian uint16 halves in MSB-first order. */
+#define BE32_VRAM(idx_expr) (((uint32)VRAM[(idx_expr)] << 16) | VRAM[(idx_expr) + 1])
+
  for(unsigned i = 0; i < 2; i++)
  {
   auto& rp = RotParams[i];
 
-  rp.Xst = sign_x_to_s32(23, ne16_rbo_be<uint32>(VRAM, ((a + 0x00) & 0x3FFFF) << 1) >> 6);
-  rp.Yst = sign_x_to_s32(23, ne16_rbo_be<uint32>(VRAM, ((a + 0x02) & 0x3FFFF) << 1) >> 6);
-  rp.Zst = sign_x_to_s32(23, ne16_rbo_be<uint32>(VRAM, ((a + 0x04) & 0x3FFFF) << 1) >> 6);
+  rp.Xst = sign_x_to_s32(23, BE32_VRAM((a + 0x00) & 0x3FFFF) >> 6);
+  rp.Yst = sign_x_to_s32(23, BE32_VRAM((a + 0x02) & 0x3FFFF) >> 6);
+  rp.Zst = sign_x_to_s32(23, BE32_VRAM((a + 0x04) & 0x3FFFF) >> 6);
 
-  rp.DXst = sign_x_to_s32(13, ne16_rbo_be<uint32>(VRAM, ((a + 0x06) & 0x3FFFF) << 1) >> 6);
-  rp.DYst = sign_x_to_s32(13, ne16_rbo_be<uint32>(VRAM, ((a + 0x08) & 0x3FFFF) << 1) >> 6);
+  rp.DXst = sign_x_to_s32(13, BE32_VRAM((a + 0x06) & 0x3FFFF) >> 6);
+  rp.DYst = sign_x_to_s32(13, BE32_VRAM((a + 0x08) & 0x3FFFF) >> 6);
 
-  rp.DX = sign_x_to_s32(13, ne16_rbo_be<uint32>(VRAM, ((a + 0x0A) & 0x3FFFF) << 1) >> 6);
-  rp.DY = sign_x_to_s32(13, ne16_rbo_be<uint32>(VRAM, ((a + 0x0C) & 0x3FFFF) << 1) >> 6);
+  rp.DX = sign_x_to_s32(13, BE32_VRAM((a + 0x0A) & 0x3FFFF) >> 6);
+  rp.DY = sign_x_to_s32(13, BE32_VRAM((a + 0x0C) & 0x3FFFF) >> 6);
 
   for(unsigned m = 0; m < 6; m++)
   {
-   rp.RotMatrix[m] = sign_x_to_s32(14, ne16_rbo_be<uint32>(VRAM, ((a + 0x0E + (m << 1)) & 0x3FFFF) << 1) >> 6);
+   rp.RotMatrix[m] = sign_x_to_s32(14, BE32_VRAM((a + 0x0E + (m << 1)) & 0x3FFFF) >> 6);
   }
 
   rp.Px = sign_x_to_s32(14, VRAM[(a + 0x1A) & 0x3FFFF]);
@@ -143,15 +151,15 @@ static void FetchRotParams(const bool field)
   rp.Cy = sign_x_to_s32(14, VRAM[(a + 0x1F) & 0x3FFFF]);
   rp.Cz = sign_x_to_s32(14, VRAM[(a + 0x20) & 0x3FFFF]);
 
-  rp.Mx = sign_x_to_s32(24, ne16_rbo_be<uint32>(VRAM, ((a + 0x22) & 0x3FFFF) << 1) >> 6);
-  rp.My = sign_x_to_s32(24, ne16_rbo_be<uint32>(VRAM, ((a + 0x24) & 0x3FFFF) << 1) >> 6);
+  rp.Mx = sign_x_to_s32(24, BE32_VRAM((a + 0x22) & 0x3FFFF) >> 6);
+  rp.My = sign_x_to_s32(24, BE32_VRAM((a + 0x24) & 0x3FFFF) >> 6);
 
-  rp.kx = sign_x_to_s32(24, ne16_rbo_be<uint32>(VRAM, ((a + 0x26) & 0x3FFFF) << 1));
-  rp.ky = sign_x_to_s32(24, ne16_rbo_be<uint32>(VRAM, ((a + 0x28) & 0x3FFFF) << 1));
+  rp.kx = sign_x_to_s32(24, BE32_VRAM((a + 0x26) & 0x3FFFF));
+  rp.ky = sign_x_to_s32(24, BE32_VRAM((a + 0x28) & 0x3FFFF));
 
-  rp.KAst = ne16_rbo_be<uint32>(VRAM, ((a + 0x2A) & 0x3FFFF) << 1) >> 6;
-  rp.DKAst = sign_x_to_s32(20, ne16_rbo_be<uint32>(VRAM, ((a + 0x2C) & 0x3FFFF) << 1) >> 6);
-  rp.DKAx = sign_x_to_s32(20, ne16_rbo_be<uint32>(VRAM, ((a + 0x2E) & 0x3FFFF) << 1) >> 6);
+  rp.KAst = BE32_VRAM((a + 0x2A) & 0x3FFFF) >> 6;
+  rp.DKAst = sign_x_to_s32(20, BE32_VRAM((a + 0x2C) & 0x3FFFF) >> 6);
+  rp.DKAx = sign_x_to_s32(20, BE32_VRAM((a + 0x2E) & 0x3FFFF) >> 6);
 
   a += 0x40;
   //
@@ -174,6 +182,7 @@ static void FetchRotParams(const bool field)
   else
    rp.KAstAccum += rp.DKAst; // << (InterlaceMode == IM_DOUBLE);
  }
+#undef BE32_VRAM
 }
 
 enum
@@ -1255,15 +1264,29 @@ void SetRegister(const unsigned id, const uint32 value)
 
 uint8 PeekVRAM(uint32 addr)
 {
- return ne16_rbo_be<uint8>(VRAM, addr & 0x7FFFF);
+ /* ne16_rbo_be<uint8>: byte read from uint16-array BE bus. */
+#ifdef MSB_FIRST
+ return ((const uint8*)VRAM)[addr & 0x7FFFF];
+#else
+ return ((const uint8*)VRAM)[(addr & 0x7FFFF) ^ 1];
+#endif
 }
 
 void PokeVRAM(uint32 addr, const uint8 val)
 {
  addr &= 0x7FFFF;
 
- ne16_wbo_be<uint8>(VRAM, addr, val);
- VDP2REND_Write16_DB(addr & ~1, ne16_rbo_be<uint16>(VRAM, addr & ~1));
+ /* ne16_wbo_be<uint8>: byte write into uint16-array BE bus. */
+#ifdef MSB_FIRST
+ ((uint8*)VRAM)[addr] = val;
+#else
+ ((uint8*)VRAM)[addr ^ 1] = val;
+#endif
+ /* ne16_rbo_be<uint16>(VRAM, addr & ~1): aligned uint16 read.
+  * The aligned uint16 read is just VRAM[idx] regardless of host:
+  * the uint16 is stored host-endian and the bus address is in
+  * uint16 units. */
+ VDP2REND_Write16_DB(addr & ~1, VRAM[(addr & ~1) >> 1]);
 }
 
 void SetLayerEnableMask(uint64 mask)

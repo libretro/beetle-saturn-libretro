@@ -327,7 +327,7 @@ static NO_INLINE NO_CLONE void GeneralInstr(DSPS* dsp)
  //
  //
  #ifdef MSB_FIRST
- ct_inc = MDFN_bswap32(ct_inc);
+ ct_inc = (ct_inc << 24) | ((ct_inc & 0xFF00) << 8) | ((ct_inc >> 8) & 0xFF00) | (ct_inc >> 24);
  #endif
 
  if(x_op >= 0x3 || y_op >= 0x3 || (d1_op & 0x1))

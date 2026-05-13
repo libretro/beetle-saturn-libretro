@@ -1764,14 +1764,32 @@ static void T_DrawNBG23(const unsigned n, uint64* bgbuf, const unsigned w, const
  // Note: When/If adding new kludges, check that the NT and CG fetches for the layer each occur only in one bank, to safely handle other cases may require something more complex.
  const uint32 lok_modestuff = (VRAM_Mode << 0) | ((HRes & 0x6) << 1) | (tf.PNDSize << 4) | (tf.CharSize << 5);
 
+ /* Precompute the 4 VCPRegs rows as host-endian 64-bit and 32-bit
+  * values for the game-detection comparisons below.  Was inline
+  * MDFN_de64lsb(VCPRegs[i]) / MDFN_de32lsb(VCPRegs[i]) on every
+  * comparison; folded here to avoid re-doing the byte-wise LE
+  * construction 4-16 times per call. */
+ const uint64 r0_64 = (uint64)VCPRegs[0][0] | ((uint64)VCPRegs[0][1] << 8) | ((uint64)VCPRegs[0][2] << 16) | ((uint64)VCPRegs[0][3] << 24)
+                    | ((uint64)VCPRegs[0][4] << 32) | ((uint64)VCPRegs[0][5] << 40) | ((uint64)VCPRegs[0][6] << 48) | ((uint64)VCPRegs[0][7] << 56);
+ const uint64 r1_64 = (uint64)VCPRegs[1][0] | ((uint64)VCPRegs[1][1] << 8) | ((uint64)VCPRegs[1][2] << 16) | ((uint64)VCPRegs[1][3] << 24)
+                    | ((uint64)VCPRegs[1][4] << 32) | ((uint64)VCPRegs[1][5] << 40) | ((uint64)VCPRegs[1][6] << 48) | ((uint64)VCPRegs[1][7] << 56);
+ const uint64 r2_64 = (uint64)VCPRegs[2][0] | ((uint64)VCPRegs[2][1] << 8) | ((uint64)VCPRegs[2][2] << 16) | ((uint64)VCPRegs[2][3] << 24)
+                    | ((uint64)VCPRegs[2][4] << 32) | ((uint64)VCPRegs[2][5] << 40) | ((uint64)VCPRegs[2][6] << 48) | ((uint64)VCPRegs[2][7] << 56);
+ const uint64 r3_64 = (uint64)VCPRegs[3][0] | ((uint64)VCPRegs[3][1] << 8) | ((uint64)VCPRegs[3][2] << 16) | ((uint64)VCPRegs[3][3] << 24)
+                    | ((uint64)VCPRegs[3][4] << 32) | ((uint64)VCPRegs[3][5] << 40) | ((uint64)VCPRegs[3][6] << 48) | ((uint64)VCPRegs[3][7] << 56);
+ const uint32 r0_32 = (uint32)r0_64;
+ const uint32 r1_32 = (uint32)r1_64;
+ const uint32 r2_32 = (uint32)r2_64;
+ const uint32 r3_32 = (uint32)r3_64;
+
  if(MDFN_UNLIKELY(
-  /* Akumajou Dracula X */ (TA_bpp == 4 && n == 3 && VRAM_Mode == 0x2 && (HRes & 0x6) == 0x0 && MDFN_de64lsb(VCPRegs[0]) == 0x0f0f070406060505ULL && MDFN_de64lsb(VCPRegs[1]) == 0x0f0f0f0f0f0f0f0fULL && MDFN_de64lsb(VCPRegs[2]) == 0x0f0f03000f0f0201ULL && MDFN_de64lsb(VCPRegs[3]) == 0x0f0f0f0f0f0f0f0fULL) ||
-  /* Alien Trilogy      */ (TA_bpp == 4 && n == 3 && VRAM_Mode == 0x2 && (HRes & 0x6) == 0x0 && MDFN_de64lsb(VCPRegs[0]) == 0x07050f0f0f0f0606ULL && MDFN_de64lsb(VCPRegs[1]) == 0x0f0f0f0f0f0f0f0fULL && MDFN_de64lsb(VCPRegs[2]) == 0x0f0f0f0f0f0f0f0fULL && MDFN_de64lsb(VCPRegs[3]) == 0x0f0103020f0f0f0fULL) ||
-  /* Daytona USA CCE    */ (TA_bpp == 4 && n == 2 && VRAM_Mode == 0x3 && (HRes & 0x6) == 0x0 && MDFN_de64lsb(VCPRegs[0]) == 0x0f0f0f0f00000404ULL && MDFN_de64lsb(VCPRegs[1]) == 0x0f0f0f060f0f0f0fULL && MDFN_de64lsb(VCPRegs[2]) == 0x0f0f0f0f0505070fULL && MDFN_de64lsb(VCPRegs[3]) == 0x0f0f03020f010f00ULL) ||
-  /* Fighters Megamix   */ (TA_bpp == 4           && lok_modestuff == 0x17 && MDFN_de32lsb(VCPRegs[0]) == 0x0e0f0706 && MDFN_de32lsb(VCPRegs[1]) == 0x05050404 && MDFN_de32lsb(VCPRegs[2]) == 0x03020100 && MDFN_de32lsb(VCPRegs[3]) == 0x0f0f0f0f) ||
-  /* Fighters Megamix   */ (TA_bpp == 4 && n == 2 && lok_modestuff == 0x17 && MDFN_de32lsb(VCPRegs[0]) == 0x0e0e0e06 && MDFN_de32lsb(VCPRegs[1]) == 0x0e0e0404 && MDFN_de32lsb(VCPRegs[2]) == 0x0e0e0200 && MDFN_de32lsb(VCPRegs[3]) == 0x0e0e0e0e) ||
-  /* Fighters Megamix   */ (TA_bpp == 4 && n == 2 && lok_modestuff == 0x17 && MDFN_de32lsb(VCPRegs[0]) == 0x0f050506 && MDFN_de32lsb(VCPRegs[1]) == 0x0f0f0f04 && MDFN_de32lsb(VCPRegs[2]) == 0x0f020100 && MDFN_de32lsb(VCPRegs[3]) == 0x0f0f0f0f) ||
-  /* Fighters Megamix   */ (TA_bpp == 4 && n == 2 && lok_modestuff == 0x17 && MDFN_de32lsb(VCPRegs[0]) == 0x0e0f0f06 && MDFN_de32lsb(VCPRegs[1]) == 0x0e050504 && MDFN_de32lsb(VCPRegs[2]) == 0x0e020100 && MDFN_de32lsb(VCPRegs[3]) == 0x0e0f0f0f) ||
+  /* Akumajou Dracula X */ (TA_bpp == 4 && n == 3 && VRAM_Mode == 0x2 && (HRes & 0x6) == 0x0 && r0_64 == 0x0f0f070406060505ULL && r1_64 == 0x0f0f0f0f0f0f0f0fULL && r2_64 == 0x0f0f03000f0f0201ULL && r3_64 == 0x0f0f0f0f0f0f0f0fULL) ||
+  /* Alien Trilogy      */ (TA_bpp == 4 && n == 3 && VRAM_Mode == 0x2 && (HRes & 0x6) == 0x0 && r0_64 == 0x07050f0f0f0f0606ULL && r1_64 == 0x0f0f0f0f0f0f0f0fULL && r2_64 == 0x0f0f0f0f0f0f0f0fULL && r3_64 == 0x0f0103020f0f0f0fULL) ||
+  /* Daytona USA CCE    */ (TA_bpp == 4 && n == 2 && VRAM_Mode == 0x3 && (HRes & 0x6) == 0x0 && r0_64 == 0x0f0f0f0f00000404ULL && r1_64 == 0x0f0f0f060f0f0f0fULL && r2_64 == 0x0f0f0f0f0505070fULL && r3_64 == 0x0f0f03020f010f00ULL) ||
+  /* Fighters Megamix   */ (TA_bpp == 4           && lok_modestuff == 0x17 && r0_32 == 0x0e0f0706 && r1_32 == 0x05050404 && r2_32 == 0x03020100 && r3_32 == 0x0f0f0f0f) ||
+  /* Fighters Megamix   */ (TA_bpp == 4 && n == 2 && lok_modestuff == 0x17 && r0_32 == 0x0e0e0e06 && r1_32 == 0x0e0e0404 && r2_32 == 0x0e0e0200 && r3_32 == 0x0e0e0e0e) ||
+  /* Fighters Megamix   */ (TA_bpp == 4 && n == 2 && lok_modestuff == 0x17 && r0_32 == 0x0f050506 && r1_32 == 0x0f0f0f04 && r2_32 == 0x0f020100 && r3_32 == 0x0f0f0f0f) ||
+  /* Fighters Megamix   */ (TA_bpp == 4 && n == 2 && lok_modestuff == 0x17 && r0_32 == 0x0e0f0f06 && r1_32 == 0x0e050504 && r2_32 == 0x0e020100 && r3_32 == 0x0e0f0f0f) ||
   0))
  {
   for(unsigned i = 0; i < 8; i++)

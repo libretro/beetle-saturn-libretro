@@ -19,7 +19,6 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "../mednafen-endian.h"
 
 #ifndef __MDFN_SS_VDP1_COMMON_H
 #define __MDFN_SS_VDP1_COMMON_H
@@ -276,10 +275,15 @@ static INLINE int32 PlotPixel(int32 x, int32 y, uint16 pix, bool transparent, Go
 
   if(!transparent)
   {
-   if(bpp8 == 2)	// BPP8 + rotated
-    ne16_wbo_be<uint8>(fbyptr, (x & 0x1FF) | ((y & 0x100) << 1), pix);
-   else
-    ne16_wbo_be<uint8>(fbyptr, x & 0x3FF, pix);
+   /* ne16_wbo_be<uint8>(fbyptr, byte_off, pix) folded.
+    * MSB_FIRST: natural byte index. LE host: XOR with 1 to swap
+    * the byte halves of each uint16 slot in the FB. */
+   const uint32 boff__ = (bpp8 == 2) ? ((x & 0x1FF) | ((y & 0x100) << 1)) : (x & 0x3FF);
+#ifdef MSB_FIRST
+   ((uint8*)fbyptr)[boff__] = pix;
+#else
+   ((uint8*)fbyptr)[boff__ ^ 1] = pix;
+#endif
   }
   ret++;
  }
