@@ -40,7 +40,6 @@
 
 #include "ss.h"
 #include "../mednafen.h"
-#include "../FileStream.h"
 #include "scu.h"
 #include "vdp1.h"
 #include "vdp2.h"

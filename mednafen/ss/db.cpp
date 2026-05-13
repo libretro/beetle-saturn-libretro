@@ -27,8 +27,6 @@
 */
 
 #include <mednafen/mednafen.h>
-#include <mednafen/FileStream.h>
-#include <mednafen/Stream.h>
 #include <mednafen/hash/crc.h>
 #include <strings.h>
 
@@ -1651,20 +1649,18 @@ static const STVGameInfo STVGI[] =
  },
 };
 
-const STVGameInfo* DB_LookupSTV(const std::string& fname, Stream* s)
+const STVGameInfo* DB_LookupSTV(const std::string& fname, cdstream* s)
 {
  uint8 tmp[0x80];
  uint32 dr;
  uint32 head_crc32;
 
- // Fork's Stream::read returns count actually read on success; throws on
- // I/O error (no soft-fail flag like upstream Mednafen). Capture the
- // potential short-read by reading at most sizeof(tmp), then computing
- // CRC32 over what we got -- upstream's logic is the same.
- dr = (uint32)s->read(tmp, sizeof(tmp));
+ // cdstream_read returns count actually read (0 on error or EOF).
+ // We accept short reads -- compute CRC32 over what we got.
+ dr = (uint32)cdstream_read(s, tmp, sizeof(tmp));
 
- // Fork's Stream doesn't have rewind(); use seek(0, SEEK_SET) instead.
- s->seek(0, SEEK_SET);
+ // Rewind for any caller that re-reads after lookup.
+ cdstream_seek(s, 0, SEEK_SET);
 
  head_crc32 = crc32_zip(0, tmp, dr);
 

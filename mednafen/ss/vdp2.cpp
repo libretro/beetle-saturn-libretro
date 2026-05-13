@@ -28,7 +28,6 @@
 #include "ss_endian.h"
 #include <mednafen/mednafen.h>
 #include <mednafen/general.h>
-#include <mednafen/FileStream.h>
 #include "vdp1.h"
 #include "vdp2.h"
 #include "scu.h"

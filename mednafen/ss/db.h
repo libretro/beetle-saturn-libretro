@@ -22,7 +22,12 @@
 #ifndef __MDFN_SS_DB_H
 #define __MDFN_SS_DB_H
 
-class Stream;
+#include <string>
+#include <vector>
+
+#include "../mednafen-types.h"
+#include "../git.h"
+#include "../cdstream.h"
 
 enum
 {
@@ -96,7 +101,7 @@ struct STVGameInfo
  STVROMLayout rom_layout[16];
 };
 
-const STVGameInfo* DB_LookupSTV(const std::string& fname, Stream* s);
+const STVGameInfo* DB_LookupSTV(const std::string& fname, cdstream* s);
 
 void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode);
 uint32 DB_LookupHH(const char* sgid, const uint8* fd_id);

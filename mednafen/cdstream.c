@@ -29,6 +29,15 @@ bool cdstream_open(cdstream *out, const char *path)
    return out->fp != NULL;
 }
 
+bool cdstream_open_write(cdstream *out, const char *path)
+{
+   memset(out, 0, sizeof(*out));
+   out->fp = filestream_open(path,
+         RETRO_VFS_FILE_ACCESS_WRITE,
+         RETRO_VFS_FILE_ACCESS_HINT_NONE);
+   return out->fp != NULL;
+}
+
 bool cdstream_open_memcached(cdstream *out, const char *path)
 {
    void   *buf = NULL;

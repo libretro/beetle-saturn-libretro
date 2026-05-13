@@ -19,8 +19,6 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "../FileStream.h"
-#include "../MemoryStream.h"
 
 #include "CDAccess.h"
 #include <libchdr/chd.h>

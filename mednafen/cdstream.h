@@ -32,27 +32,28 @@
 extern "C" {
 #endif
 
-/* Read-only stream used by the CD layer.  One concrete type, two
- * possible backends:
+/* Stream used by the CD layer and the small NV / RTC / DB-lookup
+ * call sites in Saturn proper.  One concrete type, two possible
+ * backends:
  *
  *   - File-backed: `fp` is a libretro-common RFILE *, `buf` is NULL.
- *     read / seek / tell / size delegate straight to filestream_*.
+ *     read / write / seek / tell / size delegate straight to
+ *     filestream_*.
  *
  *   - Memory-backed: `buf` is a malloc'd buffer owned by the cdstream
  *     and freed on close, `fp` is NULL.  Used for the "memcache"
  *     mode where small (cue/toc/ccd) files - and optionally full
  *     track images - are slurped into RAM up front so the parser
  *     isn't doing tens of thousands of tiny filesystem reads.
+ *     Memory-backed streams are read-only; write ops are no-ops.
  *
  * The two backends are mutually exclusive: exactly one of (fp, buf)
  * is non-NULL on an open stream; both are NULL on a closed/zeroed
  * stream.  Operations branch once on `fp != NULL`.
  *
- * Replaces the CD-layer's use of the C++ Stream + FileStream +
- * MemoryStream class hierarchy with a single concrete C type and
- * direct inline ops.  Stream / FileStream / MemoryStream remain in
- * the tree for non-CD callers (state save, NV / cart, STV DB) that
- * still want the RAII pattern. */
+ * Replaces the legacy C++ Stream / FileStream / MemoryStream class
+ * hierarchy with a single concrete C type and direct inline ops.
+ * The hierarchy is gone from this tree. */
 typedef struct cdstream
 {
    RFILE   *fp;     /* file-backed: libretro-common RFILE handle */
@@ -61,14 +62,20 @@ typedef struct cdstream
    int64_t  pos;    /* memory-backed: current read position */
 } cdstream;
 
-/* Open `path` as a file-backed stream.  Returns true on success;
+/* Open `path` as a file-backed read stream.  Returns true on success;
  * on failure `out` is zeroed and false is returned.  Safe to call
  * cdstream_close on a failed-open stream. */
 bool cdstream_open(cdstream *out, const char *path);
 
+/* Open `path` as a file-backed write stream.  Replaces the legacy
+ * FileStream(path, MODE_WRITE / MODE_WRITE_INPLACE).  Returns true
+ * on success; on failure `out` is zeroed and false is returned. */
+bool cdstream_open_write(cdstream *out, const char *path);
+
 /* Open `path` and slurp its entire contents into RAM as a
- * memory-backed stream.  Returns true on success; on failure (file
- * missing, OOM, short read) `out` is zeroed and false is returned. */
+ * memory-backed read stream.  Returns true on success; on failure
+ * (file missing, OOM, short read) `out` is zeroed and false is
+ * returned. */
 bool cdstream_open_memcached(cdstream *out, const char *path);
 
 /* Convert an open file-backed stream into a memory-backed one by
@@ -106,6 +113,21 @@ static INLINE uint64_t cdstream_read(cdstream *s, void *data, uint64_t count)
       memcpy(data, s->buf + s->pos, (size_t)count);
       s->pos += (int64_t)count;
       return count;
+   }
+   return 0;
+}
+
+/* Write `count` bytes from `data`.  File-backed only; on a memory-
+ * backed stream this is a no-op (memory-backed cdstreams are read-
+ * only).  Returns the number of bytes actually written. */
+static INLINE uint64_t cdstream_write(cdstream *s, const void *data, uint64_t count)
+{
+   if (s->fp)
+   {
+      int64_t put = filestream_write(s->fp, data, (int64_t)count);
+      if (put < 0)
+         return 0;
+      return (uint64_t)put;
    }
    return 0;
 }
@@ -210,6 +232,22 @@ static INLINE uint8_t cdstream_read_u8(cdstream *s)
    uint8_t ret = 0;
    cdstream_read(s, &ret, 1);
    return ret;
+}
+
+/* Single-byte write.  Returns 1 on success, 0 on failure. */
+static INLINE uint64_t cdstream_write_u8(cdstream *s, uint8_t v)
+{
+   return cdstream_write(s, &v, 1);
+}
+
+/* Big-endian uint16 write.  Used by the cart NV save path for
+ * NV-RAM regions that store data in big-endian word order. */
+static INLINE uint64_t cdstream_write_be_u16(cdstream *s, uint16_t v)
+{
+   uint8_t tmp[2];
+   tmp[0] = (uint8_t)(v >> 8);
+   tmp[1] = (uint8_t)v;
+   return cdstream_write(s, tmp, 2);
 }
 
 /* Read a line into `out` (cap bytes max, always NUL-terminated).

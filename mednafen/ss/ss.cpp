@@ -26,7 +26,7 @@
 #include "../git.h"
 #include "../general.h"
 #include "../cdrom/cdromif.h"
-#include "../FileStream.h"
+#include "../cdstream.h"
 #include "../hash/sha256.h"
 #include "../hash/md5.h"
 #include "ss.h"
@@ -1098,11 +1098,13 @@ void MDFN_BackupSavFile(const uint8 max_backup_count, const char* sav_ext)
 static MDFN_COLD void SaveBackupRAM(void)
 {
  char fpath[4096];
- FileStream brs(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr"), MODE_WRITE_INPLACE);
+ cdstream brs;
+ if(!cdstream_open_write(&brs, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr")))
+  return;
 
- brs.write(BackupRAM, sizeof(BackupRAM));
+ cdstream_write(&brs, BackupRAM, sizeof(BackupRAM));
 
- brs.close();
+ cdstream_close(&brs);
 }
 
 static MDFN_COLD void LoadBackupRAM(void)
@@ -1186,19 +1188,21 @@ static MDFN_COLD void SaveCartNV(void)
 
    if(ext)
    {
-      FileStream nvs(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, ext), MODE_WRITE_INPLACE);
+      cdstream nvs;
+      if(!cdstream_open_write(&nvs, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, ext)))
+         return;
 
       if(nv16)
       {
          uint64_t i;
          /* Slow... */
          for(i = 0; i < nv_size; i += 2)
-            nvs.put_BE<uint16>(MDFN_densb<uint16>((uint8*)nv_ptr + i));
+            cdstream_write_be_u16(&nvs, MDFN_densb<uint16>((uint8*)nv_ptr + i));
       }
       else
-         nvs.write(nv_ptr, nv_size);
+         cdstream_write(&nvs, nv_ptr, nv_size);
 
-      nvs.close();
+      cdstream_close(&nvs);
    }
 }
 
@@ -1249,19 +1253,25 @@ bool SS_FlushCartNV(void)
 static MDFN_COLD void SaveRTC(void)
 {
    char fpath[4096];
-   FileStream sds(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "smpc"), MODE_WRITE_INPLACE);
+   cdstream sds;
+   if(!cdstream_open_write(&sds, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "smpc")))
+      return;
 
    SMPC_SaveNV(&sds);
 
-   sds.close();
+   cdstream_close(&sds);
 }
 
 static MDFN_COLD void LoadRTC(void)
 {
    char fpath[4096];
-   FileStream sds(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "smpc"), MODE_READ);
+   cdstream sds;
+   if(!cdstream_open(&sds, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "smpc")))
+      return;
 
    SMPC_LoadNV(&sds);
+
+   cdstream_close(&sds);
 }
 
 struct EventsPacker

@@ -341,24 +341,24 @@ void STVIO_Init(const STVGameInfo* sgi)
  prev_ectrl = 0x1C;
 }
 
-void STVIO_LoadNV(Stream* s)
+void STVIO_LoadNV(cdstream* s)
 {
  uint8 tmp[0x80];
 
- s->read(tmp, sizeof(tmp));
+ cdstream_read(s, tmp, sizeof(tmp));
 
  for(unsigned addr = 0; addr < 0x40; addr++)
   eep.PokeMem(addr, MDFN_de16msb(tmp + (addr << 1)));
 }
 
-void STVIO_SaveNV(Stream* s)
+void STVIO_SaveNV(cdstream* s)
 {
  uint8 tmp[0x80];
 
  for(unsigned addr = 0; addr < 0x40; addr++)
   MDFN_en16msb(tmp + (addr << 1), eep.PeekMem(addr));
 
- s->write(tmp, sizeof(tmp));
+ cdstream_write(s, tmp, sizeof(tmp));
 }
 
 void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8 A, uint8 V)

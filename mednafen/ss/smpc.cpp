@@ -30,7 +30,6 @@
 #include "ss.h"
 #include <mednafen/mednafen.h>
 #include <mednafen/general.h>
-#include <mednafen/Stream.h>
 #include <mednafen/cdrom/CDUtility.h>
 
 #include "smpc.h"
@@ -365,18 +364,18 @@ void SMPC_SetInput(unsigned port, const char* type, uint8* ptr)
  MapPorts();
 }
 
-void SMPC_LoadNV(Stream* s)
+void SMPC_LoadNV(cdstream* s)
 {
- RTC.Valid = s->get_u8();
- s->read(RTC.raw, sizeof(RTC.raw));
- s->read(SaveMem, sizeof(SaveMem));
+ RTC.Valid = cdstream_read_u8(s);
+ cdstream_read(s, RTC.raw, sizeof(RTC.raw));
+ cdstream_read(s, SaveMem, sizeof(SaveMem));
 }
 
-void SMPC_SaveNV(Stream* s)
+void SMPC_SaveNV(cdstream* s)
 {
- s->put_u8(RTC.Valid);
- s->write(RTC.raw, sizeof(RTC.raw));
- s->write(SaveMem, sizeof(SaveMem));
+ cdstream_write_u8(s, RTC.Valid);
+ cdstream_write(s, RTC.raw, sizeof(RTC.raw));
+ cdstream_write(s, SaveMem, sizeof(SaveMem));
 }
 
 void SMPC_SetRTC(const struct tm* ht, const uint8 lang)

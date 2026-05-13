@@ -24,7 +24,7 @@
 #ifndef __MDFN_SS_SMPC_H
 #define __MDFN_SS_SMPC_H
 
-#include "../Stream.h"
+#include "../cdstream.h"
 
 enum
 {
@@ -55,8 +55,8 @@ enum
 
 void SMPC_Init(const uint8 area_code, const int32 master_clock, bool block_soundcpu_control = false) MDFN_COLD;
 void SMPC_Reset(bool powering_up) MDFN_COLD;
-void SMPC_LoadNV(Stream* s) MDFN_COLD;
-void SMPC_SaveNV(Stream* s) MDFN_COLD;
+void SMPC_LoadNV(cdstream* s) MDFN_COLD;
+void SMPC_SaveNV(cdstream* s) MDFN_COLD;
 void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
 void SMPC_SetRTC(const struct tm* ht, const uint8 lang) MDFN_COLD;

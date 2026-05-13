@@ -6,14 +6,14 @@
 #include <streams/file_stream.h>
 #include <file/file_path.h>
 
-#include "mednafen/Stream.h"
-#include "mednafen/FileStream.h"
 #include "mednafen/ss/db.h"
 
 #include <ctype.h>
 #include <time.h>
 
 #include "mednafen/mednafen-types.h"
+#include "mednafen/mednafen.h"
+#include "mednafen/settings.h"
 #include "mednafen/git.h"
 #include "mednafen/general.h"
 #include "mednafen/mempatcher.h"
@@ -690,10 +690,9 @@ static bool MDFNI_LoadGame(const char *name)
    //
    if (name && name[0])
    {
-      try
+      cdstream stvfs;
+      if (cdstream_open(&stvfs, name))
       {
-         FileStream stvfs(name, MODE_READ);
-
          // Extract directory + basename. path_basedir mutates its
          // argument so work on a scratch copy.
          char dir_buf[4096];
@@ -710,6 +709,8 @@ static bool MDFNI_LoadGame(const char *name)
          const std::string fname_str = base ? base : "";
 
          const STVGameInfo* sgi = DB_LookupSTV(fname_str, &stvfs);
+
+         cdstream_close(&stvfs);
 
          if (sgi)
          {
@@ -737,10 +738,7 @@ static bool MDFNI_LoadGame(const char *name)
             return false;
          }
       }
-      catch (...)
-      {
-         // Fall through to BIOS drop below.
-      }
+      // Open or lookup failed; fall through to BIOS drop below.
    }
 
    //
@@ -1322,7 +1320,7 @@ void retro_cheat_set(unsigned, bool, const char *)
 // future caller stashes the pointer or another thread calls in
 // between. Caller-allocated buffer eliminates the class of bug; we
 // return the buf parameter so the call still flows into a single
-// expression (`FileStream f(MDFN_MakeFName(buf, sizeof buf, ...))`).
+// expression (`cdstream_open_write(&f, MDFN_MakeFName(buf, sizeof buf, ...))`).
 //
 // On unknown MakeFName_Type, log and return an empty string in buf.
 char *MDFN_MakeFName(char *buf, size_t buflen, MakeFName_Type type, int id1, const char *cd1)

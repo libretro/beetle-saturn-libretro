@@ -22,7 +22,7 @@
 #ifndef __MDFN_SS_STVIO_H
 #define __MDFN_SS_STVIO_H
 
-#include <mednafen/Stream.h>
+#include "../cdstream.h"
 
 #include "smpc_iodevice.h"
 #include "db.h"
@@ -31,8 +31,8 @@ void STVIO_Init(const STVGameInfo* sgi) MDFN_COLD;
 void STVIO_Reset(bool powering_up) MDFN_COLD;
 void STVIO_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
-void STVIO_LoadNV(Stream* s) MDFN_COLD;
-void STVIO_SaveNV(Stream* s) MDFN_COLD;
+void STVIO_LoadNV(cdstream* s) MDFN_COLD;
+void STVIO_SaveNV(cdstream* s) MDFN_COLD;
 
 void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8 A, uint8 V) MDFN_HOT;
 uint8 STVIO_ReadIOGA(const sscpu_timestamp_t timestamp, uint8 A) MDFN_HOT;

@@ -23,6 +23,7 @@
 #define __MDFN_SS_VDP1_H
 
 #include <mednafen/state.h>
+#include <mednafen/mednafen-endian.h>
 
 
 namespace VDP1
