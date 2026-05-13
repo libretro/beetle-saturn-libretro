@@ -21,6 +21,8 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include <boolean.h>
+
 #include "lec.h"
 
 #define GF8_PRIM_POLY 0x11d /* x^8 + x^4 + x^3 + x^2 + 1 */
@@ -42,38 +44,34 @@
 
 typedef uint8_t gf8_t;
 
-static uint8_t GF8_LOG[256];
-static gf8_t GF8_ILOG[256];
+static uint8_t  GF8_LOG[256];
+static gf8_t    GF8_ILOG[256];
 
-static const class Gf8_Q_Coeffs_Results_01 {
-private:
-  uint16_t table[43][256];
-public:
-  Gf8_Q_Coeffs_Results_01();
-  ~Gf8_Q_Coeffs_Results_01() {}
-  const uint16_t *operator[] (int i) const { return &table[i][0]; }
-  operator const uint16_t *() const	    { return &table[0][0]; }
-} CF8_Q_COEFFS_RESULTS_01;
+/* Three lookup tables - formerly C++ static-const-class-with-ctor
+ * instances that ran at static-init time.  In the C version they
+ * are plain static arrays filled by lec_tables_init(), which the
+ * caller must invoke once at startup (CDUtility_Init() does this).
+ *
+ * Layout matches the old class storage so all use-sites read with
+ * the same array syntax that operator[] used to provide. */
+static uint16_t CF8_Q_COEFFS_RESULTS_01[43][256];
+static uint32_t CRCTABLE[256];
+static uint8_t  SCRAMBLE_TABLE[2340];
 
-static const class CrcTable {
-private:
-  uint32_t table[256];
-public:
-  CrcTable();
-  ~CrcTable() {}
-  uint32_t operator[](int i) const	{ return table[i]; }
-  operator const uint32_t *() const	{ return table;    }
-} CRCTABLE;
+static void gf8_q_coeffs_results_01_init(void);
+static void crctable_init(void);
+static void scramble_table_init(void);
 
-static const class ScrambleTable {
-private:
-  uint8_t table[2340];
-public:
-  ScrambleTable();
-  ~ScrambleTable() {}
-  uint8_t operator[](int i) const	{ return table[i]; }
-  operator const uint8_t *() const	{ return table;    }
-} SCRAMBLE_TABLE;
+void lec_tables_init(void)
+{
+   static bool inited = false;
+   if(inited)
+      return;
+   gf8_q_coeffs_results_01_init();
+   crctable_init();
+   scramble_table_init();
+   inited = true;
+}
 
 /* Creates the logarithm and inverse logarithm table that is required
  * for performing multiplication in the GF(8) domain.
@@ -123,7 +121,7 @@ static gf8_t gf8_div(gf8_t a, gf8_t b)
   return GF8_ILOG[sum];
 }
 
-Gf8_Q_Coeffs_Results_01::Gf8_Q_Coeffs_Results_01()
+static void gf8_q_coeffs_results_01_init(void)
 {
   int i, j;
   uint16_t c;
@@ -183,16 +181,16 @@ Gf8_Q_Coeffs_Results_01::Gf8_Q_Coeffs_Results_01()
   
   for (j = 0; j < 43; j++) {
 
-    table[j][0] = 0;
+    CF8_Q_COEFFS_RESULTS_01[j][0] = 0;
 
     for (i = 1; i < 256; i++) {
       c = GF8_LOG[i] + GF8_LOG[GF8_Q_COEFFS[0][j]];
       if (c >= 255) c -= 255;
-      table[j][i] = GF8_ILOG[c];
+      CF8_Q_COEFFS_RESULTS_01[j][i] = GF8_ILOG[c];
 
       c = GF8_LOG[i] + GF8_LOG[GF8_Q_COEFFS[1][j]];
       if (c >= 255) c -= 255;
-      table[j][i] |= GF8_ILOG[c]<<8;
+      CF8_Q_COEFFS_RESULTS_01[j][i] |= GF8_ILOG[c]<<8;
     }
   }
 }
@@ -220,7 +218,7 @@ static uint32_t mirror_bits(uint32_t d, int bits)
  * and reversed (i.e. the bit stream is divided by the EDC_POLY with the
  * LSB first order).
  */
-CrcTable::CrcTable ()
+static void crctable_init(void)
 {
   uint32_t i, j;
   uint32_t r;
@@ -242,7 +240,7 @@ CrcTable::CrcTable ()
 
     r = mirror_bits(r, 32);
 
-    table[i] = r;
+    CRCTABLE[i] = r;
   }
 }
 
@@ -263,7 +261,7 @@ static uint32_t calc_edc(uint8_t *data, int len)
 /* Build the scramble table as defined in the yellow book. The bytes
    12 to 2351 of a sector will be XORed with the data of this table.
  */
-ScrambleTable::ScrambleTable()
+static void scramble_table_init(void)
 {
   uint16_t i, j;
   uint16_t reg = 1;
@@ -287,7 +285,7 @@ ScrambleTable::ScrambleTable()
       }
     }
 
-    table[i] = d;
+    SCRAMBLE_TABLE[i] = d;
   }
 }
 
