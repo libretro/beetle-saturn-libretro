@@ -7,6 +7,29 @@
 #include "../cdstream.h"
 #include "audioreader.h"
 
+/* Sorted-array SubQ replacement table, replaces the former
+ * std::map<uint32_t, stl_array<uint8_t, 12>> SubQReplaceMap.
+ * Typical SBI files have a few dozen entries; the cap of 1024 is
+ * generous (largest known SBI files in the wild are well under
+ * 200).  Insertion order is arbitrary; subq_map_finalize() sorts
+ * by aba so subq_map_find() can binary-search.  Same shape as
+ * beetle-psx-libretro's subq_map in mednafen/cdrom/cdaccess_track.h. */
+#define SUBQ_MAP_MAX 1024
+
+struct subq_map_entry
+{
+   uint32_t aba;
+   uint8_t  data[12];
+};
+
+struct subq_map
+{
+   struct subq_map_entry entries[SUBQ_MAP_MAX];
+   unsigned              count;
+   bool                  sorted;
+};
+typedef struct subq_map subq_map;
+
 struct CDRFILE_TRACK_INFO
 {
    int32_t LBA;
@@ -78,7 +101,7 @@ class CDAccess_Image
       CDRFILE_TRACK_INFO Tracks[100]; // Track #0(HMM?) through 99
       TOC toc;
 
-      std::map<uint32_t, stl_array<uint8_t, 12> > SubQReplaceMap;
+      subq_map SubQReplaceMap;
 
       std::string base_dir;
 

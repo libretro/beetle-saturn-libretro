@@ -82,6 +82,86 @@ static const int32_t DI_Size_Table[8] =
    2352  // CD-I RAW
 };
 
+/* ---- subq_map operations ----------------------------------------
+ * Replaces std::map<uint32_t, stl_array<uint8_t,12>> with a sorted-
+ * array binary search.  SBI tables are small (a few dozen entries
+ * typical), so the red-black tree overhead of std::map was pure
+ * cost.  Binary search on a packed array is both faster (fewer
+ * cache misses - the whole array typically fits in 1-3 cache lines)
+ * and avoids the per-entry heap allocation std::map does. */
+
+static void subq_map_clear(subq_map *m)
+{
+   m->count  = 0;
+   m->sorted = false;
+}
+
+static bool subq_map_empty(const subq_map *m)
+{
+   return m->count == 0;
+}
+
+static void subq_map_insert(subq_map *m, uint32_t aba, const uint8_t data[12])
+{
+   if (m->count >= SUBQ_MAP_MAX)
+      return;
+   m->entries[m->count].aba = aba;
+   memcpy(m->entries[m->count].data, data, 12);
+   m->count++;
+   m->sorted = false;
+}
+
+static int subq_entry_cmp(const void *a, const void *b)
+{
+   uint32_t aa = ((const subq_map_entry *)a)->aba;
+   uint32_t bb = ((const subq_map_entry *)b)->aba;
+   if (aa < bb) return -1;
+   if (aa > bb) return  1;
+   return 0;
+}
+
+static void subq_map_finalize(subq_map *m)
+{
+   if (m->sorted)
+      return;
+   if (m->count > 1)
+      qsort(m->entries, m->count, sizeof(subq_map_entry), subq_entry_cmp);
+   m->sorted = true;
+}
+
+static const uint8_t *subq_map_find(const subq_map *m, uint32_t aba)
+{
+   /* Caller is expected to have called finalize.  If not sorted we
+    * degrade to linear scan rather than silently returning wrong
+    * answers - this only happens if a future caller forgets the
+    * finalize step. */
+   if (!m->sorted)
+   {
+      unsigned i;
+      for (i = 0; i < m->count; i++)
+         if (m->entries[i].aba == aba)
+            return m->entries[i].data;
+      return NULL;
+   }
+   else
+   {
+      int lo = 0;
+      int hi = (int)m->count - 1;
+      while (lo <= hi)
+      {
+         int      mid = lo + ((hi - lo) >> 1);
+         uint32_t mid_aba = m->entries[mid].aba;
+         if (mid_aba == aba)
+            return m->entries[mid].data;
+         if (mid_aba < aba)
+            lo = mid + 1;
+         else
+            hi = mid - 1;
+      }
+      return NULL;
+   }
+}
+
 static const char *DI_CDRDAO_Strings[8] = 
 {
    "AUDIO",
@@ -332,8 +412,12 @@ bool CDAccess_Image::LoadSBI(const std::string& sbi_path)
 
       uint32_t aba = AMSF_to_ABA(BCD_to_U8(ed[0]), BCD_to_U8(ed[1]), BCD_to_U8(ed[2]));
 
-      memcpy(SubQReplaceMap[aba].data(), tmpq, 12);
+      subq_map_insert(&SubQReplaceMap, aba, tmpq);
    }
+
+   /* Sort once after all inserts so subsequent MakeSubPQ lookups
+    * can binary-search. */
+   subq_map_finalize(&SubQReplaceMap);
 
    filestream_close(sbis);
    return true;
@@ -928,10 +1012,13 @@ void CDAccess_Image::Cleanup(void)
 CDAccess_Image::CDAccess_Image(const std::string& path, bool image_memcache) : NumTracks(0), FirstTrack(0), LastTrack(0), total_sectors(0)
 {
    memset(Tracks, 0, sizeof(Tracks));
-   // Defensive zero of the toc member - GenerateTOC clears before
-   // populating, but if Load fails partway through and the dtor /
-   // accessor runs anyway, an uninitialized TOC could surface.
+   /* Defensive zero of the toc member - GenerateTOC clears before
+    * populating, but if Load fails partway through and the dtor /
+    * accessor runs anyway, an uninitialized TOC could surface. */
    TOC_Clear(&toc);
+   /* subq_map needs explicit clear - it's a plain POD struct, not
+    * a std::map with its own default ctor. */
+   subq_map_clear(&SubQReplaceMap);
 
    ImageOpen(path, image_memcache);
 }
@@ -1219,12 +1306,12 @@ int32_t CDAccess_Image::MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const
 
    subq_generate_checksum(buf);
 
-   if(!SubQReplaceMap.empty())
+   if(!subq_map_empty(&SubQReplaceMap))
    {
-      std::map<uint32_t, stl_array<uint8_t, 12> >::const_iterator it = SubQReplaceMap.find(LBA_to_ABA(lba));
+      const uint8_t *replace = subq_map_find(&SubQReplaceMap, LBA_to_ABA(lba));
 
-      if(it != SubQReplaceMap.end())
-         memcpy(buf, (void*)it->second.data(), 12);
+      if(replace)
+         memcpy(buf, replace, 12);
    }
 
    for(int i = 0; i < 96; i++)
