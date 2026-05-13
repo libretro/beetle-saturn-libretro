@@ -109,7 +109,6 @@ ifeq ($(NEED_TREMOR), 1)
 endif
 
 SOURCES_CXX += $(CDROM_DIR)/CDAccess_Image.cpp \
-	$(CDROM_DIR)/CDAccess_CCD.cpp \
 	$(CDROM_DIR)/cdromif.cpp
 
 SOURCES_C += $(CDROM_DIR)/edc_crc32.c \
@@ -119,7 +118,8 @@ SOURCES_C += $(CDROM_DIR)/edc_crc32.c \
 	$(CDROM_DIR)/lec.c \
 	$(CDROM_DIR)/CDUtility.c \
 	$(CDROM_DIR)/audioreader.c \
-	$(CDROM_DIR)/CDAccess.c
+	$(CDROM_DIR)/CDAccess.c \
+	$(CDROM_DIR)/CDAccess_CCD.c
 
 ifeq ($(HAVE_CHD), 1)
 ifneq ($(SYSTEM_LIBCHDR), 1)

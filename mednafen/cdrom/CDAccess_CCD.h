@@ -8,50 +8,48 @@
 ** modify it under the terms of the GNU General Public License
 ** as published by the Free Software Foundation; either version 2
 ** of the License, or (at your option) any later version.
-**
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-** GNU General Public License for more details.
-**
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software Foundation, Inc.,
-** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "../cdstream.h"
+#ifndef __MDFN_CDACCESS_CCD_H
+#define __MDFN_CDACCESS_CCD_H
 
+#include <stdint.h>
+#include <stddef.h>
+#include <boolean.h>
+
+#include "../cdstream.h"
 #include "CDAccess.h"
 
-class CDAccess_CCD
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Concrete backend for the CDAccess vtable defined in CDAccess.h.
+ * The CCD format is the CloneCD descriptor: a small INI-like text
+ * file pointing at a .img (raw sector data) and a .sub (96-byte
+ * subchannel data per sector) pair.  Parsing happens once in
+ * CDAccess_CCD_New; after that all reads are fixed-stride lookups
+ * into img/sub via the cdstream / sub_data members.
+ *
+ * CDAccess base MUST be the first member - dispatch from CDAccess*
+ * casts back to this struct via its embedded base pointer's address. */
+struct CDAccess_CCD
 {
- public:
+   CDAccess base;
 
- CDAccess_CCD(const std::string& path, bool image_memcache);
- ~CDAccess_CCD();
+   cdstream *img_stream;
+   uint8_t  *sub_data;
 
- bool Read_Raw_Sector(uint8 *buf, int32 lba);
-
- bool Fast_Read_Raw_PW_TSRE(uint8* pwbuf, int32 lba);
-
- bool Read_TOC(TOC *toc);
-
- /* CDAccess vtable base.  MUST be the first member - see comment
-  * in CDAccess.h. */
- CDAccess base;
-
- private:
-
- bool Load(const std::string& path, bool image_memcache);
- void Cleanup(void);
-
- bool CheckSubQSanity(void);
-
- cdstream *img_stream;
- uint8_t *sub_data;
-
- size_t img_numsectors;
- TOC tocd;
+   size_t img_numsectors;
+   TOC    tocd;
 };
 
-extern "C" CDAccess *CDAccess_CCD_New(const char *path, bool image_memcache);
+typedef struct CDAccess_CCD CDAccess_CCD;
+
+CDAccess *CDAccess_CCD_New(const char *path, bool image_memcache);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
