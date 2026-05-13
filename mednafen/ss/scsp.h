@@ -20,7 +20,7 @@
 */
 
 #include <mednafen/state.h>
-#include "ss_endian.h"
+#include "../mednafen-endian.h"
 
 class SS_SCSP
 {

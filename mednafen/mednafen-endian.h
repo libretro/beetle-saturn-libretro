@@ -19,7 +19,7 @@
 /* Compile-time host-endian flag, driven entirely by MSB_FIRST from
  * the build flags.  No runtime detection - MSB_FIRST defined means
  * big-endian, undefined means little-endian.  Used by the
- * MDFN_deXsb / ss_endian.h MDFN_enXsb templates to elide byteswap
+ * MDFN_deXsb / MDFN_enXsb templates to elide byteswap
  * branches at compile time when the requested target endian
  * matches the host. */
 #ifdef MSB_FIRST
@@ -154,6 +154,10 @@ static INLINE uint64 MDFN_bswap64(uint64 v)
 
 #ifdef __cplusplus
 
+#include <algorithm>  /* std::min for neX_ptr_be's compile-time
+                       * index math on little-endian hosts */
+#include <type_traits>
+
 /* X-endian decode template.
  * `isbigendian = -1` means "host endian" (always-match branch).
  * Otherwise compared against MDFN_ENDIANH_IS_BIGENDIAN at compile
@@ -182,19 +186,61 @@ static INLINE T MDFN_deXsb(const void *ptr)
    return tmp;
 }
 
+/* Host-endian variant: byteswap branch is statically dead. */
 template<typename T, bool aligned = false>
-static INLINE T MDFN_demsb(const void *ptr)
+static INLINE T MDFN_densb(const void *ptr)
 {
-   return MDFN_deXsb<1, T, aligned>(ptr);
+   return MDFN_deXsb<-1, T, aligned>(ptr);
 }
 
+/* Big-endian 16-bit decode (aligned/unaligned via template param). */
 template<bool aligned = false>
 static INLINE uint16 MDFN_de16msb(const void *ptr)
 {
-   return MDFN_demsb<uint16, aligned>(ptr);
+   return MDFN_deXsb<1, uint16, aligned>(ptr);
 }
 
-/* neX_ptr_be: address of the little-endian 16-bit word that the
+/* X-endian encode template, mirror of MDFN_deXsb.  Same compile-
+ * time-elided byteswap branch. */
+template<int isbigendian, typename T, bool aligned>
+static INLINE void MDFN_enXsb(void *ptr, T value)
+{
+   T tmp = value;
+
+   if (isbigendian != -1 && isbigendian != MDFN_ENDIANH_IS_BIGENDIAN)
+   {
+      static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+            "Unsupported scalar size");
+
+      if (sizeof(T) == 8)
+         tmp = MDFN_bswap64(value);
+      else if (sizeof(T) == 4)
+         tmp = MDFN_bswap32(value);
+      else if (sizeof(T) == 2)
+         tmp = MDFN_bswap16(value);
+   }
+
+   memcpy(MDFN_ASSUME_ALIGNED(ptr, (aligned ? sizeof(T) : 1)), &tmp, sizeof(T));
+}
+
+/* Host-endian encode: byteswap branch is statically dead. */
+template<typename T, bool aligned = false>
+static INLINE void MDFN_ennsb(void *ptr, T value)
+{
+   MDFN_enXsb<-1, T, aligned>(ptr, value);
+}
+
+/* Big-endian 64-bit encode (aligned/unaligned via template param).
+ * Sole caller is the SHA-256 final-block writer (hash/sha256.cpp);
+ * the non-template MDFN_en64msb(uint8_t*, uint64_t) above is the
+ * byte-wise fallback for unaligned save-state buffers. */
+template<bool aligned = false>
+static INLINE void MDFN_en64msb(void *ptr, uint64 value)
+{
+   MDFN_enXsb<1, uint64, aligned>(ptr, value);
+}
+
+/* neX_ptr_be: address of the host-endian X-bit word that the
  * BIG-endian access of size T at byte_offset would land on.
  *
  * Saturn VRAM, BIOS ROM, work RAM are physically wired as 16-bit
@@ -202,9 +248,11 @@ static INLINE uint16 MDFN_de16msb(const void *ptr)
  * (little-endian on x86) memory.  For an MSB-first byte read at
  * offset N, the byte we want is at index `N ^ 1` inside a uint16.
  * For a 32-bit big-endian read at aligned offset N, the two
- * uint16 words are at the natural order (no XOR needed).  This
- * helper centralises that index math; MSB_FIRST host turns it
- * into a no-op. */
+ * uint16 words are at the natural order (no XOR needed).  X is
+ * the host word size (uint16 for VRAM-style 2-byte-wide buses,
+ * uint64 for SCSP-style 8-byte-wide buses).  This helper
+ * centralises that index math; MSB_FIRST host turns it into a
+ * no-op since the host-endian word is already in MSB order. */
 template<typename T, typename X>
 static INLINE uintptr_t neX_ptr_be(uintptr_t const base, const size_t byte_offset)
 {
@@ -260,6 +308,48 @@ static INLINE void ne16_rwbo_be(BT base, const size_t byte_offset, T *value)
       ne16_wbo_be<T>(base, byte_offset, *value);
    else
       *value = ne16_rbo_be<T>(base, byte_offset);
+}
+
+/* 64-bit-wide bus variants.  Used for SCSP DSP MPROG (uint64[0x80]
+ * with 16-bit byte-addressed access pattern) - one call site for
+ * the rwbo wrapper in scsp.inc.  ne64_wbo_be / ne64_rbo_be are
+ * reachable internally through the rwbo wrapper; ne64_ptr_be is
+ * the address-arithmetic primitive. */
+template<typename T>
+static INLINE uint8 *ne64_ptr_be(uint64 *const base, const size_t byte_offset)
+{
+#ifdef MSB_FIRST
+   return (uint8 *)base + (byte_offset &~ (sizeof(T) - 1));
+#else
+   return (uint8 *)base + (((byte_offset &~ (sizeof(T) - 1)) ^ (8 - sizeof(T))));
+#endif
+}
+
+template<typename T>
+static INLINE void ne64_wbo_be(uint64 *const base, const size_t byte_offset, const T value)
+{
+   static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8, "Unsupported type size");
+   uint8 *const ptr = ne64_ptr_be<T>(base, byte_offset);
+   memcpy(MDFN_ASSUME_ALIGNED(ptr, sizeof(T)), &value, sizeof(T));
+}
+
+template<typename T>
+static INLINE T ne64_rbo_be(uint64 *const base, const size_t byte_offset)
+{
+   static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8, "Unsupported type size");
+   uint8 *const ptr = ne64_ptr_be<T>(base, byte_offset);
+   T ret;
+   memcpy(&ret, MDFN_ASSUME_ALIGNED(ptr, sizeof(T)), sizeof(T));
+   return ret;
+}
+
+template<typename T, bool IsWrite>
+static INLINE void ne64_rwbo_be(uint64 *const base, const size_t byte_offset, T *value)
+{
+   if (IsWrite)
+      ne64_wbo_be<T>(base, byte_offset, *value);
+   else
+      *value = ne64_rbo_be<T>(base, byte_offset);
 }
 
 #endif /* C++ only */

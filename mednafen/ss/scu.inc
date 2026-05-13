@@ -94,7 +94,7 @@ static const char* IntNames[0x20] =
 
 #include <compat/intrinsics.h>
 #include "scu_dsp_common.inc"
-#include "ss_endian.h"
+#include "../mednafen-endian.h"
 
 static void DSP_Reset(bool powering_up);
 

@@ -25,7 +25,7 @@
 // SMPC clock change code.
 
 #include "ss.h"
-#include "ss_endian.h"
+#include "../mednafen-endian.h"
 #include <mednafen/mednafen.h>
 #include <mednafen/general.h>
 #include "vdp1.h"

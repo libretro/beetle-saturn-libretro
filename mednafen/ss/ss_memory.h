@@ -24,7 +24,7 @@
 
 #include "../error.h"
 
-#include "ss_endian.h"
+#include "../mednafen-endian.h"
 
 #include <new>
 #include <stdlib.h>

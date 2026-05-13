@@ -25,7 +25,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../ss/ss_endian.h"
 
 static const uint32 K[64] =
 {
