@@ -5,8 +5,7 @@
 
 #include "CDUtility.h"
 #include "../cdstream.h"
-
-class CDAFReader;
+#include "audioreader.h"
 
 struct CDRFILE_TRACK_INFO
 {
@@ -31,7 +30,7 @@ struct CDRFILE_TRACK_INFO
 
    uint32_t LastSamplePos;
 
-   CDAFReader *AReader;
+   AudioReader *AReader;
 };
 
 template<typename T, size_t N>

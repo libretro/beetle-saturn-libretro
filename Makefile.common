@@ -111,8 +111,6 @@ endif
 SOURCES_CXX += $(CDROM_DIR)/CDAccess.cpp \
 	$(CDROM_DIR)/CDAccess_Image.cpp \
 	$(CDROM_DIR)/CDAccess_CCD.cpp \
-	$(CDROM_DIR)/CDAFReader.cpp \
-	$(CDROM_DIR)/CDAFReader_Vorbis.cpp \
 	$(CDROM_DIR)/cdromif.cpp
 
 SOURCES_C += $(CDROM_DIR)/edc_crc32.c \
@@ -120,7 +118,8 @@ SOURCES_C += $(CDROM_DIR)/edc_crc32.c \
 	$(CDROM_DIR)/recover-raw.c \
 	$(CDROM_DIR)/l-ec.c \
 	$(CDROM_DIR)/lec.c \
-	$(CDROM_DIR)/CDUtility.c
+	$(CDROM_DIR)/CDUtility.c \
+	$(CDROM_DIR)/audioreader.c
 
 ifeq ($(HAVE_CHD), 1)
 ifneq ($(SYSTEM_LIBCHDR), 1)

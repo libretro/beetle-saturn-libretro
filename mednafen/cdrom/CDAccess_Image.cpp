@@ -45,7 +45,7 @@
 #include "CDAccess.h"
 #include "CDAccess_Image.h"
 
-#include "CDAFReader.h"
+#include "audioreader.h"
 
 #include <map>
 
@@ -167,7 +167,7 @@ uint32_t CDAccess_Image::GetSectorCount(CDRFILE_TRACK_INFO *track)
    if(track->DIFormat == DI_FORMAT_AUDIO)
    {
       if(track->AReader)
-         return(((track->AReader->FrameCount() * 4) - track->FileOffset) / 2352);
+         return(((AR_FrameCount(track->AReader) * 4) - track->FileOffset) / 2352);
       else
       {
          const int64_t size = cdstream_size(track->fp);
@@ -222,7 +222,7 @@ bool CDAccess_Image::ParseTOCFileLineInfo(CDRFILE_TRACK_INFO *track, const int t
 
    if(filename.length() >= 4 && !strcasecmp(filename.c_str() + filename.length() - 4, ".wav"))
    {
-      track->AReader = CDAFR_Open(track->fp);
+      track->AReader = AR_Open(track->fp);
 
       if(!track->AReader)
          return false;
@@ -635,7 +635,7 @@ bool CDAccess_Image::ImageOpen(const std::string& path, bool image_memcache)
             else if(!strcasecmp(args[1].c_str(), "OGG") || !strcasecmp(args[1].c_str(), "VORBIS")
                   || !strcasecmp(args[1].c_str(), "MPC") || !strcasecmp(args[1].c_str(), "MP+"))
             {
-               TmpTrack.AReader = CDAFR_Open(TmpTrack.fp);
+               TmpTrack.AReader = AR_Open(TmpTrack.fp);
                if(!TmpTrack.AReader)
                   return false;
             }
@@ -912,7 +912,7 @@ void CDAccess_Image::Cleanup(void)
       {
          if(Tracks[track].AReader)
          {
-            delete Tracks[track].AReader;
+            AR_Close(Tracks[track].AReader);
             Tracks[track].AReader = NULL;
          }
 
@@ -1028,7 +1028,7 @@ bool CDAccess_Image::Read_Raw_Sector(uint8_t *buf, int32_t lba)
       if(ct->AReader)
       {
          int16_t AudioBuf[588 * 2];
-         uint64_t frames_read = ct->AReader->Read((ct->FileOffset / 4) + (lba - ct->LBA) * 588, AudioBuf, 588);
+         uint64_t frames_read = AR_Read(ct->AReader, (ct->FileOffset / 4) + (lba - ct->LBA) * 588, AudioBuf, 588);
 
          ct->LastSamplePos += frames_read;
 
