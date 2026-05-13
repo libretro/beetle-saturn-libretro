@@ -118,8 +118,9 @@ SOURCES_CXX += $(CDROM_DIR)/CDAccess.cpp \
 	$(CDROM_DIR)/lec.cpp \
 	$(CDROM_DIR)/galois.cpp \
 	$(CDROM_DIR)/recover-raw.cpp \
-	$(CDROM_DIR)/l-ec.cpp \
-	$(CDROM_DIR)/edc_crc32.cpp
+	$(CDROM_DIR)/l-ec.cpp
+
+SOURCES_C += $(CDROM_DIR)/edc_crc32.c
 
 ifeq ($(HAVE_CHD), 1)
 ifneq ($(SYSTEM_LIBCHDR), 1)

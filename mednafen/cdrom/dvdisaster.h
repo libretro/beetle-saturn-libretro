@@ -46,6 +46,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <boolean.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /***
  *** dvdisaster.c
  ***/
@@ -145,5 +151,8 @@ int ValidateRawSector(unsigned char *frame, bool xaMode);
 bool Init_LEC_Correct(void);
 void Kill_LEC_Correct(void);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif				/* DVDISASTER_H */
