@@ -2272,7 +2272,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
  }														\
 														\
  if(IsInstr <= 0)												\
-  if((timestamp + 1) > MA_until) MA_until = (timestamp + 1);						\
+ { if((timestamp + 1) > MA_until) MA_until = (timestamp + 1); }						\
  else														\
   timestamp = ((sscpu_timestamp_t)(MA_until) > (sscpu_timestamp_t)(timestamp) ? (sscpu_timestamp_t)(MA_until) : (sscpu_timestamp_t)(timestamp));							\
 														\
@@ -2310,7 +2310,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	   unsigned di = (A + 4 + i) & 0xC; { uint32 vtmp__ = ExtBusRead(uint32,  true, (A &~ 0xF) + di); memcpy(&cent->Data[way_match][di], &vtmp__, 4); }	\
 	  }													\
 	  if(IsInstr <= 0)											\
-	   if((SH7095_mem_timestamp + 1) > MA_until) MA_until = (SH7095_mem_timestamp + 1);				\
+	  { if((SH7095_mem_timestamp + 1) > MA_until) MA_until = (SH7095_mem_timestamp + 1); }				\
 	  else													\
 	   timestamp = SH7095_mem_timestamp;									\
 	 }													\
@@ -2337,7 +2337,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	 retval = ExtBusRead(T, false, A);								\
 														\
 	 if(IsInstr <= 0)											\
-	  if((SH7095_mem_timestamp + 1) > MA_until) MA_until = (SH7095_mem_timestamp + 1);				\
+	 { if((SH7095_mem_timestamp + 1) > MA_until) MA_until = (SH7095_mem_timestamp + 1); }				\
 	 else													\
 	 {													\
 	  timestamp = SH7095_mem_timestamp;									\
