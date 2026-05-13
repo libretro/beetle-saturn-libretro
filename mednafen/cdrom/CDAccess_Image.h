@@ -4,8 +4,8 @@
 #include <map>
 
 #include "CDUtility.h"
+#include "../cdstream.h"
 
-class Stream;
 class CDAFReader;
 
 struct CDRFILE_TRACK_INFO
@@ -23,7 +23,7 @@ struct CDRFILE_TRACK_INFO
    int32_t index[100];
 
    int32_t sectors;	// Not including pregap sectors!
-   Stream *fp;
+   cdstream *fp;
    bool FirstFileInstance;
    bool RawAudioMSBFirst;
    long FileOffset;
@@ -86,7 +86,7 @@ class CDAccess_Image : public CDAccess
       // MakeSubPQ will OR the simulated P and Q subchannel data into SubPWBuf.
       int32_t MakeSubPQ(int32_t lba, uint8_t *SubPWBuf) const;
 
-      bool ParseTOCFileLineInfo(CDRFILE_TRACK_INFO *track, const int tracknum, const std::string &filename, const char *binoffset, const char *msfoffset, const char *length, bool image_memcache, std::map<std::string, Stream*> &toc_streamcache);
+      bool ParseTOCFileLineInfo(CDRFILE_TRACK_INFO *track, const int tracknum, const std::string &filename, const char *binoffset, const char *msfoffset, const char *length, bool image_memcache, std::map<std::string, cdstream*> &toc_streamcache);
       uint32_t GetSectorCount(CDRFILE_TRACK_INFO *track);
 };
 

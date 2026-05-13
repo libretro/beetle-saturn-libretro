@@ -19,8 +19,7 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include <mednafen/FileStream.h>
-#include <mednafen/MemoryStream.h>
+#include "../cdstream.h"
 
 #include "CDAccess.h"
 
@@ -44,7 +43,7 @@ class CDAccess_CCD : public CDAccess
 
  bool CheckSubQSanity(void);
 
- Stream *img_stream;
+ cdstream *img_stream;
  uint8_t *sub_data;
 
  size_t img_numsectors;

@@ -28,7 +28,7 @@
 class CDAFReader_Vorbis : public CDAFReader
 {
    public:
-      CDAFReader_Vorbis(Stream *fp);
+      CDAFReader_Vorbis(cdstream *fp);
       ~CDAFReader_Vorbis();
 
       uint64_t Read_(int16_t *buffer, uint64_t frames);
@@ -42,37 +42,41 @@ class CDAFReader_Vorbis : public CDAFReader
 
 static size_t iov_read_func(void *ptr, size_t size, size_t nmemb, void *user_data)
 {
-   Stream *fw = (Stream*)user_data;
+   cdstream *fw = (cdstream*)user_data;
 
-   if(!size)
-      return(0);
+   if(!size || !fw)
+      return 0;
 
-   return fw->read(ptr, size * nmemb) / size;
+   return cdstream_read(fw, ptr, size * nmemb) / size;
 }
 
 static int iov_seek_func(void *user_data, int64_t offset, int whence)
 {
-   Stream *fw = (Stream*)user_data;
+   cdstream *fw = (cdstream*)user_data;
 
-   fw->seek(offset, whence);
-   return(0);
+   if (fw)
+      cdstream_seek(fw, offset, whence);
+   return 0;
 }
 
 static int iov_close_func(void *user_data)
 {
-   Stream *fw = (Stream*)user_data;
+   cdstream *fw = (cdstream*)user_data;
 
-   fw->close();
-   return(0);
+   if (fw)
+      cdstream_close(fw);
+   return 0;
 }
 
 static long iov_tell_func(void *user_data)
 {
-   Stream *fw = (Stream*)user_data;
-   return fw->tell();
+   cdstream *fw = (cdstream*)user_data;
+   if (!fw)
+      return -1;
+   return (long)cdstream_tell(fw);
 }
 
-CDAFReader_Vorbis::CDAFReader_Vorbis(Stream *fp)
+CDAFReader_Vorbis::CDAFReader_Vorbis(cdstream *fp)
 {
    ov_callbacks cb;
 
@@ -122,7 +126,7 @@ uint64_t CDAFReader_Vorbis::FrameCount(void)
    return(ov_pcm_total(&ovfile, -1));
 }
 
-CDAFReader* CDAFR_Vorbis_Open(Stream* fp)
+CDAFReader* CDAFR_Vorbis_Open(cdstream* fp)
 {
    return new CDAFReader_Vorbis(fp);
 }

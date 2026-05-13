@@ -19,8 +19,8 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-// CDAFR_Open(), and CDAFReader, will NOT take "ownership" of the Stream object(IE it won't ever delete it).  Though it does assume it has exclusive access
-// to it for as long as the CDAFReader object exists.
+// CDAFR_Open(), and CDAFReader, will NOT take "ownership" of the cdstream object (won't free it).  Though they do assume exclusive access
+// to it for as long as the CDAFReader object exists.  Backing resources held by the stream may still be closed via cdstream_close.
 
 // Don't allow exceptions to propagate into the vorbis/musepack/etc. libraries, as it could easily leave the state of the library's decoder "object" in an
 // inconsistent state, which would cause all sorts of unfun when we try to destroy it while handling the exception farther up.
@@ -42,7 +42,7 @@ CDAFReader::~CDAFReader()
 
 }
 
-CDAFReader* CDAFR_Open(Stream* fp)
+CDAFReader* CDAFR_Open(cdstream* fp)
 {
 #ifdef HAVE_MPC
   return CDAFR_MPC_Open(fp);

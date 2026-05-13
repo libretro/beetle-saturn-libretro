@@ -89,7 +89,14 @@ CDAccess_CCD::CDAccess_CCD(const std::string& path, bool image_memcache) : img_n
 
 bool CDAccess_CCD::Load(const std::string& path, bool image_memcache)
 {
-   FileStream cf(path.c_str(), MODE_READ);
+   // CCD descriptor file is small; slurp into RAM up front so the
+   // line-by-line section/key=value parser hits a tight in-memory
+   // loop.  Closed on every return path via the RAII guard below.
+   cdstream cf;
+   if (!cdstream_open_memcached(&cf, path.c_str()))
+      return false;
+   struct CdsAutoClose { cdstream* s; ~CdsAutoClose() { cdstream_close(s); } } _cf_guard = { &cf };
+
    std::map<std::string, CCD_Section> Sections;
    std::string linebuf;
    std::string cur_section_name;
@@ -138,10 +145,13 @@ bool CDAccess_CCD::Load(const std::string& path, bool image_memcache)
 
    linebuf.reserve(256);
 
-   while(cf.get_line(linebuf) >= 0)
    {
-      MDFN_rtrim(linebuf);
-      MDFN_ltrim(linebuf);
+      char line_c[256];
+      while(cdstream_get_line(&cf, line_c, sizeof(line_c)) >= 0)
+      {
+         linebuf = line_c;
+         MDFN_rtrim(linebuf);
+         MDFN_ltrim(linebuf);
 
       if(linebuf.length() == 0)	// Skip blank lines.
          continue;
@@ -236,17 +246,21 @@ bool CDAccess_CCD::Load(const std::string& path, bool image_memcache)
          }
       }
    }
+   } // end of line_c scope
 
    // Open image stream.
    {
       std::string image_path = MDFN_EvalFIP(dir_path, file_base + std::string(".") + std::string(img_extsd), true);
 
       if(image_memcache)
-         img_stream = new MemoryStream(new FileStream(image_path.c_str(), MODE_READ));
+         img_stream = cdstream_new_memcached(image_path.c_str());
       else
-         img_stream = new FileStream(image_path.c_str(), MODE_READ);
+         img_stream = cdstream_new(image_path.c_str());
 
-      uint64 ss = img_stream->size();
+      if(!img_stream)
+         return false;
+
+      uint64 ss = cdstream_size(img_stream);
 
       if(ss % 2352)
          return false;
@@ -358,7 +372,10 @@ bool CDAccess_CCD::CheckSubQSanity(void)
 CDAccess_CCD::~CDAccess_CCD()
 {
    if (img_stream)
-      delete[] img_stream;
+   {
+      cdstream_destroy(img_stream);
+      img_stream = NULL;
+   }
    if (sub_data)
       delete[] sub_data;
 }
@@ -377,8 +394,8 @@ bool CDAccess_CCD::Read_Raw_Sector(uint8_t *buf, int32_t lba)
       return true; /* TODO/FIXME - see if we need to return false here? */
    }
 
-   img_stream->seek(lba * 2352, SEEK_SET);
-   img_stream->read(buf, 2352);
+   cdstream_seek(img_stream, lba * 2352, SEEK_SET);
+   cdstream_read(img_stream, buf, 2352);
 
    subpw_interleave(&sub_data[lba * 96], buf + 2352);
 

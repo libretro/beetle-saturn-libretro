@@ -22,7 +22,7 @@
 #ifndef __MDFN_CDAFREADER_H
 #define __MDFN_CDAFREADER_H
 
-#include <mednafen/Stream.h>
+#include "../cdstream.h"
 
 class CDAFReader
 {
@@ -54,8 +54,10 @@ class CDAFReader
  uint64_t LastReadPos;
 };
 
-// AR_Open(), and CDAFReader, will NOT take "ownership" of the Stream object(IE it won't ever delete it).  Though it does assume it has exclusive access
-// to it for as long as the CDAFReader object exists.
-CDAFReader *CDAFR_Open(Stream *fp);
+// CDAFR_Open(), and CDAFReader, will NOT take "ownership" of the cdstream
+// object (won't free it).  Though they do assume exclusive access to it for
+// as long as the CDAFReader object exists.  Backing resources held by the
+// stream may still be closed on read errors via cdstream_close.
+CDAFReader *CDAFR_Open(cdstream *fp);
 
 #endif
