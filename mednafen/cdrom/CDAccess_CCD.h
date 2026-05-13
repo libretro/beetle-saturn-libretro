@@ -23,18 +23,22 @@
 
 #include "CDAccess.h"
 
-class CDAccess_CCD : public CDAccess
+class CDAccess_CCD
 {
  public:
 
  CDAccess_CCD(const std::string& path, bool image_memcache);
- virtual ~CDAccess_CCD();
+ ~CDAccess_CCD();
 
- virtual bool Read_Raw_Sector(uint8 *buf, int32 lba);
+ bool Read_Raw_Sector(uint8 *buf, int32 lba);
 
- virtual bool Fast_Read_Raw_PW_TSRE(uint8* pwbuf, int32 lba);
+ bool Fast_Read_Raw_PW_TSRE(uint8* pwbuf, int32 lba);
 
- virtual bool Read_TOC(TOC *toc);
+ bool Read_TOC(TOC *toc);
+
+ /* CDAccess vtable base.  MUST be the first member - see comment
+  * in CDAccess.h. */
+ CDAccess base;
 
  private:
 
@@ -49,3 +53,5 @@ class CDAccess_CCD : public CDAccess
  size_t img_numsectors;
  TOC tocd;
 };
+
+extern "C" CDAccess *CDAccess_CCD_New(const char *path, bool image_memcache);

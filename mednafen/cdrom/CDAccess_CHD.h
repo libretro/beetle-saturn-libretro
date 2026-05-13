@@ -49,18 +49,21 @@ struct CHDFILE_TRACK_INFO
 
 };
 
-class CDAccess_CHD : public CDAccess
+class CDAccess_CHD
 {
  public:
 
  CDAccess_CHD(const std::string& path, bool image_memcache);
- virtual ~CDAccess_CHD();
+ ~CDAccess_CHD();
 
- virtual bool Read_Raw_Sector(uint8 *buf, int32 lba);
+ bool Read_Raw_Sector(uint8 *buf, int32 lba);
 
- virtual bool Fast_Read_Raw_PW_TSRE(uint8* pwbuf, int32 lba);
+ bool Fast_Read_Raw_PW_TSRE(uint8* pwbuf, int32 lba);
 
- virtual bool Read_TOC(TOC *toc);
+ bool Read_TOC(TOC *toc);
+
+ /* CDAccess vtable base.  MUST be the first member. */
+ CDAccess base;
 
  private:
 
@@ -90,3 +93,5 @@ class CDAccess_CHD : public CDAccess
   /* last hunknum read */
   int oldhunk;
 };
+
+extern "C" CDAccess *CDAccess_CHD_New(const char *path, bool image_memcache);

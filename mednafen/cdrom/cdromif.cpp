@@ -260,7 +260,7 @@ int CDIF_MT::ReadThreadStart()
    ra_count = 0;
    last_read_lba = LBA_Read_Maximum + 1;
 
-   disc_cdaccess->Read_TOC(&disc_toc);
+   disc_cdaccess->Read_TOC(disc_cdaccess, &disc_toc);
 
    if(disc_toc.first_track < 1 || disc_toc.last_track > 99 || disc_toc.first_track > disc_toc.last_track)
    {
@@ -327,7 +327,7 @@ int CDIF_MT::ReadThreadStart()
          uint8_t tmpbuf[2352 + 96];
          bool error_condition = false;
 
-         disc_cdaccess->Read_Raw_Sector(tmpbuf, ra_lba);
+         disc_cdaccess->Read_Raw_Sector(disc_cdaccess, tmpbuf, ra_lba);
 
          slock_lock(SBMutex);
 
@@ -385,7 +385,7 @@ CDIF_MT::~CDIF_MT()
    }
 
    if (disc_cdaccess)
-      delete disc_cdaccess;
+      disc_cdaccess->destroy(disc_cdaccess);
 }
 
 bool CDIF::ValidateRawSector(uint8_t *buf)
@@ -445,7 +445,7 @@ bool CDIF_MT::ReadRawSectorPWOnly(uint8_t* pwbuf, int32_t lba, bool hint_fullrea
       return(false);
    }
 
-   if(disc_cdaccess->Fast_Read_Raw_PW_TSRE(pwbuf, lba))
+   if(disc_cdaccess->Fast_Read_Raw_PW_TSRE(disc_cdaccess, pwbuf, lba))
    {
       if(hint_fullread)
          ReadThreadQueue.Write(CDIF_Message(CDIF_MSG_READ_SECTOR, lba));
@@ -513,7 +513,7 @@ int CDIF::ReadSector(uint8_t* buf, int32_t lba, uint32_t sector_count)
 
 CDIF_ST::CDIF_ST(CDAccess *cda) : disc_cdaccess(cda)
 {
-   disc_cdaccess->Read_TOC(&disc_toc);
+   disc_cdaccess->Read_TOC(disc_cdaccess, &disc_toc);
 
    if(disc_toc.first_track < 1 || disc_toc.last_track > 99 || disc_toc.first_track > disc_toc.last_track)
    {
@@ -524,7 +524,7 @@ CDIF_ST::CDIF_ST(CDAccess *cda) : disc_cdaccess(cda)
 CDIF_ST::~CDIF_ST()
 {
    if (disc_cdaccess)
-      delete disc_cdaccess;
+      disc_cdaccess->destroy(disc_cdaccess);
 }
 
 void CDIF_ST::HintReadSector(int32_t lba)
@@ -540,7 +540,7 @@ bool CDIF_ST::ReadRawSector(uint8_t *buf, int32_t lba)
       return(false);
    }
 
-   disc_cdaccess->Read_Raw_Sector(buf, lba);
+   disc_cdaccess->Read_Raw_Sector(disc_cdaccess, buf, lba);
 
    return(true);
 }
@@ -553,7 +553,7 @@ bool CDIF_ST::ReadRawSectorPWOnly(uint8_t* pwbuf, int32_t lba, bool hint_fullrea
       return(false);
    }
 
-   if(disc_cdaccess->Fast_Read_Raw_PW_TSRE(pwbuf, lba))
+   if(disc_cdaccess->Fast_Read_Raw_PW_TSRE(disc_cdaccess, pwbuf, lba))
       return(true);
    else
    {
@@ -569,8 +569,10 @@ bool CDIF_ST::ReadRawSectorPWOnly(uint8_t* pwbuf, int32_t lba, bool hint_fullrea
 
 CDIF *CDIF_Open(const std::string& path, bool image_memcache)
 {
-   CDAccess *cda = CDAccess_Open(path, image_memcache);
+   CDAccess *cda = CDAccess_Open(path.c_str(), image_memcache);
 
+   if(!cda)
+      return NULL;
    if(!image_memcache)
       return new CDIF_MT(cda);
    return new CDIF_ST(cda);

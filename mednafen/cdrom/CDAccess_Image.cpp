@@ -1268,3 +1268,58 @@ void CDAccess_Image::GenerateTOC(void)
 }
 
 
+/* ---------------------------------------------------------------- */
+/* CDAccess vtable adapters.                                        */
+/* Each function-pointer slot from struct CDAccess gets a static    */
+/* wrapper that downcasts the base pointer back to CDAccess_Image   */
+/* and forwards to the member function of the same name.  At -O2    */
+/* the wrapper collapses to a tail call.                            */
+/* ---------------------------------------------------------------- */
+
+static bool CDAccess_Image_RRS_vt(CDAccess *base, uint8_t *buf, int32_t lba)
+{
+   /* CDAccess base is the first member, so base == &self->base. */
+   CDAccess_Image *self = (CDAccess_Image *)base;
+   return self->Read_Raw_Sector(buf, lba);
+}
+
+static bool CDAccess_Image_FRPT_vt(CDAccess *base, uint8_t *pwbuf, int32_t lba)
+{
+   CDAccess_Image *self = (CDAccess_Image *)base;
+   return self->Fast_Read_Raw_PW_TSRE(pwbuf, lba);
+}
+
+static bool CDAccess_Image_RTOC_vt(CDAccess *base, TOC *toc)
+{
+   CDAccess_Image *self = (CDAccess_Image *)base;
+   return self->Read_TOC(toc);
+}
+
+static void CDAccess_Image_destroy_vt(CDAccess *base)
+{
+   CDAccess_Image *self = (CDAccess_Image *)base;
+   delete self;
+}
+
+extern "C" CDAccess *CDAccess_Image_New(const char *path, bool image_memcache)
+{
+   CDAccess_Image *self;
+   try
+   {
+      self = new CDAccess_Image(std::string(path), image_memcache);
+   }
+   catch (...)
+   {
+      /* The C++ ctor calls ImageOpen() which can throw.  In the old
+       * dispatch the exception propagated out of CDAccess_Open;
+       * here we swallow it and report failure as a NULL return so
+       * the C boundary stays clean. */
+      return NULL;
+   }
+
+   self->base.Read_Raw_Sector       = CDAccess_Image_RRS_vt;
+   self->base.Fast_Read_Raw_PW_TSRE = CDAccess_Image_FRPT_vt;
+   self->base.Read_TOC              = CDAccess_Image_RTOC_vt;
+   self->base.destroy               = CDAccess_Image_destroy_vt;
+   return &self->base;
+}

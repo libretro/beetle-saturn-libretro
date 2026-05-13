@@ -50,18 +50,23 @@ class stl_array {
    const T*  data() const  { return m_data; }
 };
 
-class CDAccess_Image : public CDAccess
+class CDAccess_Image
 {
    public:
 
       CDAccess_Image(const std::string& path, bool image_memcache);
-      virtual ~CDAccess_Image();
+      ~CDAccess_Image();
 
-      virtual bool Read_Raw_Sector(uint8_t *buf, int32_t lba);
+      bool Read_Raw_Sector(uint8_t *buf, int32_t lba);
 
-      virtual bool Fast_Read_Raw_PW_TSRE(uint8_t* pwbuf, int32_t lba);
+      bool Fast_Read_Raw_PW_TSRE(uint8_t* pwbuf, int32_t lba);
 
-      virtual bool Read_TOC(TOC *toc);
+      bool Read_TOC(TOC *toc);
+
+      /* CDAccess vtable base.  MUST be the first member so the
+       * dispatch function pointers in CDAccess.h can be reached
+       * via a CDAccess* alias of this object's address. */
+      CDAccess base;
 
    private:
 
@@ -89,5 +94,8 @@ class CDAccess_Image : public CDAccess
       uint32_t GetSectorCount(CDRFILE_TRACK_INFO *track);
 };
 
+/* C-callable factory used by CDAccess.c.  Returns NULL on failure
+ * (catches the ImageOpen exception). */
+extern "C" CDAccess *CDAccess_Image_New(const char *path, bool image_memcache);
 
 #endif

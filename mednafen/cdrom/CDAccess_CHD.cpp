@@ -470,3 +470,50 @@ bool CDAccess_CHD::Read_TOC(TOC *toc)
   *toc = this->toc;
   return true;
 }
+
+/* ---------------------------------------------------------------- */
+/* CDAccess vtable adapters.                                        */
+/* ---------------------------------------------------------------- */
+
+static bool CDAccess_CHD_RRS_vt(CDAccess *base, uint8_t *buf, int32_t lba)
+{
+   CDAccess_CHD *self = (CDAccess_CHD *)base;
+   return self->Read_Raw_Sector(buf, lba);
+}
+
+static bool CDAccess_CHD_FRPT_vt(CDAccess *base, uint8_t *pwbuf, int32_t lba)
+{
+   CDAccess_CHD *self = (CDAccess_CHD *)base;
+   return self->Fast_Read_Raw_PW_TSRE(pwbuf, lba);
+}
+
+static bool CDAccess_CHD_RTOC_vt(CDAccess *base, TOC *toc)
+{
+   CDAccess_CHD *self = (CDAccess_CHD *)base;
+   return self->Read_TOC(toc);
+}
+
+static void CDAccess_CHD_destroy_vt(CDAccess *base)
+{
+   CDAccess_CHD *self = (CDAccess_CHD *)base;
+   delete self;
+}
+
+extern "C" CDAccess *CDAccess_CHD_New(const char *path, bool image_memcache)
+{
+   CDAccess_CHD *self;
+   try
+   {
+      self = new CDAccess_CHD(std::string(path), image_memcache);
+   }
+   catch (...)
+   {
+      return NULL;
+   }
+
+   self->base.Read_Raw_Sector       = CDAccess_CHD_RRS_vt;
+   self->base.Fast_Read_Raw_PW_TSRE = CDAccess_CHD_FRPT_vt;
+   self->base.Read_TOC              = CDAccess_CHD_RTOC_vt;
+   self->base.destroy               = CDAccess_CHD_destroy_vt;
+   return &self->base;
+}
