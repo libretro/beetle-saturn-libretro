@@ -171,8 +171,7 @@ SOURCES_CXX += \
 # now header-only (PSX-style, with the MDFN_PixelFormat class removed)
 # and the deinterlacer is C, not C++. See mednafen/video/{surface.h,
 # Deinterlacer.h, Deinterlacer.c}.
-SOURCES_C += $(MEDNAFEN_DIR)/mednafen-endian.c \
-		$(MEDNAFEN_DIR)/cdstream.c \
+SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
 		$(MEDNAFEN_DIR)/video/Deinterlacer.c
 
 SOURCES_CXX += \
