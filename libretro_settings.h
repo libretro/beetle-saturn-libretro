@@ -35,5 +35,6 @@ extern bool opposite_directions;
 extern bool setting_midsync;
 extern bool setting_mpeg_card;
 extern bool setting_jit_scu;
+extern bool setting_jit_scsp;
 
 #endif

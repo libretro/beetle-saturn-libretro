@@ -171,6 +171,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "enabled"
    },
    {
+      "beetle_saturn_jit_scsp",
+      "SCSP DSP JIT Binary Translator",
+      NULL,
+      "Use the native aarch64 JIT binary translator for the SCSP DSP (MPROG). Has no effect on non-aarch64 builds. Restart required.",
+      NULL,
+      "system",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "enabled"
+   },
+   {
       "beetle_saturn_initial_scanline",
       "Initial Scanline",
       NULL,

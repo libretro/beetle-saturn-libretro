@@ -246,6 +246,7 @@ struct SS_SCSP_Timer
  * across instances and TUs; no aliasing concern). */
 static const uint16_t SS_SCSP_SB_XOR_Table[4] = { 0x0000, 0x7FFF, 0x8000, 0xFFFF };
 
+
 struct SS_SCSP
 {
  /* RunSample's `template<typename T_out = int16_t>` form
