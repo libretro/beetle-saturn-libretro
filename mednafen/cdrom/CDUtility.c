@@ -17,7 +17,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include "../mednafen.h"
 #include "CDUtility.h"
 #include "dvdisaster.h"
 #include "lec.h"
@@ -231,14 +230,14 @@ void subpw_interleave(const uint8_t *in_buf, uint8_t *out_buf)
 //  and the leadout entry together before extracting the D2 bit.  Audio track->data leadout is fairly benign though maybe noisy(especially if we ever implement
 //  data scrambling properly), but data track->audio leadout could break things in an insidious manner for the more accurate drive emulation code).
 //
-void subpw_synth_leadout_lba(const TOC& toc, const int32_t lba, uint8_t* SubPWBuf)
+void subpw_synth_leadout_lba(const TOC *toc, const int32_t lba, uint8_t* SubPWBuf)
 {
    uint8_t buf[0xC];
    uint32_t lba_relative;
    uint32_t ma, sa, fa;
    uint32_t m, s, f;
 
-   lba_relative = lba - toc.tracks[100].lba;
+   lba_relative = lba - toc->tracks[100].lba;
 
    f = (lba_relative % 75);
    s = ((lba_relative / 75) % 60);
@@ -249,11 +248,11 @@ void subpw_synth_leadout_lba(const TOC& toc, const int32_t lba, uint8_t* SubPWBu
    ma = ((lba + 150) / 75 / 60);
 
    uint8_t adr = 0x1; // Q channel data encodes position
-   uint8_t control = toc.tracks[100].control;
+   uint8_t control = toc->tracks[100].control;
 
-   if(toc.tracks[toc.last_track].valid)
-      control |= toc.tracks[toc.last_track].control & 0x4;
-   else if(toc.disc_type == DISC_TYPE_CD_I)
+   if(toc->tracks[toc->last_track].valid)
+      control |= toc->tracks[toc->last_track].control & 0x4;
+   else if(toc->disc_type == DISC_TYPE_CD_I)
       control |= 0x4;
 
    memset(buf, 0, 0xC);
@@ -279,7 +278,7 @@ void subpw_synth_leadout_lba(const TOC& toc, const int32_t lba, uint8_t* SubPWBu
       SubPWBuf[i] = (((buf[i >> 3] >> (7 - (i & 0x7))) & 1) ? 0x40 : 0x00) | 0x80;
 }
 
-void synth_leadout_sector_lba(uint8_t mode, const TOC& toc, const int32_t lba, uint8_t* out_buf)
+void synth_leadout_sector_lba(uint8_t mode, const TOC *toc, const int32_t lba, uint8_t* out_buf)
 {
    memset(out_buf, 0, 2352 + 96);
    subpw_synth_leadout_lba(toc, lba, out_buf + 2352);
@@ -288,7 +287,7 @@ void synth_leadout_sector_lba(uint8_t mode, const TOC& toc, const int32_t lba, u
    {
       if(mode == 0xFF) 
       {
-         if(toc.disc_type == DISC_TYPE_CD_XA || toc.disc_type == DISC_TYPE_CD_I)
+         if(toc->disc_type == DISC_TYPE_CD_XA || toc->disc_type == DISC_TYPE_CD_I)
             mode = 0x02;
          else
             mode = 0x01;
@@ -315,7 +314,7 @@ void synth_leadout_sector_lba(uint8_t mode, const TOC& toc, const int32_t lba, u
 
 // ISO/IEC 10149:1995 (E): 20.2
 //
-void subpw_synth_udapp_lba(const TOC& toc, const int32_t lba, const int32_t lba_subq_relative_offs, uint8_t* SubPWBuf)
+void subpw_synth_udapp_lba(const TOC *toc, const int32_t lba, const int32_t lba_subq_relative_offs, uint8_t* SubPWBuf)
 {
    uint8_t buf[0xC];
    uint32_t lba_relative;
@@ -342,16 +341,16 @@ void subpw_synth_udapp_lba(const TOC& toc, const int32_t lba, const int32_t lba_
    uint8_t adr = 0x1; // Q channel data encodes position
    uint8_t control;
 
-   if(toc.disc_type == DISC_TYPE_CD_I && toc.first_track > 1)
+   if(toc->disc_type == DISC_TYPE_CD_I && toc->first_track > 1)
       control = 0x4;
-   else if(toc.tracks[toc.first_track].valid)
-      control = toc.tracks[toc.first_track].control;
+   else if(toc->tracks[toc->first_track].valid)
+      control = toc->tracks[toc->first_track].control;
    else
       control = 0x0;
 
    memset(buf, 0, 0xC);
    buf[0] = (adr << 0) | (control << 4);
-   buf[1] = U8_to_BCD(toc.first_track);
+   buf[1] = U8_to_BCD(toc->first_track);
    buf[2] = U8_to_BCD(0x00);
 
    // Track relative MSF address
@@ -372,7 +371,7 @@ void subpw_synth_udapp_lba(const TOC& toc, const int32_t lba, const int32_t lba_
       SubPWBuf[i] = (((buf[i >> 3] >> (7 - (i & 0x7))) & 1) ? 0x40 : 0x00) | 0x80;
 }
 
-void synth_udapp_sector_lba(uint8_t mode, const TOC& toc, const int32_t lba, int32_t lba_subq_relative_offs, uint8_t* out_buf)
+void synth_udapp_sector_lba(uint8_t mode, const TOC *toc, const int32_t lba, int32_t lba_subq_relative_offs, uint8_t* out_buf)
 {
    memset(out_buf, 0, 2352 + 96);
    subpw_synth_udapp_lba(toc, lba, lba_subq_relative_offs, out_buf + 2352);
@@ -381,7 +380,7 @@ void synth_udapp_sector_lba(uint8_t mode, const TOC& toc, const int32_t lba, int
    {
       if(mode == 0xFF) 
       {
-         if(toc.disc_type == DISC_TYPE_CD_XA || toc.disc_type == DISC_TYPE_CD_I)
+         if(toc->disc_type == DISC_TYPE_CD_XA || toc->disc_type == DISC_TYPE_CD_I)
             mode = 0x02;
          else
             mode = 0x01;
