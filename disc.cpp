@@ -448,15 +448,17 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 {
 	md5_context mctx;
 	uint8_t buf[2048];
+	size_t x;
 
 	log_cb(RETRO_LOG_INFO, "Calculating game ID (%d discs)\n", CDInterfaces.size() );
 
 	mctx.starts();
 
-	for(size_t x = 0; x < CDInterfaces.size(); x++)
+	for(x = 0; x < CDInterfaces.size(); x++)
 	{
 		CDIF *c = CDInterfaces[x];
 		TOC toc;
+		unsigned i;
 
 		CDIF_ReadTOC(c, &toc);
 
@@ -464,17 +466,17 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 		mctx.update_u32_as_lsb(toc.last_track);
 		mctx.update_u32_as_lsb(toc.disc_type);
 
-		for(unsigned i = 1; i <= 100; i++)
+		for(i = 1; i <= 100; i++)
 		{
-			const auto& t = toc.tracks[i];
+			const TOC_Track* t = &toc.tracks[i];
 
-			mctx.update_u32_as_lsb(t.adr);
-			mctx.update_u32_as_lsb(t.control);
-			mctx.update_u32_as_lsb(t.lba);
-			mctx.update_u32_as_lsb(t.valid);
+			mctx.update_u32_as_lsb(t->adr);
+			mctx.update_u32_as_lsb(t->control);
+			mctx.update_u32_as_lsb(t->lba);
+			mctx.update_u32_as_lsb(t->valid);
 		}
 
-		for(unsigned i = 0; i < 512; i++)
+		for(i = 0; i < 512; i++)
 		{
 			if(CDIF_ReadSector(c, (uint8_t*)&buf[0], i, 1) >= 0x1)
 			{
@@ -517,7 +519,8 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 
 void disc_cleanup(void)
 {
-	for(unsigned i = 0; i < CDInterfaces.size(); i++) {
+	unsigned i;
+	for(i = 0; i < CDInterfaces.size(); i++) {
 		CDIF_Close(CDInterfaces[i]);
 	}
 	CDInterfaces.clear();
@@ -534,22 +537,28 @@ bool DetectRegion( unsigned* region )
 	// from ReadSector() / IsSaturnDisc() can't leak the 32 KiB buffer.
 	std::vector<uint8_t> buf(2048 * 16);
 	uint64_t possible_regions = 0;
+	size_t ci;
+	size_t rsi;
+	const size_t region_strings_count = sizeof(region_strings) / sizeof(region_strings[0]);
 
-	for(auto& c : CDInterfaces)
+	for(ci = 0; ci < CDInterfaces.size(); ci++)
 	{
+		CDIF* c = CDInterfaces[ci];
+		unsigned i;
+
 		if(CDIF_ReadSector(c, &buf[0], 0, 16) != 0x1)
 			continue;
 
 		if(!IsSaturnDisc(&buf[0]))
 			continue;
 
-		for(unsigned i = 0; i < 16; i++)
+		for(i = 0; i < 16; i++)
 		{
-			for(auto const& rs : region_strings)
+			for(rsi = 0; rsi < region_strings_count; rsi++)
 			{
-				if(rs.c == buf[0x40 + i])
+				if(region_strings[rsi].c == buf[0x40 + i])
 				{
-					possible_regions |= (uint64_t)1 << rs.region;
+					possible_regions |= (uint64_t)1 << region_strings[rsi].region;
 					break;
 				}
 			}
@@ -558,12 +567,12 @@ bool DetectRegion( unsigned* region )
 		break;
 	}
 
-	for(auto const& rs : region_strings)
+	for(rsi = 0; rsi < region_strings_count; rsi++)
 	{
-		if(possible_regions & ((uint64_t)1 << rs.region))
+		if(possible_regions & ((uint64_t)1 << region_strings[rsi].region))
 		{
-			log_cb(RETRO_LOG_INFO, "Disc Region: \"%s\"\n", rs.str );
-			*region = rs.region;
+			log_cb(RETRO_LOG_INFO, "Disc Region: \"%s\"\n", region_strings[rsi].str );
+			*region = region_strings[rsi].region;
 			return true;
 		}
 	}
@@ -579,12 +588,18 @@ bool DiscSanityChecks(void)
 	for( i = 0; i < CDInterfaces.size(); i++ )
 	{
 		TOC toc;
+		int32_t track;
 
 		CDIF_ReadTOC(CDInterfaces[i], &toc);
 
 		// For each track
-		for( int32_t track = 1; track <= 99; track++)
+		for( track = 1; track <= 99; track++)
 		{
+			const int32_t start_lba = toc.tracks[track].lba;
+			const int32_t end_lba = start_lba + 32 - 1;
+			bool any_subq_curpos = false;
+			int32_t lba;
+
 			if(!toc.tracks[track].valid)
 				continue;
 
@@ -595,11 +610,7 @@ bool DiscSanityChecks(void)
 			//
 			//
 
-			const int32_t start_lba = toc.tracks[track].lba;
-			const int32_t end_lba = start_lba + 32 - 1;
-			bool any_subq_curpos = false;
-
-			for(int32_t lba = start_lba; lba <= end_lba; lba++)
+			for(lba = start_lba; lba <= end_lba; lba++)
 			{
 				uint8_t pwbuf[96];
 				uint8_t qbuf[12];
@@ -687,8 +698,9 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 			if ( !strcasecmp( content_ext, ".m3u" ) )
 			{
 				// multiple discs
+				unsigned i;
 				ReadM3U(disk_image_paths, content_name);
-				for(unsigned i = 0; i < disk_image_paths.size(); i++)
+				for(i = 0; i < disk_image_paths.size(); i++)
 				{
 					char image_label[4096];
 					image_label[0] = '\0';
@@ -757,15 +769,19 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 	}
 
 	// Print out a track list for all discs.
-	for(unsigned i = 0; i < CDInterfaces.size(); i++)
 	{
-		TOC toc;
-		CDIF_ReadTOC(CDInterfaces[i], &toc);
-		log_cb(RETRO_LOG_DEBUG, "Disc %d\n", i + 1);
-		for(int32_t track = toc.first_track; track <= toc.last_track; track++) {
-			log_cb(RETRO_LOG_DEBUG, "- Track %2d, LBA: %6d  %s\n", track, toc.tracks[track].lba, (toc.tracks[track].control & 0x4) ? "DATA" : "AUDIO");
+		unsigned i;
+		for(i = 0; i < CDInterfaces.size(); i++)
+		{
+			TOC toc;
+			int32_t track;
+			CDIF_ReadTOC(CDInterfaces[i], &toc);
+			log_cb(RETRO_LOG_DEBUG, "Disc %d\n", i + 1);
+			for(track = toc.first_track; track <= toc.last_track; track++) {
+				log_cb(RETRO_LOG_DEBUG, "- Track %2d, LBA: %6d  %s\n", track, toc.tracks[track].lba, (toc.tracks[track].control & 0x4) ? "DATA" : "AUDIO");
+			}
+			log_cb(RETRO_LOG_DEBUG, "Leadout: %6d\n", toc.tracks[100].lba);
 		}
-		log_cb(RETRO_LOG_DEBUG, "Leadout: %6d\n", toc.tracks[100].lba);
 	}
 
 	log_cb(RETRO_LOG_DEBUG, "Calculating layout MD5.\n");
@@ -773,11 +789,13 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 	// its own, or to use it to look up a game in its database.
 	{
 		md5_context layout_md5;
+		unsigned i;
 		layout_md5.starts();
 
-		for( unsigned i = 0; i < CDInterfaces.size(); i++ )
+		for( i = 0; i < CDInterfaces.size(); i++ )
 		{
 			TOC toc;
+			uint32_t track;
 
 			CDIF_ReadTOC(CDInterfaces[i], &toc);
 
@@ -785,7 +803,7 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 			layout_md5.update_u32_as_lsb(toc.last_track);
 			layout_md5.update_u32_as_lsb(toc.tracks[100].lba);
 
-			for(uint32_t track = toc.first_track; track <= toc.last_track; track++)
+			for(track = toc.first_track; track <= toc.last_track; track++)
 			{
 				layout_md5.update_u32_as_lsb(toc.tracks[track].lba);
 				layout_md5.update_u32_as_lsb(toc.tracks[track].control & 0x4);
