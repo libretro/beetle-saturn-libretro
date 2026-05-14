@@ -25,7 +25,7 @@
 
 #include "common.h"
 #include "ar4mp.h"
-#include <memory>
+#include <stdlib.h>
 
 static bool FLASH_Dirty;
 
@@ -107,24 +107,36 @@ static MDFN_COLD void Kill(void)
 {
  if(FLASH)
  {
-  delete[] FLASH;
-  FLASH = nullptr;
+  free(FLASH);
+  FLASH = NULL;
  }
 
  if(ExtRAM)
  {
-  delete[] ExtRAM;
-  ExtRAM = nullptr;
+  free(ExtRAM);
+  ExtRAM = NULL;
  }
 }
 
 void CART_AR4MP_Init(CartInfo* c, RFILE* str)
 {
- std::unique_ptr<uint16_t[]> new_FLASH(new uint16_t[0x20000]);
- std::unique_ptr<uint16_t[]> new_ExtRAM(new uint16_t[0x200000]);
+ /* Was a pair of std::unique_ptr<uint16_t[]> that owned the buffers
+  * until setup finished and then .release()d ownership to the raw
+  * FLASH / ExtRAM globals -- RAII guarding the path between
+  * allocation and hand-off. There is no early return on that path,
+  * and with exceptions gone from the tree the guard is unnecessary:
+  * allocate straight into the globals. Kill() frees them. */
+ FLASH  = (uint16_t*)malloc(0x20000 * sizeof(uint16_t));
+ ExtRAM = (uint16_t*)malloc(0x200000 * sizeof(uint16_t));
 
- FLASH = new_FLASH.get();
- ExtRAM = new_ExtRAM.get();
+ if(!FLASH || !ExtRAM)
+ {
+  free(FLASH);
+  free(ExtRAM);
+  FLASH  = NULL;
+  ExtRAM = NULL;
+  return;
+ }
  //
  //
  filestream_read(str, FLASH, 0x40000);
@@ -156,8 +168,4 @@ void CART_AR4MP_Init(CartInfo* c, RFILE* str)
  c->StateAction = StateAction;
  c->Reset = Reset;
  c->Kill = Kill;
- //
- //
- new_FLASH.release();
- new_ExtRAM.release();
 }

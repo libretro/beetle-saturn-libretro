@@ -22,7 +22,6 @@
 #include "ss.h"
 #include <mednafen/mednafen.h>
 #include <mednafen/hash/crc.h>
-#include <memory>
 #include "ak93c45.h"
 
 #include "stvio.h"
@@ -243,7 +242,10 @@ void STVIO_Reset(bool powering_up)
 */
 static void InitEEPROM(const STVGameInfo* sgi)
 {
- std::unique_ptr<uint8_t[]> rom_data(new uint8_t[0x1000]);
+ /* 4 KiB scratch buffer, lifetime entirely within this function --
+  * was a std::unique_ptr<uint8_t[]> purely for RAII over new[]. A
+  * plain stack array is simpler and allocation-free. */
+ uint8_t rom_data[0x1000];
  unsigned cab_players = 2;
  uint16_t crc16, settings;
  uint8_t tmp[0x80];
@@ -253,7 +255,7 @@ static void InitEEPROM(const STVGameInfo* sgi)
   for(uint32_t offs = 0; offs < 0x1000; offs++)
    rom_data[offs] = CART_STV_PeekROM((offs << i) | i | (!i << 21));
 
-  if(!memcmp(rom_data.get(), "SEGA ST-V(TITAN)", 16))
+  if(!memcmp(rom_data, "SEGA ST-V(TITAN)", 16))
    break;
   else if(!i)
   {
@@ -318,8 +320,8 @@ static void InitEEPROM(const STVGameInfo* sgi)
  tmp[0x1A] = settings >> 8;
  tmp[0x1B] = settings;
 
- memcpy(tmp + 0x1C, rom_data.get() + 0xF40, 0x2);
- memcpy(tmp + 0x1E, rom_data.get() + 0xF48, 0x8);
+ memcpy(tmp + 0x1C, rom_data + 0xF40, 0x2);
+ memcpy(tmp + 0x1E, rom_data + 0xF48, 0x8);
 
  crc16 = crc16_ccitt(0x5A81, tmp + 0x0C, 0x38 - 0x02);
  /* MDFN_de16msb folded: 2 BE bytes -> host uint16_t.  This is the
