@@ -73,16 +73,7 @@ SOURCES_CXX += \
 	$(CORE_EMU_DIR)/vdp2_render.cpp \
 	$(CORE_EMU_DIR)/smpc.cpp \
 	$(CORE_EMU_DIR)/stvio.cpp \
-	$(CORE_EMU_DIR)/ak93c45.cpp \
-	$(CORE_EMU_DIR)/input/gamepad.cpp \
-	$(CORE_EMU_DIR)/input/gun.cpp \
-	$(CORE_EMU_DIR)/input/3dpad.cpp \
-	$(CORE_EMU_DIR)/input/mouse.cpp \
-	$(CORE_EMU_DIR)/input/multitap.cpp \
-	$(CORE_EMU_DIR)/input/mission.cpp \
-	$(CORE_EMU_DIR)/input/keyboard.cpp \
-	$(CORE_EMU_DIR)/input/jpkeyboard.cpp \
-	$(CORE_EMU_DIR)/input/wheel.cpp
+	$(CORE_EMU_DIR)/ak93c45.cpp
 
 SOURCES_CXX += \
 	       $(CORE_EMU_DIR)/cart/backup.cpp \
@@ -95,6 +86,10 @@ SOURCES_CXX += \
 
 # CRC helpers used by the ST-V port (game DB fingerprinting + EEPROM seed).
 SOURCES_C += $(MEDNAFEN_DIR)/hash/crc.c
+
+# The Saturn input-device hierarchy, converted from the C++ class
+# hierarchy in input/*.{cpp,h} to a single C translation unit.
+SOURCES_C += $(CORE_EMU_DIR)/smpc_iodevice.c
 
 SOURCES_CXX += $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k.cpp
 

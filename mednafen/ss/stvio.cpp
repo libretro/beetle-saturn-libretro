@@ -28,7 +28,7 @@
 #include "smpc.h"
 #include "sound.h"
 
-#include "input/gun.h"
+#include "smpc_iodevice.h"
 
 #include "cart.h"
 #include "cart/stv.h"
@@ -50,7 +50,7 @@ static uint8_t prev_sctrl;
 static uint8_t prev_ectrl;
 static AK93C45 eep;
 
-static IODevice_Gun gun;
+static IODevice *gun = NULL;
 
 void STVIO_SetInput(unsigned port, const char* type, uint8_t* ptr)
 {
@@ -73,7 +73,7 @@ void STVIO_SetInput(unsigned port, const char* type, uint8_t* ptr)
 void STVIO_SetCrosshairsColor(unsigned port, uint32_t color)
 {
  if(!port)
-  gun.SetCrosshairsColor(color);
+  IODevice_Gun_SetCrosshairsColor(gun, color);
 }
 
 void STVIO_TransformInput(void)
@@ -126,7 +126,7 @@ void STVIO_UpdateInput(int32_t elapsed_time)
   //
   //
   //
-  gun.UpdateInput(tmp_data, elapsed_time);
+  gun->vt->UpdateInput(gun, tmp_data, elapsed_time);
  }
  else
  {
@@ -192,7 +192,7 @@ void STVIO_Reset(bool powering_up)
  if(powering_up)
  {
   eep.Power();
-  gun.Power();
+  gun->vt->Power(gun);
  }
  //
  if(powering_up)
@@ -347,6 +347,9 @@ void STVIO_Init(const STVGameInfo* sgi)
 
  eep.Init();
 
+ IODevice_Free(gun);
+ gun = IODevice_Gun_Create();
+
  InitEEPROM(sgi);
  //
  prev_sctrl = 0xFF;	// Don't change
@@ -454,99 +457,123 @@ void STVIO_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 }
 
 
-template<bool sport>
-class IODevice_STVSMPC final : public IODevice
+/* The ST-V SMPC port shim. Was a template<bool sport> class deriving
+   from IODevice; with IODevice now a C vtable struct, this becomes a
+   plain struct embedding IODevice, with `sport` as a field rather
+   than a template parameter. Two instances are constructed (sport 0
+   and 1) and handed to the SMPC via SMPC_SetInput(..., "extern", ...).
+   Only TransformInput / SetTSFreq / ResetTS / UpdateBus / Draw are
+   overridden; the remaining vtable slots reuse IODevice_base_vtable's
+   implementations. */
+
+typedef struct
 {
- public:
+   IODevice base;
+   bool     sport;
+} IODevice_STVSMPC;
 
- virtual void TransformInput(uint8_t* const data, float gun_x_scale, float gun_x_offs) const override;
- virtual void SetTSFreq(const int32_t rate) override;
-
- virtual void ResetTS(void) override;
-
- virtual uint8_t UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted) override;
- virtual void Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const override;
-};
-
-template<bool sport>
-void IODevice_STVSMPC<sport>::SetTSFreq(const int32_t rate)
+static void IODevice_STVSMPC_SetTSFreq(IODevice *self_, const int32_t rate)
 {
- if(!sport)
-  eep.SetTSFreq(rate);
+   IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
+   if(!self->sport)
+      eep.SetTSFreq(rate);
 }
 
-template<bool sport>
-void IODevice_STVSMPC<sport>::ResetTS(void)
+static void IODevice_STVSMPC_ResetTS(IODevice *self_)
 {
- if(!sport)
-  eep.ResetTS();
+   IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
+   if(!self->sport)
+      eep.ResetTS();
 }
 
-template<bool sport>
-void IODevice_STVSMPC<sport>::TransformInput(uint8_t* const data, float gun_x_scale, float gun_x_offs) const
+static void IODevice_STVSMPC_TransformInput(IODevice *self_, uint8_t *data, float gun_x_scale, float gun_x_offs)
 {
- if((ControlScheme == STV_CONTROL_HAMMER) && !sport && DPtr[0])
-  gun.TransformInput(DPtr[0], gun_x_scale, gun_x_offs);
+   IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
+   (void)data;
+   if((ControlScheme == STV_CONTROL_HAMMER) && !self->sport && DPtr[0])
+      gun->vt->TransformInput(gun, DPtr[0], gun_x_scale, gun_x_offs);
 }
 
-template<bool sport>
-void IODevice_STVSMPC<sport>::Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const
+static void IODevice_STVSMPC_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, float gun_x_scale, float gun_x_offs)
 {
- if((ControlScheme == STV_CONTROL_HAMMER) && !sport && DPtr[0])
- {
-  gun.Draw(surface, drect, lw, ifield, gun_x_scale, gun_x_offs);
- }
+   IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
+   if((ControlScheme == STV_CONTROL_HAMMER) && !self->sport && DPtr[0])
+      gun->vt->Draw(gun, surface, drect, lw, ifield, gun_x_scale, gun_x_offs);
 }
 
-template<bool sport>
-uint8_t IODevice_STVSMPC<sport>::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
+static uint8_t IODevice_STVSMPC_UpdateBus(IODevice *self_, const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
- uint8_t tmp = 0x7F;
+   IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
+   uint8_t tmp = 0x7F;
 
- if(!sport)
- {
-  const uint8_t cur_ectrl = smpc_out & 0x1C;
+   if(!self->sport)
+   {
+      const uint8_t cur_ectrl = smpc_out & 0x1C;
 
-  eep.UpdateBus(timestamp, (bool)(cur_ectrl & 0x04), (bool)(cur_ectrl & 0x08), (bool)(cur_ectrl & 0x10));
+      eep.UpdateBus(timestamp, (bool)(cur_ectrl & 0x04), (bool)(cur_ectrl & 0x08), (bool)(cur_ectrl & 0x10));
 
-  prev_ectrl = cur_ectrl;
+      prev_ectrl = cur_ectrl;
 
-  tmp &= ~0x23;
- }
- else
- {
-  const uint8_t cur_sctrl = smpc_out & 0x18;
+      tmp &= ~0x23;
+   }
+   else
+   {
+      const uint8_t cur_sctrl = smpc_out & 0x18;
 
-  tmp = (tmp &~ 1) | eep.UpdateBus(timestamp, (bool)(prev_ectrl & 0x04), (bool)(prev_ectrl & 0x08), (bool)(prev_ectrl & 0x10));
+      tmp = (tmp &~ 1) | eep.UpdateBus(timestamp, (bool)(prev_ectrl & 0x04), (bool)(prev_ectrl & 0x08), (bool)(prev_ectrl & 0x10));
 
-  if(prev_sctrl != cur_sctrl)	// Be careful with prev_sctrl init value if changing this code.
-  {
-   if((prev_sctrl ^ cur_sctrl) & 0x10)
-    SOUND_Reset68K();
+      if(prev_sctrl != cur_sctrl)	// Be careful with prev_sctrl init value if changing this code.
+      {
+         if((prev_sctrl ^ cur_sctrl) & 0x10)
+            SOUND_Reset68K();
 
-   if((prev_sctrl ^ cur_sctrl) & 0x08)
-    SOUND_ResetSCSP();
+         if((prev_sctrl ^ cur_sctrl) & 0x08)
+            SOUND_ResetSCSP();
 
-   SOUND_Set68KActive(cur_sctrl == 0x00); // FIXME: probably not totally correct.
-  }
+         SOUND_Set68KActive(cur_sctrl == 0x00); // FIXME: probably not totally correct.
+      }
 
-  prev_sctrl = cur_sctrl;
- }
+      prev_sctrl = cur_sctrl;
+   }
 
- if((ControlScheme == STV_CONTROL_HAMMER) && !sport)
- {
-  tmp &= gun.UpdateBus(timestamp, smpc_out, smpc_out_asserted) | ~0x40;
- }
+   if((ControlScheme == STV_CONTROL_HAMMER) && !self->sport)
+   {
+      tmp &= gun->vt->UpdateBus(gun, timestamp, smpc_out, smpc_out_asserted) | ~0x40;
+   }
 
- return (smpc_out & smpc_out_asserted) | (tmp &~ smpc_out_asserted);
+   return (smpc_out & smpc_out_asserted) | (tmp &~ smpc_out_asserted);
 }
 
+/* Built once, lazily, on first STVIO_GetSMPCDevice call: copy the
+   base vtable, override the five ST-V slots. */
+static IODevice_VTable IODevice_STVSMPC_vtable;
+static bool            IODevice_STVSMPC_vtable_built = false;
 
 IODevice* STVIO_GetSMPCDevice(bool sport)
 {
- static IODevice_STVSMPC<0> p0;
- static IODevice_STVSMPC<1> p1;
+   static IODevice_STVSMPC p0;
+   static IODevice_STVSMPC p1;
 
- return sport ? (IODevice*)&p1 : (IODevice*)&p0;
+   if(!IODevice_STVSMPC_vtable_built)
+   {
+      IODevice_STVSMPC_vtable                = IODevice_base_vtable;
+      IODevice_STVSMPC_vtable.TransformInput = IODevice_STVSMPC_TransformInput;
+      IODevice_STVSMPC_vtable.SetTSFreq      = IODevice_STVSMPC_SetTSFreq;
+      IODevice_STVSMPC_vtable.ResetTS        = IODevice_STVSMPC_ResetTS;
+      IODevice_STVSMPC_vtable.UpdateBus      = IODevice_STVSMPC_UpdateBus;
+      IODevice_STVSMPC_vtable.Draw           = IODevice_STVSMPC_Draw;
+
+      IODevice_Ctor(&p0.base);
+      p0.base.vt = &IODevice_STVSMPC_vtable;
+      p0.sport   = false;
+
+      IODevice_Ctor(&p1.base);
+      p1.base.vt = &IODevice_STVSMPC_vtable;
+      p1.sport   = true;
+
+      IODevice_STVSMPC_vtable_built = true;
+   }
+
+   return sport ? &p1.base : &p0.base;
 }
 

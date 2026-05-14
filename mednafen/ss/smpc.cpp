@@ -40,17 +40,6 @@
 #include "cdb.h"
 #include "scu.h"
 
-#include "input/gamepad.h"
-#include "input/3dpad.h"
-#include "input/mouse.h"
-#include "input/wheel.h"
-#include "input/mission.h"
-#include "input/gun.h"
-#include "input/keyboard.h"
-#include "input/jpkeyboard.h"
-
-#include "input/multitap.h"
-
 #include "sh7095.h"
 
 enum
@@ -209,44 +198,34 @@ static IODevice* IOPorts[2];
 
 static struct
 {
- IODevice none;
- IODevice_Gamepad gamepad;
- IODevice_3DPad threedpad;
- IODevice_Mouse mouse;
- IODevice_Wheel wheel;
- IODevice_Mission mission{false};
- IODevice_Mission dualmission{true};
- IODevice_Gun gun;
- IODevice_Keyboard keyboard;
- IODevice_JPKeyboard jpkeyboard;
+ IODevice* none;
+ IODevice* gamepad;
+ IODevice* threedpad;
+ IODevice* mouse;
+ IODevice* wheel;
+ IODevice* mission;
+ IODevice* dualmission;
+ IODevice* gun;
+ IODevice* keyboard;
+ IODevice* jpkeyboard;
 } PossibleDevices[12];
 
-static IODevice_Multitap PossibleMultitaps[2];
+static IODevice* PossibleMultitaps[2];
 
-static IODevice_Multitap* SPorts[2];
+static IODevice* SPorts[2];
 static IODevice* VirtualPorts[12];
 static uint8_t* VirtualPortsDPtr[12];
 static uint8_t* MiscInputPtr;
 
-IODevice::IODevice() { }
-IODevice::~IODevice() { }
-void IODevice::Power(void) { }
-void IODevice::TransformInput(uint8_t* const data, float gun_x_scale, float gun_x_offs) const { }
-void IODevice::UpdateInput(const uint8_t* data, const int32_t time_elapsed) { }
-void IODevice::UpdateOutput(uint8_t* data) { }
-void IODevice::StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname_prefix) { }
-void IODevice::Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const { }
-uint8_t IODevice::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted) { return smpc_out; }
-
-void IODevice::ResetTS(void) { if(NextEventTS < SS_EVENT_DISABLED_TS) { NextEventTS -= LastTS; assert(NextEventTS >= 0); } LastTS = 0; }
-void IODevice::SetTSFreq(const int32_t rate) { }
-void IODevice::LineHook(const sscpu_timestamp_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj) { }
+/* The base IODevice implementations (the empty Power/UpdateInput/etc.,
+   the smpc_out-passthrough UpdateBus, the TS-rebasing ResetTS) now
+   live in smpc_iodevice.c as IODevice_base_* / IODevice_base_vtable. */
 //
 //
 
 static void UpdateIOBus(unsigned port, const sscpu_timestamp_t timestamp)
 {
- IOBusState[port] = IOPorts[port]->UpdateBus(timestamp, (DataOut[port][DirectModeEn[port]] | ~DataDir[port][DirectModeEn[port]]) & 0x7F, DataDir[port][DirectModeEn[port]]);
+ IOBusState[port] = IOPorts[port]->vt->UpdateBus(IOPorts[port], timestamp, (DataOut[port][DirectModeEn[port]] | ~DataDir[port][DirectModeEn[port]]) & 0x7F, DataDir[port][DirectModeEn[port]]);
  assert(!(IOBusState[port] & 0x80));
 
  {
@@ -270,10 +249,10 @@ static void MapPorts(void)
     IODevice* const tsd = VirtualPorts[vp++];
     if (!tsd) continue; // libretro fix - patch for multi-tap set on startup.
 
-    if(SPorts[sp]->GetSubDevice(i) != tsd)
-     tsd->Power();
+    if(IODevice_Multitap_GetSubDevice(SPorts[sp], i) != tsd)
+     tsd->vt->Power(tsd);
 
-    SPorts[sp]->SetSubDevice(i, tsd);
+    IODevice_Multitap_SetSubDevice(SPorts[sp], i, tsd);
    }
 
    nd = SPorts[sp];
@@ -291,7 +270,7 @@ static void MapPorts(void)
   // call here. The in-multitap-loop branch already has an analogous
   // `if (!tsd) continue;` guard; mirror it on the non-multitap branch.
   if(nd && IOPorts[sp] != nd)
-   nd->Power();
+   nd->vt->Power(nd);
 
   IOPorts[sp] = nd;
  }
@@ -301,7 +280,7 @@ void SMPC_SetMultitap(unsigned sport, bool enabled)
 {
  assert(sport < 2);
 
- SPorts[sport] = (enabled ? &PossibleMultitaps[sport] : nullptr);
+ SPorts[sport] = (enabled ? PossibleMultitaps[sport] : nullptr);
  MapPorts();
 }
 
@@ -309,7 +288,7 @@ void SMPC_SetCrosshairsColor(unsigned port, uint32_t color)
 {
  assert(port < 12);
 
- PossibleDevices[port].gun.SetCrosshairsColor(color);
+ IODevice_Gun_SetCrosshairsColor(PossibleDevices[port].gun, color);
 }
 
 void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr)
@@ -327,25 +306,25 @@ void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr)
  IODevice* nd = nullptr;
 
  if(!strcmp(type, "none"))
-  nd = &PossibleDevices[port].none;
+  nd = PossibleDevices[port].none;
  else if(!strcmp(type, "gamepad"))
-  nd = &PossibleDevices[port].gamepad;
+  nd = PossibleDevices[port].gamepad;
  else if(!strcmp(type, "3dpad"))
-  nd = &PossibleDevices[port].threedpad;
+  nd = PossibleDevices[port].threedpad;
  else if(!strcmp(type, "mouse"))
-  nd = &PossibleDevices[port].mouse;
+  nd = PossibleDevices[port].mouse;
  else if(!strcmp(type, "wheel"))
-  nd = &PossibleDevices[port].wheel;
+  nd = PossibleDevices[port].wheel;
  else if(!strcmp(type, "mission") || !strcmp(type, "missionwoa"))
-  nd = &PossibleDevices[port].mission;
+  nd = PossibleDevices[port].mission;
  else if(!strcmp(type, "dmission") || !strcmp(type, "dmissionwoa"))
-  nd = &PossibleDevices[port].dualmission;
+  nd = PossibleDevices[port].dualmission;
  else if(!strcmp(type, "gun"))
-  nd = &PossibleDevices[port].gun;
+  nd = PossibleDevices[port].gun;
  else if(!strcmp(type, "keyboard"))
-  nd = &PossibleDevices[port].keyboard;
+  nd = PossibleDevices[port].keyboard;
  else if(!strcmp(type, "jpkeyboard"))
-  nd = &PossibleDevices[port].jpkeyboard;
+  nd = PossibleDevices[port].jpkeyboard;
  else if(!strcmp(type, "extern"))
  {
   // ST-V uses this to inject its own IODevice (the SMPC port shim that
@@ -438,6 +417,42 @@ void SMPC_Init(const uint8_t area_code_arg, const int32_t master_clock_arg, bool
  vsync = false;
  lastts = 0;
 
+ /* (Re)create the input devices. SMPC_Init runs on every game load
+    and there is no SMPC_Kill, so free any from a previous load first;
+    IODevice_Free is NULL-safe, so the first call (zeroed statics) is
+    fine. The devices are owned here; IOPorts/VirtualPorts/SPorts hold
+    borrowed pointers into these arrays and must not free them. */
+ for(unsigned port = 0; port < 12; port++)
+ {
+  IODevice_Free(PossibleDevices[port].none);
+  IODevice_Free(PossibleDevices[port].gamepad);
+  IODevice_Free(PossibleDevices[port].threedpad);
+  IODevice_Free(PossibleDevices[port].mouse);
+  IODevice_Free(PossibleDevices[port].wheel);
+  IODevice_Free(PossibleDevices[port].mission);
+  IODevice_Free(PossibleDevices[port].dualmission);
+  IODevice_Free(PossibleDevices[port].gun);
+  IODevice_Free(PossibleDevices[port].keyboard);
+  IODevice_Free(PossibleDevices[port].jpkeyboard);
+
+  PossibleDevices[port].none        = IODevice_None_Create();
+  PossibleDevices[port].gamepad     = IODevice_Gamepad_Create();
+  PossibleDevices[port].threedpad   = IODevice_3DPad_Create();
+  PossibleDevices[port].mouse       = IODevice_Mouse_Create();
+  PossibleDevices[port].wheel       = IODevice_Wheel_Create();
+  PossibleDevices[port].mission     = IODevice_Mission_Create(false);
+  PossibleDevices[port].dualmission = IODevice_Mission_Create(true);
+  PossibleDevices[port].gun         = IODevice_Gun_Create();
+  PossibleDevices[port].keyboard    = IODevice_Keyboard_Create();
+  PossibleDevices[port].jpkeyboard  = IODevice_JPKeyboard_Create();
+ }
+
+ for(unsigned sp = 0; sp < 2; sp++)
+ {
+  IODevice_Free(PossibleMultitaps[sp]);
+  PossibleMultitaps[sp] = IODevice_Multitap_Create();
+ }
+
  for(unsigned sp = 0; sp < 2; sp++)
  { 
   SPorts[sp]  = nullptr;
@@ -513,7 +528,7 @@ void SMPC_Reset(bool powering_up)
   //
   if(powering_up)
   {
-   IOPorts[port]->Power();
+   IOPorts[port]->vt->Power(IOPorts[port]);
    UpdateIOBus(port, SH7095_mem_timestamp);
   }
  }
@@ -624,7 +639,7 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
  {
   const char snp[] = { 'S', 'M', 'P', 'C', '_', 'P', (char)('0' + port), 0 };
 
-  IOPorts[port]->StateAction(sm, load, data_only, snp);
+  IOPorts[port]->vt->StateAction(IOPorts[port], sm, load, data_only, snp);
  }
 
  if(load)
@@ -675,7 +690,7 @@ void SMPC_TransformInput(void)
  VDP2::GetGunXTranslation(((PendingClockDivisor > 0) ? PendingClockDivisor : CurrentClockDivisor) == CLOCK_DIVISOR_28M, &gun_x_scale, &gun_x_offs);
 
  for(unsigned vp = 0; vp < 12; vp++)
-  VirtualPorts[vp]->TransformInput(VirtualPortsDPtr[vp], gun_x_scale, gun_x_offs);
+  VirtualPorts[vp]->vt->TransformInput(VirtualPorts[vp], VirtualPortsDPtr[vp], gun_x_scale, gun_x_offs);
 }
 
 void SMPC_ProcessSlaveOffOn(void)
@@ -717,7 +732,7 @@ void SMPC_EndFrame(EmulateSpecStruct* espec, const sscpu_timestamp_t timestamp)
  for(unsigned i = 0; i < 2; i++)
  {
   if(SPorts[i])
-   SPorts[i]->ForceSubUpdate(timestamp);
+   IODevice_Multitap_ForceSubUpdate(SPorts[i], timestamp);
  }
 
  if(!espec->skip)
@@ -728,7 +743,7 @@ void SMPC_EndFrame(EmulateSpecStruct* espec, const sscpu_timestamp_t timestamp)
 
   for(unsigned i = 0; i < 2; i++)
   {
-   IOPorts[i]->Draw(espec->surface, espec->DisplayRect, espec->LineWidths, espec->InterlaceOn ? espec->InterlaceField : -1, gun_x_scale, gun_x_offs);
+   IOPorts[i]->vt->Draw(IOPorts[i], espec->surface, &espec->DisplayRect, espec->LineWidths, espec->InterlaceOn ? espec->InterlaceField : -1, gun_x_scale, gun_x_offs);
   }
  }
 }
@@ -737,7 +752,7 @@ void SMPC_UpdateOutput(void)
 {
  for(unsigned vp = 0; vp < 12; vp++)
  {
-  VirtualPorts[vp]->UpdateOutput(VirtualPortsDPtr[vp]);
+  VirtualPorts[vp]->vt->UpdateOutput(VirtualPorts[vp], VirtualPortsDPtr[vp]);
  }
 }
 
@@ -748,7 +763,7 @@ void SMPC_UpdateInput(const int32_t time_elapsed)
  for(unsigned vp = 0; vp < 12; vp++)
  {
   if (VirtualPorts[vp])
-   VirtualPorts[vp]->UpdateInput(VirtualPortsDPtr[vp], time_elapsed);
+   VirtualPorts[vp]->vt->UpdateInput(VirtualPorts[vp], VirtualPortsDPtr[vp], time_elapsed);
  }
 }
 
@@ -882,7 +897,7 @@ uint8_t SMPC_Read(const sscpu_timestamp_t timestamp, uint8_t A)
 void SMPC_ResetTS(void)
 {
  for(unsigned p = 0; p < 2; p++)
-  IOPorts[p]->ResetTS();
+  IOPorts[p]->vt->ResetTS(IOPorts[p]);
 
  lastts = 0;
 }
@@ -1560,8 +1575,8 @@ void SMPC_SetVBVS(sscpu_timestamp_t event_timestamp, bool vb_status, bool vsync_
 
 void SMPC_LineHook(sscpu_timestamp_t event_timestamp, int32_t out_line, int32_t div, int32_t coord_adj)
 {
- IOPorts[0]->LineHook(event_timestamp, out_line, div, coord_adj);
- IOPorts[1]->LineHook(event_timestamp, out_line, div, coord_adj);
+ IOPorts[0]->vt->LineHook(IOPorts[0], event_timestamp, out_line, div, coord_adj);
+ IOPorts[1]->vt->LineHook(IOPorts[1], event_timestamp, out_line, div, coord_adj);
  //
  //
  sscpu_timestamp_t nets = ((sscpu_timestamp_t)(events[SS_EVENT_SMPC].event_time) < (sscpu_timestamp_t)(((sscpu_timestamp_t)(IOPorts[0]->NextEventTS) < (sscpu_timestamp_t)(IOPorts[1]->NextEventTS) ? (sscpu_timestamp_t)(IOPorts[0]->NextEventTS) : (sscpu_timestamp_t)(IOPorts[1]->NextEventTS))) ? (sscpu_timestamp_t)(events[SS_EVENT_SMPC].event_time) : (sscpu_timestamp_t)(((sscpu_timestamp_t)(IOPorts[0]->NextEventTS) < (sscpu_timestamp_t)(IOPorts[1]->NextEventTS) ? (sscpu_timestamp_t)(IOPorts[0]->NextEventTS) : (sscpu_timestamp_t)(IOPorts[1]->NextEventTS))));
