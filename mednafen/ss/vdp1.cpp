@@ -449,7 +449,14 @@ bool SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textu
   if(clipped)
    p1 = p0;
   else if(swapped)
-   std::swap(p0, p1);
+  {
+   /* std::swap(p0, p1) folded; braces are required -- this is an
+    * unbraced else-if body, so the three swap statements must be a
+    * block or only the first would bind to the else-if. */
+   line_vertex tmp_v = p0;
+   p0 = p1;
+   p1 = tmp_v;
+  }
  }
 
  *cycle_counter += 8;
@@ -1463,7 +1470,13 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   }
 
   if(tmp_abs_dy_gt_abs_dx)
-   std::swap(LineInnerData.xy_inc[0], LineInnerData.xy_inc[1]);
+  {
+   /* std::swap(xy_inc[0], xy_inc[1]) folded; braced because this is
+    * an unbraced if body. */
+   int32_t tmp_xy = LineInnerData.xy_inc[0];
+   LineInnerData.xy_inc[0] = LineInnerData.xy_inc[1];
+   LineInnerData.xy_inc[1] = tmp_xy;
+  }
  }
 }
 

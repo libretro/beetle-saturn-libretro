@@ -33,7 +33,6 @@
 
 #include "../../disc.h"
 
-#include <bitset>
 #include <retro_miscellaneous.h>
 
 extern MDFNGI EmulatedSS;
@@ -117,7 +116,32 @@ static uint32_t SH7095_DB;
 
 static sha256_digest BIOS_SHA256;   // SHA-256 hash of the currently-loaded BIOS; used for save state sanity checks.
 static int ActiveCartType;		// Used in save states.
-static std::bitset<1U << (27 - SH7095_EXT_MAP_GRAN_BITS)> FMIsWriteable;
+/* Was std::bitset<1U << (27 - SH7095_EXT_MAP_GRAN_BITS)>. With
+ * SH7095_EXT_MAP_GRAN_BITS == 16 that is 1 << 11 == 2048 bits; a
+ * plain uint32_t[64] packed bitfield with three inline accessors
+ * replaces it. Only ever indexed one bit at a time, set, or fully
+ * cleared. */
+#define FMISWRITEABLE_BITS (1U << (27 - SH7095_EXT_MAP_GRAN_BITS))
+static uint32_t FMIsWriteable[FMISWRITEABLE_BITS / 32];
+
+static INLINE bool FMIsWriteable_get(uint32_t i)
+{
+ return (FMIsWriteable[i >> 5] >> (i & 31)) & 1;
+}
+
+static INLINE void FMIsWriteable_set(uint32_t i, bool v)
+{
+ const uint32_t mask = (uint32_t)1 << (i & 31);
+ if(v)
+  FMIsWriteable[i >> 5] |= mask;
+ else
+  FMIsWriteable[i >> 5] &= ~mask;
+}
+
+static INLINE void FMIsWriteable_reset(void)
+{
+ memset(FMIsWriteable, 0, sizeof(FMIsWriteable));
+}
 static uint16_t fmap_dummy[(1U << SH7095_EXT_MAP_GRAN_BITS) / sizeof(uint16_t)];
 
 /*
@@ -424,7 +448,7 @@ static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
 {
  A &= (1U << 27) - 1;
 
- if(FMIsWriteable[A >> SH7095_EXT_MAP_GRAN_BITS])
+ if(FMIsWriteable_get(A >> SH7095_EXT_MAP_GRAN_BITS))
  {
   /* ne16_wbo_be<uint8_t>(base, A, V) folded. */
 #ifdef MSB_FIRST
@@ -462,7 +486,7 @@ static void SetFastMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_
   uintptr_t tmp = (uintptr_t)ptr + ((A - Astart) % length);
 
   if(A < (1U << 27))
-   FMIsWriteable[A >> SH7095_EXT_MAP_GRAN_BITS] = is_writeable;
+   FMIsWriteable_set(A >> SH7095_EXT_MAP_GRAN_BITS, is_writeable);
 
   SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS] = tmp - A;
  }
@@ -475,7 +499,7 @@ static MDFN_COLD void InitFastMemMap(void)
   fmap_dummy[i] = 0;
  }
 
- FMIsWriteable.reset();
+ FMIsWriteable_reset();
  MDFNMP_Init(1ULL << SH7095_EXT_MAP_GRAN_BITS, (1ULL << 27) / (1ULL << SH7095_EXT_MAP_GRAN_BITS));
 
  for(uint64_t A = 0; A < 1ULL << 32; A += (1U << SH7095_EXT_MAP_GRAN_BITS))
@@ -1007,7 +1031,13 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
  const uint64_t vdp2_affinity = 0; /*LibRetro: unused*/
 
    if(sls > sle)
-      std::swap(sls, sle);
+   {
+      /* std::swap(sls, sle) folded; braced because this is an
+       * unbraced if body. */
+      int tmp_sl = sls;
+      sls = sle;
+      sle = tmp_sl;
+   }
 
    if(is_stv)
    {
@@ -1367,8 +1397,25 @@ INLINE void EventsPacker::Save(void)
  }
 
  // event_order is the schedule order Restore() validates; equal times tie-break by index.
- std::stable_sort(event_order, event_order + (eventcopy_bound - eventcopy_first),
-  [](uint8_t a, uint8_t b) { return events[a].event_time < events[b].event_time; });
+ // Was std::stable_sort with a lambda comparator. The array is tiny
+ // (SS_EVENT__SYNLAST - SS_EVENT__SYNFIRST - 1 entries) and insertion
+ // sort is stable, so equal event_times keep their original index
+ // order -- the same tie-break std::stable_sort gave.
+ {
+  size_t i, j;
+  const size_t n = eventcopy_bound - eventcopy_first;
+  for(i = 1; i < n; i++)
+  {
+   const uint8_t key = event_order[i];
+   j = i;
+   while(j > 0 && events[event_order[j - 1]].event_time > events[key].event_time)
+   {
+    event_order[j] = event_order[j - 1];
+    j--;
+   }
+   event_order[j] = key;
+  }
+ }
 }
 
 INLINE bool EventsPacker::Restore(const unsigned state_version)
