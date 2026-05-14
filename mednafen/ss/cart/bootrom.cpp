@@ -62,6 +62,7 @@ bool CART_BootROM_Init(CartInfo* c, RFILE* str)
  uint32_t ROM_Size;
  sha256_hasher h;
  sha256_digest dig;
+ sha256_hasher_init(&h);
  unsigned i;
 
  if(ss < min_size)
@@ -88,9 +89,9 @@ bool CART_BootROM_Init(CartInfo* c, RFILE* str)
  ROM = new uint16_t[ROM_Size / sizeof(uint16_t)];
  memset(ROM, 0x00, ROM_Size);
  filestream_read(str, ROM, ss);
- h.process(ROM, ss);
- dig = h.digest();
- memcpy(MDFNGameInfo->MD5, dig.data(), 16);
+ sha256_hasher_process(&h, ROM, ss);
+ dig = sha256_hasher_digest(&h);
+ memcpy(MDFNGameInfo->MD5, dig.b, 16);
 
  for(i = 0; i < ROM_Size / sizeof(uint16_t); i++)
  {

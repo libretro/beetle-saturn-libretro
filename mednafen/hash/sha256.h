@@ -22,98 +22,58 @@
 #ifndef __MDFN_SHA256_H
 #define __MDFN_SHA256_H
 
-#include <array>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <retro_inline.h>
 
-typedef std::array<uint8_t, 32> sha256_digest;
-class sha256_hasher
+/* Formerly C++: sha256_digest was std::array<uint8_t,32> and
+   sha256_hasher was a class. Converted to a plain struct + free
+   functions.
+
+   std::array gave digests value-semantics (copy, ==/!=) plus
+   .data()/.size(). The struct keeps copy-assignment for free; in
+   place of the rest, callers use sha256_digest_eq() for comparison
+   and the .b member (with sizeof) for the raw bytes.
+
+   Dropped as part of the conversion, all of it dead or C++-only:
+     - constexpr operator""_sha256 (user-defined literal)
+     - sha256_test() -- its only consumer was the _sha256 literal
+     - process_scalar / process_cstr -- unused template helpers */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct
 {
- public:
+   uint8_t b[32];
+} sha256_digest;
 
- sha256_hasher();
-
- void reset(void);
-
- void process(const void* data, size_t len);
-
- INLINE void process_cstr(const char* s)
- {
-  return process(s, strlen(s));
- }
-
- template<typename T>
- INLINE void process_scalar(const T v)
- {
-  if(std::is_same<T, bool>::value)
-  {
-   uint8_t tmp = v;
-
-   process(&tmp, 1);
-  }
-  else
-  {
-   alignas(T) uint8_t tmp[sizeof(T)];
-
-   /* MDFN_enlsb folded inline: size-dispatched LE byte store.
-    * Only ever instantiated for T sizes 2 or 4 - other sizes are
-    * a no-op same as before. */
-   if(sizeof(v[0]) == 2)
-   {
-    uint16_t val__ = *(const uint16_t*)v;
-    tmp[0] = val__;
-    tmp[1] = val__ >> 8;
-   }
-   else if(sizeof(v[0]) == 4)
-   {
-    uint32_t val__ = *(const uint32_t*)v;
-    tmp[0] = val__;
-    tmp[1] = val__ >> 8;
-    tmp[2] = val__ >> 16;
-    tmp[3] = val__ >> 24;
-   }
-
-   process(tmp, sizeof(tmp));
-  }
- }
-
- sha256_digest digest(void) const;
-
- private:
-
- void process_block(const uint8_t* data);
- std::array<uint32_t, 8> h;
-
- uint8_t buf[64];
- size_t buf_count;
-
- uint64_t bytes_processed;
-};
-
-void sha256_test(void);
-sha256_digest sha256(const void* data, const uint64_t len);
-
-static INLINE constexpr uint8_t sha256_cton(char c)
+typedef struct
 {
- return ((c >= 'A' && c <= 'F') ? c - 'A' + 0xa : ((c >= 'a' && c <= 'f') ? c - 'a' + 0xa : c - '0'));
+   uint32_t h[8];
+   uint8_t  buf[64];
+   size_t   buf_count;
+   uint64_t bytes_processed;
+} sha256_hasher;
+
+/* One-shot hash of a buffer. */
+sha256_digest sha256(const void *data, uint64_t len);
+
+/* Incremental hasher. */
+void          sha256_hasher_init(sha256_hasher *st);
+void          sha256_hasher_process(sha256_hasher *st, const void *data, size_t len);
+sha256_digest sha256_hasher_digest(const sha256_hasher *st);
+
+/* 1 if the two digests are equal, else 0. */
+static INLINE int sha256_digest_eq(const sha256_digest *a, const sha256_digest *b)
+{
+   return !memcmp(a->b, b->b, sizeof(a->b));
 }
 
-static INLINE constexpr uint8_t sha256_cton2(char c, char d)
-{
- return (sha256_cton(c) << 4) | (sha256_cton(d) << 0);
+#ifdef __cplusplus
 }
-
-static INLINE constexpr sha256_digest operator "" _sha256(const char *s, std::size_t sz)
-{
- //static_assert(sz == 65, "Malformed SHA-256 string.");
- return /*(sz == 65 ? (void)0 : abort()),*/ sha256_digest({{ sha256_cton2(s[0], s[1]), sha256_cton2(s[2], s[3]), sha256_cton2(s[4], s[5]), sha256_cton2(s[6], s[7]),
-		      sha256_cton2(s[8], s[9]), sha256_cton2(s[10], s[11]), sha256_cton2(s[12], s[13]), sha256_cton2(s[14], s[15]),
-		      sha256_cton2(s[16], s[17]), sha256_cton2(s[18], s[19]), sha256_cton2(s[20], s[21]), sha256_cton2(s[22], s[23]),
-		      sha256_cton2(s[24], s[25]), sha256_cton2(s[26], s[27]), sha256_cton2(s[28], s[29]), sha256_cton2(s[30], s[31]),
-		      sha256_cton2(s[32], s[33]), sha256_cton2(s[34], s[35]), sha256_cton2(s[36], s[37]), sha256_cton2(s[38], s[39]),
-		      sha256_cton2(s[40], s[41]), sha256_cton2(s[42], s[43]), sha256_cton2(s[44], s[45]), sha256_cton2(s[46], s[47]),
-		      sha256_cton2(s[48], s[49]), sha256_cton2(s[50], s[51]), sha256_cton2(s[52], s[53]), sha256_cton2(s[54], s[55]),
-		      sha256_cton2(s[56], s[57]), sha256_cton2(s[58], s[59]), sha256_cton2(s[60], s[61]), sha256_cton2(s[62], s[63]), }
-		    });
-}
-
+#endif
 
 #endif

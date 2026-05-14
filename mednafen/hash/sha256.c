@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen - Multi-system Emulator                                           */
 /******************************************************************************/
-/* sha256.cpp:
+/* sha256.c:
 **  Copyright (C) 2014-2017 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -19,12 +19,23 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include <mednafen/mednafen.h>
+/* Converted from C++ to C: sha256_digest (std::array) and
+ * sha256_hasher (class) are now plain structs; the methods are
+ * sha256_hasher_* free functions. The template<unsigned n> rotr
+ * helper became a plain rotr(x, n) -- it was only ever instantiated
+ * with compile-time-constant n, and the compiler still folds a
+ * constant rotate. */
+
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <retro_inline.h>
+
 #include "sha256.h"
 
-#include <stdio.h>
-#include <string.h>
-
+#ifndef MDFN_LIKELY
+#define MDFN_LIKELY(x) (x)
+#endif
 
 static const uint32_t K[64] =
 {
@@ -38,8 +49,7 @@ static const uint32_t K[64] =
  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 };
 
-template<unsigned n>
-static INLINE uint32_t rotr(const uint32_t val)
+static INLINE uint32_t rotr(const uint32_t val, const unsigned n)
 {
  return (val >> n) | (val << (32 - n));
 }
@@ -56,40 +66,44 @@ static INLINE uint32_t maj(const uint32_t x, const uint32_t y, const uint32_t z)
 
 static INLINE uint32_t bs0(const uint32_t x)
 {
- return rotr<2>(x) ^ rotr<13>(x) ^ rotr<22>(x);
+ return rotr(x, 2) ^ rotr(x, 13) ^ rotr(x, 22);
 }
 
 static INLINE uint32_t bs1(const uint32_t x)
 {
- return rotr<6>(x) ^ rotr<11>(x) ^ rotr<25>(x);
+ return rotr(x, 6) ^ rotr(x, 11) ^ rotr(x, 25);
 }
 
 static INLINE uint32_t ls0(const uint32_t x)
 {
- return rotr<7>(x) ^ rotr<18>(x) ^ (x >> 3);
+ return rotr(x, 7) ^ rotr(x, 18) ^ (x >> 3);
 }
 
 static INLINE uint32_t ls1(const uint32_t x)
 {
- return rotr<17>(x) ^ rotr<19>(x) ^ (x >> 10);
+ return rotr(x, 17) ^ rotr(x, 19) ^ (x >> 10);
 }
 
-static INLINE void block(std::array<uint32_t, 8> &h, void* blk_data)
+static INLINE void block(uint32_t h[8], const void *blk_data)
 {
- alignas(16) uint32_t w[64];
- alignas(16) auto v = h;
+ uint32_t w[64];
+ uint32_t v[8];
+ unsigned t, i;
 
- for(unsigned t = 0; t < 16; t++)
+ for(i = 0; i < 8; i++)
+  v[i] = h[i];
+
+ for(t = 0; t < 16; t++)
  {
   /* MDFN_de32msb folded: 4 BE bytes -> host uint32_t. */
   const uint8_t *bp__ = (const uint8_t*)blk_data + (t << 2);
   w[t] = ((uint32_t)bp__[0] << 24) | ((uint32_t)bp__[1] << 16) | ((uint32_t)bp__[2] << 8) | (uint32_t)bp__[3];
  }
 
- for(unsigned t = 16; t < 64; t++)
+ for(t = 16; t < 64; t++)
   w[t] = ls1(w[t - 2]) + w[t - 7] + ls0(w[t - 15]) + w[t - 16];
 
- for(unsigned t = 0; t < 64; t++)
+ for(t = 0; t < 64; t++)
  {
   uint32_t T1 = v[7] + bs1(v[4]) + ch(v[4], v[5], v[6]) + K[t] + w[t];
   uint32_t T2 = bs0(v[0]) + maj(v[0], v[1], v[2]);
@@ -104,16 +118,17 @@ static INLINE void block(std::array<uint32_t, 8> &h, void* blk_data)
   v[0] = T1 + T2;
  }
 
- for(unsigned i = 0; i < h.size(); i++)
+ for(i = 0; i < 8; i++)
   h[i] += v[i];
 }
 
 sha256_digest sha256(const void* data, const uint64_t len)
 {
  sha256_digest ret;
- alignas(16) std::array<uint32_t, 8> h({{ 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 }});
+ uint32_t h[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
  uint8_t* p = (uint8_t*)data;
  uint64_t dc = len;
+ unsigned i;
 
  while(MDFN_LIKELY(dc >= 64))
  {
@@ -124,7 +139,7 @@ sha256_digest sha256(const void* data, const uint64_t len)
  }
 
  {
-  alignas(16) uint8_t tmp[128];
+  uint8_t tmp[128];
 
   memcpy(tmp, p, dc);
   memset(tmp + dc, 0, 128 - dc);
@@ -150,103 +165,68 @@ sha256_digest sha256(const void* data, const uint64_t len)
    block(h, tmp + 64);
  }
 
- for(unsigned i = 0; i < 8; i++)
+ for(i = 0; i < 8; i++)
  {
   /* MDFN_en32msb folded: write host uint32_t as 4 BE bytes. */
   const uint32_t v__ = h[i];
-  ret[i * 4 + 0] = v__ >> 24;
-  ret[i * 4 + 1] = v__ >> 16;
-  ret[i * 4 + 2] = v__ >>  8;
-  ret[i * 4 + 3] = v__;
+  ret.b[i * 4 + 0] = v__ >> 24;
+  ret.b[i * 4 + 1] = v__ >> 16;
+  ret.b[i * 4 + 2] = v__ >>  8;
+  ret.b[i * 4 + 3] = v__;
  }
  return ret;
 }
 
-sha256_hasher::sha256_hasher()
+void sha256_hasher_init(sha256_hasher *st)
 {
- reset();
+ static const uint32_t h0[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
+ unsigned i;
+
+ st->buf_count = 0;
+ st->bytes_processed = 0;
+
+ for(i = 0; i < 8; i++)
+  st->h[i] = h0[i];
 }
 
-void sha256_hasher::reset(void)
-{
- buf_count = 0;
- bytes_processed = 0;
-
- h = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
-}
-
-INLINE void sha256_hasher::process_block(const uint8_t* blk_data)
-{
- alignas(16) uint32_t w[64];
- alignas(16) auto v = h;
-
- for(unsigned t = 0; t < 16; t++)
- {
-  /* MDFN_de32msb folded: 4 BE bytes -> host uint32_t. */
-  const uint8_t *bp__ = blk_data + (t << 2);
-  w[t] = ((uint32_t)bp__[0] << 24) | ((uint32_t)bp__[1] << 16) | ((uint32_t)bp__[2] << 8) | (uint32_t)bp__[3];
- }
-
- for(unsigned t = 16; t < 64; t++)
-  w[t] = ls1(w[t - 2]) + w[t - 7] + ls0(w[t - 15]) + w[t - 16];
-
- for(unsigned t = 0; t < 64; t++)
- {
-  uint32_t T1 = v[7] + bs1(v[4]) + ch(v[4], v[5], v[6]) + K[t] + w[t];
-  uint32_t T2 = bs0(v[0]) + maj(v[0], v[1], v[2]);
-
-  v[7] = v[6];
-  v[6] = v[5];
-  v[5] = v[4];
-  v[4] = v[3] + T1;
-  v[3] = v[2];
-  v[2] = v[1];
-  v[1] = v[0];
-  v[0] = T1 + T2;
- }
-
- for(unsigned i = 0; i < h.size(); i++)
-  h[i] += v[i];
-}
-
-void sha256_hasher::process(const void* data, size_t len)
+void sha256_hasher_process(sha256_hasher *st, const void* data, size_t len)
 {
  uint8_t* d8 = (uint8_t*)data;
 
- bytes_processed += len;
+ st->bytes_processed += len;
 
  while(len)
  {
-  if(buf_count || len < 0x40)
+  if(st->buf_count || len < 0x40)
   {
-   const size_t copy_len = ((size_t)(0x40 - buf_count) < (size_t)(len) ? (size_t)(0x40 - buf_count) : (size_t)(len));
+   const size_t copy_len = ((size_t)(0x40 - st->buf_count) < (size_t)(len) ? (size_t)(0x40 - st->buf_count) : (size_t)(len));
 
-   memcpy(&buf[buf_count], d8, copy_len);
+   memcpy(&st->buf[st->buf_count], d8, copy_len);
    len -= copy_len;
    d8 += copy_len;
-   buf_count += copy_len;
-   if(buf_count == 0x40)
+   st->buf_count += copy_len;
+   if(st->buf_count == 0x40)
    {
-    process_block(buf);
-    buf_count = 0;
+    block(st->h, st->buf);
+    st->buf_count = 0;
    }
   }
   else
   {
-   process_block(d8);
+   block(st->h, d8);
    d8 += 0x40;
    len -= 0x40;
   }
  }
 }
 
-
-sha256_digest sha256_hasher::digest(void) const
+sha256_digest sha256_hasher_digest(const sha256_hasher *st)
 {
  sha256_digest ret;
- sha256_hasher tmp = *this;
- const size_t footer_len = ((buf_count <= (0x40 - 9)) ? 0x40 : 0x80) - buf_count;
- alignas(16) uint8_t footer[0x80];
+ sha256_hasher tmp = *st;
+ const size_t footer_len = ((st->buf_count <= (0x40 - 9)) ? 0x40 : 0x80) - st->buf_count;
+ uint8_t footer[0x80];
+ unsigned i;
 
  memset(footer, 0, sizeof(footer));
  footer[0] |= 0x80;
@@ -255,7 +235,7 @@ sha256_digest sha256_hasher::digest(void) const
   * needed - explicit byte arithmetic gives BE bytes on any host). */
  {
   uint8_t *fp__ = &footer[footer_len - 8];
-  uint64_t v__ = bytes_processed * 8;
+  uint64_t v__ = st->bytes_processed * 8;
   fp__[0] = v__ >> 56;
   fp__[1] = v__ >> 48;
   fp__[2] = v__ >> 40;
@@ -266,45 +246,17 @@ sha256_digest sha256_hasher::digest(void) const
   fp__[7] = v__;
  }
 
- tmp.process(footer, footer_len);
+ sha256_hasher_process(&tmp, footer, footer_len);
 
- for(unsigned i = 0; i < 8; i++)
+ for(i = 0; i < 8; i++)
  {
   /* MDFN_en32msb folded: write host uint32_t as 4 BE bytes. */
   const uint32_t v__ = tmp.h[i];
-  ret[i * 4 + 0] = v__ >> 24;
-  ret[i * 4 + 1] = v__ >> 16;
-  ret[i * 4 + 2] = v__ >>  8;
-  ret[i * 4 + 3] = v__;
+  ret.b[i * 4 + 0] = v__ >> 24;
+  ret.b[i * 4 + 1] = v__ >> 16;
+  ret.b[i * 4 + 2] = v__ >>  8;
+  ret.b[i * 4 + 3] = v__;
  }
 
  return ret;
 }
-
-//sha256_digest goomba = "dccac470d07efd7f989c1f9a5045bc2cfe446622dbb50d4ad7f53996e574cd29"_sha256;
-void sha256_test(void)
-{
- char tv[256];
-
- for(unsigned i = 0; i < 256; i++)
-  tv[i] = i * 3;
-
- static const sha256_digest expected[6] =
- {
-  "16f868c5d6f278b54eacc307c56c0cd6ece81bb3784a531f0d6d75d4200c6fe6"_sha256,
-  "4ccac470d07efd7f989c1f9a5045bc2cfe446622dbb50d4ad7f53996e574cd29"_sha256,
-  "a9d56e4e0d999c82ac86ce58b6b711e95e40eaddceb3bbc2ee0dc213236d7056"_sha256,
-  "ab14676d2f0ce3b7cec24dfcab775b124f2c95dd42bea4fe6a7c7158f4c1788e"_sha256,
-  "1a0e0ecf84382961a85aa8629e98aefcfeffdcf0fd74a6dd49d55d9706477ab2"_sha256,
-  "fd833d1be324b92272bc7c17a0ee9cad152cae24c622082f912e4552afe6bdbd"_sha256
- };
-
- assert(sha256(tv, 55) == expected[0]);
- assert(sha256(tv, 56) == expected[1]);
- assert(sha256(tv, 57) == expected[2]);
- assert(sha256(tv, 63) == expected[3]);
- assert(sha256(tv, 64) == expected[4]);
- assert(sha256(tv, 65) == expected[5]);
-
-}
-

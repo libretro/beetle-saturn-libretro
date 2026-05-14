@@ -173,10 +173,8 @@ SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
 		$(MEDNAFEN_DIR)/settings.c \
 		$(CORE_DIR)/libretro_settings.c \
 		$(MEDNAFEN_DIR)/video/Deinterlacer.c \
-		$(MEDNAFEN_DIR)/hash/md5.c
-
-SOURCES_CXX += \
-		$(MEDNAFEN_DIR)/hash/sha256.cpp
+		$(MEDNAFEN_DIR)/hash/md5.c \
+		$(MEDNAFEN_DIR)/hash/sha256.c
 
 ifeq ($(HAVE_CHD), 1)
 ifneq ($(SYSTEM_LIBCHDR), 1)

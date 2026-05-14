@@ -1471,7 +1471,7 @@ extern "C" MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load
 
       SFORMAT SRDStateRegs[] =
       {
-         SFPTR8( sr_dig.data(), sr_dig.size() ),
+         SFPTR8( sr_dig.b, sizeof(sr_dig.b) ),
          SFVAR(cart_type),
          SFEND
       };
@@ -1481,7 +1481,7 @@ extern "C" MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load
 
       if ( load )
       {
-		 if ( sr_dig != BIOS_SHA256 ) {
+		 if ( !sha256_digest_eq(&sr_dig, &BIOS_SHA256) ) {
            log_cb( RETRO_LOG_WARN, "BIOS hash mismatch(save state created under a different BIOS)!\n" );
            return 0;
          }
