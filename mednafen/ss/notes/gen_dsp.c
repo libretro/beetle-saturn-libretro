@@ -1,6 +1,5 @@
 // g++ -Wall -O2 -o gen_dsp gen_dsp.cpp && ./gen_dsp
 #include <stdio.h>
-#include <algorithm>
 
 int main(int argc, char* argv[])
 {
