@@ -37,7 +37,7 @@
 #include <retro_miscellaneous.h>
 
 extern MDFNGI EmulatedSS;
-extern uint32 IBufferCount;
+extern uint32_t IBufferCount;
 
 #include "ss.h"
 #include "sound.h"
@@ -67,10 +67,10 @@ extern char retro_base_directory[4096];
 
 static sscpu_timestamp_t MidSync(const sscpu_timestamp_t timestamp);
 
-uint32 ss_horrible_hacks;
+uint32_t ss_horrible_hacks;
 
 static bool NeedEmuICache;
-static const uint8 BRAM_Init_Data[0x10] = { 0x42, 0x61, 0x63, 0x6b, 0x55, 0x70, 0x52, 0x61, 0x6d, 0x20, 0x46, 0x6f, 0x72, 0x6d, 0x61, 0x74 };
+static const uint8_t BRAM_Init_Data[0x10] = { 0x42, 0x61, 0x63, 0x6b, 0x55, 0x70, 0x52, 0x61, 0x6d, 0x20, 0x46, 0x6f, 0x72, 0x6d, 0x61, 0x74 };
 
 static void SaveBackupRAM(void);
 static void LoadBackupRAM(void);
@@ -84,41 +84,41 @@ static MDFN_COLD void BackupCartNV(void);
 
 #include "sh7095.h"
 
-static uint8 SCU_MSH2VectorFetch(void);
-static uint8 SCU_SSH2VectorFetch(void);
+static uint8_t SCU_MSH2VectorFetch(void);
+static uint8_t SCU_SSH2VectorFetch(void);
 
 static void CheckEventsByMemTS(void);
 
 SH7095 CPU[2]{ {"SH2-M", SS_EVENT_SH2_M_DMA, SCU_MSH2VectorFetch}, {"SH2-S", SS_EVENT_SH2_S_DMA, SCU_SSH2VectorFetch}};
 
-static uint16 BIOSROM[524288 / sizeof(uint16)];
-uint8 WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
+static uint16_t BIOSROM[524288 / sizeof(uint16_t)];
+uint8_t WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
 // Effectively 32-bit in reality, but 16-bit here because of CPU interpreter design(regarding fastmap).
-static uint16* WorkRAML = (uint16*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*0));
-static uint16* WorkRAMH = (uint16*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*1));
+static uint16_t* WorkRAML = (uint16_t*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*0));
+static uint16_t* WorkRAMH = (uint16_t*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*1));
 // BackupRAM is exposed (no longer file-static) so libretro.cpp can hand a
 // pointer to the frontend via retro_get_memory_data(RETRO_MEMORY_SAVE_RAM).
 // BackupRAM_Dirty and CartNV_Dirty are sticky flags maintained here and
 // drained by libretro.cpp from outside Emulate() -- see comment in
 // Emulate() above. The old master-cycle delay variables are gone.
-uint8 BackupRAM[32768];
-static uint8 BackupRAM_StateHelper[32768];
+uint8_t BackupRAM[32768];
+static uint8_t BackupRAM_StateHelper[32768];
 bool BackupRAM_Dirty;
 bool CartNV_Dirty;
 
 #define SH7095_EXT_MAP_GRAN_BITS 16
 static uintptr_t SH7095_FastMap[1U << (32 - SH7095_EXT_MAP_GRAN_BITS)];
 
-int32 SH7095_mem_timestamp;
-static uint32 SH7095_BusLock;
-static uint32 SH7095_DB;
+int32_t SH7095_mem_timestamp;
+static uint32_t SH7095_BusLock;
+static uint32_t SH7095_DB;
 
 #include "scu.inc"
 
 static sha256_digest BIOS_SHA256;   // SHA-256 hash of the currently-loaded BIOS; used for save state sanity checks.
 static int ActiveCartType;		// Used in save states.
 static std::bitset<1U << (27 - SH7095_EXT_MAP_GRAN_BITS)> FMIsWriteable;
-static uint16 fmap_dummy[(1U << SH7095_EXT_MAP_GRAN_BITS) / sizeof(uint16)];
+static uint16_t fmap_dummy[(1U << SH7095_EXT_MAP_GRAN_BITS) / sizeof(uint16_t)];
 
 /*
  SH-2 external bus address map:
@@ -157,7 +157,7 @@ static uint16 fmap_dummy[(1U << SH7095_EXT_MAP_GRAN_BITS) / sizeof(uint16)];
 // When BurstHax is true and we're accessing high work RAM, don't add anything.
 //
 template<typename T, bool IsWrite>
-static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax, int32* SH2DMAHax)
+static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
  //
  // Low(and kinda slow) work RAM 
@@ -188,30 +188,30 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
   if(IsWrite)
   {
    /* ne16_wbo_be<T>(WorkRAML, byte_off, val) folded.  T can be
-    * uint8, uint16, or uint32; sizeof(T) dispatches the right
+    * uint8_t, uint16_t, or uint32_t; sizeof(T) dispatches the right
     * write width.  Compiler folds away the dead branches per
     * template instantiation. */
-   const uint32 boff_ = A & 0xFFFFF;
+   const uint32_t boff_ = A & 0xFFFFF;
    const T val_ = DB >> (((A & 1) ^ (2 - sizeof(T))) << 3);
    if(sizeof(T) == 1)
    {
 #ifdef MSB_FIRST
-    ((uint8*)WorkRAML)[boff_] = val_;
+    ((uint8_t*)WorkRAML)[boff_] = val_;
 #else
-    ((uint8*)WorkRAML)[boff_ ^ 1] = val_;
+    ((uint8_t*)WorkRAML)[boff_ ^ 1] = val_;
 #endif
    }
    else if(sizeof(T) == 2)
     WorkRAML[boff_ >> 1] = val_;
    else /* sizeof(T) == 4 */
    {
-    WorkRAML[(boff_ >> 1) + 0] = (uint32)val_ >> 16;
+    WorkRAML[(boff_ >> 1) + 0] = (uint32_t)val_ >> 16;
     WorkRAML[(boff_ >> 1) + 1] = val_;
    }
   }
   else
   {
-   /* ne16_rbo_be<uint16>(WorkRAML, byte_off): aligned u16 read
+   /* ne16_rbo_be<uint16_t>(WorkRAML, byte_off): aligned u16 read
     * — host-endian-stored slot, direct index. */
    DB = (DB & 0xFFFF0000) | WorkRAML[(A & 0xFFFFE) >> 1];
   }
@@ -240,7 +240,7 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
  //
  if(A >= 0x00100000 && A <= 0x0017FFFF)
  {
-  const uint32 SMPC_A = (A & 0x7F) >> 1;
+  const uint32_t SMPC_A = (A & 0x7F) >> 1;
 
   if(!SH2DMAHax)
   {
@@ -273,11 +273,11 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
   {
    if(sizeof(T) != 1 || (A & 1))
    {
-    uint8* const brp = &BackupRAM[(A >> 1) & 0x7FFF];
+    uint8_t* const brp = &BackupRAM[(A >> 1) & 0x7FFF];
 
-    if(*brp != (uint8)DB)
+    if(*brp != (uint8_t)DB)
     {
-     *brp = (uint8)DB;
+     *brp = (uint8_t)DB;
      BackupRAM_Dirty = true;
     }
    }
@@ -327,12 +327,12 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
   else
    *SH2DMAHax += 8;
 
-  const uint8 IOGA_A = (A >> 1) & 0x3F;
+  const uint8_t IOGA_A = (A >> 1) & 0x3F;
 
   if(IsWrite)
   {
    if(sizeof(T) == 2 || (A & 1))
-    STVIO_WriteIOGA(SH7095_mem_timestamp, IOGA_A, (uint8)DB);
+    STVIO_WriteIOGA(SH7095_mem_timestamp, IOGA_A, (uint8_t)DB);
   }
   else
    DB = (DB & 0xFFFF0000) | 0xFF00 | STVIO_ReadIOGA(SH7095_mem_timestamp, IOGA_A);
@@ -350,7 +350,7 @@ static INLINE void BusRW_DB_CS0(const uint32 A, uint32& DB, const bool BurstHax,
 }
 
 template<typename T, bool IsWrite>
-static INLINE void BusRW_DB_CS12(const uint32 A, uint32& DB, const bool BurstHax, int32* SH2DMAHax)
+static INLINE void BusRW_DB_CS12(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
  //
  // CS1 and CS2: SCU
@@ -362,7 +362,7 @@ static INLINE void BusRW_DB_CS12(const uint32 A, uint32& DB, const bool BurstHax
 }
 
 template<typename T, bool IsWrite>
-static INLINE void BusRW_DB_CS3(const uint32 A, uint32& DB, const bool BurstHax, int32* SH2DMAHax)
+static INLINE void BusRW_DB_CS3(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
  //
  // CS3: High work RAM/SDRAM, 0x06000000 ... 0x07FFFFFF
@@ -371,32 +371,32 @@ static INLINE void BusRW_DB_CS3(const uint32 A, uint32& DB, const bool BurstHax,
  //
  if(!IsWrite || sizeof(T) == 4)
  {
-  /* ne16_rwbo_be<uint32, IsWrite>(WorkRAMH, byte_off, &DB) folded:
-   * aligned uint32 BE bus read or write over uint16 array.  Two
-   * uint16 halves: upper at index, lower at index+1.  Same on
+  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, &DB) folded:
+   * aligned uint32_t BE bus read or write over uint16_t array.  Two
+   * uint16_t halves: upper at index, lower at index+1.  Same on
    * BE and LE hosts (host-endian uint16s combined in MSB-first
    * order). */
-  const uint32 idx_ = (A & 0xFFFFC) >> 1;
+  const uint32_t idx_ = (A & 0xFFFFC) >> 1;
   if(IsWrite)
   {
    WorkRAMH[idx_ + 0] = DB >> 16;
    WorkRAMH[idx_ + 1] = DB;
   }
   else
-   DB = ((uint32)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
+   DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
  }
  else
  {
-  /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded.  T is uint8
-   * or uint16 here (uint32 caught above). */
-  const uint32 boff_ = A & 0xFFFFF;
+  /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded.  T is uint8_t
+   * or uint16_t here (uint32_t caught above). */
+  const uint32_t boff_ = A & 0xFFFFF;
   const T val_ = DB >> (((A & 3) ^ (4 - sizeof(T))) << 3);
   if(sizeof(T) == 1)
   {
 #ifdef MSB_FIRST
-   ((uint8*)WorkRAMH)[boff_] = val_;
+   ((uint8_t*)WorkRAMH)[boff_] = val_;
 #else
-   ((uint8*)WorkRAMH)[boff_ ^ 1] = val_;
+   ((uint8_t*)WorkRAMH)[boff_ ^ 1] = val_;
 #endif
   }
   else /* sizeof(T) == 2 */
@@ -407,39 +407,39 @@ static INLINE void BusRW_DB_CS3(const uint32 A, uint32& DB, const bool BurstHax,
 //
 //
 //
-static MDFN_COLD uint8 CheatMemRead(uint32 A)
+static MDFN_COLD uint8_t CheatMemRead(uint32_t A)
 {
  A &= (1U << 27) - 1;
 
- /* ne16_rbo_be<uint8>(base, A) folded - byte read from BE bus
-  * over uint16 fast-map slot. */
+ /* ne16_rbo_be<uint8_t>(base, A) folded - byte read from BE bus
+  * over uint16_t fast-map slot. */
 #ifdef MSB_FIRST
- return ((const uint8*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A];
+ return ((const uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A];
 #else
- return ((const uint8*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A ^ 1];
+ return ((const uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A ^ 1];
 #endif
 }
 
-static MDFN_COLD void CheatMemWrite(uint32 A, uint8 V)
+static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
 {
  A &= (1U << 27) - 1;
 
  if(FMIsWriteable[A >> SH7095_EXT_MAP_GRAN_BITS])
  {
-  /* ne16_wbo_be<uint8>(base, A, V) folded. */
+  /* ne16_wbo_be<uint8_t>(base, A, V) folded. */
 #ifdef MSB_FIRST
-  ((uint8*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A] = V;
+  ((uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A] = V;
 #else
-  ((uint8*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A ^ 1] = V;
+  ((uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A ^ 1] = V;
 #endif
 
   for(unsigned c = 0; c < 2; c++)
   {
    if(CPU[c].CCR & SH7095::CCR_CE)
    {
-    for(uint32 Abase = 0x00000000; Abase < 0x20000000; Abase += 0x08000000)
+    for(uint32_t Abase = 0x00000000; Abase < 0x20000000; Abase += 0x08000000)
     {
-     CPU[c].Cache_WriteUpdate<uint8>(Abase + A, V);
+     CPU[c].Cache_WriteUpdate<uint8_t>(Abase + A, V);
     }
    }
   }
@@ -448,16 +448,16 @@ static MDFN_COLD void CheatMemWrite(uint32 A, uint8 V)
 //
 //
 //
-static void SetFastMemMap(uint32 Astart, uint32 Aend, uint16* ptr, uint32 length, bool is_writeable)
+static void SetFastMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable)
 {
- const uint64 Abound = (uint64)Aend + 1;
+ const uint64_t Abound = (uint64_t)Aend + 1;
  assert((Astart & ((1U << SH7095_EXT_MAP_GRAN_BITS) - 1)) == 0);
  assert((Abound & ((1U << SH7095_EXT_MAP_GRAN_BITS) - 1)) == 0);
  assert((length & ((1U << SH7095_EXT_MAP_GRAN_BITS) - 1)) == 0);
  assert(length > 0);
  assert(length <= (Abound - Astart));
 
- for(uint64 A = Astart; A < Abound; A += (1U << SH7095_EXT_MAP_GRAN_BITS))
+ for(uint64_t A = Astart; A < Abound; A += (1U << SH7095_EXT_MAP_GRAN_BITS))
  {
   uintptr_t tmp = (uintptr_t)ptr + ((A - Astart) % length);
 
@@ -478,13 +478,13 @@ static MDFN_COLD void InitFastMemMap(void)
  FMIsWriteable.reset();
  MDFNMP_Init(1ULL << SH7095_EXT_MAP_GRAN_BITS, (1ULL << 27) / (1ULL << SH7095_EXT_MAP_GRAN_BITS));
 
- for(uint64 A = 0; A < 1ULL << 32; A += (1U << SH7095_EXT_MAP_GRAN_BITS))
+ for(uint64_t A = 0; A < 1ULL << 32; A += (1U << SH7095_EXT_MAP_GRAN_BITS))
  {
   SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS] = (uintptr_t)fmap_dummy - A;
  }
 }
 
-void SS_SetPhysMemMap(uint32 Astart, uint32 Aend, uint16* ptr, uint32 length, bool is_writeable)
+void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable)
 {
  assert(Astart < 0x20000000);
  assert(Aend < 0x20000000);
@@ -495,7 +495,7 @@ void SS_SetPhysMemMap(uint32 Astart, uint32 Aend, uint16* ptr, uint32 length, bo
   length = sizeof(fmap_dummy);
  }
 
- for(uint32 Abase = 0; Abase < 0x40000000; Abase += 0x20000000)
+ for(uint32_t Abase = 0; Abase < 0x40000000; Abase += 0x20000000)
   SetFastMemMap(Astart + Abase, Aend + Abase, ptr, length, is_writeable);
 }
 
@@ -679,7 +679,7 @@ void SS_RequestMLExit(void)
  #pragma GCC optimize("O2,no-unroll-loops,no-peel-loops,no-crossjumping")
 #endif
 template<bool EmulateICache>
-static NO_INLINE MDFN_HOT int32 RunLoop(EmulateSpecStruct* espec)
+static NO_INLINE MDFN_HOT int32_t RunLoop(EmulateSpecStruct* espec)
 {
  sscpu_timestamp_t eff_ts = 0;
 
@@ -763,16 +763,16 @@ void SS_Reset(bool powering_up)
 
 static EmulateSpecStruct* espec;
 static bool AllowMidSync;
-static int32 cur_clock_div;
+static int32_t cur_clock_div;
 
-static int64 UpdateInputLastBigTS;
+static int64_t UpdateInputLastBigTS;
 static INLINE void UpdateSMPCInput(const sscpu_timestamp_t timestamp)
 {
  SMPC_TransformInput();
 
- int32 elapsed_time = (((int64)timestamp * cur_clock_div * 1000 * 1000) - UpdateInputLastBigTS) / (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
+ int32_t elapsed_time = (((int64_t)timestamp * cur_clock_div * 1000 * 1000) - UpdateInputLastBigTS) / (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
 
- UpdateInputLastBigTS += (int64)elapsed_time * (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
+ UpdateInputLastBigTS += (int64_t)elapsed_time * (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
 
  // ST-V samples gamepad/gun/coin state into its own DataIn buffer on
  // the same cadence SMPC samples virtual ports.
@@ -800,7 +800,7 @@ static sscpu_timestamp_t MidSync(const sscpu_timestamp_t timestamp)
 
 void Emulate(EmulateSpecStruct* espec_arg)
 {
- int32 end_ts;
+ int32_t end_ts;
 
  espec = espec_arg;
  AllowMidSync = setting_midsync;
@@ -836,7 +836,7 @@ void Emulate(EmulateSpecStruct* espec_arg)
  SCU_AdjustTS(-end_ts);
  CART_AdjustTS(-end_ts);
 
- UpdateInputLastBigTS -= (int64)end_ts * cur_clock_div * 1000 * 1000;
+ UpdateInputLastBigTS -= (int64_t)end_ts * cur_clock_div * 1000 * 1000;
  //
  SH7095_mem_timestamp -= end_ts; // Update before CPU[n].AdjustTS()
  //
@@ -999,11 +999,11 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    // regardless of region. PAL ST-V cabinets exist but the video
    // signal is still 60 Hz.
    const bool PAL = is_pal = (!is_stv) && (smpc_area & SMPC_AREA__PAL_MASK);
-   const int32 MasterClock = PAL ? 1734687500 : 1746818182; // NTSC: 1746818181.8181818181, PAL: 1734687500-ish
+   const int32_t MasterClock = PAL ? 1734687500 : 1746818182; // NTSC: 1746818181.8181818181, PAL: 1734687500-ish
    const char* bios_filename;
    int sls = MDFN_GetSettingI(PAL ? "ss.slstartp" : "ss.slstart");
    int sle = MDFN_GetSettingI(PAL ? "ss.slendp" : "ss.slend");
- const uint64 vdp2_affinity = 0; /*LibRetro: unused*/
+ const uint64_t vdp2_affinity = 0; /*LibRetro: unused*/
 
    if(sls > sle)
       std::swap(sls, sle);
@@ -1065,7 +1065,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          {
             /* MDFN_de16msb folded: BE-on-disk to host-endian. */
 #ifndef MSB_FIRST
-            BIOSROM[i] = (uint16)((BIOSROM[i] << 8) | (BIOSROM[i] >> 8));
+            BIOSROM[i] = (uint16_t)((BIOSROM[i] << 8) | (BIOSROM[i] >> 8));
 #endif
          }
       }
@@ -1097,7 +1097,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       // the port shims into SMPC super-ports 0 and 1.
       STVIO_Init(sgi);
       for(unsigned sp = 0; sp < 2; sp++)
-         SMPC_SetInput(sp, "extern", (uint8*)STVIO_GetSMPCDevice(sp));
+         SMPC_SetInput(sp, "extern", (uint8_t*)STVIO_GetSMPCDevice(sp));
    }
 
    try { LoadRTC();       } catch(MDFN_Error& e) { if(e.GetErrno() != ENOENT) throw; }
@@ -1161,7 +1161,7 @@ MDFN_COLD void CloseGame(void)
  Cleanup();
 }
 
-void MDFN_BackupSavFile(const uint8 max_backup_count, const char* sav_ext)
+void MDFN_BackupSavFile(const uint8_t max_backup_count, const char* sav_ext)
 {
    // stub for libretro port
 }
@@ -1202,7 +1202,7 @@ static MDFN_COLD void BackupCartNV(void)
  const char* ext = nullptr;
  void* nv_ptr = nullptr;
  bool nv16 = false;
- uint64 nv_size = 0;
+ uint64_t nv_size = 0;
 
  CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
 
@@ -1217,7 +1217,7 @@ static MDFN_COLD void LoadCartNV(void)
    const char* ext = nullptr;
    void* nv_ptr    = nullptr;
    bool nv16       = false;
-   uint64 nv_size  = 0;
+   uint64_t nv_size  = 0;
    char fpath[4096];
 
    CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
@@ -1246,10 +1246,10 @@ static MDFN_COLD void LoadCartNV(void)
 #ifndef MSB_FIRST
    for(i = 0; i < nv_size; i += 2)
    {
-      uint8* p = (uint8*)nv_ptr + i;
-      uint16 v;
+      uint8_t* p = (uint8_t*)nv_ptr + i;
+      uint16_t v;
       memcpy(&v, p, 2);
-      v = (uint16)((v << 8) | (v >> 8));
+      v = (uint16_t)((v << 8) | (v >> 8));
       memcpy(p, &v, 2);
    }
 #else
@@ -1262,7 +1262,7 @@ static MDFN_COLD void SaveCartNV(void)
    const char* ext = nullptr;
    void* nv_ptr = nullptr;
    bool nv16 = false;
-   uint64 nv_size = 0;
+   uint64_t nv_size = 0;
    char fpath[4096];
 
    CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
@@ -1281,8 +1281,8 @@ static MDFN_COLD void SaveCartNV(void)
           * misalignment-safe 2-byte load. */
          for(i = 0; i < nv_size; i += 2)
          {
-            uint16 v;
-            memcpy(&v, (uint8*)nv_ptr + i, 2);
+            uint16_t v;
+            memcpy(&v, (uint8_t*)nv_ptr + i, 2);
             cdstream_write_be_u16(&nvs, v);
          }
       }
@@ -1369,8 +1369,8 @@ struct EventsPacker
  bool Restore(const unsigned state_version);
  void Save(void);
 
- int32 event_times[eventcopy_bound - eventcopy_first];
- uint8 event_order[eventcopy_bound - eventcopy_first];
+ int32_t event_times[eventcopy_bound - eventcopy_first];
+ uint8_t event_order[eventcopy_bound - eventcopy_first];
 };
 
 INLINE void EventsPacker::Save(void)
@@ -1378,12 +1378,12 @@ INLINE void EventsPacker::Save(void)
  for(size_t i = 0; i < eventcopy_bound - eventcopy_first; i++)
  {
   event_times[i] = events[eventcopy_first + i].event_time;
-  event_order[i] = (uint8)(eventcopy_first + i);
+  event_order[i] = (uint8_t)(eventcopy_first + i);
  }
 
  // event_order is the schedule order Restore() validates; equal times tie-break by index.
  std::stable_sort(event_order, event_order + (eventcopy_bound - eventcopy_first),
-  [](uint8 a, uint8 b) { return events[a].event_time < events[b].event_time; });
+  [](uint8_t a, uint8_t b) { return events[a].event_time < events[b].event_time; });
 }
 
 INLINE bool EventsPacker::Restore(const unsigned state_version)
@@ -1392,8 +1392,8 @@ INLINE bool EventsPacker::Restore(const unsigned state_version)
 
  for(size_t i = 0; i < eventcopy_bound - eventcopy_first; i++)
  {
-  int32 et = event_times[i];
-  uint8 eo = event_order[i];
+  int32_t et = event_times[i];
+  uint8_t eo = event_order[i];
 
   if(state_version < 0x00102600 && et >= 0x40000000)
   {

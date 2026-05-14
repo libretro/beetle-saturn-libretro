@@ -27,8 +27,8 @@
 template<bool looped, unsigned dest, unsigned cond>
 static NO_INLINE NO_CLONE void MVIInstr(DSPS* dsp)
 {
- const uint32 instr = DSP_InstrPre<looped>(dsp);
- uint32 imm;
+ const uint32_t instr = DSP_InstrPre<looped>(dsp);
+ uint32_t imm;
 
  if(cond & 0x40)
   imm = sign_x_to_s32(19, instr);
@@ -58,7 +58,7 @@ static NO_INLINE NO_CLONE void MVIInstr(DSPS* dsp)
 	break;
 
    case 0x4: dsp->RX = imm; break;
-   case 0x5: dsp->P.T = (int32)imm; break;
+   case 0x5: dsp->P.T = (int32_t)imm; break;
 
    case 0x6: dsp->RAO = imm; break;
 

@@ -87,35 +87,35 @@ enum
  CMD_RESDISA = 0x1A
 };
 
-static uint8 AreaCode;
-static int32 MasterClock;
+static uint8_t AreaCode;
+static int32_t MasterClock;
 
 static struct
 {
- uint64 ClockAccum;
+ uint64_t ClockAccum;
 
  bool Valid;
 
  union
  {
-  uint8 raw[7];
+  uint8_t raw[7];
   struct
   {
-   uint8 year[2];		// BCD; [0] = xx00, [1] = 00xx
-   uint8 wday_mon;	// 0x0-0x6(upper; 6=Saturday), 0x1-0xC(lower)
-   uint8 mday;		// BCD; 0x01-0x31
-   uint8 hour;		// BCD; 0x00-0x23
-   uint8 minute;		// BCD; 0x00-0x59
-   uint8 second;		// BCD; 0x00-0x59
+   uint8_t year[2];		// BCD; [0] = xx00, [1] = 00xx
+   uint8_t wday_mon;	// 0x0-0x6(upper; 6=Saturday), 0x1-0xC(lower)
+   uint8_t mday;		// BCD; 0x01-0x31
+   uint8_t hour;		// BCD; 0x00-0x23
+   uint8_t minute;		// BCD; 0x00-0x59
+   uint8_t second;		// BCD; 0x00-0x59
   };
  };
 } RTC;
 
-static uint8 SaveMem[4];
+static uint8_t SaveMem[4];
 
-static uint8 IREG[7];
-static uint8 OREG[0x20];
-static uint8 SR;
+static uint8_t IREG[7];
+static uint8_t OREG[0x20];
+static uint8_t SR;
 static bool SF;
 
 enum
@@ -136,61 +136,61 @@ enum
 static bool ResetNMIEnable;
 
 static bool ResetButtonPhysStatus;
-static int32 ResetButtonCount;
+static int32_t ResetButtonCount;
 static bool ResetPending;
-static int32 PendingCommand;
-static int32 ExecutingCommand;
-static int32 PendingClockDivisor;
-static int32 CurrentClockDivisor;
+static int32_t PendingCommand;
+static int32_t ExecutingCommand;
+static int32_t PendingClockDivisor;
+static int32_t CurrentClockDivisor;
 
 static bool PendingVB;
 
-static uint8 IR0WX, IR0WA;
+static uint8_t IR0WX, IR0WA;
 
-static int32 SubPhase;
-static int64 ClockCounter;
-static uint32 SMPC_ClockRatio;
+static int32_t SubPhase;
+static int64_t ClockCounter;
+static uint32_t SMPC_ClockRatio;
 
 static bool SoundCPUOn;
 static bool SlaveSH2On;
 static int SlaveSH2Pending;
 static bool CDOn;
 
-static uint8 BusBuffer;
+static uint8_t BusBuffer;
 //
 //
 static struct
 {
- int64 TimeCounter;
- int32 StartTime;
- int32 OptWaitUntilTime;
- int32 OptEatTime;
+ int64_t TimeCounter;
+ int32_t StartTime;
+ int32_t OptWaitUntilTime;
+ int32_t OptEatTime;
 
- int32 OptReadTime;
+ int32_t OptReadTime;
 
- uint8 Mode[2];
+ uint8_t Mode[2];
  bool TimeOptEn;
  bool NextContBit;
 
- uint8 CurPort;
- uint8 ID1;
- uint8 ID2;
- uint8 IDTap;
+ uint8_t CurPort;
+ uint8_t ID1;
+ uint8_t ID2;
+ uint8_t IDTap;
 
- uint8 CommMode;
+ uint8_t CommMode;
 
- uint8 OWP;
+ uint8_t OWP;
 
- uint8 work[8];
+ uint8_t work[8];
  //
  //
- uint8 TapCounter;
- uint8 TapCount;
- uint8 ReadCounter;
- uint8 ReadCount;
- uint8 ReadBuffer[256];	// Maybe should only be 255, but +1 for save state sanitization simplification.
- uint8 WriteCounter;
- uint8 PDCounter;
+ uint8_t TapCounter;
+ uint8_t TapCount;
+ uint8_t ReadCounter;
+ uint8_t ReadCount;
+ uint8_t ReadBuffer[256];	// Maybe should only be 255, but +1 for save state sanitization simplification.
+ uint8_t WriteCounter;
+ uint8_t PDCounter;
 } JRS;
 //
 //
@@ -199,12 +199,12 @@ static bool vsync;
 static sscpu_timestamp_t lastts;
 //
 //
-static uint8 DataOut[2][2];
-static uint8 DataDir[2][2];
+static uint8_t DataOut[2][2];
+static uint8_t DataDir[2][2];
 static bool DirectModeEn[2];
 static bool ExLatchEn[2];
 
-static uint8 IOBusState[2];
+static uint8_t IOBusState[2];
 static IODevice* IOPorts[2];
 
 static struct
@@ -225,22 +225,22 @@ static IODevice_Multitap PossibleMultitaps[2];
 
 static IODevice_Multitap* SPorts[2];
 static IODevice* VirtualPorts[12];
-static uint8* VirtualPortsDPtr[12];
-static uint8* MiscInputPtr;
+static uint8_t* VirtualPortsDPtr[12];
+static uint8_t* MiscInputPtr;
 
 IODevice::IODevice() { }
 IODevice::~IODevice() { }
 void IODevice::Power(void) { }
-void IODevice::TransformInput(uint8* const data, float gun_x_scale, float gun_x_offs) const { }
-void IODevice::UpdateInput(const uint8* data, const int32 time_elapsed) { }
-void IODevice::UpdateOutput(uint8* data) { }
+void IODevice::TransformInput(uint8_t* const data, float gun_x_scale, float gun_x_offs) const { }
+void IODevice::UpdateInput(const uint8_t* data, const int32_t time_elapsed) { }
+void IODevice::UpdateOutput(uint8_t* data) { }
 void IODevice::StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname_prefix) { }
-void IODevice::Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32* lw, int ifield, float gun_x_scale, float gun_x_offs) const { }
-uint8 IODevice::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted) { return smpc_out; }
+void IODevice::Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const { }
+uint8_t IODevice::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted) { return smpc_out; }
 
 void IODevice::ResetTS(void) { if(NextEventTS < SS_EVENT_DISABLED_TS) { NextEventTS -= LastTS; assert(NextEventTS >= 0); } LastTS = 0; }
-void IODevice::SetTSFreq(const int32 rate) { }
-void IODevice::LineHook(const sscpu_timestamp_t timestamp, int32 out_line, int32 div, int32 coord_adj) { }
+void IODevice::SetTSFreq(const int32_t rate) { }
+void IODevice::LineHook(const sscpu_timestamp_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj) { }
 //
 //
 
@@ -305,14 +305,14 @@ void SMPC_SetMultitap(unsigned sport, bool enabled)
  MapPorts();
 }
 
-void SMPC_SetCrosshairsColor(unsigned port, uint32 color)
+void SMPC_SetCrosshairsColor(unsigned port, uint32_t color)
 {
  assert(port < 12);
 
  PossibleDevices[port].gun.SetCrosshairsColor(color);
 }
 
-void SMPC_SetInput(unsigned port, const char* type, uint8* ptr)
+void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr)
 {
  assert(port < 13);
 
@@ -378,7 +378,7 @@ void SMPC_SaveNV(cdstream* s)
  cdstream_write(s, SaveMem, sizeof(SaveMem));
 }
 
-void SMPC_SetRTC(const struct tm* ht, const uint8 lang)
+void SMPC_SetRTC(const struct tm* ht, const uint8_t lang)
 {
  RTC.ClockAccum = 0;
 
@@ -423,7 +423,7 @@ void SMPC_SetRTC(const struct tm* ht, const uint8 lang)
 // `block_soundcpu_control` argument to SMPC_Init.
 static bool BlockSoundCPUControl;
 
-void SMPC_Init(const uint8 area_code_arg, const int32 master_clock_arg, bool block_soundcpu_control)
+void SMPC_Init(const uint8_t area_code_arg, const int32_t master_clock_arg, bool block_soundcpu_control)
 {
  AreaCode = area_code_arg;
  MasterClock = master_clock_arg;
@@ -689,7 +689,7 @@ void SMPC_ProcessSlaveOffOn(void)
  }
 }
 
-int32 SMPC_StartFrame(void)
+int32_t SMPC_StartFrame(void)
 {
  if(ResetPending)
  {
@@ -741,7 +741,7 @@ void SMPC_UpdateOutput(void)
  }
 }
 
-void SMPC_UpdateInput(const int32 time_elapsed)
+void SMPC_UpdateInput(const int32_t time_elapsed)
 {
  if (MiscInputPtr)
   ResetButtonPhysStatus = (bool)(*MiscInputPtr & 0x1);
@@ -753,7 +753,7 @@ void SMPC_UpdateInput(const int32 time_elapsed)
 }
 
 
-void SMPC_Write(const sscpu_timestamp_t timestamp, uint8 A, uint8 V)
+void SMPC_Write(const sscpu_timestamp_t timestamp, uint8_t A, uint8_t V)
 {
  BusBuffer = V;
  A &= 0x3F;
@@ -838,9 +838,9 @@ void SMPC_Write(const sscpu_timestamp_t timestamp, uint8 A, uint8 V)
  SS_SetEventNT(&events[SS_EVENT_SMPC], nt);
 }
 
-uint8 SMPC_Read(const sscpu_timestamp_t timestamp, uint8 A)
+uint8_t SMPC_Read(const sscpu_timestamp_t timestamp, uint8_t A)
 {
- uint8 ret = BusBuffer;
+ uint8_t ret = BusBuffer;
 
  A &= 0x3F;
 
@@ -911,7 +911,7 @@ void SMPC_ResetTS(void)
 
 #define SMPC_WAIT_UNTIL_COND_TIMEOUT(cond, n)							\
 		{										\
-		 ClockCounter -= (int64)(n) << 32;						\
+		 ClockCounter -= (int64_t)(n) << 32;						\
 		 case __COUNTER__:								\
 		 if(!(cond) && ClockCounter < 0)						\
 		 {										\
@@ -924,7 +924,7 @@ void SMPC_ResetTS(void)
 
 #define SMPC_EAT_CLOCKS(n)									\
 		{										\
-		 ClockCounter -= (int64)(n) << 32;						\
+		 ClockCounter -= (int64_t)(n) << 32;						\
 		 case __COUNTER__:								\
 		 if(ClockCounter < 0)								\
 		 {										\
@@ -935,7 +935,7 @@ void SMPC_ResetTS(void)
 		}										\
 
 
-static unsigned RTC_BCDInc(uint8 v)
+static unsigned RTC_BCDInc(uint8_t v)
 {
  unsigned tmp = v & 0xF;
 
@@ -976,11 +976,11 @@ static void RTC_IncTime(void)
      RTC.wday_mon += 0x10;
 
     //					
-    static const uint8 mdtab[0x10] = { 
+    static const uint8_t mdtab[0x10] = { 
     //         Jan,  Feb,  Mar,  Apr,   May, June, July,  Aug, Sept, Oct,  Nov,  Dec
 	0x10, 0x31, 0x28, 0x31, 0x30, 0x31, 0x30, 0x31, 0x31, 0x30, 0x31, 0x30, 0x31, 0xC1, 0xF5, 0xFF
     };
-    const uint8 day_compare = mdtab[RTC.wday_mon & 0x0F] + ((RTC.wday_mon & 0x0F) == 0x02 && ((RTC.year[1] & 0x1F) < 0x1A) && !((RTC.year[1] + ((RTC.year[1] & 0x10) >> 3)) & 0x3));
+    const uint8_t day_compare = mdtab[RTC.wday_mon & 0x0F] + ((RTC.wday_mon & 0x0F) == 0x02 && ((RTC.year[1] & 0x1F) < 0x1A) && !((RTC.year[1] + ((RTC.year[1] & 0x10) >> 3)) & 0x3));
 
     // Day of month
     if(RTC.mday >= day_compare)
@@ -1019,13 +1019,13 @@ static void RTC_IncTime(void)
 enum : int { SubPhaseBias = __COUNTER__ + 1 };
 sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 {
- int64 clocks;
+ int64_t clocks;
 
  if(MDFN_UNLIKELY(timestamp < lastts))
   clocks = 0;
  else
  {
-  clocks = (int64)(timestamp - lastts) * SMPC_ClockRatio;
+  clocks = (int64_t)(timestamp - lastts) * SMPC_ClockRatio;
   lastts = timestamp;
  }
 
@@ -1053,7 +1053,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
     PendingVB = false;
 
     if(JRS.OptReadTime)
-     JRS.OptWaitUntilTime = ((int32)(0) > (int32)((JRS.TimeCounter >> 32) - JRS.OptReadTime - 5000) ? (int32)(0) : (int32)((JRS.TimeCounter >> 32) - JRS.OptReadTime - 5000));
+     JRS.OptWaitUntilTime = ((int32_t)(0) > (int32_t)((JRS.TimeCounter >> 32) - JRS.OptReadTime - 5000) ? (int32_t)(0) : (int32_t)((JRS.TimeCounter >> 32) - JRS.OptReadTime - 5000));
     else
      JRS.OptWaitUntilTime = 0;
     JRS.TimeCounter = 0;
@@ -1275,7 +1275,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
       JRS.Mode[1] = (IREG[1] >> 6) & 0x3;
 
       JRS.OptReadTime = 0;
-      JRS.OptEatTime = ((int32)(0) > (int32)((JRS.OptWaitUntilTime - (JRS.TimeCounter >> 32))) ? (int32)(0) : (int32)((JRS.OptWaitUntilTime - (JRS.TimeCounter >> 32))));
+      JRS.OptEatTime = ((int32_t)(0) > (int32_t)((JRS.OptWaitUntilTime - (JRS.TimeCounter >> 32))) ? (int32_t)(0) : (int32_t)((JRS.OptWaitUntilTime - (JRS.TimeCounter >> 32))));
       JRS.OptWaitUntilTime = 0;
 
       if(JRS.TimeOptEn)
@@ -1465,7 +1465,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
       SCU_SetInt(SCU_INT_SMPC, false);
 
       if(JRS.TimeOptEn)
-       JRS.OptReadTime = ((int32)(0) > (int32)((JRS.TimeCounter >> 32) - JRS.StartTime) ? (int32)(0) : (int32)((JRS.TimeCounter >> 32) - JRS.StartTime));
+       JRS.OptReadTime = ((int32_t)(0) > (int32_t)((JRS.TimeCounter >> 32) - JRS.StartTime) ? (int32_t)(0) : (int32_t)((JRS.TimeCounter >> 32) - JRS.StartTime));
      }
     }
     else if(ExecutingCommand == CMD_SETTIME)	// Warning: Execute RTC setting atomically(all values or none) in regards to emulator exit/power toggle.
@@ -1558,7 +1558,7 @@ void SMPC_SetVBVS(sscpu_timestamp_t event_timestamp, bool vb_status, bool vsync_
  vsync = vsync_status;
 }
 
-void SMPC_LineHook(sscpu_timestamp_t event_timestamp, int32 out_line, int32 div, int32 coord_adj)
+void SMPC_LineHook(sscpu_timestamp_t event_timestamp, int32_t out_line, int32_t div, int32_t coord_adj)
 {
  IOPorts[0]->LineHook(event_timestamp, out_line, div, coord_adj);
  IOPorts[1]->LineHook(event_timestamp, out_line, div, coord_adj);

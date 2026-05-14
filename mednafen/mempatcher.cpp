@@ -35,18 +35,18 @@
 
 extern retro_log_printf_t log_cb;
 
-static uint8 **RAMPtrs = NULL;
-static uint32 PageSize;
-static uint32 NumPages;
+static uint8_t **RAMPtrs = NULL;
+static uint32_t PageSize;
+static uint32_t NumPages;
 
 typedef struct __CHEATF
 {
            char *name;
            char *conditions;
 
-           uint32 addr;
-           uint64 val;
-           uint64 compare;
+           uint32_t addr;
+           uint64_t val;
+           uint64_t compare;
 
            unsigned int length;
            bool bigendian;
@@ -57,7 +57,7 @@ typedef struct __CHEATF
 
 static std::vector<CHEATF> cheats;
 static int savecheats;
-static uint32 resultsbytelen = 1;
+static uint32_t resultsbytelen = 1;
 static bool resultsbigendian = 0;
 static bool CheatsActive = true;
 
@@ -101,12 +101,12 @@ static void RebuildSubCheats(void)
  }
 }
 
-bool MDFNMP_Init(uint32 ps, uint32 numpages)
+bool MDFNMP_Init(uint32_t ps, uint32_t numpages)
 {
  PageSize = ps;
  NumPages = numpages;
 
- RAMPtrs = (uint8 **)calloc(numpages, sizeof(uint8 *));
+ RAMPtrs = (uint8_t **)calloc(numpages, sizeof(uint8_t *));
 
  CheatsActive = MDFN_GetSettingB("cheats");
  return(1);
@@ -122,9 +122,9 @@ void MDFNMP_Kill(void)
 }
 
 
-void MDFNMP_AddRAM(uint32 size, uint32 A, uint8 *RAM)
+void MDFNMP_AddRAM(uint32_t size, uint32_t A, uint8_t *RAM)
 {
- uint32 AB = A / PageSize;
+ uint32_t AB = A / PageSize;
  
  size /= PageSize;
 
@@ -136,7 +136,7 @@ void MDFNMP_AddRAM(uint32 size, uint32 A, uint8 *RAM)
  }
 }
 
-void MDFNMP_RegSearchable(uint32 addr, uint32 size)
+void MDFNMP_RegSearchable(uint32_t addr, uint32_t size)
 {
  MDFNMP_AddRAM(size, addr, NULL);
 }
@@ -166,7 +166,7 @@ void MDFNMP_RemoveReadPatches(void)
 }
 
 /* This function doesn't allocate any memory for "name" */
-static int AddCheatEntry(char *name, char *conditions, uint32 addr, uint64 val, uint64 compare, int status, char type, unsigned int length, bool bigendian)
+static int AddCheatEntry(char *name, char *conditions, uint32_t addr, uint64_t val, uint64_t compare, int status, char type, unsigned int length, bool bigendian)
 {
  CHEATF temp;
 
@@ -206,7 +206,7 @@ void MDFN_FlushGameCheats(void)
    RebuildSubCheats();
 }
 
-int MDFNI_AddCheat(const char *name, uint32 addr, uint64 val, uint64 compare, char type, unsigned int length, bool bigendian)
+int MDFNI_AddCheat(const char *name, uint32_t addr, uint64_t val, uint64_t compare, char type, unsigned int length, bool bigendian)
 {
  char *t;
 
@@ -228,7 +228,7 @@ int MDFNI_AddCheat(const char *name, uint32 addr, uint64 val, uint64 compare, ch
  return(1);
 }
 
-int MDFNI_DelCheat(uint32 which)
+int MDFNI_DelCheat(uint32_t which)
 {
  free(cheats[which].name);
  cheats.erase(cheats.begin() + which);
@@ -282,9 +282,9 @@ static bool TestConditions(const char *string)
 
  while(sscanf(string, "%u %c %63s %63s %63s", &bytelen, &endian, address, operation, value) == 5 && passed)
  {
-  uint32 v_address;
-  uint64 v_value;
-  uint64 value_at_address;
+  uint32_t v_address;
+  uint64_t v_value;
+  uint64_t value_at_address;
 
   if(address[0] == '0' && address[1] == 'x')
    v_address = strtoul(address + 2, NULL, 16);
@@ -395,10 +395,10 @@ void MDFNMP_ApplyPeriodicCheats(void)
          if(!chit->conditions || TestConditions(chit->conditions))
             for(unsigned int x = 0; x < chit->length; x++)
             {
-               uint32 page = ((chit->addr + x) / PageSize) % NumPages;
+               uint32_t page = ((chit->addr + x) / PageSize) % NumPages;
                if(RAMPtrs[page])
                {
-                  uint64 tmpval = chit->val;
+                  uint64_t tmpval = chit->val;
 
                   if(chit->bigendian)
                      tmpval >>= (chit->length - 1 - x) * 8;
@@ -413,7 +413,7 @@ void MDFNMP_ApplyPeriodicCheats(void)
 }
 
 
-void MDFNI_ListCheats(int (*callb)(char *name, uint32 a, uint64 v, uint64 compare, int s, char type, unsigned int length, bool bigendian, void *data), void *data)
+void MDFNI_ListCheats(int (*callb)(char *name, uint32_t a, uint64_t v, uint64_t compare, int s, char type, unsigned int length, bool bigendian, void *data), void *data)
 {
  std::vector<CHEATF>::iterator chit;
 
@@ -423,7 +423,7 @@ void MDFNI_ListCheats(int (*callb)(char *name, uint32 a, uint64 v, uint64 compar
  }
 }
 
-int MDFNI_GetCheat(uint32 which, char **name, uint32 *a, uint64 *v, uint64 *compare, int *s, char *type, unsigned int *length, bool *bigendian)
+int MDFNI_GetCheat(uint32_t which, char **name, uint32_t *a, uint64_t *v, uint64_t *compare, int *s, char *type, unsigned int *length, bool *bigendian)
 {
  CHEATF *next = &cheats[which];
 
@@ -446,7 +446,7 @@ int MDFNI_GetCheat(uint32 which, char **name, uint32 *a, uint64 *v, uint64 *comp
  return(1);
 }
 
-static uint8 CharToNibble(char thechar)
+static uint8_t CharToNibble(char thechar)
 {
  const char lut[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
@@ -459,7 +459,7 @@ static uint8 CharToNibble(char thechar)
  return(0xFF);
 }
 
-bool MDFNI_DecodeGBGG(const char *instr, uint32 *a, uint8 *v, uint8 *c, char *type)
+bool MDFNI_DecodeGBGG(const char *instr, uint32_t *a, uint8_t *v, uint8_t *c, char *type)
 {
  char str[10];
  int len;
@@ -478,9 +478,9 @@ bool MDFNI_DecodeGBGG(const char *instr, uint32 *a, uint8 *v, uint8 *c, char *ty
  if(len != 9 && len != 6)
   return(0);
 
- uint32 tmp_address;
- uint8 tmp_value;
- uint8 tmp_compare = 0;
+ uint32_t tmp_address;
+ uint8_t tmp_value;
+ uint8_t tmp_compare = 0;
 
  tmp_address =  (CharToNibble(str[5]) << 12) | (CharToNibble(str[2]) << 8) | (CharToNibble(str[3]) << 4) | (CharToNibble(str[4]) << 0);
  tmp_address ^= 0xF000;
@@ -521,11 +521,11 @@ static int GGtobin(char c)
 }
 
 /* Returns 1 on success, 0 on failure. Sets *a,*v,*c. */
-int MDFNI_DecodeGG(const char *str, uint32 *a, uint8 *v, uint8 *c, char *type)
+int MDFNI_DecodeGG(const char *str, uint32_t *a, uint8_t *v, uint8_t *c, char *type)
 {
-   uint16 A;
-   uint8 V,C;
-   uint8 t;
+   uint16_t A;
+   uint8_t V,C;
+   uint8_t t;
    int s;
 
    A=0x8000;
@@ -588,7 +588,7 @@ int MDFNI_DecodeGG(const char *str, uint32 *a, uint8 *v, uint8 *c, char *type)
    return(1);
 }
 
-int MDFNI_DecodePAR(const char *str, uint32 *a, uint8 *v, uint8 *c, char *type)
+int MDFNI_DecodePAR(const char *str, uint32_t *a, uint8_t *v, uint8_t *c, char *type)
 {
  int boo[4];
  if(strlen(str)!=8) return(0);
@@ -613,7 +613,7 @@ int MDFNI_DecodePAR(const char *str, uint32 *a, uint8 *v, uint8 *c, char *type)
 }
 
 /* name can be NULL if the name isn't going to be changed. */
-int MDFNI_SetCheat(uint32 which, const char *name, uint32 a, uint64 v, uint64 compare, int s, char type, unsigned int length, bool bigendian)
+int MDFNI_SetCheat(uint32_t which, const char *name, uint32_t a, uint64_t v, uint64_t compare, int s, char type, unsigned int length, bool bigendian)
 {
  CHEATF *next = &cheats[which];
 
@@ -644,7 +644,7 @@ int MDFNI_SetCheat(uint32 which, const char *name, uint32 a, uint64 v, uint64 co
 }
 
 /* Convenience function. */
-int MDFNI_ToggleCheat(uint32 which)
+int MDFNI_ToggleCheat(uint32_t which)
 {
  cheats[which].status = !cheats[which].status;
  savecheats = 1;

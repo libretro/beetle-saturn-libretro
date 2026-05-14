@@ -26,32 +26,32 @@
 #include <mednafen/git.h>
 
 
-void VDP2REND_Init(const bool IsPAL, const uint64 affinity) MDFN_COLD;
+void VDP2REND_Init(const bool IsPAL, const uint64_t affinity) MDFN_COLD;
 void VDP2REND_SetGetVideoParams(MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend) MDFN_COLD;
 void VDP2REND_Kill(void) MDFN_COLD;
 void VDP2REND_GetGunXTranslation(const bool clock28m, float* scale, float* offs);
 void VDP2REND_StartFrame(EmulateSpecStruct* espec, const bool clock28m, const int SurfInterlaceField);
 void VDP2REND_EndFrame(void);
 void VDP2REND_Reset(bool powering_up) MDFN_COLD;
-void VDP2REND_SetLayerEnableMask(uint64 mask) MDFN_COLD;
+void VDP2REND_SetLayerEnableMask(uint64_t mask) MDFN_COLD;
 void VDP2REND_SetDeinterlaceOff(bool off) MDFN_COLD;
 
-void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16 (&rr)[0x100], uint16 (&cr)[2048], uint16 (&vr)[262144]) MDFN_COLD;
+void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16_t (&rr)[0x100], uint16_t (&cr)[2048], uint16_t (&vr)[262144]) MDFN_COLD;
 
 struct VDP2Rend_LIB
 {
  struct
  {
-  uint32 Xsp, Ysp;// .10
-  uint32 Xp, Yp; // .10
-  uint32 dX, dY; // .10
-  int32 kx, ky;	 // .16
-  uint32 KAstAccum;
-  uint32 DKAx;
+  uint32_t Xsp, Ysp;// .10
+  uint32_t Xp, Yp; // .10
+  uint32_t dX, dY; // .10
+  int32_t kx, ky;	 // .16
+  uint32_t KAstAccum;
+  uint32_t DKAx;
  } rv[2];
  bool vdp1_hires8;
  bool win_ymet[2];
- uint16 vdp1_line[352];
+ uint16_t vdp1_line[352];
  // Mesh side-buffer scanline staged here by VDP1::GetLine when the
  // improved-mesh-transparency option is on. Per-pixel: raw VDP1 texel
  // (CRAM offset / colour-bank-OR / priority-CC bits for paletted types
@@ -59,7 +59,7 @@ struct VDP2Rend_LIB
  // composite tail (ApplyMeshOverlay) decodes each entry the same way
  // T_DrawSpriteData would and 50%-blends the result onto the surface.
  // All zeros when the option is off.
- uint16 vdp1_mesh_line[352];
+ uint16_t vdp1_mesh_line[352];
  // Winning-layer priority per output pixel, captured at T_MixIt's
  // terminal store. ApplyMeshOverlay reads this to gate the mesh blend:
  // a mesh pixel is suppressed where a higher-priority VDP2 layer
@@ -67,15 +67,15 @@ struct VDP2Rend_LIB
  // (matches Kronos's `if (i <= FBMeshPrio)` rule, using the mesh
  // texel's own priority bits + SpritePrioNum[] lookup as FBMeshPrio).
  // Sized to the hires output width.
- uint8 vdp1_winprio[704];
+ uint8_t vdp1_winprio[704];
 };
 
 VDP2Rend_LIB* VDP2REND_GetLIB(unsigned line);
-void VDP2REND_DrawLine(int vdp2_line, const uint32 crt_line, const bool field);
+void VDP2REND_DrawLine(int vdp2_line, const uint32_t crt_line, const bool field);
 
-void VDP2REND_Write8_DB(uint32 A, uint16 DB) MDFN_HOT;
-void VDP2REND_Write16_DB(uint32 A, uint16 DB) MDFN_HOT;
-void VDP2REND_WriteBurst16_DB(uint32 base, uint32 n16, uint32 add_mode, const uint16* words) MDFN_HOT;
+void VDP2REND_Write8_DB(uint32_t A, uint16_t DB) MDFN_HOT;
+void VDP2REND_Write16_DB(uint32_t A, uint16_t DB) MDFN_HOT;
+void VDP2REND_WriteBurst16_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const uint16_t* words) MDFN_HOT;
 
 
 #endif

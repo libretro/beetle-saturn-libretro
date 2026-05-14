@@ -38,12 +38,12 @@
 CartInfo Cart;
 
 template<typename T>
-static MDFN_HOT void DummyRead(uint32 A, uint16* DB)
+static MDFN_HOT void DummyRead(uint32_t A, uint16_t* DB)
 {
 }
 
 template<typename T>
-static MDFN_HOT void DummyWrite(uint32 A, uint16* DB)
+static MDFN_HOT void DummyWrite(uint32_t A, uint16_t* DB)
 {
 }
 
@@ -52,12 +52,12 @@ static sscpu_timestamp_t DummyUpdate(sscpu_timestamp_t timestamp)
  return SS_EVENT_DISABLED_TS;
 }
 
-static void DummyAdjustTS(const int32 delta)
+static void DummyAdjustTS(const int32_t delta)
 {
 
 }
 
-static void DummySetCPUClock(const int32 master_clock, const int32 divider)
+static void DummySetCPUClock(const int32_t master_clock, const int32_t divider)
 {
 
 }
@@ -77,7 +77,7 @@ static MDFN_COLD bool DummyGetClearNVDirty(void)
  return false;
 }
 
-static MDFN_COLD void DummyGetNVInfo(const char** ext, void** nv_ptr, bool* nv16, uint64* nv_size)
+static MDFN_COLD void DummyGetNVInfo(const char** ext, void** nv_ptr, bool* nv16, uint64_t* nv_size)
 {
  *ext = nullptr;
  *nv_ptr = nullptr;
@@ -90,7 +90,7 @@ static MDFN_COLD void DummyKill(void)
 
 }
 
-void CartInfo::CS01_SetRW8W16(uint32 Astart, uint32 Aend, void (*r16)(uint32 A, uint16* DB), void (*w8)(uint32 A, uint16* DB), void (*w16)(uint32 A, uint16* DB))
+void CartInfo::CS01_SetRW8W16(uint32_t Astart, uint32_t Aend, void (*r16)(uint32_t A, uint16_t* DB), void (*w8)(uint32_t A, uint16_t* DB), void (*w16)(uint32_t A, uint16_t* DB))
 {
  assert(Astart >= 0x02000000 && Aend <= 0x04FFFFFF);
 
@@ -107,7 +107,7 @@ void CartInfo::CS01_SetRW8W16(uint32 Astart, uint32 Aend, void (*r16)(uint32 A, 
  }
 }
 
-void CartInfo::CS2M_SetRW8W16(uint8 Ostart, uint8 Oend, void (*r16)(uint32 A, uint16* DB), void (*w8)(uint32 A, uint16* DB), void (*w16)(uint32 A, uint16* DB))
+void CartInfo::CS2M_SetRW8W16(uint8_t Ostart, uint8_t Oend, void (*r16)(uint32_t A, uint16_t* DB), void (*w8)(uint32_t A, uint16_t* DB), void (*w16)(uint32_t A, uint16_t* DB))
 {
  assert(!(Ostart & 0x1));
  assert(Oend & 0x1);
@@ -127,8 +127,8 @@ void CartInfo::CS2M_SetRW8W16(uint8 Ostart, uint8 Oend, void (*r16)(uint32 A, ui
 
 void CART_Init(const int cart_type, const char* rom_dir, const char* main_fname, const STVGameInfo* sgi)
 {
- Cart.CS01_SetRW8W16(0x02000000, 0x04FFFFFF, DummyRead<uint16>, DummyWrite<uint8>, DummyWrite<uint16>);
- Cart.CS2M_SetRW8W16(0x00, 0x3F, DummyRead<uint16>, DummyWrite<uint8>, DummyWrite<uint16>);
+ Cart.CS01_SetRW8W16(0x02000000, 0x04FFFFFF, DummyRead<uint16_t>, DummyWrite<uint8_t>, DummyWrite<uint16_t>);
+ Cart.CS2M_SetRW8W16(0x00, 0x3F, DummyRead<uint16_t>, DummyWrite<uint8_t>, DummyWrite<uint16_t>);
 
  Cart.Reset = DummyReset;
  Cart.Kill = DummyKill;

@@ -32,25 +32,25 @@ class SS_SCSP
 
  void Reset(bool powering_up) MDFN_COLD;
 
- // Use int16 if the SCSP is connected to a 16-bit DAC, int32 if an 18-bit DAC
- template<typename T_out = int16>
+ // Use int16_t if the SCSP is connected to a 16-bit DAC, int32_t if an 18-bit DAC
+ template<typename T_out = int16_t>
  void RunSample(T_out* outlr);
 
  template<typename T, bool IsWrite>
- void RW(uint32 A, T& V); //, void (*time_sucker)();
+ void RW(uint32_t A, T& V); //, void (*time_sucker)();
 
  // Caller must ensure appropriate timing.
- INLINE void WriteMIDI(uint8 V)
+ INLINE void WriteMIDI(uint8_t V)
  {
   MIDI_WriteInput(V);
  }
 
- INLINE uint16* GetEXTSPtr(void)
+ INLINE uint16_t* GetEXTSPtr(void)
  {
   return EXTS;
  }
 
- INLINE uint16* GetRAMPtr(void)
+ INLINE uint16_t* GetRAMPtr(void)
  {
   return RAM;
  }
@@ -72,8 +72,8 @@ class SS_SCSP
   GSREG_EFREG8, GSREG_EFREG9, GSREG_EFREGA, GSREG_EFREGB, GSREG_EFREGC, GSREG_EFREGD, GSREG_EFREGE, GSREG_EFREGF
  };
 
- uint32 GetRegister(const unsigned id, char* const special, const uint32 special_len) MDFN_COLD;
- void SetRegister(const unsigned id, const uint32 value) MDFN_COLD;
+ uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
+ void SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
 
  private:
 
@@ -88,18 +88,18 @@ class SS_SCSP
   ENV_PHASE_RELEASE = 3
  };
 
- uint16 SlotRegs[0x20][0x10];
+ uint16_t SlotRegs[0x20][0x10];
 
  struct Slot
  {
-  uint32 StartAddr;	// 20 bits, memory address.
-  uint16 LoopStart;	// 16 bits, in samples.
-  uint16 LoopEnd;	// 16 bits, in samples.
+  uint32_t StartAddr;	// 20 bits, memory address.
+  uint16_t LoopStart;	// 16 bits, in samples.
+  uint16_t LoopEnd;	// 16 bits, in samples.
   //
   bool KeyBit;
   //
   bool WF8Bit;
-  uint8 LoopMode;
+  uint8_t LoopMode;
   enum
   {
    LOOP_DISABLED = 0,
@@ -108,7 +108,7 @@ class SS_SCSP
    LOOP_ALTERNATING = 3
   };
 
-  uint8 SourceControl;
+  uint8_t SourceControl;
   enum
   {
    SOURCE_MEMORY = 0,
@@ -117,86 +117,86 @@ class SS_SCSP
    SOURCE_UNDEFINED = 3
   };
 
-  uint16 SBXOR;
+  uint16_t SBXOR;
 
-  uint8 EnvRates[4];
+  uint8_t EnvRates[4];
 
   bool AttackHold;
   bool AttackLoopLink;
-  uint8 DecayLevel;
+  uint8_t DecayLevel;
 
-  uint8 KRS;
-  uint8 TotalLevel;
+  uint8_t KRS;
+  uint8_t TotalLevel;
   bool EGBypass;	// When true, force EG output to 0(no attenuation), but TL and ALFO still have an effect
   bool SoundDirect;	// When true, bypass EG, TL, ALFO volume control
 
   bool StackWriteInhibit;
 
-  uint8 ModLevel;
-  uint8 ModInputX;
-  uint8 ModInputY;
+  uint8_t ModLevel;
+  uint8_t ModInputX;
+  uint8_t ModInputY;
 
-  uint8 Octave;
-  uint16 FreqNum;
+  uint8_t Octave;
+  uint16_t FreqNum;
 
-  uint8 ALFOModLevel;
-  uint8 ALFOWaveform;
+  uint8_t ALFOModLevel;
+  uint8_t ALFOWaveform;
 
-  uint8 PLFOModLevel;
-  uint8 PLFOWaveform;
+  uint8_t PLFOModLevel;
+  uint8_t PLFOWaveform;
  
-  uint8 LFOFreq;
+  uint8_t LFOFreq;
 
   bool LFOReset;
 
   // DSP mix stack
-  uint8 ToDSPSelect;
-  uint8 ToDSPLevel;
+  uint8_t ToDSPSelect;
+  uint8_t ToDSPLevel;
 
-  int16 DirectVolume[2];	// 1.14 fixed point, derived from DISDL and DIPAN
-  int16 EffectVolume[2];	// 1.14 fixed point, derived from EFSDL and EFPAN
+  int16_t DirectVolume[2];	// 1.14 fixed point, derived from DISDL and DIPAN
+  int16_t EffectVolume[2];	// 1.14 fixed point, derived from EFSDL and EFPAN
   //
   //
-  uint32 ShortWaveMask;
+  uint32_t ShortWaveMask;
   bool ShortWave;
-  uint16 CurrentAddr;
-  uint32 PhaseWhacker;
+  uint16_t CurrentAddr;
+  uint32_t PhaseWhacker;
   bool InLoop;
   bool LoopSub;
   bool WFAllowAccess;
-  uint8 EnvPhase;	// ENV_PHASE_ATTACK ... ENV_PHASE_RELEASE (0...3)
-  uint32 EnvLevel;	// 0 ... 0x3FF
+  uint8_t EnvPhase;	// ENV_PHASE_ATTACK ... ENV_PHASE_RELEASE (0...3)
+  uint32_t EnvLevel;	// 0 ... 0x3FF
 
-  uint8 LFOCounter;
-  uint16 LFOTimeCounter;
+  uint8_t LFOCounter;
+  uint16_t LFOTimeCounter;
  } Slots[32];
 
- uint16 EXTS[2];
+ uint16_t EXTS[2];
 
  void RecalcShortWaveMask(Slot* s);
 
- void RunEG(Slot* s, const unsigned key_eg_scale, const uint32 sc, const uint32 scxc);
+ void RunEG(Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc);
 
- uint8 GetALFO(Slot* s);
+ uint8_t GetALFO(Slot* s);
  int GetPLFO(Slot* s);
  void RunLFO(Slot* s);
 
- uint16 SoundStack[0x40];
- uint16 SoundStackDelayer[4];
+ uint16_t SoundStack[0x40];
+ uint16_t SoundStackDelayer[4];
 
- uint16 MasterVolume;	// 1.8 fixed point, derived from MVOL
- uint8 MVOL;
+ uint16_t MasterVolume;	// 1.8 fixed point, derived from MVOL
+ uint8_t MVOL;
  bool DAC18bit;
  bool Mem4Mb;
 
- uint32 SlotMonitorWhich;
- uint16 SlotMonitorData;
+ uint32_t SlotMonitorWhich;
+ uint16_t SlotMonitorData;
 
  bool KeyExecute;
- uint32 LFSR;
- uint32 GlobalCounter;
+ uint32_t LFSR;
+ uint32_t GlobalCounter;
 
- const uint16 SB_XOR_Table[4] = { 0x0000, 0x7FFF, 0x8000, 0xFFFF };
+ const uint16_t SB_XOR_Table[4] = { 0x0000, 0x7FFF, 0x8000, 0xFFFF };
 
  //
  //
@@ -210,48 +210,48 @@ class SS_SCSP
  };
  struct
  {
-  uint8 InputFIFO[4];
-  uint8 InputRP, InputWP, InputCount;
+  uint8_t InputFIFO[4];
+  uint8_t InputRP, InputWP, InputCount;
 
-  uint8 OutputFIFO[4];
-  uint8 OutputRP, OutputWP, OutputCount;
+  uint8_t OutputFIFO[4];
+  uint8_t OutputRP, OutputWP, OutputCount;
 
-  uint8 Flags;
+  uint8_t Flags;
   //
-  uint8 SimuClockDivider;
-  uint8 TransmitBitCounter;
-  uint16 TransmitBuffer;
+  uint8_t SimuClockDivider;
+  uint8_t TransmitBitCounter;
+  uint16_t TransmitBuffer;
 
  } MIDI;
- uint8 MIDI_ReadInput(void);
- void MIDI_WriteInput(uint8 V);
- void MIDI_WriteOutput(uint8 V);
+ uint8_t MIDI_ReadInput(void);
+ void MIDI_WriteInput(uint8_t V);
+ void MIDI_WriteOutput(uint8_t V);
  void MIDI_Reset(void);
  void MIDI_Run(void);
  //
  //
- uint16 SCIEB;
- uint16 SCIPD;
+ uint16_t SCIEB;
+ uint16_t SCIPD;
 
- uint16 MCIEB;
- uint16 MCIPD;
+ uint16_t MCIEB;
+ uint16_t MCIPD;
 
- uint8 SCILV[3];
+ uint8_t SCILV[3];
  //
  //
  struct
  {
-  uint8 Control;
-  uint8 Counter;
-  int32 Reload;
+  uint8_t Control;
+  uint8_t Counter;
+  int32_t Reload;
  } Timers[3];
  //
  //
  // DMEA, DRGA, and DTLG are apparently not altered by executing DMA.
  //
- uint32 DMEA;
- uint16 DRGA;
- uint16 DTLG;
+ uint32_t DMEA;
+ uint16_t DRGA;
+ uint16_t DTLG;
 
  bool DMA_Execute;
  bool DMA_Direction;
@@ -260,25 +260,25 @@ class SS_SCSP
  void RunDMA(void);
  //
  //
- uint8 RBP;
- uint8 RBL;
+ uint8_t RBP;
+ uint8_t RBL;
  void RunDSP(void);
  void DecodeMPROG(void);
 
  struct DSPStep
  {
-  uint8 IRA;	// 6 bits
-  uint8 IWA;	// 5 bits
-  uint8 EWA;	// 4 bits
-  uint8 MASA;	// 5 bits
-  uint8 CRA;	// 6 bits
-  uint8 TWA;	// 7 bits, MDEC_CT added at runtime
-  uint8 TRA;	// 7 bits, MDEC_CT added at runtime
-  uint8 YSEL;	// 2 bits
-  uint32 flags;	// see DSPF_*
-  uint8 reads;	// DSPR_* bitmask of carried state this step consumes
-  uint8 writes;	// DSPW_* bitmask of carried state this step produces
-  uint8 live;	// 0 = dead step, RunDSP skips it
+  uint8_t IRA;	// 6 bits
+  uint8_t IWA;	// 5 bits
+  uint8_t EWA;	// 4 bits
+  uint8_t MASA;	// 5 bits
+  uint8_t CRA;	// 6 bits
+  uint8_t TWA;	// 7 bits, MDEC_CT added at runtime
+  uint8_t TRA;	// 7 bits, MDEC_CT added at runtime
+  uint8_t YSEL;	// 2 bits
+  uint32_t flags;	// see DSPF_*
+  uint8_t reads;	// DSPR_* bitmask of carried state this step consumes
+  uint8_t writes;	// DSPW_* bitmask of carried state this step produces
+  uint8_t live;	// 0 = dead step, RunDSP skips it
  };
 
  enum
@@ -320,42 +320,42 @@ class SS_SCSP
 
  struct DSPS
  {
-  uint64 MPROG[0x80];
+  uint64_t MPROG[0x80];
   DSPStep MPROG_Decoded[0x80];
-  uint32 TEMP[0x80];	// 24 bit
-  uint32 MEMS[0x20];	// 24 bit
-  uint16 COEF[64];	// 13 bit
-  uint16 MADRS[32];	// 16 bit
+  uint32_t TEMP[0x80];	// 24 bit
+  uint32_t MEMS[0x20];	// 24 bit
+  uint16_t COEF[64];	// 13 bit
+  uint16_t MADRS[32];	// 16 bit
 
-  uint32 MIXS[0x10];	// 20 bit
-  uint16 EFREG[0x10];
+  uint32_t MIXS[0x10];	// 20 bit
+  uint16_t EFREG[0x10];
 
-  uint32 INPUTS;	// 24 bit
+  uint32_t INPUTS;	// 24 bit
 
-  uint32 SFT_REG;	// 26 bit
-  uint16 FRC_REG;	// 13 bit
-  uint32 Y_REG;		// 24 bit, latches INPUTS
-  uint16 ADRS_REG;	// 12 bit, latches output of A_SEL(which selects between shifter output and upper 8 bits of INPUTS
+  uint32_t SFT_REG;	// 26 bit
+  uint16_t FRC_REG;	// 13 bit
+  uint32_t Y_REG;		// 24 bit, latches INPUTS
+  uint16_t ADRS_REG;	// 12 bit, latches output of A_SEL(which selects between shifter output and upper 8 bits of INPUTS
 
-  uint16 MDEC_CT;
+  uint16_t MDEC_CT;
 
-  uint32 RWAddr;
+  uint32_t RWAddr;
 
   bool WritePending;
-  uint16 WriteValue;
+  uint16_t WriteValue;
 
-  uint8 ReadPending;	// = 1 (NOFL=0), =2 (NOFL=1) at time or MRT
-  uint32 ReadValue;
+  uint8_t ReadPending;	// = 1 (NOFL=0), =2 (NOFL=1) at time or MRT
+  uint32_t ReadValue;
 
   bool MPROG_Dirty;
  } DSP;
  //
  //
 
- uint16 RAM[262144 * 2];	// *2 for dummy so we don't have to have so many conditionals in the playback code.
+ uint16_t RAM[262144 * 2];	// *2 for dummy so we don't have to have so many conditionals in the playback code.
 
 #ifdef MDFN_SS_SCSP_DSP_DYNAREC
- alignas(8) uint8 DynaRecPool[65536];
+ alignas(8) uint8_t DynaRecPool[65536];
 #endif
 };
 

@@ -31,25 +31,25 @@ class IODevice_Keyboard final : public IODevice
  virtual ~IODevice_Keyboard() override MDFN_COLD;
 
  virtual void Power(void) override MDFN_COLD;
- virtual void UpdateInput(const uint8* data, const int32 time_elapsed) override;
- virtual void UpdateOutput(uint8* data) override;
+ virtual void UpdateInput(const uint8_t* data, const int32_t time_elapsed) override;
+ virtual void UpdateOutput(uint8_t* data) override;
  virtual void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname_prefix) override;
 
- virtual uint8 UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted) override;
+ virtual uint8_t UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted) override;
 
  private:
 
- uint64 phys[4];
- uint64 processed[4];
- uint8 lock;
- uint8 lock_pend;
- uint16 simbutt;
- uint16 simbutt_pend;
+ uint64_t phys[4];
+ uint64_t processed[4];
+ uint8_t lock;
+ uint8_t lock_pend;
+ uint16_t simbutt;
+ uint16_t simbutt_pend;
  enum : int { fifo_size = 16 };
- uint16 fifo[fifo_size];
- uint8 fifo_rdp;
- uint8 fifo_wrp;
- uint8 fifo_cnt;
+ uint16_t fifo[fifo_size];
+ uint8_t fifo_rdp;
+ uint8_t fifo_wrp;
+ uint8_t fifo_cnt;
  enum
  {
   LOCK_SCROLL = 0x01,
@@ -57,14 +57,14 @@ class IODevice_Keyboard final : public IODevice
   LOCK_CAPS = 0x04
  };
 
- int16 rep_sc;
- int32 rep_dcnt;
+ int16_t rep_sc;
+ int32_t rep_dcnt;
 
- int16 mkbrk_pend;
- uint8 buffer[12];
- uint8 data_out;
+ int16_t mkbrk_pend;
+ uint8_t buffer[12];
+ uint8_t data_out;
  bool tl;
- int8 phase;
+ int8_t phase;
 };
 
 #endif

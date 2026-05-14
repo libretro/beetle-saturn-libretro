@@ -30,34 +30,34 @@ namespace VDP1
 
 enum { VDP1_SuspendResumeThreshold = 1000 };
 
-int32 CMD_NormalSprite(const uint16*);
-int32 CMD_ScaledSprite(const uint16*);
-int32 CMD_DistortedSprite(const uint16*);
-int32 RESUME_Sprite(const uint16*);
+int32_t CMD_NormalSprite(const uint16_t*);
+int32_t CMD_ScaledSprite(const uint16_t*);
+int32_t CMD_DistortedSprite(const uint16_t*);
+int32_t RESUME_Sprite(const uint16_t*);
 
-int32 CMD_Polygon(const uint16*);
-int32 RESUME_Polygon(const uint16*);
+int32_t CMD_Polygon(const uint16_t*);
+int32_t RESUME_Polygon(const uint16_t*);
 
-int32 CMD_Polyline(const uint16*);
-int32 CMD_Line(const uint16*);
-int32 RESUME_Line(const uint16*);
+int32_t CMD_Polyline(const uint16_t*);
+int32_t CMD_Line(const uint16_t*);
+int32_t RESUME_Line(const uint16_t*);
 
-MDFN_HIDE extern uint16 VRAM[0x40000];
-MDFN_HIDE extern uint16 FB[2][0x20000];
-MDFN_HIDE extern uint16* FBDrawWhichPtr;
+MDFN_HIDE extern uint16_t VRAM[0x40000];
+MDFN_HIDE extern uint16_t FB[2][0x20000];
+MDFN_HIDE extern uint16_t* FBDrawWhichPtr;
 
 // Mesh side-buffer for improved-mesh-transparency mode. See vdp1.cpp
 // for full description. Same dimensions as FB; MeshFBDrawWhichPtr
 // tracks MeshFB[FBDrawWhich] so PlotPixel can address the active
 // draw side without re-computing the index.
-MDFN_HIDE extern uint16 MeshFB[2][0x20000];
-MDFN_HIDE extern uint16* MeshFBDrawWhichPtr;
+MDFN_HIDE extern uint16_t MeshFB[2][0x20000];
+MDFN_HIDE extern uint16_t* MeshFBDrawWhichPtr;
 
-MDFN_HIDE extern int32 SysClipX, SysClipY;
-MDFN_HIDE extern int32 UserClipX0, UserClipY0, UserClipX1, UserClipY1;
-MDFN_HIDE extern int32 LocalX, LocalY;
+MDFN_HIDE extern int32_t SysClipX, SysClipY;
+MDFN_HIDE extern int32_t UserClipX0, UserClipY0, UserClipX1, UserClipY1;
+MDFN_HIDE extern int32_t LocalX, LocalY;
 
-MDFN_HIDE extern uint32 (MDFN_FASTCALL *const TexFetchTab[0x20])(uint32 x);
+MDFN_HIDE extern uint32_t (MDFN_FASTCALL *const TexFetchTab[0x20])(uint32_t x);
 
 // "Improved mesh transparency" toggle (libretro core option).
 // Read by PlotPixel inside its MeshEn=true template path. False =
@@ -69,21 +69,21 @@ enum { TVMR_8BPP   = 0x1 };
 enum { TVMR_ROTATE = 0x2 };
 enum { TVMR_HDTV   = 0x4 };
 enum { TVMR_VBE    = 0x8 };
-MDFN_HIDE extern uint8 TVMR;
+MDFN_HIDE extern uint8_t TVMR;
 
 enum { FBCR_FCT	   = 0x01 };	// Frame buffer change trigger
 enum { FBCR_FCM	   = 0x02 };	// Frame buffer change mode
 enum { FBCR_DIL	   = 0x04 };	// Double interlace draw line(0=even, 1=odd) (does it affect drawing to FB RAM or reading from FB RAM to VDP2?)
 enum { FBCR_DIE	   = 0x08 };	// Double interlace enable
 enum { FBCR_EOS	   = 0x10 };	// Even/Odd coordinate select(0=even, 1=odd, used with HSS)
-MDFN_HIDE extern uint8 FBCR;
+MDFN_HIDE extern uint8_t FBCR;
 
-MDFN_HIDE extern uint8 spr_w_shift_tab[8];
-MDFN_HIDE extern uint8 gouraud_lut[0x40];
+MDFN_HIDE extern uint8_t spr_w_shift_tab[8];
+MDFN_HIDE extern uint8_t gouraud_lut[0x40];
 
 struct GourauderTheTerrible
 {
- void Setup(const unsigned length, const uint16 gstart, const uint16 gend)
+ void Setup(const unsigned length, const uint16_t gstart, const uint16_t gend)
  {
   g = gstart & 0x7FFF;
   intinc = 0;
@@ -93,7 +93,7 @@ struct GourauderTheTerrible
    const int dg = ((gend >> (cc * 5)) & 0x1F) - ((gstart >> (cc * 5)) & 0x1F);
    const unsigned abs_dg = abs(dg);
 
-   ginc[cc] = (uint32)((dg >= 0) ? 1 : -1) << (cc * 5);
+   ginc[cc] = (uint32_t)((dg >= 0) ? 1 : -1) << (cc * 5);
 
    if(length <= abs_dg)
    {
@@ -116,14 +116,14 @@ struct GourauderTheTerrible
   }
  }
 
- inline uint32 Current(void)
+ inline uint32_t Current(void)
  {
   return g;
  }
 
- inline uint16 Apply(uint16 pix) const
+ inline uint16_t Apply(uint16_t pix) const
  {
-  uint16 ret = pix & 0x8000;
+  uint16_t ret = pix & 0x8000;
 
   ret |= gouraud_lut[((pix & (0x1F <<  0)) + (g & (0x1F <<  0))) >>  0] <<  0;
   ret |= gouraud_lut[((pix & (0x1F <<  5)) + (g & (0x1F <<  5))) >>  5] <<  5;
@@ -140,24 +140,24 @@ struct GourauderTheTerrible
   {
    error[cc] -= error_inc[cc];
    {
-    const uint32 mask = (int32)error[cc] >> 31;
+    const uint32_t mask = (int32_t)error[cc] >> 31;
     g += ginc[cc] & mask;
     error[cc] += error_adj[cc] & mask;
    }
   }
  }
 
- uint32 g;
- uint32 intinc;
- int32 ginc[3];
- int32 error[3];
- int32 error_inc[3];
- int32 error_adj[3];
+ uint32_t g;
+ uint32_t intinc;
+ int32_t ginc[3];
+ int32_t error[3];
+ int32_t error_inc[3];
+ int32_t error_adj[3];
 };
 
 struct VileTex
 {
- INLINE bool Setup(const unsigned length, const int32 tstart, const int32 tend, const int32 sf = 1, const int32 tfudge = 0)
+ INLINE bool Setup(const unsigned length, const int32_t tstart, const int32_t tend, const int32_t sf = 1, const int32_t tfudge = 0)
  {
   int dt = tend - tstart;
   unsigned abs_dt = abs(dt);
@@ -186,13 +186,13 @@ struct VileTex
  //
  //
  INLINE bool IncPending(void) { return error >= 0; }
- INLINE int32 DoPendingInc(void) { t += tinc; error -= error_adj; return t; }
+ INLINE int32_t DoPendingInc(void) { t += tinc; error -= error_adj; return t; }
  INLINE void AddError(void) { error += error_inc; }
  //
  //
  //
 
- INLINE int32 PreStep(void)
+ INLINE int32_t PreStep(void)
  {
   while(error >= 0)
   {
@@ -204,27 +204,27 @@ struct VileTex
   return t;
  }
 
- INLINE int32 Current(void)
+ INLINE int32_t Current(void)
  {
   return t;
  }
 
- int32 t;
- int32 tinc;
- int32 error;
- int32 error_inc;
- int32 error_adj;
+ int32_t t;
+ int32_t tinc;
+ int32_t error;
+ int32_t error_inc;
+ int32_t error_adj;
 };
 
 //
 //
 //
 template<bool die, unsigned bpp8, bool MSBOn, bool UserClipEn, bool UserClipMode, bool MeshEn, bool GouraudEn, bool HalfFGEn, bool HalfBGEn>
-static INLINE int32 PlotPixel(int32 x, int32 y, uint16 pix, bool transparent, GourauderTheTerrible* g)
+static INLINE int32_t PlotPixel(int32_t x, int32_t y, uint16_t pix, bool transparent, GourauderTheTerrible* g)
 {
  static_assert(!MSBOn || (!HalfFGEn && !HalfBGEn), "Table error; sub-optimal template arguments.");
- int32 ret = 0;
- uint16* fbyptr;
+ int32_t ret = 0;
+ uint16_t* fbyptr;
 
  if(die)
  {
@@ -277,21 +277,21 @@ static INLINE int32 PlotPixel(int32 x, int32 y, uint16 pix, bool transparent, Go
 
   if(!transparent)
   {
-   /* ne16_wbo_be<uint8>(fbyptr, byte_off, pix) folded.
+   /* ne16_wbo_be<uint8_t>(fbyptr, byte_off, pix) folded.
     * MSB_FIRST: natural byte index. LE host: XOR with 1 to swap
-    * the byte halves of each uint16 slot in the FB. */
-   const uint32 boff__ = (bpp8 == 2) ? ((x & 0x1FF) | ((y & 0x100) << 1)) : (x & 0x3FF);
+    * the byte halves of each uint16_t slot in the FB. */
+   const uint32_t boff__ = (bpp8 == 2) ? ((x & 0x1FF) | ((y & 0x100) << 1)) : (x & 0x3FF);
 #ifdef MSB_FIRST
-   ((uint8*)fbyptr)[boff__] = pix;
+   ((uint8_t*)fbyptr)[boff__] = pix;
 #else
-   ((uint8*)fbyptr)[boff__ ^ 1] = pix;
+   ((uint8_t*)fbyptr)[boff__ ^ 1] = pix;
 #endif
   }
   ret++;
  }
  else
  {
-  uint16* const p = &fbyptr[x & 0x1FF];
+  uint16_t* const p = &fbyptr[x & 0x1FF];
 
   if(MSBOn)
   {
@@ -302,7 +302,7 @@ static INLINE int32 PlotPixel(int32 x, int32 y, uint16 pix, bool transparent, Go
   {
    if(HalfBGEn)
    {
-    uint16 bg_pix = *p;
+    uint16_t bg_pix = *p;
     ret += 5;
 
     if(bg_pix & 0x8000)
@@ -389,7 +389,7 @@ static INLINE int32 PlotPixel(int32 x, int32 y, uint16 pix, bool transparent, Go
   {
    if(!transparent)
    {
-    const uint32 row = die ? ((y >> 1) & 0xFF) : (y & 0xFF);
+    const uint32_t row = die ? ((y >> 1) & 0xFF) : (y & 0xFF);
     MeshFBDrawWhichPtr[(row << 9) + (x & 0x1FF)] = pix;
    }
   }
@@ -400,7 +400,7 @@ static INLINE int32 PlotPixel(int32 x, int32 y, uint16 pix, bool transparent, Go
 
    if(!MeshEn && MeshImproved && !transparent)
    {
-    const uint32 row = die ? ((y >> 1) & 0xFF) : (y & 0xFF);
+    const uint32_t row = die ? ((y >> 1) & 0xFF) : (y & 0xFF);
     MeshFBDrawWhichPtr[(row << 9) + (x & 0x1FF)] = 0;
    }
   }
@@ -414,14 +414,14 @@ static INLINE int32 PlotPixel(int32 x, int32 y, uint16 pix, bool transparent, Go
 //
 struct line_vertex
 {
- int32 x, y;
- uint16 g;
- int32 t;
+ int32_t x, y;
+ uint16_t g;
+ int32_t t;
 };
 
 struct EdgeStepper
 {
- void Setup(const bool gourauden, const line_vertex& p0, const line_vertex& p1, const int32 dmax);
+ void Setup(const bool gourauden, const line_vertex& p0, const line_vertex& p1, const int32_t dmax);
 
  template<bool gourauden>
  INLINE void GetVertex(line_vertex* p)
@@ -437,20 +437,20 @@ struct EdgeStepper
  INLINE void Step(void)
  {
   d_error += d_error_inc;
-  if((int32)d_error >= d_error_cmp)
+  if((int32_t)d_error >= d_error_cmp)
   {
    d_error += d_error_adj;
 
    x_error += x_error_inc;
    {
-    const uint32 x_mask = -((int32)x_error >= x_error_cmp);
+    const uint32_t x_mask = -((int32_t)x_error >= x_error_cmp);
     x += x_inc & x_mask;
     x_error += x_error_adj & x_mask;
    }
 
    y_error += y_error_inc;
    {
-    const uint32 y_mask = -((int32)y_error >= y_error_cmp);
+    const uint32_t y_mask = -((int32_t)y_error >= y_error_cmp);
     y += y_inc & y_mask;
     y_error += y_error_adj & y_mask;
    }
@@ -460,53 +460,53 @@ struct EdgeStepper
   }
  }
 
- uint32 d_error, d_error_inc, d_error_adj;
- int32 d_error_cmp;
+ uint32_t d_error, d_error_inc, d_error_adj;
+ int32_t d_error_cmp;
 
- uint32 x, x_inc;
- uint32 x_error, x_error_inc, x_error_adj;
- int32 x_error_cmp;
+ uint32_t x, x_inc;
+ uint32_t x_error, x_error_inc, x_error_adj;
+ int32_t x_error_cmp;
 
- uint32 y, y_inc;
- uint32 y_error, y_error_inc, y_error_adj;
- int32 y_error_cmp;
+ uint32_t y, y_inc;
+ uint32_t y_error, y_error_inc, y_error_adj;
+ int32_t y_error_cmp;
 
  GourauderTheTerrible g;
 };
 
 struct line_inner_data
 {
- uint32 xy;
- uint32 error;
+ uint32_t xy;
+ uint32_t error;
  bool drawn_ac;
 
- uint32 texel; // must be 32-bit
+ uint32_t texel; // must be 32-bit
  VileTex t;
  GourauderTheTerrible g;
  //
  //
  //
- int32 xy_inc[2];
- uint32 aa_xy_inc;
- uint32 term_xy;
+ int32_t xy_inc[2];
+ uint32_t aa_xy_inc;
+ uint32_t term_xy;
 
- int32 error_cmp;
- uint32 error_inc;
- uint32 error_adj;
+ int32_t error_cmp;
+ uint32_t error_inc;
+ uint32_t error_adj;
 
- uint16 color;
+ uint16_t color;
 };
 
 struct line_data
 {
  line_vertex p[2];
  //
- uint16 color;
- int32 ec_count;
- uint32 (MDFN_FASTCALL *tffn)(uint32);
- uint16 CLUT[0x10];
- uint32 cb_or;
- uint32 tex_base;
+ uint16_t color;
+ int32_t ec_count;
+ uint32_t (MDFN_FASTCALL *tffn)(uint32_t);
+ uint16_t CLUT[0x10];
+ uint32_t cb_or;
+ uint32_t tex_base;
 };
 
 MDFN_HIDE extern line_data LineData;
@@ -517,8 +517,8 @@ struct prim_data
 {
  EdgeStepper e[2];
  VileTex big_t;
- uint32 tex_base;
- int32 iter;
+ uint32_t tex_base;
+ int32_t iter;
  bool need_line_resume;
 };
 
@@ -528,10 +528,10 @@ MDFN_HIDE extern prim_data PrimData;
 // 8bpp mode timing is best-caseish, performance is different between horizontal and vertical lines.
 //
 // Must always return 0 if 'cycles' argument is zero.
-static INLINE int32 AdjustDrawTiming(const int32 cycles)
+static INLINE int32_t AdjustDrawTiming(const int32_t cycles)
 {
- MDFN_HIDE extern uint32 DTACounter;
- uint32 extra_cycles;
+ MDFN_HIDE extern uint32_t DTACounter;
+ uint32_t extra_cycles;
 
  DTACounter += cycles * ((TVMR & TVMR_8BPP) ? 24 : 48);
  extra_cycles = DTACounter >> 8;
@@ -540,13 +540,13 @@ static INLINE int32 AdjustDrawTiming(const int32 cycles)
  return cycles + extra_cycles;
 }
 
-bool SetupDrawLine(int32* const cycle_counter, const bool AA, const bool Textured, const uint16 mode);
+bool SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textured, const uint16_t mode);
 
  /* hmm, possible problem with AA and drawn_ac...*/
  #define PBODY(pxy)											\
 	{												\
-	 const uint32 px = (uint16)(pxy);								\
-	 const uint32 py = (pxy) >> 16;									\
+	 const uint32_t px = (uint16_t)(pxy);								\
+	 const uint32_t py = (pxy) >> 16;									\
 	 bool clipped;											\
 													\
 	 if(UserClipEn && !UserClipMode)								\
@@ -571,24 +571,24 @@ bool SetupDrawLine(int32* const cycle_counter, const bool AA, const bool Texture
 	}
 
 template<bool AA, bool Textured, bool die, unsigned bpp8, bool MSBOn, bool UserClipEn, bool UserClipMode, bool MeshEn, bool ECD, bool SPD, bool GouraudEn, bool HalfFGEn, bool HalfBGEn>
-static int32 DrawLine(bool* need_line_resume)
+static int32_t DrawLine(bool* need_line_resume)
 {
- const uint32 clipo = ((SysClipY & 0x3FF) << 16) | (SysClipX & 0x3FF);
- const uint32 uclipo0 = ((UserClipY0 & 0x3FF) << 16) | (UserClipX0 & 0x3FF);
- const uint32 uclipo1 = ((UserClipY1 & 0x3FF) << 16) | (UserClipX1 & 0x3FF);
+ const uint32_t clipo = ((SysClipY & 0x3FF) << 16) | (SysClipX & 0x3FF);
+ const uint32_t uclipo0 = ((UserClipY0 & 0x3FF) << 16) | (UserClipX0 & 0x3FF);
+ const uint32_t uclipo1 = ((UserClipY1 & 0x3FF) << 16) | (UserClipX1 & 0x3FF);
  line_inner_data lid = LineInnerData;
- int32 ret = 0;
+ int32_t ret = 0;
 
  do
  {
   bool transparent;
-  uint16 pix;
+  uint16_t pix;
 
   if(Textured)
   {
    while(lid.t.IncPending())
    {
-    int32 tx = lid.t.DoPendingInc();
+    int32_t tx = lid.t.DoPendingInc();
 
     lid.texel = LineData.tffn(tx);
 
@@ -610,13 +610,13 @@ static int32 DrawLine(bool* need_line_resume)
   //
   lid.xy = (lid.xy + lid.xy_inc[0]) & 0x07FF07FF;
   lid.error += lid.error_inc;
-  if((int32)lid.error >= lid.error_cmp)
+  if((int32_t)lid.error >= lid.error_cmp)
   {
    lid.error += lid.error_adj;
 
    if(AA)
    {
-    const uint32 aa_xy = (lid.xy + lid.aa_xy_inc) & 0x07FF07FF;
+    const uint32_t aa_xy = (lid.xy + lid.aa_xy_inc) & 0x07FF07FF;
 
     PBODY(aa_xy);
    }

@@ -103,7 +103,7 @@ void M68K::StateAction(StateMem* sm, const unsigned load, const bool data_only, 
   XPending &= XPENDING_MASK__VALID;
 }
 
-void M68K::SetIPL(uint8 ipl_new)
+void M68K::SetIPL(uint8_t ipl_new)
 {
  if(IPL < 0x7 && ipl_new == 0x7)
   XPending |= XPENDING_MASK_NMI;
@@ -176,8 +176,8 @@ enum
 // Base exception timing is 34 cycles?
 void NO_INLINE M68K::Exception(unsigned which, unsigned vecnum)
 {
- const uint32 PC_save = PC;
- const uint16 SR_save = GetSR();
+ const uint32_t PC_save = PC;
+ const uint16_t SR_save = GetSR();
 
  SetSR((GetSR() & ~0x2000) | (1 << 13));
  SetSR((GetSR() & ~0x8000));
@@ -200,17 +200,17 @@ void NO_INLINE M68K::Exception(unsigned which, unsigned vecnum)
   timestamp += 2;
  }
 
- Push<uint32>(PC_save);
- Push<uint16>(SR_save);
+ Push<uint32_t>(PC_save);
+ Push<uint16_t>(SR_save);
 
  if(MDFN_UNLIKELY(which == EXCEPTION_BUS_ERROR || which == EXCEPTION_ADDRESS_ERROR))
  {
-  Push<uint16>(0); // TODO: Instruction register
-  Push<uint32>(0); // TODO: Access address
-  Push<uint16>(0); // TODO: R/W, I/N, function code
+  Push<uint16_t>(0); // TODO: Instruction register
+  Push<uint32_t>(0); // TODO: Access address
+  Push<uint16_t>(0); // TODO: R/W, I/N, function code
  }
 
- PC = Read<uint32>(vecnum << 2);
+ PC = Read<uint32_t>(vecnum << 2);
 
  // TODO: Prefetch
  ReadOp();
@@ -225,9 +225,9 @@ void NO_INLINE M68K::Exception(unsigned which, unsigned vecnum)
 //
 // TAS
 //
-MDFN_FASTCALL uint8 TAS_Callback(M68K* zptr, uint8 data)
+MDFN_FASTCALL uint8_t TAS_Callback(M68K* zptr, uint8_t data)
 {
- zptr->CalcZN<uint8>(data);
+ zptr->CalcZN<uint8_t>(data);
  zptr->Flag_C = false;
  zptr->Flag_V = false;
 
@@ -235,7 +235,7 @@ MDFN_FASTCALL uint8 TAS_Callback(M68K* zptr, uint8 data)
  return data;
 }
 
-void NO_INLINE M68K::Run(int32 run_until_time)
+void NO_INLINE M68K::Run(int32_t run_until_time)
 {
  while(MDFN_LIKELY(timestamp < run_until_time))
  {
@@ -251,8 +251,8 @@ void NO_INLINE M68K::Run(int32 run_until_time)
 					 SetSR((GetSR() & ~0x8000));
 					 SetSR((GetSR() & ~0x0700) | (0x7 << 8));
 
-					 A[7] = Read<uint32>(VECNUM_RESET_SSP << 2);
-					 PC = Read<uint32>(VECNUM_RESET_PC << 2);
+					 A[7] = Read<uint32_t>(VECNUM_RESET_SSP << 2);
+					 PC = Read<uint32_t>(VECNUM_RESET_PC << 2);
 					 //
 					 XPending &= ~XPENDING_MASK_RESET;
 				 }
@@ -286,7 +286,7 @@ void NO_INLINE M68K::Run(int32 run_until_time)
 	 //
 	 //
 	 //
-	 uint16 instr = ReadOp();
+	 uint16_t instr = ReadOp();
 	 const unsigned instr_b11_b9 = (instr >> 9) & 0x7;
 	 const unsigned instr_b2_b0 = instr & 0x7;
 #ifdef M68K_SPLIT_SWITCH
@@ -330,7 +330,7 @@ void M68K::Reset(bool powering_up)
 //
 //
 //
-uint32 M68K::GetRegister(unsigned which, char* special, const uint32 special_len)
+uint32_t M68K::GetRegister(unsigned which, char* special, const uint32_t special_len)
 {
  switch(which)
  {
@@ -365,7 +365,7 @@ uint32 M68K::GetRegister(unsigned which, char* special, const uint32 special_len
  }
 }
 
-void M68K::SetRegister(unsigned which, uint32 value)
+void M68K::SetRegister(unsigned which, uint32_t value)
 {
  switch(which)
  {

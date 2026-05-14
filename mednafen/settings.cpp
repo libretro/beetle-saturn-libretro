@@ -33,7 +33,7 @@ uint64_t MDFN_GetSettingUI(const char *name)
    return 0;
 }
 
-int64 MDFN_GetSettingI(const char *name)
+int64_t MDFN_GetSettingI(const char *name)
 {
    if (!strcmp("ss.slstart", name))
       return setting_initial_scanline;

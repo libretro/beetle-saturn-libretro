@@ -29,7 +29,7 @@ class AK93C45
 {
  public:
 
- AK93C45(void) MDFN_COLD; //int32 timestamp_rate);
+ AK93C45(void) MDFN_COLD; //int32_t timestamp_rate);
  ~AK93C45(void) MDFN_COLD;
 
  void Init(void) MDFN_COLD;
@@ -37,41 +37,41 @@ class AK93C45
  void Power(void) MDFN_COLD;
 
  void ResetTS(void);
- void SetTSFreq(const int32 rate);
+ void SetTSFreq(const int32_t rate);
 
- bool UpdateBus(int32 timestamp, bool cs, bool sk, bool di);
+ bool UpdateBus(int32_t timestamp, bool cs, bool sk, bool di);
 
  void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
  //
  //
  //
- INLINE uint16 PeekMem(unsigned a)
+ INLINE uint16_t PeekMem(unsigned a)
  {
   assert(a < 0x40);
 
   return mem[a];
  }
 
- INLINE void PokeMem(unsigned a, uint16 v)
+ INLINE void PokeMem(unsigned a, uint16_t v)
  {
   assert(a < 0x40);
 
   mem[a] = v;
  }
 
- uint16 mem[0x40];
+ uint16_t mem[0x40];
 
  private:
  bool write_enable;
 
- uint16 addr;
- uint16 data_buffer;
- uint8 counter;
- uint8 opcode;
+ uint16_t addr;
+ uint16_t data_buffer;
+ uint8_t counter;
+ uint8_t opcode;
 
  bool dout;
 
- //const int32 ts_rate;
+ //const int32_t ts_rate;
  bool prev_cs, prev_sk;
 
  enum
@@ -86,12 +86,12 @@ class AK93C45
   PHASE_WRITE_PENDING,
   PHASE_WRITING 
  };
- uint32 phase;
+ uint32_t phase;
 
- int64 write_finish_counter;
+ int64_t write_finish_counter;
 
- int32 tsratio;
- int32 lastts;
+ int32_t tsratio;
+ int32_t lastts;
 };
 
 #endif

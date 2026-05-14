@@ -23,7 +23,7 @@
 #include "debug.h"
 
 template<typename T, bool IsWrite>
-static void Debug_RW_DB(uint32 A, uint16* DB)
+static void Debug_RW_DB(uint32_t A, uint16_t* DB)
 {
  //
  // printf-related debugging
@@ -49,7 +49,7 @@ static void Debug_RW_DB(uint32 A, uint16* DB)
 void CART_Debug_Init(CartInfo* c)
 {
  c->CS01_SetRW8W16(0x02100000, /*0x02100001*/ 0x021FFFFF,
-	Debug_RW_DB<uint16, false>,
-	Debug_RW_DB<uint8, true>,
-	Debug_RW_DB<uint16, true>);
+	Debug_RW_DB<uint16_t, false>,
+	Debug_RW_DB<uint8_t, true>,
+	Debug_RW_DB<uint16_t, true>);
 }

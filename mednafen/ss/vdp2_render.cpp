@@ -46,7 +46,7 @@
 // is sufficient.
 namespace VDP1 { MDFN_HIDE extern bool MeshImproved; }
 
-//uint8 vdp2rend_prepad_bss
+//uint8_t vdp2rend_prepad_bss
 
 static EmulateSpecStruct* espec = NULL;
 static bool PAL;
@@ -54,20 +54,20 @@ static bool CorrectAspect;
 static bool ShowHOverscan;
 bool DoHBlend; // LibRetro: non-static for accessibility
 static int LineVisFirst, LineVisLast;
-static uint32 NextOutLine;
+static uint32_t NextOutLine;
 static bool Clock28M;
 static unsigned VisibleLines;
 static VDP2Rend_LIB LIB[256];
-static uint16 VRAM[262144];
-static uint16 CRAM[2048];
+static uint16_t VRAM[262144];
+static uint16_t CRAM[2048];
 
-static uint8 HRes, VRes;
+static uint8_t HRes, VRes;
 static bool BorderMode;
-static uint8 InterlaceMode;
+static uint8_t InterlaceMode;
 enum { IM_NONE, IM_ILLEGAL, IM_SINGLE, IM_DOUBLE };
 
 static bool CRKTE;
-static uint8 CRAM_Mode;
+static uint8_t CRAM_Mode;
 enum
 {
  CRAM_MODE_RGB555_1024	= 0,
@@ -75,13 +75,13 @@ enum
  CRAM_MODE_RGB888_1024	= 2,
  CRAM_MODE_ILLEGAL	= 3
 };
-static uint8 VRAM_Mode;
-static uint8 RDBS_Mode;
+static uint8_t VRAM_Mode;
+static uint8_t RDBS_Mode;
 
-static uint8 VCPRegs[4][8];
-static const uint16 DummyTileNT[8 * 8 * 4 / sizeof(uint16)] = { 0 };
+static uint8_t VCPRegs[4][8];
+static const uint16_t DummyTileNT[8 * 8 * 4 / sizeof(uint16_t)] = { 0 };
 
-static uint32 UserLayerEnableMask;
+static uint32_t UserLayerEnableMask;
 
 /*
  * "Deinterlace = Off" toggle, read by the consumer thread inside
@@ -107,89 +107,89 @@ static uint32 UserLayerEnableMask;
  */
 static bool DeinterlaceOff;
 
-static uint16 BGON;
-static uint16 MZCTL;
-static uint8 MosaicVCount;
+static uint16_t BGON;
+static uint16_t MZCTL;
+static uint8_t MosaicVCount;
 
-static uint8 SFSEL;
-static uint16 SFCODE;
+static uint8_t SFSEL;
+static uint16_t SFCODE;
 
-static uint16 CHCTLA;
-static uint16 CHCTLB;
+static uint16_t CHCTLA;
+static uint16_t CHCTLB;
 
-static uint16 BMPNA;
-static uint8 BMPNB;
+static uint16_t BMPNA;
+static uint8_t BMPNB;
 
-static uint16 PNCN[4];
-static uint16 PNCNR;
+static uint16_t PNCN[4];
+static uint16_t PNCNR;
 
-static uint16 PLSZ;
-static uint16 MPOFN;
-static uint16 MPOFR;
+static uint16_t PLSZ;
+static uint16_t MPOFN;
+static uint16_t MPOFR;
 
-static uint8 MapRegs[4][4];
-static uint8 RotMapRegs[2][16];
+static uint8_t MapRegs[4][4];
+static uint8_t RotMapRegs[2][16];
 //
-static uint16 XScrollI[4], YScrollI[4];
-static uint8 XScrollF[2], YScrollF[2];
+static uint16_t XScrollI[4], YScrollI[4];
+static uint8_t XScrollF[2], YScrollF[2];
 
-static uint16 ZMCTL;
-static uint16 SCRCTL;
-static uint32 LineScrollAddr[2];
-static uint32 VCScrollAddr;
-static uint32 VCLast[2];
+static uint16_t ZMCTL;
+static uint16_t SCRCTL;
+static uint32_t LineScrollAddr[2];
+static uint32_t VCScrollAddr;
+static uint32_t VCLast[2];
 
-static uint16 XCoordInc[2], YCoordInc[2];
-static uint32 YCoordAccum[2];
-static uint32 MosEff_YCoordAccum[2];
+static uint16_t XCoordInc[2], YCoordInc[2];
+static uint32_t YCoordAccum[2];
+static uint32_t MosEff_YCoordAccum[2];
 
-static uint32 CurXScrollIF[2];
-static uint32 CurYScrollIF[2];
-static uint16 CurXCoordInc[2];
-static uint32 CurLSA[2];
+static uint32_t CurXScrollIF[2];
+static uint32_t CurYScrollIF[2];
+static uint16_t CurXCoordInc[2];
+static uint32_t CurLSA[2];
 
-static uint16 NBG23_YCounter[2];
-static uint16 MosEff_NBG23_YCounter[2];
+static uint16_t NBG23_YCounter[2];
+static uint16_t MosEff_NBG23_YCounter[2];
 //
-static uint8 RPMD;
-static uint8 KTCTL[2];
-static uint16 OVPNR[2];
+static uint8_t RPMD;
+static uint8_t KTCTL[2];
+static uint16_t OVPNR[2];
 //
-static uint32 BKTA;
-static uint32 CurBackTabAddr;
-static uint16 CurBackColor;
+static uint32_t BKTA;
+static uint32_t CurBackTabAddr;
+static uint16_t CurBackColor;
 
-static uint32 LCTA;
-static uint32 CurLCTabAddr;
-static uint16 CurLCColor;
+static uint32_t LCTA;
+static uint32_t CurLCTabAddr;
+static uint16_t CurLCColor;
 
-static uint8 LineColorEn;
+static uint8_t LineColorEn;
 
-static uint16 SFPRMD;
-static uint16 CCCTL;
-static uint16 SFCCMD;
+static uint16_t SFPRMD;
+static uint16_t CCCTL;
+static uint16_t SFCCMD;
 //
-static uint8 NBGPrioNum[4];
-static uint8 RBG0PrioNum;
+static uint8_t NBGPrioNum[4];
+static uint8_t RBG0PrioNum;
 
-static uint8 NBGCCRatio[4];
-static uint8 RBG0CCRatio;
-static uint8 LineColorCCRatio;
-static uint8 BackCCRatio;
+static uint8_t NBGCCRatio[4];
+static uint8_t RBG0CCRatio;
+static uint8_t LineColorCCRatio;
+static uint8_t BackCCRatio;
 
 //
 static struct
 {
- uint16 XStart, XEnd;
- uint32 LineWinAddr;
+ uint16_t XStart, XEnd;
+ uint32_t LineWinAddr;
  bool LineWinEn;
  //
  bool YMet;
- uint16 CurXStart, CurXEnd;
- uint32 CurLineWinAddr;
+ uint16_t CurXStart, CurXEnd;
+ uint32_t CurLineWinAddr;
 } Window[2];
 
-static uint8 WinControl[8];
+static uint8_t WinControl[8];
 enum
 {
  WINLAYER_NBG0 = 0,
@@ -204,25 +204,25 @@ enum
 
 static std::array<unsigned, 5> WinPieces;
 //
-static uint8 SpriteCCCond;
-static uint8 SpriteCCNum;
-static uint8 SPCTL_Low;
+static uint8_t SpriteCCCond;
+static uint8_t SpriteCCNum;
+static uint8_t SPCTL_Low;
 
-static uint16 SDCTL;
+static uint16_t SDCTL;
 
-static uint8 SpritePrioNum[8];
-static uint8 SpriteCCRatio[8];
+static uint8_t SpritePrioNum[8];
+static uint8_t SpriteCCRatio[8];
 
-static uint8 SpriteCCLUT[8];	// Temp optimization data
-static uint8 SpriteCC3Mask; 	// Temp optimization data
+static uint8_t SpriteCCLUT[8];	// Temp optimization data
+static uint8_t SpriteCC3Mask; 	// Temp optimization data
 
 //
-static uint8 CRAMAddrOffs_NBG[4];
-static uint8 CRAMAddrOffs_RBG0;
-static uint8 CRAMAddrOffs_Sprite;
+static uint8_t CRAMAddrOffs_NBG[4];
+static uint8_t CRAMAddrOffs_RBG0;
+static uint8_t CRAMAddrOffs_Sprite;
 //
-static uint8 ColorOffsEn;
-static uint8 ColorOffsSel;
+static uint8_t ColorOffsEn;
+static uint8_t ColorOffsSel;
 
 //enum
 //{
@@ -230,7 +230,7 @@ static uint8 ColorOffsSel;
 // COLOFFS_ENSEL_NBG1 = 0,
 //};
 
-static int32 ColorOffs[2][3];	// [A,B] [R << 0, G << 8, B << 16]
+static int32_t ColorOffs[2][3];	// [A,B] [R << 0, G << 8, B << 16]
 
 template<bool IsRot>
 struct TileFetcher
@@ -244,7 +244,7 @@ struct TileFetcher
 
  unsigned PlaneSize;
  unsigned PlaneOver;
- uint16 PlaneOverChar;
+ uint16_t PlaneOverChar;
  bool PNDSize;
  bool CharSize;
  bool AuxMode;
@@ -258,8 +258,8 @@ struct TileFetcher
  unsigned BMWMask;
  unsigned BMHMask;
 
- uint32 adj_map_regs[IsRot ? 16 : 4];
- uint32 doxm, doym;
+ uint32_t adj_map_regs[IsRot ? 16 : 4];
+ uint32_t doxm, doym;
 
  bool nt_ok[4];
  bool cg_ok[4];
@@ -267,7 +267,7 @@ struct TileFetcher
  // n=0...3, NBG0...3
  // n=4, RBG0
  // n=5, RBG1
- INLINE void Start(const unsigned n, const bool bmen, const unsigned map_offset, const uint8* map_regs)
+ INLINE void Start(const unsigned n, const bool bmen, const unsigned map_offset, const uint8_t* map_regs)
  {
   BMOffset = map_offset << 16;
   BMWShift = ((BMSize & 2) ? 10 : 9);
@@ -304,7 +304,7 @@ struct TileFetcher
   for(unsigned bank = 0; bank < 4; bank++)
   {
    const unsigned esb = bank & (2 | ((VRAM_Mode >> (bank >> 1)) & 1));
-   const uint8 rdbs = (RDBS_Mode >> (esb << 1)) & 0x3;
+   const uint8_t rdbs = (RDBS_Mode >> (esb << 1)) & 0x3;
 
    if(IsRot)
    {
@@ -349,17 +349,17 @@ struct TileFetcher
  //
  //
  //
- uint32 pcco;
+ uint32_t pcco;
  bool spr;
  bool scc;
- const uint16* tile_vrb;
- uint32 cellx_xor;
+ const uint16_t* tile_vrb;
+ uint32_t cellx_xor;
 
  template<unsigned TA_bpp>
- INLINE bool Fetch(const bool bmen, const uint32 ix, const uint32 iy)
+ INLINE bool Fetch(const bool bmen, const uint32_t ix, const uint32_t iy)
  {
   size_t cg_addr;
-  uint32 palno;
+  uint32_t palno;
   bool is_outside = false;
 
   if(IsRot)
@@ -376,10 +376,10 @@ struct TileFetcher
   else
   {
    bool vflip, hflip;
-   uint16 charno;
-   uint32 mapidx, planeidx, planeoffs, pageoffs;
-   const uint16* pnd;
-   uint32 celly;
+   uint16_t charno;
+   uint32_t mapidx, planeidx, planeoffs, pageoffs;
+   const uint16_t* pnd;
+   uint32_t celly;
    size_t nt_addr;
 
    if(IsRot)
@@ -404,7 +404,7 @@ struct TileFetcher
 
    if(!PNDSize)
    {
-    uint16 tmp = pnd[0];
+    uint16_t tmp = pnd[0];
 
     palno = tmp & 0x7F;
     vflip = (bool)(tmp & 0x8000);
@@ -416,7 +416,7 @@ struct TileFetcher
    else
    {
     OverCharCase:;
-    uint16 tmp = pnd[0];
+    uint16_t tmp = pnd[0];
 
     if(TA_bpp >= 8)
      palno = ((tmp >> 12) & 0x7) << 4;
@@ -448,7 +448,7 @@ struct TileFetcher
 
    if(CharSize)
    {
-    uint32 cidx = (((ix >> 3) ^ hflip) & 0x1) + (((iy >> 2) ^ (vflip << 1)) & 0x2);
+    uint32_t cidx = (((ix >> 3) ^ hflip) & 0x1) + (((iy >> 2) ^ (vflip << 1)) & 0x2);
     charno = (charno + cidx * (TA_bpp >> 2)) & 0x7FFF;
    }
 
@@ -472,39 +472,39 @@ struct TileFetcher
 
 struct RotVars
 {
- int32 Xsp, Ysp;// .10
- int32 Xp, Yp;	// .10
- int32 dX, dY;	// .10
+ int32_t Xsp, Ysp;// .10
+ int32_t Xp, Yp;	// .10
+ int32_t dX, dY;	// .10
 
- int32 kx, ky;	// .16
+ int32_t kx, ky;	// .16
 
  bool use_coeff;
- uint32 base_coeff;
+ uint32_t base_coeff;
 
  TileFetcher<true> tf;
 };
 
 static struct
 {
- uint64 spr[704];
- uint64 rbg0[704];
+ uint64_t spr[704];
+ uint64_t rbg0[704];
  union
  {
-  uint64 nbg[4][8 + 704 + 8];
+  uint64_t nbg[4][8 + 704 + 8];
   struct
   {
-   uint8 dummy[sizeof(nbg) / 2];
-   uint16 vcscr[2][88 + 1 + 1];	// + 1 for fine x scroll != 0, + 1 for pointer shenanigans in FetchVCScroll
+   uint8_t dummy[sizeof(nbg) / 2];
+   uint16_t vcscr[2][88 + 1 + 1];	// + 1 for fine x scroll != 0, + 1 for pointer shenanigans in FetchVCScroll
   };
   struct
   {
-   uint8 rotdummy[sizeof(nbg) / 4];
-   uint8 rotabsel[352];	// Also used as a scratch buffer in T_DrawRBG() to handle mosaic-related junk.
+   uint8_t rotdummy[sizeof(nbg) / 4];
+   uint8_t rotabsel[352];	// Also used as a scratch buffer in T_DrawRBG() to handle mosaic-related junk.
    RotVars rotv[2];
-   uint32 rotcoeff[352];
+   uint32_t rotcoeff[352];
   };
  };
- alignas(16) uint8 lc[704];
+ alignas(16) uint8_t lc[704];
 } LB;
 
 // LB.* zero-fill skip state.
@@ -512,7 +512,7 @@ static struct
 // Six layer buffers in LB (sprite, rbg0, nbg[0..3]) get zero-filled
 // per scanline when their corresponding layer is disabled, so MixIt
 // can read 0 for them while still doing its priority comparisons.
-// Each fill is w * sizeof(uint64) bytes (2.5 - 5.5 KB depending on
+// Each fill is w * sizeof(uint64_t) bytes (2.5 - 5.5 KB depending on
 // resolution). For a game with one or two layers permanently
 // disabled that is 5 - 10 KB / line * 240 lines * 60 fps =
 // ~70 - 150 MB/s of pure zero-writing.
@@ -559,7 +559,7 @@ enum
 //
 //
 //
-static uint32 ColorCache[2048];
+static uint32_t ColorCache[2048];
 static void CacheCRE(const unsigned cri)
 {
  if(CRAM_Mode & CRAM_MODE_RGB888_1024)
@@ -568,8 +568,8 @@ static void CacheCRE(const unsigned cri)
  }
  else
  {
-  const uint16 t = CRAM[cri & ((CRAM_Mode == CRAM_MODE_RGB555_1024) ? 0x3FF : 0x7FF)];
-  const uint32 col = ((t << 3) & 0xF8) | ((t << 6) & 0xF800) | ((t << 9) & 0xF80000) | ((t << 16) & 0x80000000);
+  const uint16_t t = CRAM[cri & ((CRAM_Mode == CRAM_MODE_RGB555_1024) ? 0x3FF : 0x7FF)];
+  const uint32_t col = ((t << 3) & 0xF8) | ((t << 6) & 0xF800) | ((t << 9) & 0xF80000) | ((t << 16) & 0x80000000);
 
   if(CRAM_Mode == CRAM_MODE_RGB555_1024)
    (ColorCache + 0x000)[cri & 0x3FF] = (ColorCache + 0x400)[cri & 0x3FF] = col;
@@ -597,7 +597,7 @@ static void RecalcColorCache(void)
 //
 // Register writes seem to always be 16-bit
 //
-static INLINE void RegsWrite(uint32 A, uint16 V)
+static INLINE void RegsWrite(uint32_t A, uint16_t V)
 {
  A &= 0x1FE;
 
@@ -645,7 +645,7 @@ static INLINE void RegsWrite(uint32 A, uint16 V)
   case 0x1C:
   case 0x1E:
 	{
-	 uint8* const b = &VCPRegs[(A >> 2) & 3][(A & 0x2) << 1];
+	 uint8_t* const b = &VCPRegs[(A >> 2) & 3][(A & 0x2) << 1];
 	 b[0] = (V >> 12) & 0xF;
 	 b[1] = (V >>  8) & 0xF;
 	 b[2] = (V >>  4) & 0xF;
@@ -988,14 +988,14 @@ static INLINE void RegsWrite(uint32 A, uint16 V)
 	 const unsigned ab = (A >= 0x11A);
 	 const unsigned wcc = ((A - 0x114) >> 1) % 3;
 
-	 ColorOffs[ab][wcc] = (uint32)sign_x_to_s32(9, V) << (wcc << 3);
+	 ColorOffs[ab][wcc] = (uint32_t)sign_x_to_s32(9, V) << (wcc << 3);
 	}
 	break;
  }
 }
 
 template<typename T>
-static INLINE void MemW(uint32 A, const uint16 DB)
+static INLINE void MemW(uint32_t A, const uint16_t DB)
 {
  A &= 0x1FFFFF;
 
@@ -1270,7 +1270,7 @@ enum
  //SPECIAL_CCALC_SHIFT = 63
 };
 
-static INLINE void GetCWV(const uint8 ctrl, const bool* const xmet, bool* cwv)
+static INLINE void GetCWV(const uint8_t ctrl, const bool* const xmet, bool* cwv)
 {
  const bool logic = (ctrl >> 7) & 1;	// 0 = OR, 1 = AND
  const bool w_enable[2] = { (bool)(ctrl & 0x02), (bool)(ctrl & 0x08) };
@@ -1325,7 +1325,7 @@ static void GetWinRotAB(void)
  }
 }
 
-static void ApplyWin(const unsigned wlayer, uint64* buf)
+static void ApplyWin(const unsigned wlayer, uint64_t* buf)
 {
  unsigned x = 0;
 
@@ -1350,28 +1350,28 @@ static void ApplyWin(const unsigned wlayer, uint64* buf)
    if(cwv[0])
    {
     for(; MDFN_LIKELY(x < WinPieces[piece]); x++)
-     buf[x] &= ~(uint64)0xFFFFFFFF;
+     buf[x] &= ~(uint64_t)0xFFFFFFFF;
    }
    else if(cc_cwv[0])
    {
     for(; MDFN_LIKELY(x < WinPieces[piece]); x++)
-     buf[x] &= ~(uint64)(1U << PIX_CCE_SHIFT);
+     buf[x] &= ~(uint64_t)(1U << PIX_CCE_SHIFT);
    }
    x = WinPieces[piece];
   }
   else
   {
-   uint64 masks[2];
+   uint64_t masks[2];
 
    for(unsigned i = 0; i < 2; i++)
    {
-    uint64 m = ~(uint64)0;
+    uint64_t m = ~(uint64_t)0;
 
     if(cwv[i])
-     m = ~(uint64)0xFFFFFFFF;
+     m = ~(uint64_t)0xFFFFFFFF;
 
     if(cc_cwv[i])
-     m &= ~(uint64)(1U << PIX_CCE_SHIFT);
+     m &= ~(uint64_t)(1U << PIX_CCE_SHIFT);
 
     masks[i] = m;
    }
@@ -1388,7 +1388,7 @@ static void ApplyWin(const unsigned wlayer, uint64* buf)
  #pragma GCC push_options
  #pragma GCC optimize("no-unroll-loops,no-peel-loops,no-crossjumping")
 #endif
-static NO_INLINE void ApplyHMosaic(const unsigned layer, uint64* buf, const unsigned w)
+static NO_INLINE void ApplyHMosaic(const unsigned layer, uint64_t* buf, const unsigned w)
 {
  if(!(MZCTL & (1U << layer)))
   return;
@@ -1441,11 +1441,11 @@ static void FetchVCScroll(const unsigned w)
  const bool vcon[2] = { (bool)(SCRCTL & BGON & !(MZCTL & 0x1)), (bool)((SCRCTL >> 8) & (BGON >> 1) & !(MZCTL & 0x2) & 0x1) };
  const unsigned max_cyc = (HRes & 0x6) ? 4 : 8;
  const unsigned tc = (w >> 3) + 1;
- uint32 tmp[2] = { VCLast[0], VCLast[1] };
- uint32 vcaddr = VCScrollAddr & 0x3FFFE;
- uint32 base[2];
+ uint32_t tmp[2] = { VCLast[0], VCLast[1] };
+ uint32_t vcaddr = VCScrollAddr & 0x3FFFE;
+ uint32_t base[2];
  unsigned inc[8];
- uint8 VRMVCPCache[4][8];
+ uint8_t VRMVCPCache[4][8];
 
  for(unsigned bank = 0; bank < 4; bank++)
  {
@@ -1519,13 +1519,13 @@ static void FetchVCScroll(const unsigned w)
 }
 
 template<unsigned TA_PrioMode, unsigned TA_CCMode>
-static INLINE void MakeSFCodeLUT(const unsigned layer, int16* const sfcode_lut)
+static INLINE void MakeSFCodeLUT(const unsigned layer, int16_t* const sfcode_lut)
 {
- const uint8 code = SFCODE >> (((SFSEL >> layer) & 1) << 3);
+ const uint8_t code = SFCODE >> (((SFSEL >> layer) & 1) << 3);
 
  for(unsigned i = 0; i < 8; i++)
  {
-  uint16 tmp = 0xFFFF;
+  uint16_t tmp = 0xFFFF;
 
   if(!((code >> i) & 1))
   {
@@ -1540,21 +1540,21 @@ static INLINE void MakeSFCodeLUT(const unsigned layer, int16* const sfcode_lut)
  }
 }
 
-static INLINE uint32 rgb15_to_rgb24(uint16 src)
+static INLINE uint32_t rgb15_to_rgb24(uint16_t src)
 {
  return ((((src << 3) & 0xF8) | ((src << 6) & 0xF800) | ((src << 9) & 0xF80000) | ((src << 16) & 0x80000000)));;
 }
 
 template<bool TA_bmen, unsigned TA_bpp, bool TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode, typename T>
-static INLINE uint64 MakeNBGRBGPix(T& tf, const uint32 pix_base_or, const int16* sfcode_lut, const uint32 ix, const uint32 iy)
+static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const int16_t* sfcode_lut, const uint32_t ix, const uint32_t iy)
 {
- uint32 cellx = (ix ^ tf.cellx_xor);
- const uint16* vrb = &tf.tile_vrb[((cellx * TA_bpp) >> 4)];
+ uint32_t cellx = (ix ^ tf.cellx_xor);
+ const uint16_t* vrb = &tf.tile_vrb[((cellx * TA_bpp) >> 4)];
  //
  //
  //
- uint32 pbor = pix_base_or;
- uint32 rgb24;
+ uint32_t pbor = pix_base_or;
+ uint32_t rgb24;
  bool opaque;
 
  if(TA_CCMode == 1 || (TA_CCMode == 2 && !TA_isrgb))
@@ -1567,14 +1567,14 @@ static INLINE uint64 MakeNBGRBGPix(T& tf, const uint32 pix_base_or, const int16*
  {
   if(TA_bpp == 32)
   {
-   uint32 tmp = (vrb[0] << 16) | vrb[1];
+   uint32_t tmp = (vrb[0] << 16) | vrb[1];
 
    rgb24 = tmp & 0xFFFFFF;
    opaque = (bool)(tmp & 0x80000000);
   }
   else
   {
-   uint32 tmp = vrb[0];
+   uint32_t tmp = vrb[0];
 
    rgb24 = rgb15_to_rgb24(tmp & 0x7FFF);
    opaque = (bool)(tmp & 0x8000);
@@ -1585,8 +1585,8 @@ static INLINE uint64 MakeNBGRBGPix(T& tf, const uint32 pix_base_or, const int16*
  }
  else
  {
-  uint32 dcc;
-  uint32 tmp = vrb[0]; //charno ^ (charno << 8); //vrb[0];
+  uint32_t dcc;
+  uint32_t tmp = vrb[0]; //charno ^ (charno << 8); //vrb[0];
 
   if(TA_bpp == 16)
    dcc = tmp & 0x7FF;
@@ -1600,20 +1600,20 @@ static INLINE uint64 MakeNBGRBGPix(T& tf, const uint32 pix_base_or, const int16*
   rgb24 = ColorCache[(tf.pcco + dcc) & 2047];
 
   if(TA_CCMode == 3)
-   pbor |= ((int32)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);
+   pbor |= ((int32_t)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);
   //
   if(TA_PrioMode == 2 || TA_CCMode == 2)
-   pbor &= *(const int16*)((const uint8*)sfcode_lut + (dcc & 0xE));
+   pbor &= *(const int16_t*)((const uint8_t*)sfcode_lut + (dcc & 0xE));
  }
 
  if(!TA_igntp && !opaque)
   pbor = 0;
 
- return pbor | ((uint64)rgb24 << PIX_RGB_SHIFT);
+ return pbor | ((uint64_t)rgb24 << PIX_RGB_SHIFT);
 }
 
 template<bool TA_bmen, unsigned TA_bpp, bool TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
-static void T_DrawNBG(const unsigned n, uint64* bgbuf, const unsigned w, const uint32 pix_base_or)
+static void T_DrawNBG(const unsigned n, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or)
 {
  assert(n < 2);
  //
@@ -1621,10 +1621,10 @@ static void T_DrawNBG(const unsigned n, uint64* bgbuf, const unsigned w, const u
  const bool VCSEn = ((SCRCTL >> (n << 3)) & 0x1) && !(MZCTL & (1U << n));
  //
  TileFetcher<false> tf;
- uint32 xcinc;
- uint32 xc;
- uint32 iy;
- int16 sfcode_lut[8];
+ uint32_t xcinc;
+ uint32_t xc;
+ uint32_t iy;
+ int16_t sfcode_lut[8];
 
  tf.CRAOffs = CRAMAddrOffs_NBG[n] << 8;
  //
@@ -1652,13 +1652,13 @@ static void T_DrawNBG(const unsigned n, uint64* bgbuf, const unsigned w, const u
  // Page: 64x64 cells
  // Character: 1x1, 2x2 cells
  // Cell: 8x8 dots
- uint32 prev_ix = ~0U;
+ uint32_t prev_ix = ~0U;
 
  if(((ZMCTL >> (n << 3)) & 0x3) && VCSEn)
  {
   for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
   {
-   const uint32 ix = xc >> 8;
+   const uint32_t ix = xc >> 8;
    iy = LB.vcscr[n][i >> 3];
    tf.Fetch<TA_bpp>(TA_bmen, ix, iy);
    //
@@ -1672,7 +1672,7 @@ static void T_DrawNBG(const unsigned n, uint64* bgbuf, const unsigned w, const u
  {
   for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
   {
-   const uint32 ix = xc >> 8;
+   const uint32_t ix = xc >> 8;
 
    if((ix >> 3) != prev_ix)
    {
@@ -1692,7 +1692,7 @@ static void T_DrawNBG(const unsigned n, uint64* bgbuf, const unsigned w, const u
  }
 }
 
-static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(const unsigned n, uint64* bgbuf, const unsigned w, const uint32 pix_base_or) =
+static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(const unsigned n, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or) =
 {
  {
   {  {  { T_DrawNBG<0, 4, 0, 0, 0, 0>, T_DrawNBG<0, 4, 0, 0, 0, 1>, T_DrawNBG<0, 4, 0, 0, 0, 2>, T_DrawNBG<0, 4, 0, 0, 0, 3>,  },  { T_DrawNBG<0, 4, 0, 0, 1, 0>, T_DrawNBG<0, 4, 0, 0, 1, 1>, T_DrawNBG<0, 4, 0, 0, 1, 2>, T_DrawNBG<0, 4, 0, 0, 1, 3>,  },  { T_DrawNBG<0, 4, 0, 0, 2, 0>, T_DrawNBG<0, 4, 0, 0, 2, 1>, T_DrawNBG<0, 4, 0, 0, 2, 2>, T_DrawNBG<0, 4, 0, 0, 2, 3>,  },  },  {  { T_DrawNBG<0, 4, 0, 1, 0, 0>, T_DrawNBG<0, 4, 0, 1, 0, 1>, T_DrawNBG<0, 4, 0, 1, 0, 2>, T_DrawNBG<0, 4, 0, 1, 0, 3>,  },  { T_DrawNBG<0, 4, 0, 1, 1, 0>, T_DrawNBG<0, 4, 0, 1, 1, 1>, T_DrawNBG<0, 4, 0, 1, 1, 2>, T_DrawNBG<0, 4, 0, 1, 1, 3>,  },  { T_DrawNBG<0, 4, 0, 1, 2, 0>, T_DrawNBG<0, 4, 0, 1, 2, 1>, T_DrawNBG<0, 4, 0, 1, 2, 2>, T_DrawNBG<0, 4, 0, 1, 2, 3>,  },  },  },
@@ -1711,33 +1711,33 @@ static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
 };
 
 template<bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
-static INLINE uint64 MakeNBG23Pix(uint32 dcc, uint32 pbor, const int16* sfcode_lut, uint32 colcacheoffs)
+static INLINE uint64_t MakeNBG23Pix(uint32_t dcc, uint32_t pbor, const int16_t* sfcode_lut, uint32_t colcacheoffs)
 {
- uint32 rgb24;
+ uint32_t rgb24;
 
  rgb24 = ColorCache[(colcacheoffs + dcc) & 2047];
 
  if(TA_CCMode == 3)
-  pbor |= ((int32)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);
+  pbor |= ((int32_t)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);
 
  if(TA_PrioMode == 2 || TA_CCMode == 2)
-  pbor &= *(const int16*)((const uint8*)sfcode_lut + (dcc & 0xE));
+  pbor &= *(const int16_t*)((const uint8_t*)sfcode_lut + (dcc & 0xE));
 
  if(!TA_igntp && !dcc)
   pbor = 0;
 
- return pbor + ((uint64)rgb24 << PIX_RGB_SHIFT);
+ return pbor + ((uint64_t)rgb24 << PIX_RGB_SHIFT);
 }
 
 //
 // CCMode will be forced to 0 in the effective instantiation if corresponding NBG CCE bit in CCCTL is 0.
 //
 template<unsigned TA_bpp, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
-static void T_DrawNBG23(const unsigned n, uint64* bgbuf, const unsigned w, const uint32 pix_base_or)
+static void T_DrawNBG23(const unsigned n, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or)
 {
  assert(n >= 2);
  TileFetcher<false> tf;
- int16 sfcode_lut[8];
+ int16_t sfcode_lut[8];
  unsigned tc = 1 + (w >> 3);
  const unsigned xscr = XScrollI[n];
  const unsigned yscr = MosEff_NBG23_YCounter[n & 1];
@@ -1762,25 +1762,25 @@ static void T_DrawNBG23(const unsigned n, uint64* bgbuf, const unsigned w, const
  // Layer offset kludges
  //
  // Note: When/If adding new kludges, check that the NT and CG fetches for the layer each occur only in one bank, to safely handle other cases may require something more complex.
- const uint32 lok_modestuff = (VRAM_Mode << 0) | ((HRes & 0x6) << 1) | (tf.PNDSize << 4) | (tf.CharSize << 5);
+ const uint32_t lok_modestuff = (VRAM_Mode << 0) | ((HRes & 0x6) << 1) | (tf.PNDSize << 4) | (tf.CharSize << 5);
 
  /* Precompute the 4 VCPRegs rows as host-endian 64-bit and 32-bit
   * values for the game-detection comparisons below.  Was inline
   * MDFN_de64lsb(VCPRegs[i]) / MDFN_de32lsb(VCPRegs[i]) on every
   * comparison; folded here to avoid re-doing the byte-wise LE
   * construction 4-16 times per call. */
- const uint64 r0_64 = (uint64)VCPRegs[0][0] | ((uint64)VCPRegs[0][1] << 8) | ((uint64)VCPRegs[0][2] << 16) | ((uint64)VCPRegs[0][3] << 24)
-                    | ((uint64)VCPRegs[0][4] << 32) | ((uint64)VCPRegs[0][5] << 40) | ((uint64)VCPRegs[0][6] << 48) | ((uint64)VCPRegs[0][7] << 56);
- const uint64 r1_64 = (uint64)VCPRegs[1][0] | ((uint64)VCPRegs[1][1] << 8) | ((uint64)VCPRegs[1][2] << 16) | ((uint64)VCPRegs[1][3] << 24)
-                    | ((uint64)VCPRegs[1][4] << 32) | ((uint64)VCPRegs[1][5] << 40) | ((uint64)VCPRegs[1][6] << 48) | ((uint64)VCPRegs[1][7] << 56);
- const uint64 r2_64 = (uint64)VCPRegs[2][0] | ((uint64)VCPRegs[2][1] << 8) | ((uint64)VCPRegs[2][2] << 16) | ((uint64)VCPRegs[2][3] << 24)
-                    | ((uint64)VCPRegs[2][4] << 32) | ((uint64)VCPRegs[2][5] << 40) | ((uint64)VCPRegs[2][6] << 48) | ((uint64)VCPRegs[2][7] << 56);
- const uint64 r3_64 = (uint64)VCPRegs[3][0] | ((uint64)VCPRegs[3][1] << 8) | ((uint64)VCPRegs[3][2] << 16) | ((uint64)VCPRegs[3][3] << 24)
-                    | ((uint64)VCPRegs[3][4] << 32) | ((uint64)VCPRegs[3][5] << 40) | ((uint64)VCPRegs[3][6] << 48) | ((uint64)VCPRegs[3][7] << 56);
- const uint32 r0_32 = (uint32)r0_64;
- const uint32 r1_32 = (uint32)r1_64;
- const uint32 r2_32 = (uint32)r2_64;
- const uint32 r3_32 = (uint32)r3_64;
+ const uint64_t r0_64 = (uint64_t)VCPRegs[0][0] | ((uint64_t)VCPRegs[0][1] << 8) | ((uint64_t)VCPRegs[0][2] << 16) | ((uint64_t)VCPRegs[0][3] << 24)
+                    | ((uint64_t)VCPRegs[0][4] << 32) | ((uint64_t)VCPRegs[0][5] << 40) | ((uint64_t)VCPRegs[0][6] << 48) | ((uint64_t)VCPRegs[0][7] << 56);
+ const uint64_t r1_64 = (uint64_t)VCPRegs[1][0] | ((uint64_t)VCPRegs[1][1] << 8) | ((uint64_t)VCPRegs[1][2] << 16) | ((uint64_t)VCPRegs[1][3] << 24)
+                    | ((uint64_t)VCPRegs[1][4] << 32) | ((uint64_t)VCPRegs[1][5] << 40) | ((uint64_t)VCPRegs[1][6] << 48) | ((uint64_t)VCPRegs[1][7] << 56);
+ const uint64_t r2_64 = (uint64_t)VCPRegs[2][0] | ((uint64_t)VCPRegs[2][1] << 8) | ((uint64_t)VCPRegs[2][2] << 16) | ((uint64_t)VCPRegs[2][3] << 24)
+                    | ((uint64_t)VCPRegs[2][4] << 32) | ((uint64_t)VCPRegs[2][5] << 40) | ((uint64_t)VCPRegs[2][6] << 48) | ((uint64_t)VCPRegs[2][7] << 56);
+ const uint64_t r3_64 = (uint64_t)VCPRegs[3][0] | ((uint64_t)VCPRegs[3][1] << 8) | ((uint64_t)VCPRegs[3][2] << 16) | ((uint64_t)VCPRegs[3][3] << 24)
+                    | ((uint64_t)VCPRegs[3][4] << 32) | ((uint64_t)VCPRegs[3][5] << 40) | ((uint64_t)VCPRegs[3][6] << 48) | ((uint64_t)VCPRegs[3][7] << 56);
+ const uint32_t r0_32 = (uint32_t)r0_64;
+ const uint32_t r1_32 = (uint32_t)r1_64;
+ const uint32_t r2_32 = (uint32_t)r2_64;
+ const uint32_t r3_32 = (uint32_t)r3_64;
 
  if(MDFN_UNLIKELY(
   /* Akumajou Dracula X */ (TA_bpp == 4 && n == 3 && VRAM_Mode == 0x2 && (HRes & 0x6) == 0x0 && r0_64 == 0x0f0f070406060505ULL && r1_64 == 0x0f0f0f0f0f0f0f0fULL && r2_64 == 0x0f0f03000f0f0201ULL && r3_64 == 0x0f0f0f0f0f0f0f0fULL) ||
@@ -1799,7 +1799,7 @@ static void T_DrawNBG23(const unsigned n, uint64* bgbuf, const unsigned w, const
 
  while(MDFN_LIKELY(tc--))
  {
-  uint32 pbor = pix_base_or;
+  uint32_t pbor = pix_base_or;
 
   tf.Fetch<TA_bpp>(false, tx << 3, yscr);
 
@@ -1816,25 +1816,25 @@ static void T_DrawNBG23(const unsigned n, uint64* bgbuf, const unsigned w, const
   {
    if(tf.cellx_xor & 0x7)
    {
-    bgbuf[7] = mbp((uint8)(tf.tile_vrb[0] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[6] = mbp((uint8)(tf.tile_vrb[0] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[5] = mbp((uint8)(tf.tile_vrb[1] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[4] = mbp((uint8)(tf.tile_vrb[1] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[3] = mbp((uint8)(tf.tile_vrb[2] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[2] = mbp((uint8)(tf.tile_vrb[2] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[1] = mbp((uint8)(tf.tile_vrb[3] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[0] = mbp((uint8)(tf.tile_vrb[3] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[7] = mbp((uint8_t)(tf.tile_vrb[0] >>  8), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[6] = mbp((uint8_t)(tf.tile_vrb[0] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[5] = mbp((uint8_t)(tf.tile_vrb[1] >>  8), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[4] = mbp((uint8_t)(tf.tile_vrb[1] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[3] = mbp((uint8_t)(tf.tile_vrb[2] >>  8), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[2] = mbp((uint8_t)(tf.tile_vrb[2] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[1] = mbp((uint8_t)(tf.tile_vrb[3] >>  8), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[0] = mbp((uint8_t)(tf.tile_vrb[3] >>  0), /**/pbor, sfcode_lut, tf.pcco);
    }
    else
    {
-    bgbuf[0] = mbp((uint8)(tf.tile_vrb[0] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[1] = mbp((uint8)(tf.tile_vrb[0] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[2] = mbp((uint8)(tf.tile_vrb[1] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[3] = mbp((uint8)(tf.tile_vrb[1] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[4] = mbp((uint8)(tf.tile_vrb[2] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[5] = mbp((uint8)(tf.tile_vrb[2] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[6] = mbp((uint8)(tf.tile_vrb[3] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[7] = mbp((uint8)(tf.tile_vrb[3] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[0] = mbp((uint8_t)(tf.tile_vrb[0] >>  8), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[1] = mbp((uint8_t)(tf.tile_vrb[0] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[2] = mbp((uint8_t)(tf.tile_vrb[1] >>  8), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[3] = mbp((uint8_t)(tf.tile_vrb[1] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[4] = mbp((uint8_t)(tf.tile_vrb[2] >>  8), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[5] = mbp((uint8_t)(tf.tile_vrb[2] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[6] = mbp((uint8_t)(tf.tile_vrb[3] >>  8), /**/pbor, sfcode_lut, tf.pcco);
+    bgbuf[7] = mbp((uint8_t)(tf.tile_vrb[3] >>  0), /**/pbor, sfcode_lut, tf.pcco);
    }
   }
   else
@@ -1871,7 +1871,7 @@ static void T_DrawNBG23(const unsigned n, uint64* bgbuf, const unsigned w, const
  }
 }
 
-static void (*DrawNBG23[2/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(const unsigned n, uint64* bgbuf, const unsigned w, const uint32 pix_base_or) =
+static void (*DrawNBG23[2/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(const unsigned n, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or) =
 {
  {
   {    { T_DrawNBG23<4, 0, 0, 0>, T_DrawNBG23<4, 0, 0, 1>, T_DrawNBG23<4, 0, 0, 2>, T_DrawNBG23<4, 0, 0, 3>, },    { T_DrawNBG23<4, 0, 1, 0>, T_DrawNBG23<4, 0, 1, 1>, T_DrawNBG23<4, 0, 1, 2>, T_DrawNBG23<4, 0, 1, 3>, },    { T_DrawNBG23<4, 0, 2, 0>, T_DrawNBG23<4, 0, 2, 1>, T_DrawNBG23<4, 0, 2, 2>, T_DrawNBG23<4, 0, 2, 3>, }, },
@@ -1883,9 +1883,9 @@ static void (*DrawNBG23[2/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(
  },
 };
 
-static INLINE uint32 GetCoeffAddr(const unsigned i, uint32 offset)
+static INLINE uint32_t GetCoeffAddr(const unsigned i, uint32_t offset)
 {
- const uint32 src_mask = (CRKTE ? 0x3FF : 0x3FFFF);
+ const uint32_t src_mask = (CRKTE ? 0x3FF : 0x3FFFF);
 
  offset >>= 10;
  offset <<= !(KTCTL[i] & 0x2);
@@ -1894,16 +1894,16 @@ static INLINE uint32 GetCoeffAddr(const unsigned i, uint32 offset)
  return offset;
 }
 
-static INLINE uint32 ReadCoeff(const unsigned i, const uint32 addr)
+static INLINE uint32_t ReadCoeff(const unsigned i, const uint32_t addr)
 {
- const uint16* src = (CRKTE ? &CRAM[0x400] : VRAM);
+ const uint16_t* src = (CRKTE ? &CRAM[0x400] : VRAM);
 
  if(KTCTL[i] & 0x2)
  {
-  const uint16 tmp = src[addr];
+  const uint16_t tmp = src[addr];
   return (sign_x_to_s32(21, tmp << 6) & 0x00FFFFFF) | ((tmp & 0x8000) << 16);
  }
- const uint16* ea = &src[addr];
+ const uint16_t* ea = &src[addr];
  return (ea[0] << 16) | ea[1];
 }
 
@@ -1918,7 +1918,7 @@ static INLINE uint32 ReadCoeff(const unsigned i, const uint32 addr)
 template<typename T>
 static void SetupRotVars(const T* rs, const unsigned rbg_w)
 {
- const uint8 EffRPMD = ((BGON & 0x20) ? 0 : RPMD);
+ const uint8_t EffRPMD = ((BGON & 0x20) ? 0 : RPMD);
 
  if(EffRPMD < 2)
  {
@@ -2003,7 +2003,7 @@ static void SetupRotVars(const T* rs, const unsigned rbg_w)
   // inconsistent behavior in tests.  Reluctant to test further as it may be a sign of a potentially
   // damaging electrical conflict inside the VDP2.
   //
-  const uint32 perdot_mask = (CRKTE || bank_tab[0] || bank_tab[1] || bank_tab[2] || bank_tab[3]) - 1;
+  const uint32_t perdot_mask = (CRKTE || bank_tab[0] || bank_tab[1] || bank_tab[2] || bank_tab[3]) - 1;
 
   if(CRKTE)
    bank_tab[0] = bank_tab[1] = bank_tab[2] = bank_tab[3] = true;
@@ -2011,7 +2011,7 @@ static void SetupRotVars(const T* rs, const unsigned rbg_w)
   LB.rotv[0].use_coeff = (bool)(KTCTL[0] & 0x1);
   LB.rotv[1].use_coeff = (bool)(KTCTL[1] & 0x1);
 
-  uint32 coeff[2];
+  uint32_t coeff[2];
 
   for(unsigned i = 0; i < 2; i++)
    LB.rotv[i].base_coeff = coeff[i] = ReadCoeff(i, GetCoeffAddr(i, rs[i].KAstAccum));
@@ -2037,14 +2037,14 @@ static void SetupRotVars(const T* rs, const unsigned rbg_w)
   {
    const unsigned ci    = RPMD;
    const auto&    rsi   = rs[ci];
-   const int32    rs_KA = rsi.KAstAccum;
-   const int32    rs_DK = rsi.DKAx;
+   const int32_t    rs_KA = rsi.KAstAccum;
+   const int32_t    rs_DK = rsi.DKAx;
    const bool     wr_lc = (KTCTL[ci] & 0x10);
-   uint32         cur_c = coeff[ci];
+   uint32_t         cur_c = coeff[ci];
 
    for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
    {
-    const uint32 addr = GetCoeffAddr(ci, rs_KA + (x * rs_DK));
+    const uint32_t addr = GetCoeffAddr(ci, rs_KA + (x * rs_DK));
 
     cur_c &= perdot_mask;
     if(bank_tab[addr >> 16])
@@ -2061,7 +2061,7 @@ static void SetupRotVars(const T* rs, const unsigned rbg_w)
    for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
    {
     const unsigned i = ((EffRPMD == 2) ? 0 : LB.rotabsel[x]);
-    const uint32 addr = GetCoeffAddr(i, rs[i].KAstAccum + (x * rs[i].DKAx));
+    const uint32_t addr = GetCoeffAddr(i, rs[i].KAstAccum + (x * rs[i].DKAx));
 
     coeff[i] &= perdot_mask;
     if(bank_tab[addr >> 16])
@@ -2072,11 +2072,11 @@ static void SetupRotVars(const T* rs, const unsigned rbg_w)
 
     if(EffRPMD == 2)
     {
-     uint32 tmp = coeff[0];
+     uint32_t tmp = coeff[0];
 
      LB.rotabsel[x] = tmp >> 31;
 
-     if((int32)tmp < 0)
+     if((int32_t)tmp < 0)
       tmp = coeff[1];
 
      LB.rotcoeff[x] = tmp;
@@ -2090,7 +2090,7 @@ static void SetupRotVars(const T* rs, const unsigned rbg_w)
 
 // const bool TA_bmen = ((rn == 1) ? false : ((CHCTLB >> 9) & 1));
 template<bool TA_bmen, unsigned TA_bpp, bool TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
-static void T_DrawRBG(const bool rn, uint64* bgbuf, const unsigned w, const uint32 pix_base_or)
+static void T_DrawRBG(const bool rn, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or)
 {
  // Full color format selection for both RBG0 and RBG1
  // Bitmap only allowed for RBG0
@@ -2099,7 +2099,7 @@ static void T_DrawRBG(const bool rn, uint64* bgbuf, const unsigned w, const uint
  // 16 planes instead of 4 like with NBG*
  // Mosaic only has effect in the horizontal direction?
  //
- int16 sfcode_lut[8];
+ int16_t sfcode_lut[8];
 
  MakeSFCodeLUT<TA_PrioMode, TA_CCMode>((rn ? 0 : 4), sfcode_lut);
 
@@ -2108,18 +2108,18 @@ static void T_DrawRBG(const bool rn, uint64* bgbuf, const unsigned w, const uint
   const unsigned ab = LB.rotabsel[i];
   auto& r = LB.rotv[ab];
   auto& tf = r.tf;
-  uint32 Xp = r.Xp;
-  int32 kx = r.kx;
-  int32 ky = r.ky;
+  uint32_t Xp = r.Xp;
+  int32_t kx = r.kx;
+  int32_t ky = r.ky;
   bool rot_tp = false;
 
   if(r.use_coeff)
   {
-   const uint32 coeff = (rn ? r.base_coeff : LB.rotcoeff[i]);
+   const uint32_t coeff = (rn ? r.base_coeff : LB.rotcoeff[i]);
 
-   rot_tp = ((int32)coeff < 0);
+   rot_tp = ((int32_t)coeff < 0);
 
-   const uint32 sext = sign_x_to_s32(24, coeff);
+   const uint32_t sext = sign_x_to_s32(24, coeff);
  
    switch((KTCTL[ab] >> 2) & 0x3)
    {
@@ -2130,8 +2130,8 @@ static void T_DrawRBG(const bool rn, uint64* bgbuf, const unsigned w, const uint
    }
   }
 
-  const uint32 ix = (  Xp + (uint32)(((int64)kx * (int32)(r.Xsp + (r.dX * i))) >> 16)) >> 10;
-  const uint32 iy = (r.Yp + (uint32)(((int64)ky * (int32)(r.Ysp + (r.dY * i))) >> 16)) >> 10;
+  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r.Xsp + (r.dX * i))) >> 16)) >> 10;
+  const uint32_t iy = (r.Yp + (uint32_t)(((int64_t)ky * (int32_t)(r.Ysp + (r.dY * i))) >> 16)) >> 10;
 
   rot_tp |= tf.Fetch<TA_bpp>(TA_bmen, ix, iy);
 
@@ -2144,7 +2144,7 @@ static void T_DrawRBG(const bool rn, uint64* bgbuf, const unsigned w, const uint
 }
 
 //template<unsigned TA_bpp, bool TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
-static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(const bool rn, uint64* bgbuf, const unsigned w, const uint32 pix_base_or) =
+static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(const bool rn, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or) =
 {
  {
   {  {  { T_DrawRBG<0, 4, 0, 0, 0, 0>, T_DrawRBG<0, 4, 0, 0, 0, 1>, T_DrawRBG<0, 4, 0, 0, 0, 2>, T_DrawRBG<0, 4, 0, 0, 0, 3>,  },  { T_DrawRBG<0, 4, 0, 0, 1, 0>, T_DrawRBG<0, 4, 0, 0, 1, 1>, T_DrawRBG<0, 4, 0, 0, 1, 2>, T_DrawRBG<0, 4, 0, 0, 1, 3>,  },  { T_DrawRBG<0, 4, 0, 0, 2, 0>, T_DrawRBG<0, 4, 0, 0, 2, 1>, T_DrawRBG<0, 4, 0, 0, 2, 2>, T_DrawRBG<0, 4, 0, 0, 2, 3>,  },  },  {  { T_DrawRBG<0, 4, 0, 1, 0, 0>, T_DrawRBG<0, 4, 0, 1, 0, 1>, T_DrawRBG<0, 4, 0, 1, 0, 2>, T_DrawRBG<0, 4, 0, 1, 0, 3>,  },  { T_DrawRBG<0, 4, 0, 1, 1, 0>, T_DrawRBG<0, 4, 0, 1, 1, 1>, T_DrawRBG<0, 4, 0, 1, 1, 2>, T_DrawRBG<0, 4, 0, 1, 1, 3>,  },  { T_DrawRBG<0, 4, 0, 1, 2, 0>, T_DrawRBG<0, 4, 0, 1, 2, 1>, T_DrawRBG<0, 4, 0, 1, 2, 2>, T_DrawRBG<0, 4, 0, 1, 2, 3>,  },  },  },
@@ -2192,38 +2192,38 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
 //
 #define T_DrawRBG_CAB_BODY(BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE)                                    \
 {                                                                                                     \
- int16 sfcode_lut[8];                                                                                 \
+ int16_t sfcode_lut[8];                                                                                 \
                                                                                                       \
  MakeSFCodeLUT<PMODE, CCMODE>((rn ? 0 : 4), sfcode_lut);                                              \
                                                                                                       \
  auto& r           = LB.rotv[const_ab];                                                               \
  auto& tf          = r.tf;                                                                            \
- const int32  r_Xp     = r.Xp;                                                                        \
- const int32  r_Yp     = r.Yp;                                                                        \
- const int32  r_Xsp    = r.Xsp;                                                                       \
- const int32  r_Ysp    = r.Ysp;                                                                       \
- const int32  r_dX     = r.dX;                                                                        \
- const int32  r_dY     = r.dY;                                                                        \
- const int32  r_kx0    = r.kx;                                                                        \
- const int32  r_ky0    = r.ky;                                                                        \
+ const int32_t  r_Xp     = r.Xp;                                                                        \
+ const int32_t  r_Yp     = r.Yp;                                                                        \
+ const int32_t  r_Xsp    = r.Xsp;                                                                       \
+ const int32_t  r_Ysp    = r.Ysp;                                                                       \
+ const int32_t  r_dX     = r.dX;                                                                        \
+ const int32_t  r_dY     = r.dY;                                                                        \
+ const int32_t  r_kx0    = r.kx;                                                                        \
+ const int32_t  r_ky0    = r.ky;                                                                        \
  const bool   r_use_co = r.use_coeff;                                                                 \
- const uint32 r_base_c = r.base_coeff;                                                                \
- const uint8  ktctl_md = (KTCTL[const_ab] >> 2) & 0x3;                                                \
+ const uint32_t r_base_c = r.base_coeff;                                                                \
+ const uint8_t  ktctl_md = (KTCTL[const_ab] >> 2) & 0x3;                                                \
                                                                                                       \
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                         \
  {                                                                                                    \
-  uint32 Xp = r_Xp;                                                                                   \
-  int32  kx = r_kx0;                                                                                  \
-  int32  ky = r_ky0;                                                                                  \
+  uint32_t Xp = r_Xp;                                                                                   \
+  int32_t  kx = r_kx0;                                                                                  \
+  int32_t  ky = r_ky0;                                                                                  \
   bool   rot_tp = false;                                                                              \
                                                                                                       \
   if(r_use_co)                                                                                        \
   {                                                                                                   \
-   const uint32 coeff = (rn ? r_base_c : LB.rotcoeff[i]);                                             \
+   const uint32_t coeff = (rn ? r_base_c : LB.rotcoeff[i]);                                             \
                                                                                                       \
-   rot_tp = ((int32)coeff < 0);                                                                       \
+   rot_tp = ((int32_t)coeff < 0);                                                                       \
                                                                                                       \
-   const uint32 sext = sign_x_to_s32(24, coeff);                                                      \
+   const uint32_t sext = sign_x_to_s32(24, coeff);                                                      \
                                                                                                       \
    switch(ktctl_md)                                                                                   \
    {                                                                                                  \
@@ -2234,8 +2234,8 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
    }                                                                                                  \
   }                                                                                                   \
                                                                                                       \
-  const uint32 ix = (  Xp + (uint32)(((int64)kx * (int32)(r_Xsp + (r_dX * i))) >> 16)) >> 10;         \
-  const uint32 iy = (r_Yp + (uint32)(((int64)ky * (int32)(r_Ysp + (r_dY * i))) >> 16)) >> 10;         \
+  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r_Xsp + (r_dX * i))) >> 16)) >> 10;         \
+  const uint32_t iy = (r_Yp + (uint32_t)(((int64_t)ky * (int32_t)(r_Ysp + (r_dY * i))) >> 16)) >> 10;         \
                                                                                                       \
   rot_tp |= tf.Fetch<BPP>(BMEN, ix, iy);                                                              \
                                                                                                       \
@@ -2250,7 +2250,7 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
 #define DEFINE_T_DrawRBG_CAB(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, CCMODE)                              \
  static void T_DrawRBG_CAB_NAME(BMEN, CM, IGNTP, PMODE, CCMODE)(                                      \
    const bool rn, const unsigned const_ab,                                                            \
-   uint64* bgbuf, const unsigned w, const uint32 pix_base_or)                                         \
+   uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or)                                         \
  T_DrawRBG_CAB_BODY(BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE)
 
 // One-level enumerators. Each calls M once per value at its dimension
@@ -2298,7 +2298,7 @@ DRBG_FN_AT_BM(1)
 #define DRBG_TBL_AT_CM(BMEN, CM, BPP, ISRGB)               { DRBG_ENUM_IG(DRBG_TBL_AT_IG, BMEN, CM, BPP, ISRGB) },
 #define DRBG_TBL_AT_BM(BMEN)                               { DRBG_ENUM_CM(DRBG_TBL_AT_CM, BMEN) },
 
-static void (*DrawRBG_ConstAB[2 /*bitmap enable*/][5 /*col mode*/][2 /*igntp*/][3 /*priomode*/][4 /*ccmode*/])(const bool rn, const unsigned const_ab, uint64* bgbuf, const unsigned w, const uint32 pix_base_or) =
+static void (*DrawRBG_ConstAB[2 /*bitmap enable*/][5 /*col mode*/][2 /*igntp*/][3 /*priomode*/][4 /*ccmode*/])(const bool rn, const unsigned const_ab, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or) =
 {
  DRBG_TBL_AT_BM(0)
  DRBG_TBL_AT_BM(1)
@@ -2333,16 +2333,16 @@ static INLINE void Doubleize(T* ptr, const int orig_len)
  }
 }
 
-static void RBGPP(const unsigned layer, uint64* buf, const unsigned rbg_w)
+static void RBGPP(const unsigned layer, uint64_t* buf, const unsigned rbg_w)
 {
  ApplyHMosaic(layer, buf, rbg_w);
 
  for(unsigned i = 0; i < rbg_w; i++)
  {
-  uint64 tmp = buf[i];
+  uint64_t tmp = buf[i];
 
   if(LB.rotabsel[i])
-   tmp &= ~(uint64)0xFFFFFFFF;
+   tmp &= ~(uint64_t)0xFFFFFFFF;
 
   buf[i] = tmp;
  }
@@ -2377,14 +2377,14 @@ static INLINE void MakeSpriteCCLUT(void)
 }
 
 template<bool TA_HiRes, bool TA_TPShadSel, unsigned TA_SPCTL_Low>
-static void T_DrawSpriteData(const uint16* vdp1sb, const bool vdp1_hires8, unsigned w)
+static void T_DrawSpriteData(const uint16_t* vdp1sb, const bool vdp1_hires8, unsigned w)
 {
  const unsigned SpriteType = (TA_SPCTL_Low & 0xF);
  const bool SpriteWinEn = (TA_SPCTL_Low & 0x10);
  const bool SpriteColorMode = (TA_SPCTL_Low & 0x20);
  //
  const size_t cao = CRAMAddrOffs_Sprite << 8;
- uint32 spix_base_or = 0;
+ uint32_t spix_base_or = 0;
 
  spix_base_or |= ((ColorOffsEn >> 6) & 1) << PIX_COE_SHIFT;
  spix_base_or |= ((ColorOffsSel >> 6) & 1) << PIX_COSEL_SHIFT;
@@ -2397,7 +2397,7 @@ static void T_DrawSpriteData(const uint16* vdp1sb, const bool vdp1_hires8, unsig
   unsigned src;
   unsigned pr = 0, cc = 0;
   bool tp = false;
-  uint64 spix;
+  uint64_t spix;
 
   src = vdp1sb[i >> TA_HiRes];
 
@@ -2411,7 +2411,7 @@ static void T_DrawSpriteData(const uint16* vdp1sb, const bool vdp1_hires8, unsig
 
   if(SpriteColorMode && (src & 0x8000))
   {
-   spix = (uint64)rgb15_to_rgb24(src) << PIX_RGB_SHIFT;
+   spix = (uint64_t)rgb15_to_rgb24(src) << PIX_RGB_SHIFT;
    spix |= 1U << PIX_ISRGB_SHIFT;
    spix |= SpriteCC3Mask;
 
@@ -2553,14 +2553,14 @@ static void T_DrawSpriteData(const uint16* vdp1sb, const bool vdp1_hires8, unsig
    //
    //
    //
-   uint32 rgb24 = ColorCache[(cao + dc) & 0x7FF];
+   uint32_t rgb24 = ColorCache[(cao + dc) & 0x7FF];
 
-   spix = (uint64)rgb24 << PIX_RGB_SHIFT;
+   spix = (uint64_t)rgb24 << PIX_RGB_SHIFT;
 
-   spix |= ((int32)rgb24 >> 31) & SpriteCC3Mask;
+   spix |= ((int32_t)rgb24 >> 31) & SpriteCC3Mask;
 
    if(SpriteWinEn)	// Sprite window enable
-    spix |= ((uint64)sd << PIX_SWBIT_SHIFT);
+    spix |= ((uint64_t)sd << PIX_SWBIT_SHIFT);
 
    if(nshad)
     spix |= 1 << PIX_DOSHAD_SHIFT;
@@ -2592,7 +2592,7 @@ static void T_DrawSpriteData(const uint16* vdp1sb, const bool vdp1_hires8, unsig
  }
 }
 
-static void (*DrawSpriteData[2][2][0x40])(const uint16* vdp1sb, const bool vdp1_hires8, unsigned w) =
+static void (*DrawSpriteData[2][2][0x40])(const uint16_t* vdp1sb, const bool vdp1_hires8, unsigned w) =
 {
  {
   { T_DrawSpriteData<0, 0, 0x00>, T_DrawSpriteData<0, 0, 0x01>, T_DrawSpriteData<0, 0, 0x02>, T_DrawSpriteData<0, 0, 0x03>, T_DrawSpriteData<0, 0, 0x04>, T_DrawSpriteData<0, 0, 0x05>, T_DrawSpriteData<0, 0, 0x06>, T_DrawSpriteData<0, 0, 0x07>, T_DrawSpriteData<0, 0, 0x08>, T_DrawSpriteData<0, 0, 0x09>, T_DrawSpriteData<0, 0, 0x0a>, T_DrawSpriteData<0, 0, 0x0b>, T_DrawSpriteData<0, 0, 0x0c>, T_DrawSpriteData<0, 0, 0x0d>, T_DrawSpriteData<0, 0, 0x0e>, T_DrawSpriteData<0, 0, 0x0f>, T_DrawSpriteData<0, 0, 0x10>, T_DrawSpriteData<0, 0, 0x11>, T_DrawSpriteData<0, 0, 0x12>, T_DrawSpriteData<0, 0, 0x13>, T_DrawSpriteData<0, 0, 0x14>, T_DrawSpriteData<0, 0, 0x15>, T_DrawSpriteData<0, 0, 0x16>, T_DrawSpriteData<0, 0, 0x17>, T_DrawSpriteData<0, 0, 0x18>, T_DrawSpriteData<0, 0, 0x19>, T_DrawSpriteData<0, 0, 0x1a>, T_DrawSpriteData<0, 0, 0x1b>, T_DrawSpriteData<0, 0, 0x1c>, T_DrawSpriteData<0, 0, 0x1d>, T_DrawSpriteData<0, 0, 0x1e>, T_DrawSpriteData<0, 0, 0x1f>, T_DrawSpriteData<0, 0, 0x20>, T_DrawSpriteData<0, 0, 0x21>, T_DrawSpriteData<0, 0, 0x22>, T_DrawSpriteData<0, 0, 0x23>, T_DrawSpriteData<0, 0, 0x24>, T_DrawSpriteData<0, 0, 0x25>, T_DrawSpriteData<0, 0, 0x26>, T_DrawSpriteData<0, 0, 0x27>, T_DrawSpriteData<0, 0, 0x28>, T_DrawSpriteData<0, 0, 0x29>, T_DrawSpriteData<0, 0, 0x2a>, T_DrawSpriteData<0, 0, 0x2b>, T_DrawSpriteData<0, 0, 0x2c>, T_DrawSpriteData<0, 0, 0x2d>, T_DrawSpriteData<0, 0, 0x2e>, T_DrawSpriteData<0, 0, 0x2f>, T_DrawSpriteData<0, 0, 0x30>, T_DrawSpriteData<0, 0, 0x31>, T_DrawSpriteData<0, 0, 0x32>, T_DrawSpriteData<0, 0, 0x33>, T_DrawSpriteData<0, 0, 0x34>, T_DrawSpriteData<0, 0, 0x35>, T_DrawSpriteData<0, 0, 0x36>, T_DrawSpriteData<0, 0, 0x37>, T_DrawSpriteData<0, 0, 0x38>, T_DrawSpriteData<0, 0, 0x39>, T_DrawSpriteData<0, 0, 0x3a>, T_DrawSpriteData<0, 0, 0x3b>, T_DrawSpriteData<0, 0, 0x3c>, T_DrawSpriteData<0, 0, 0x3d>, T_DrawSpriteData<0, 0, 0x3e>, T_DrawSpriteData<0, 0, 0x3f> },
@@ -2618,21 +2618,21 @@ enum
 };
 
 #ifdef MSB_FIRST
-#define MIXIT_TO_SURFACE(v) (((uint32)(v)) >> 8)
+#define MIXIT_TO_SURFACE(v) (((uint32_t)(v)) >> 8)
 #else
-#define MIXIT_TO_SURFACE(v) (__builtin_bswap32((uint32)(v)) >> 8)
+#define MIXIT_TO_SURFACE(v) (__builtin_bswap32((uint32_t)(v)) >> 8)
 #endif
 
 template<bool TA_rbgdualen, unsigned TA_Special, bool TA_CCRTMD, bool TA_CCMD>
-static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, const uint32 back_rgb24, const uint64* blursrc)
+static void T_MixIt(uint32_t* target, const unsigned vdp2_line, const unsigned w, const uint32_t back_rgb24, const uint64_t* blursrc)
 {
- const uint32* lclut = &ColorCache[CurLCColor &~ 0x7F];
- uint32 blurprev[2];
+ const uint32_t* lclut = &ColorCache[CurLCColor &~ 0x7F];
+ uint32_t blurprev[2];
 
  if(TA_Special == MIXIT_SPECIAL_GRAD)
   blurprev[0] = blurprev[1] = *blursrc >> PIX_RGB_SHIFT;
 
- uint32 line_pix_l;
+ uint32_t line_pix_l;
  {
   line_pix_l = 0U << PIX_ISRGB_SHIFT;
   line_pix_l |= LineColorCCRatio << PIX_CCRATIO_SHIFT;
@@ -2642,9 +2642,9 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
 
  //
  //
- uint64 back_pix;
+ uint64_t back_pix;
  {
-  back_pix = (uint64)back_rgb24 << PIX_RGB_SHIFT;
+  back_pix = (uint64_t)back_rgb24 << PIX_RGB_SHIFT;
   back_pix |= 1U << PIX_ISRGB_SHIFT;
   back_pix |= ((ColorOffsEn >> 5) & 1) << PIX_COE_SHIFT;
   back_pix |= ((ColorOffsSel >> 5) & 1) << PIX_COSEL_SHIFT;
@@ -2652,16 +2652,16 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
   back_pix |= BackCCRatio << PIX_CCRATIO_SHIFT;
  }
 
- for(uint32 i = 0; MDFN_LIKELY(i < w); i++)
+ for(uint32_t i = 0; MDFN_LIKELY(i < w); i++)
  {
-  uint64 pix = back_pix;
-  uint32 blurcake;
+  uint64_t pix = back_pix;
+  uint32_t blurcake;
 
   //
   // Listed from lowest priority to greatest priority when prio levels are equal(back pixel has prio level of 0,
   // and should display on "top" of any other layers).
   //
-  uint64 tmp_pix[8] =
+  uint64_t tmp_pix[8] =
   {
    (TA_rbgdualen ? 0 : (LB.nbg[3] + 8)[i]),
    (TA_rbgdualen ? 0 : (LB.nbg[2] + 8)[i]),
@@ -2672,15 +2672,15 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
    0/*null pixel*/,
    back_pix
   };
-  uint64 pt;
+  uint64_t pt;
   unsigned st;
 
-  pt  = 0x01ULL << (uint8)(tmp_pix[0] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x02ULL << (uint8)(tmp_pix[1] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x04ULL << (uint8)(tmp_pix[2] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x08ULL << (uint8)(tmp_pix[3] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x10ULL << (uint8)(tmp_pix[4] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x20ULL << (uint8)(tmp_pix[5] >> PIX_PRIO_TEST_SHIFT);
+  pt  = 0x01ULL << (uint8_t)(tmp_pix[0] >> PIX_PRIO_TEST_SHIFT);
+  pt |= 0x02ULL << (uint8_t)(tmp_pix[1] >> PIX_PRIO_TEST_SHIFT);
+  pt |= 0x04ULL << (uint8_t)(tmp_pix[2] >> PIX_PRIO_TEST_SHIFT);
+  pt |= 0x08ULL << (uint8_t)(tmp_pix[3] >> PIX_PRIO_TEST_SHIFT);
+  pt |= 0x10ULL << (uint8_t)(tmp_pix[4] >> PIX_PRIO_TEST_SHIFT);
+  pt |= 0x20ULL << (uint8_t)(tmp_pix[5] >> PIX_PRIO_TEST_SHIFT);
   pt |= 0xC0ULL; // Back pixel(0x80) and null pixel(0x40)
 
   st = 63 ^ MDFN_lzcount64_0UD(pt);
@@ -2703,12 +2703,12 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
   //if(tmp_pix[5] & (1U << PIX_DOSHAD_SHIFT))
   // pt &= ~0x2020202020202020ULL;
   static_assert((1U << PIX_DOSHAD_SHIFT) == 0x40, "PIX_DOSHAD_SHIFT is wrong value.");
-  pt &= ~((((tmp_pix[5] >> 1) & 0x20) << (uint8)(tmp_pix[5] >> PIX_PRIO_TEST_SHIFT)));
+  pt &= ~((((tmp_pix[5] >> 1) & 0x20) << (uint8_t)(tmp_pix[5] >> PIX_PRIO_TEST_SHIFT)));
 
 
   if(TA_Special == MIXIT_SPECIAL_GRAD)
   {
-   const uint32 blurpie = blursrc[i] >> PIX_RGB_SHIFT;
+   const uint32_t blurpie = blursrc[i] >> PIX_RGB_SHIFT;
 
    blurcake = ((blurprev[0] + blurprev[1]) - ((blurprev[0] ^ blurprev[1]) & 0x01010101)) >> 1;
    blurcake = ((blurcake + blurpie) - ((blurcake ^ blurpie) & 0x01010101)) >> 1;
@@ -2721,7 +2721,7 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
   //
   if(pix & (1U << PIX_CCE_SHIFT))
   {
-   uint64 pix2, pix3;
+   uint64_t pix2, pix3;
 
    st = 63 ^ MDFN_lzcount64_0UD(pt);
    pt ^= 1ULL << st;
@@ -2736,44 +2736,44 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
    if(TA_Special == MIXIT_SPECIAL_GRAD)
    {
     if((pix | pix2) & (1U << PIX_GRAD_SHIFT))
-     pix2 = (uint32)pix2 | ((uint64)blurcake << PIX_RGB_SHIFT);	// Be sure to preserve the color calc ratio, at least.
+     pix2 = (uint32_t)pix2 | ((uint64_t)blurcake << PIX_RGB_SHIFT);	// Be sure to preserve the color calc ratio, at least.
    }
    else if(pix & (1U << PIX_LCE_SHIFT))
    {
     //
     // Line color
     //
-    const uint64 pix4 = pix3;
-    const uint32 line_pix_rgb = lclut[LB.lc[i]];
+    const uint64_t pix4 = pix3;
+    const uint32_t line_pix_rgb = lclut[LB.lc[i]];
     pix3 = pix2;
-    pix2 = line_pix_l | ((uint64)line_pix_rgb << PIX_RGB_SHIFT);
+    pix2 = line_pix_l | ((uint64_t)line_pix_rgb << PIX_RGB_SHIFT);
 
     if(TA_Special == MIXIT_SPECIAL_EXCC_LINE_CRAM0)
     {
-     uint32 sec_rgb = line_pix_rgb;
-     uint32 third_rgb = (pix3 >> PIX_RGB_SHIFT);
+     uint32_t sec_rgb = line_pix_rgb;
+     uint32_t third_rgb = (pix3 >> PIX_RGB_SHIFT);
 
      if(pix3 & (1U << PIX_LAYER_CCE_SHIFT))
       third_rgb = (third_rgb >> 1) & 0x7F7F7F;
 
      sec_rgb = ((sec_rgb + third_rgb) - ((sec_rgb ^ third_rgb) & 0x01010101)) >> 1;
-     pix2 = (uint32)pix2 | ((uint64)sec_rgb << PIX_RGB_SHIFT);
+     pix2 = (uint32_t)pix2 | ((uint64_t)sec_rgb << PIX_RGB_SHIFT);
     }
     else if(TA_Special == MIXIT_SPECIAL_EXCC_LINE_CRAM12)
     {
-     uint32 sec_rgb = line_pix_rgb;
-     uint32 third_rgb = (pix3 >> PIX_RGB_SHIFT);
+     uint32_t sec_rgb = line_pix_rgb;
+     uint32_t third_rgb = (pix3 >> PIX_RGB_SHIFT);
 
      if(pix3 & (1U << PIX_ISRGB_SHIFT))
      {
       if((pix3 & (1U << PIX_LAYER_CCE_SHIFT)) && (pix4 & (1U << PIX_ISRGB_SHIFT)))
       {
-       const uint32 fourth_rgb = (pix4 >> PIX_RGB_SHIFT);
+       const uint32_t fourth_rgb = (pix4 >> PIX_RGB_SHIFT);
        third_rgb = ((third_rgb + fourth_rgb) - ((third_rgb ^ fourth_rgb) & 0x01010101)) >> 1;
       }
 
       sec_rgb = ((sec_rgb + third_rgb) - ((sec_rgb ^ third_rgb) & 0x01010101)) >> 1;
-      pix2 = (uint32)pix2 | ((uint64)sec_rgb << PIX_RGB_SHIFT);
+      pix2 = (uint32_t)pix2 | ((uint64_t)sec_rgb << PIX_RGB_SHIFT);
      }
     }
    }
@@ -2785,19 +2785,19 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
      {
       if(TA_Special == MIXIT_SPECIAL_EXCC_CRAM0 || TA_Special == MIXIT_SPECIAL_EXCC_LINE_CRAM0 || (pix3 & (1U << PIX_ISRGB_SHIFT)))
       {
-       uint32 sec_rgb = pix2 >> PIX_RGB_SHIFT;
-       const uint32 third_rgb = (pix3 >> PIX_RGB_SHIFT);
+       uint32_t sec_rgb = pix2 >> PIX_RGB_SHIFT;
+       const uint32_t third_rgb = (pix3 >> PIX_RGB_SHIFT);
 
        sec_rgb = ((sec_rgb + third_rgb) - ((sec_rgb ^ third_rgb) & 0x01010101)) >> 1;
-       pix2 = (uint32)pix2 | ((uint64)sec_rgb << PIX_RGB_SHIFT);
+       pix2 = (uint32_t)pix2 | ((uint64_t)sec_rgb << PIX_RGB_SHIFT);
       }
      }
     }
    }
 
-   uint32 fore_rgb = pix >> PIX_RGB_SHIFT;
-   uint32 sec_rgb = pix2 >> PIX_RGB_SHIFT;
-   uint32 new_rgb;
+   uint32_t fore_rgb = pix >> PIX_RGB_SHIFT;
+   uint32_t sec_rgb = pix2 >> PIX_RGB_SHIFT;
+   uint32_t new_rgb;
 
    if(TA_Special == MIXIT_SPECIAL_HIRES_CRAM12 && !(pix2 & (1U << PIX_ISRGB_SHIFT)))
     sec_rgb = fore_rgb;
@@ -2810,14 +2810,14 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
    }
    else
    {
-    unsigned fore_ratio = ((uint32)(TA_CCRTMD ? pix2 : pix) >> PIX_CCRATIO_SHIFT) ^ 0x1F;
+    unsigned fore_ratio = ((uint32_t)(TA_CCRTMD ? pix2 : pix) >> PIX_CCRATIO_SHIFT) ^ 0x1F;
     unsigned sec_ratio = 0x20 - fore_ratio;
 
     new_rgb =  ((((fore_rgb & 0x0000FF) * fore_ratio) + ((sec_rgb & 0x0000FF) * sec_ratio)) >> 5);
     new_rgb |= ((((fore_rgb & 0x00FF00) * fore_ratio) + ((sec_rgb & 0x00FF00) * sec_ratio)) >> 5) & 0x00FF00;
     new_rgb |= ((((fore_rgb & 0xFF0000) * fore_ratio) + ((sec_rgb & 0xFF0000) * sec_ratio)) >> 5) & 0xFF0000;
    }
-   pix = ((uint64)new_rgb << 32) | (uint32)pix;
+   pix = ((uint64_t)new_rgb << 32) | (uint32_t)pix;
   }
 
   //
@@ -2826,8 +2826,8 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
   if(pix & (1U << PIX_COE_SHIFT))
   {
    const unsigned sel = (pix >> PIX_COSEL_SHIFT) & 1;
-   const uint32 rgb_tmp = pix >> PIX_RGB_SHIFT;
-   int32 rt, gt, bt;
+   const uint32_t rgb_tmp = pix >> PIX_RGB_SHIFT;
+   int32_t rt, gt, bt;
 
    // Magnitude test (not bit-test) so the compiler emits csel instead of tst+branch.
    rt = ColorOffs[sel][0] + (rgb_tmp & 0x000000FF);
@@ -2842,14 +2842,14 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
    if(bt < 0) bt = 0;
    if(bt > 0x00FF0000) bt = 0x00FF0000;
 
-   pix = (uint32)pix | ((uint64)(uint32)(rt | gt | bt) << PIX_RGB_SHIFT);
+   pix = (uint32_t)pix | ((uint64_t)(uint32_t)(rt | gt | bt) << PIX_RGB_SHIFT);
   }
 
   //
   // Sprite shadow
   //
-  if((uint8)pix >= PIX_SHADHALVTEST8_VAL)
-   pix = (uint32)pix | ((pix >> 1) & 0x7F7F7F00000000ULL);
+  if((uint8_t)pix >= PIX_SHADHALVTEST8_VAL)
+   pix = (uint32_t)pix | ((pix >> 1) & 0x7F7F7F00000000ULL);
 
   // MixIt's internal pixel format keeps R at byte 0, G at byte 1, B at
   // byte 2 (matches rgb15_to_rgb24's output and lets all the colour-
@@ -2883,7 +2883,7 @@ static void T_MixIt(uint32* target, const unsigned vdp2_line, const unsigned w, 
  }
 }
 
-static void (*MixIt[2][7][2][2])(uint32* target, const unsigned vdp2_line, const unsigned w, const uint32 back_rgb24, const uint64* blursrc) =
+static void (*MixIt[2][7][2][2])(uint32_t* target, const unsigned vdp2_line, const unsigned w, const uint32_t back_rgb24, const uint64_t* blursrc) =
 {
  {  {  { T_MixIt<0, 0, 0, 0>, T_MixIt<0, 0, 0, 1>,  },  { T_MixIt<0, 0, 1, 0>, T_MixIt<0, 0, 1, 1>,  },  },  {  { T_MixIt<0, 1, 0, 0>, T_MixIt<0, 1, 0, 1>,  },  { T_MixIt<0, 1, 1, 0>, T_MixIt<0, 1, 1, 1>,  },  },  {  { T_MixIt<0, 2, 0, 0>, T_MixIt<0, 2, 0, 1>,  },  { T_MixIt<0, 2, 1, 0>, T_MixIt<0, 2, 1, 1>,  },  },  {  { T_MixIt<0, 3, 0, 0>, T_MixIt<0, 3, 0, 1>,  },  { T_MixIt<0, 3, 1, 0>, T_MixIt<0, 3, 1, 1>,  },  },  {  { T_MixIt<0, 4, 0, 0>, T_MixIt<0, 4, 0, 1>,  },  { T_MixIt<0, 4, 1, 0>, T_MixIt<0, 4, 1, 1>,  },  },  {  { T_MixIt<0, 5, 0, 0>, T_MixIt<0, 5, 0, 1>,  },  { T_MixIt<0, 5, 1, 0>, T_MixIt<0, 5, 1, 1>,  },  },  {  { T_MixIt<0, 6, 0, 0>, T_MixIt<0, 6, 0, 1>,  },  { T_MixIt<0, 6, 1, 0>, T_MixIt<0, 6, 1, 1>,  },  },  },
  {  {  { T_MixIt<1, 0, 0, 0>, T_MixIt<1, 0, 0, 1>,  },  { T_MixIt<1, 0, 1, 0>, T_MixIt<1, 0, 1, 1>,  },  },  {  { T_MixIt<1, 1, 0, 0>, T_MixIt<1, 1, 0, 1>,  },  { T_MixIt<1, 1, 1, 0>, T_MixIt<1, 1, 1, 1>,  },  },  {  { T_MixIt<1, 2, 0, 0>, T_MixIt<1, 2, 0, 1>,  },  { T_MixIt<1, 2, 1, 0>, T_MixIt<1, 2, 1, 1>,  },  },  {  { T_MixIt<1, 3, 0, 0>, T_MixIt<1, 3, 0, 1>,  },  { T_MixIt<1, 3, 1, 0>, T_MixIt<1, 3, 1, 1>,  },  },  {  { T_MixIt<1, 4, 0, 0>, T_MixIt<1, 4, 0, 1>,  },  { T_MixIt<1, 4, 1, 0>, T_MixIt<1, 4, 1, 1>,  },  },  {  { T_MixIt<1, 5, 0, 0>, T_MixIt<1, 5, 0, 1>,  },  { T_MixIt<1, 5, 1, 0>, T_MixIt<1, 5, 1, 1>,  },  },  {  { T_MixIt<1, 6, 0, 0>, T_MixIt<1, 6, 0, 1>,  },  { T_MixIt<1, 6, 1, 0>, T_MixIt<1, 6, 1, 1>,  },  },  },
@@ -2927,12 +2927,12 @@ static void (*MixIt[2][7][2][2])(uint32* target, const unsigned vdp2_line, const
 //          + (a & b & 0x01010101)
 // Each byte position gets (a_byte + b_byte) >> 1 without cross-byte
 // bleed. Same formula used by ApplyHBlend below.
-static INLINE void ApplyMeshOverlay(uint32* target, const uint16* mesh_line, const uint8* winprio, unsigned w, unsigned hires_shift)
+static INLINE void ApplyMeshOverlay(uint32_t* target, const uint16_t* mesh_line, const uint8_t* winprio, unsigned w, unsigned hires_shift)
 {
  // dc-mask per SpriteType -- mirrors the switch in T_DrawSpriteData
  // (SpriteType 0-3,5: 11 bits; 4,6: 10 bits; 7: 9 bits; 8,A: 6 bits
  //  -> mask 0x3F; 9,B: 6 bits; C-F: 8 bits).
- static constexpr uint16 SpriteType_DcMask[16] = {
+ static constexpr uint16_t SpriteType_DcMask[16] = {
   0x7FF, 0x7FF, 0x7FF, 0x7FF,   // 0-3
   0x3FF, 0x7FF, 0x3FF, 0x1FF,   // 4-7
   0x7F,  0x3F,  0x3F,  0x3F,    // 8-B
@@ -2944,11 +2944,11 @@ static INLINE void ApplyMeshOverlay(uint32* target, const uint16* mesh_line, con
  // and 0xF have no priority bits in the texel (they encode CC only),
  // so they fall back to slot 0 -- the same default T_DrawSpriteData
  // leaves `pr` at for those types.
- static constexpr uint8 SpriteType_PrShift[16] = {
+ static constexpr uint8_t SpriteType_PrShift[16] = {
   14, 13, 14, 13,  13, 12, 12, 12,
    7,  7,  6,  0,   7,  7,  6,  0,
  };
- static constexpr uint8 SpriteType_PrMask[16] = {
+ static constexpr uint8_t SpriteType_PrMask[16] = {
   0x3, 0x7, 0x1, 0x3,  0x3, 0x7, 0x7, 0x7,
   0x1, 0x1, 0x3, 0x0,  0x1, 0x1, 0x3, 0x0,
  };
@@ -2970,7 +2970,7 @@ static INLINE void ApplyMeshOverlay(uint32* target, const uint16* mesh_line, con
   // regardless of MeshImproved's state (the bounds violation happens
   // even when the buffer is all zeros, because the bytes past the
   // array are not zero).
-  const uint16 m = mesh_line[i >> hires_shift];
+  const uint16_t m = mesh_line[i >> hires_shift];
 
   if(MDFN_UNLIKELY(m != 0))
   {
@@ -2987,16 +2987,16 @@ static INLINE void ApplyMeshOverlay(uint32* target, const uint16* mesh_line, con
    if(winprio[i] > mesh_prio)
     continue;
 
-   uint32 mesh_rgb24;
+   uint32_t mesh_rgb24;
 
    if(SpriteColorMode && (m & 0x8000))
    {
     // RGB-direct: m is a Saturn 15-bit RGB555 + MSB opaque marker.
     // Expand 5-bit channels to 8 with bit-replication (matches the
     // hardware-accurate top-bits-replicated-into-low expansion).
-    const uint32 r5 = (m >>  0) & 0x1F;
-    const uint32 g5 = (m >>  5) & 0x1F;
-    const uint32 b5 = (m >> 10) & 0x1F;
+    const uint32_t r5 = (m >>  0) & 0x1F;
+    const uint32_t g5 = (m >>  5) & 0x1F;
+    const uint32_t b5 = (m >> 10) & 0x1F;
     mesh_rgb24 = ((r5 << 3) | (r5 >> 2))
                | (((g5 << 3) | (g5 >> 2)) << 8)
                | (((b5 << 3) | (b5 >> 2)) << 16);
@@ -3010,18 +3010,18 @@ static INLINE void ApplyMeshOverlay(uint32* target, const uint16* mesh_line, con
     mesh_rgb24 = ColorCache[(cao + dc) & 0x7FF];
    }
 
-   const uint32 mesh_surf = MIXIT_TO_SURFACE(mesh_rgb24);
-   const uint32 a = target[i];
-   const uint32 b = mesh_surf;
+   const uint32_t mesh_surf = MIXIT_TO_SURFACE(mesh_rgb24);
+   const uint32_t a = target[i];
+   const uint32_t b = mesh_surf;
 
    target[i] = ((a & 0xFEFEFEFE) >> 1) + ((b & 0xFEFEFEFE) >> 1) + (a & b & 0x01010101);
   }
  }
 }
 
-static int32 ApplyHBlend(uint32* const target, int32 w)
+static int32_t ApplyHBlend(uint32_t* const target, int32_t w)
 {
- #define BHALF(m, n) ((((uint64)(m) + (n)) - (((m) ^ (n)) & 0x01010101)) >> 1)
+ #define BHALF(m, n) ((((uint64_t)(m) + (n)) - (((m) ^ (n)) & 0x01010101)) >> 1)
 
  assert(w >= 4);
 
@@ -3030,13 +3030,13 @@ static int32 ApplyHBlend(uint32* const target, int32 w)
   target[(w - 1) * 2 + 1] = target[w - 1];
   target[(w - 1) * 2 + 0] = BHALF(BHALF(target[w - 2], target[w - 1]), target[w - 1]);
 
-  for(int32 x = w - 2; x > 0; x--)
+  for(int32_t x = w - 2; x > 0; x--)
   {
-   uint32 ptxm1 = target[x - 1];
-   uint32 ptx = target[x];
-   uint32 ptxp1 = target[x + 1];
-   uint32 ptxm1_ptx = BHALF(ptxm1, ptx);
-   uint32 ptx_ptxp1 = BHALF(ptx, ptxp1);
+   uint32_t ptxm1 = target[x - 1];
+   uint32_t ptx = target[x];
+   uint32_t ptxp1 = target[x + 1];
+   uint32_t ptxm1_ptx = BHALF(ptxm1, ptx);
+   uint32_t ptx_ptxp1 = BHALF(ptx, ptxp1);
 
    target[x * 2 + 0] = BHALF(ptxm1_ptx, ptx);
    target[x * 2 + 1] = BHALF(ptx_ptxp1, ptx);
@@ -3049,13 +3049,13 @@ static int32 ApplyHBlend(uint32* const target, int32 w)
  }
  else
  {
-  uint32 a = target[0];
-  for(int32 x = 0; x < w - 1; x++)
+  uint32_t a = target[0];
+  for(int32_t x = 0; x < w - 1; x++)
   {
-   uint32 b = target[x];
-   uint32 c = target[x + 1];
-   uint32 ac = BHALF(a, c);
-   uint32 bac = BHALF(b, ac);
+   uint32_t b = target[x];
+   uint32_t c = target[x + 1];
+   uint32_t ac = BHALF(a, c);
+   uint32_t bac = BHALF(b, ac);
 
    target[x] = bac;
    a = b;
@@ -3065,15 +3065,15 @@ static int32 ApplyHBlend(uint32* const target, int32 w)
  #undef BHALF
 }
 
-static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, const bool field)
+static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line, const bool field)
 {
- const int32 tvdw = ((!CorrectAspect || Clock28M) ? 352 : 330) << ((HRes & 0x2) >> 1);
+ const int32_t tvdw = ((!CorrectAspect || Clock28M) ? 352 : 330) << ((HRes & 0x2) >> 1);
  const unsigned rbg_w = ((HRes & 0x1) ? 352 : 320);
  const unsigned w = ((HRes & 0x1) ? 352 : 320) << ((HRes & 0x2) >> 1);
- const int32 tvxo = ((int32)(0) > (int32)((int32)(tvdw - w) >> 1) ? (int32)(0) : (int32)((int32)(tvdw - w) >> 1));
- uint32 back_rgb24;
- uint32 border_ncf;
- uint32 *target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
+ const int32_t tvxo = ((int32_t)(0) > (int32_t)((int32_t)(tvdw - w) >> 1) ? (int32_t)(0) : (int32_t)((int32_t)(tvdw - w) >> 1));
+ uint32_t back_rgb24;
+ uint32_t border_ncf;
+ uint32_t *target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
 
  // Invalidate LB clean flags whenever w changes -- a flag means
  // "buffer is zero in [0, LB_cleaned_w)", and after a width change
@@ -3095,8 +3095,8 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
 
  if(!ShowHOverscan)
  {
-  const int32 ntdw = tvdw * 1024 / 1056;
-  const int32 tadj = ((int32)(0) > (int32)(espec->DisplayRect.x - ((tvdw - ntdw) >> 1)) ? (int32)(0) : (int32)(espec->DisplayRect.x - ((tvdw - ntdw) >> 1)));
+  const int32_t ntdw = tvdw * 1024 / 1056;
+  const int32_t tadj = ((int32_t)(0) > (int32_t)(espec->DisplayRect.x - ((tvdw - ntdw) >> 1)) ? (int32_t)(0) : (int32_t)(espec->DisplayRect.x - ((tvdw - ntdw) >> 1)));
 
   assert((tvdw + tadj) <= 704);
 
@@ -3120,8 +3120,8 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
 
    if(InterlaceMode == IM_DOUBLE && field)
    {
-    const uint8 sc = (SCRCTL >> (n << 3));
-    const uint8 lss = ((sc >> 4) & 0x3);
+    const uint8_t sc = (SCRCTL >> (n << 3));
+    const uint8_t lss = ((sc >> 4) & 0x3);
 
     if(!lss)
      CurLSA[n] += ((bool)(sc & 0x2) + (bool)(sc & 0x4) + (bool)(sc & 0x8)) << 1;
@@ -3157,13 +3157,13 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
  back_rgb24 = rgb15_to_rgb24(CurBackColor);
 
  if(BorderMode)
-  border_ncf = MAKECOLOR((uint8)(back_rgb24 >> 0), (uint8)(back_rgb24 >> 8), (uint8)(back_rgb24 >> 16), 0);
+  border_ncf = MAKECOLOR((uint8_t)(back_rgb24 >> 0), (uint8_t)(back_rgb24 >> 8), (uint8_t)(back_rgb24 >> 16), 0);
  else
   border_ncf = MAKECOLOR(0, 0, 0, 0);
 
  if(vdp2_line == 0xFFFF)
  {
-  for(int32 i = 0; i < tvdw; i++)
+  for(int32_t i = 0; i < tvdw; i++)
    target[i] = border_ncf;
  }
  else
@@ -3175,8 +3175,8 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
 
   for(unsigned n = 0; n < 2; n++)
   {
-   const uint8 sc = (SCRCTL >> (n << 3));
-   const uint8 lss = ((sc >> 4) & 0x3);
+   const uint8_t sc = (SCRCTL >> (n << 3));
+   const uint8_t lss = ((sc >> 4) & 0x3);
 
    if((ls_comp_line & ((1 << lss) - 1)) == 0)
    {
@@ -3232,7 +3232,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
    {
     if(Window[d].LineWinEn)
     {
-     const uint16* vrt = &VRAM[Window[d].CurLineWinAddr & 0x3FFFE];
+     const uint16_t* vrt = &VRAM[Window[d].CurLineWinAddr & 0x3FFFE];
 
      Window[d].XStart = vrt[0] & 0x3FF;
      Window[d].XEnd = vrt[1] & 0x3FF;
@@ -3240,7 +3240,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
     //
     //
     //
-    int32 xs = Window[d].XStart, xe = Window[d].XEnd;
+    int32_t xs = Window[d].XStart, xe = Window[d].XEnd;
 
     // FIXME: Kludge, until we can figure out what's going on.
     if(xs >= 0x380)
@@ -3339,7 +3339,7 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
    // technically wasted. Conservatively rare; not worth threading
    // the extra parameter through.
    //
-   // LB.lc lives OUTSIDE the LB union (alignas(16) uint8 lc[704]
+   // LB.lc lives OUTSIDE the LB union (alignas(16) uint8_t lc[704]
    // is a sibling of the nbg union, not part of it), so stale
    // content from a prior LineColorEn != 0 frame can never alias
    // any nbg buffer -- the Sega Rally aliasing failure mode from
@@ -3370,8 +3370,8 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
     const unsigned colornum = ((unsigned)(4) < (unsigned)((CHCTLB >> 12) & 0x7) ? (unsigned)(4) : (unsigned)((CHCTLB >> 12) & 0x7));	// TODO: Test 5 ... 7
     const unsigned priomode = (SFPRMD >> 8) & 0x3;
     const unsigned ccmode = (CCCTL & 0x10) ? ((SFCCMD >> 8) & 0x3) : 0;
-    const uint32 prio = RBG0PrioNum;
-    uint32 pix_base_or;
+    const uint32_t prio = RBG0PrioNum;
+    uint32_t pix_base_or;
 
     pix_base_or = ((colornum >= 3) << PIX_ISRGB_SHIFT);
     pix_base_or |= ((ColorOffsEn >> 4) & 1) << PIX_COE_SHIFT;
@@ -3419,8 +3419,8 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
     const unsigned colornum = ((unsigned)(4) < (unsigned)((CHCTLA >> 4) & 0x7) ? (unsigned)(4) : (unsigned)((CHCTLA >> 4) & 0x7));	// TODO: Test 5 ... 7
     const unsigned priomode = (SFPRMD >> 0) & 0x3;
     const unsigned ccmode = (CCCTL & 0x01) ? ((SFCCMD >> 0) & 0x3) : 0;
-    const uint32 prio = NBGPrioNum[0];
-    uint32 pix_base_or;
+    const uint32_t prio = NBGPrioNum[0];
+    uint32_t pix_base_or;
 
     pix_base_or = (false << PIX_ISRGB_SHIFT);
     pix_base_or |= ((ColorOffsEn >> 0) & 1) << PIX_COE_SHIFT;
@@ -3535,8 +3535,8 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
       ccmode = 0;
      //
      //
-     const uint32 prio = NBGPrioNum[n];
-     uint32 pix_base_or;
+     const uint32_t prio = NBGPrioNum[n];
+     uint32_t pix_base_or;
 
      pix_base_or = ((colornum >= 3) << PIX_ISRGB_SHIFT);
      pix_base_or |= ((ColorOffsEn >> n) & 1) << PIX_COE_SHIFT;
@@ -3581,10 +3581,10 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
   ApplyWin(WINLAYER_SPRITE, LB.spr);
 
   //
-  for(int32 i = 0; i < tvxo; i++)
+  for(int32_t i = 0; i < tvxo; i++)
    target[i] = border_ncf;
 
-  for(int32 i = tvxo + w; i < tvdw; i++)
+  for(int32_t i = tvxo + w; i < tvdw; i++)
    target[i] = border_ncf;
 
   {
@@ -3592,10 +3592,10 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
    unsigned special = MIXIT_SPECIAL_NONE;
    const bool CCRTMD = (bool)(CCCTL & 0x0200);
    const bool CCMD = (bool)(CCCTL & 0x0100);
-   static const uint64* blurremap[8] = { LB.spr, LB.rbg0, LB.nbg[0] + 8, /*Dummy:*/LB.spr,
+   static const uint64_t* blurremap[8] = { LB.spr, LB.rbg0, LB.nbg[0] + 8, /*Dummy:*/LB.spr,
 					 LB.nbg[1] + 8, LB.nbg[2] + 8, LB.nbg[3] + 8, /*Dummy:*/LB.spr
 				       };
-   const uint64* blursrc = blurremap[(CCCTL >> 12) & 0x7];
+   const uint64_t* blursrc = blurremap[(CCCTL >> 12) & 0x7];
 
    if(!(HRes & 0x6))
    {
@@ -3690,17 +3690,17 @@ static NO_INLINE void DrawLine(const uint16 out_line, const uint16 vdp2_line, co
  //
  if(MDFN_UNLIKELY(DeinterlaceOff) && espec->InterlaceOn)
  {
-  const int32 mirror_line = (int32)out_line ^ 1;
-  const int32 rect_end = espec->DisplayRect.y + espec->DisplayRect.h;
+  const int32_t mirror_line = (int32_t)out_line ^ 1;
+  const int32_t rect_end = espec->DisplayRect.y + espec->DisplayRect.h;
   if(mirror_line >= espec->DisplayRect.y && mirror_line < rect_end)
   {
    const size_t   col_off  = (size_t)espec->DisplayRect.x;
    const size_t   copy_pix = (size_t)espec->LineWidths[out_line];
-   const uint32*  src_row  = espec->surface->pixels
+   const uint32_t*  src_row  = espec->surface->pixels
                               + out_line    * espec->surface->pitchinpix + col_off;
-   uint32*        dst_row  = espec->surface->pixels
+   uint32_t*        dst_row  = espec->surface->pixels
                               + mirror_line * espec->surface->pitchinpix + col_off;
-   memcpy(dst_row, src_row, copy_pix * sizeof(uint32));
+   memcpy(dst_row, src_row, copy_pix * sizeof(uint32_t));
    espec->LineWidths[mirror_line] = espec->LineWidths[out_line];
   }
  }
@@ -3715,7 +3715,7 @@ enum
 {
  COMMAND_WRITE8 = 0,
  COMMAND_WRITE16,
- COMMAND_WRITE16_BURST,	// Arg32 = base B-bus address, Arg16 = n16 | (add_mode << 13); n16 uint16 payload words follow in BurstBuf.
+ COMMAND_WRITE16_BURST,	// Arg32 = base B-bus address, Arg16 = n16 | (add_mode << 13); n16 uint16_t payload words follow in BurstBuf.
 
  COMMAND_DRAW_LINE,
 
@@ -3731,9 +3731,9 @@ enum
 
 struct WQ_Entry
 {
- uint16 Command;
- uint16 Arg16;
- uint32 Arg32;
+ uint16_t Command;
+ uint16_t Arg16;
+ uint32_t Arg32;
 };
 
 static std::array<WQ_Entry, 0x80000> WQ;
@@ -3746,9 +3746,9 @@ static std::array<WQ_Entry, 0x80000> WQ;
 // WQ_PushCount also publishes these writes, and the consumer's acquire-load makes
 // them visible before it dispatches the burst. Sized large enough that the
 // occupancy check below never realistically blocks (one max burst is 512 words).
-static constexpr uint32 BurstBufSize = 1u << 20;
-static constexpr uint32 BurstBufMask = BurstBufSize - 1;
-static std::array<uint16, BurstBufSize> BurstBuf;
+static constexpr uint32_t BurstBufSize = 1u << 20;
+static constexpr uint32_t BurstBufMask = BurstBufSize - 1;
+static std::array<uint16_t, BurstBufSize> BurstBuf;
 // SPSC queue state. Each atomic is written by exactly one thread (release-store)
 // and read by the other (acquire-load); live queue depth is recovered by
 // subtraction, avoiding the cross-thread RMW that bounced the cache line.
@@ -3764,23 +3764,23 @@ alignas(64) static std::atomic_uint_least32_t WQ_PushCount;     // producer-writ
 alignas(64) static std::atomic_uint_least32_t WQ_PopCount;      // consumer-written
 alignas(64) static std::atomic_uint_least32_t DrawFinishCount;  // consumer-written
 alignas(64) static std::atomic_uint_least32_t DrawPushCount;    // producer-written
-alignas(64) static std::atomic_uint_least32_t BurstPopCount;    // consumer-written; cumulative uint16 words drained from BurstBuf
+alignas(64) static std::atomic_uint_least32_t BurstPopCount;    // consumer-written; cumulative uint16_t words drained from BurstBuf
 struct alignas(64) ProducerState
 {
  size_t WritePos;
- uint32 PushLocal;        // total WQ pushes
- uint32 DrawPushLocal;    // total VDP2REND_DrawLine pushes
- uint32 WQ_PopCached;     // last-seen WQ_PopCount; refreshed only when the queue
+ uint32_t PushLocal;        // total WQ pushes
+ uint32_t DrawPushLocal;    // total VDP2REND_DrawLine pushes
+ uint32_t WQ_PopCached;     // last-seen WQ_PopCount; refreshed only when the queue
                           // appears full (huge queue, so basically never)
- uint32 BurstWritePos;    // cumulative uint16 words written to BurstBuf
- uint32 BurstPopCached;   // last-seen BurstPopCount; refreshed only when BurstBuf appears full
+ uint32_t BurstWritePos;    // cumulative uint16_t words written to BurstBuf
+ uint32_t BurstPopCached;   // last-seen BurstPopCount; refreshed only when BurstBuf appears full
 };
 struct alignas(64) ConsumerState
 {
  size_t ReadPos;
- uint32 PopLocal;         // total WQ pops
- uint32 DrawFinishLocal;  // total DrawLine completions
- uint32 BurstReadPos;     // cumulative uint16 words drained from BurstBuf
+ uint32_t PopLocal;         // total WQ pops
+ uint32_t DrawFinishLocal;  // total DrawLine completions
+ uint32_t BurstReadPos;     // cumulative uint16_t words drained from BurstBuf
 };
 static ProducerState Prod;
 static ConsumerState Cons;
@@ -3807,7 +3807,7 @@ static slock_t  *DrainLock = NULL;
 static scond_t  *DrainCond = NULL;
 static bool DoWakeupIfNecessary;
 
-static INLINE void WWQ(uint16 command, uint32 arg32 = 0, uint16 arg16 = 0)
+static INLINE void WWQ(uint16_t command, uint32_t arg32 = 0, uint16_t arg16 = 0)
 {
  // Queue back-pressure spin. retro_sleep(1) was problematic on Windows
  // without timeBeginPeriod(1) -- Sleep(1) rounds up to the 15.6ms timer
@@ -3867,22 +3867,22 @@ static void/*int*/ RThreadEntry(void* data)
   switch(wqe->Command)
   {
    case COMMAND_WRITE8:
-	MemW<uint8>(wqe->Arg32, wqe->Arg16);
+	MemW<uint8_t>(wqe->Arg32, wqe->Arg16);
 	break;
 
    case COMMAND_WRITE16:
-	MemW<uint16>(wqe->Arg32, wqe->Arg16);
+	MemW<uint16_t>(wqe->Arg32, wqe->Arg16);
 	break;
 
    case COMMAND_WRITE16_BURST:
 	{
-	 const uint32 n16 = wqe->Arg16 & 0x1FFF;
-	 const uint32 stride = (1u << (wqe->Arg16 >> 13)) &~ 1u;
-	 uint32 a = wqe->Arg32;
+	 const uint32_t n16 = wqe->Arg16 & 0x1FFF;
+	 const uint32_t stride = (1u << (wqe->Arg16 >> 13)) &~ 1u;
+	 uint32_t a = wqe->Arg32;
 
-	 for(uint32 i = 0; i < n16; i++)
+	 for(uint32_t i = 0; i < n16; i++)
 	 {
-	  MemW<uint16>(a, BurstBuf[(Cons.BurstReadPos + i) & BurstBufMask]);
+	  MemW<uint16_t>(a, BurstBuf[(Cons.BurstReadPos + i) & BurstBufMask]);
 	  a += stride;
 	 }
 	 Cons.BurstReadPos += n16;
@@ -3892,7 +3892,7 @@ static void/*int*/ RThreadEntry(void* data)
 
    case COMMAND_DRAW_LINE:
 	//for(unsigned i = 0; i < 2; i++)
-	DrawLine((uint16)wqe->Arg32, wqe->Arg32 >> 16, wqe->Arg16);
+	DrawLine((uint16_t)wqe->Arg32, wqe->Arg32 >> 16, wqe->Arg16);
 	//
 	// Publish completion: DrawFinishCount is consumer-written, read by
 	// the producer (EndFrame's drain wait, and the wdcq wakeup
@@ -3947,7 +3947,7 @@ static void/*int*/ RThreadEntry(void* data)
 //
 //
 //
-void VDP2REND_Init(const bool IsPAL, const uint64 affinity)
+void VDP2REND_Init(const bool IsPAL, const uint64_t affinity)
 {
  PAL = IsPAL;
  VisibleLines = PAL ? 288 : 240;
@@ -4114,8 +4114,8 @@ void VDP2REND_EndFrame(void)
  {
   do
   {
-   uint16 out_line = NextOutLine;
-   uint32* target;
+   uint16_t out_line = NextOutLine;
+   uint32_t* target;
 
    if(espec->InterlaceOn)
     out_line = (out_line << 1) | espec->InterlaceField;
@@ -4136,21 +4136,21 @@ VDP2Rend_LIB* VDP2REND_GetLIB(unsigned line)
  return &LIB[line];
 }
 
-void VDP2REND_DrawLine(const int vdp2_line, const uint32 crt_line, const bool field)
+void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool field)
 {
  const unsigned bwthresh = VisibleLines - 48;
 
  if(MDFN_LIKELY(crt_line < VisibleLines))
  {
-  uint16 out_line = crt_line;
+  uint16_t out_line = crt_line;
 
   if(espec->InterlaceOn)
    out_line = (out_line << 1) | espec->InterlaceField;
 
-  const uint32 wdcq = Prod.DrawPushLocal - DrawFinishCount.load(std::memory_order_acquire);
+  const uint32_t wdcq = Prod.DrawPushLocal - DrawFinishCount.load(std::memory_order_acquire);
   ++Prod.DrawPushLocal;
   DrawPushCount.store(Prod.DrawPushLocal, std::memory_order_release);
-  WWQ(COMMAND_DRAW_LINE, ((uint16)vdp2_line << 16) | out_line, field);
+  WWQ(COMMAND_DRAW_LINE, ((uint16_t)vdp2_line << 16) | out_line, field);
   //
   //
   if(crt_line == bwthresh)
@@ -4179,7 +4179,7 @@ void VDP2REND_Reset(bool powering_up)
  WWQ(COMMAND_RESET, powering_up);
 }
 
-void VDP2REND_SetLayerEnableMask(uint64 mask)
+void VDP2REND_SetLayerEnableMask(uint64_t mask)
 {
  WWQ(COMMAND_SET_LEM, mask);
 }
@@ -4217,29 +4217,29 @@ void VDP2REND_SetDeinterlaceOff(bool off)
  if (RThread == NULL)
   DeinterlaceOff = off;
  else
-  WWQ(COMMAND_SET_DEINT_OFF, (uint32)off);
+  WWQ(COMMAND_SET_DEINT_OFF, (uint32_t)off);
 }
 
-void VDP2REND_Write8_DB(uint32 A, uint16 DB)
+void VDP2REND_Write8_DB(uint32_t A, uint16_t DB)
 {
  //if(DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal)
   WWQ(COMMAND_WRITE8, A, DB);
  //else
- // MemW<uint8>(A, DB);
+ // MemW<uint8_t>(A, DB);
 }
 
-void VDP2REND_Write16_DB(uint32 A, uint16 DB)
+void VDP2REND_Write16_DB(uint32_t A, uint16_t DB)
 {
  //if(DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal)
   WWQ(COMMAND_WRITE16, A, DB);
  //else
- // MemW<uint16>(A, DB);
+ // MemW<uint16_t>(A, DB);
 }
 
 // DSP-DMA burst of n16 16-bit writes: words[i] -> (base + i * ((1<<add_mode)&~1)).
 // Equivalent to n16 successive VDP2REND_Write16_DB() calls but collapses them to a
 // single queue command + a bulk payload copy. n16 <= 512, add_mode <= 7.
-void VDP2REND_WriteBurst16_DB(uint32 base, uint32 n16, uint32 add_mode, const uint16* words)
+void VDP2REND_WriteBurst16_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const uint16_t* words)
 {
  // Reserve n16 contiguous (mod BurstBufSize) payload slots, spin-sleeping if the
  // consumer hasn't drained enough yet (mirrors WWQ's queue-full handling).
@@ -4258,18 +4258,18 @@ void VDP2REND_WriteBurst16_DB(uint32 base, uint32 n16, uint32 add_mode, const ui
  // can lower to SIMD / rep-movsq without the per-iteration & mask
  // that defeated autovectorisation in the original scalar loop.
  {
-  const uint32 wpos = Prod.BurstWritePos & BurstBufMask;
-  const uint32 first = (n16 <= BurstBufSize - wpos) ? n16 : (BurstBufSize - wpos);
-  memcpy(&BurstBuf[wpos], words, (size_t)first * sizeof(uint16));
+  const uint32_t wpos = Prod.BurstWritePos & BurstBufMask;
+  const uint32_t first = (n16 <= BurstBufSize - wpos) ? n16 : (BurstBufSize - wpos);
+  memcpy(&BurstBuf[wpos], words, (size_t)first * sizeof(uint16_t));
   if(MDFN_UNLIKELY(first < n16))
-   memcpy(&BurstBuf[0], words + first, (size_t)(n16 - first) * sizeof(uint16));
+   memcpy(&BurstBuf[0], words + first, (size_t)(n16 - first) * sizeof(uint16_t));
  }
  Prod.BurstWritePos += n16;
 
- WWQ(COMMAND_WRITE16_BURST, base, (uint16)(n16 | (add_mode << 13)));
+ WWQ(COMMAND_WRITE16_BURST, base, (uint16_t)(n16 | (add_mode << 13)));
 }
 
-void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16 (&rr)[0x100], uint16 (&cr)[2048], uint16 (&vr)[262144])
+void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16_t (&rr)[0x100], uint16_t (&cr)[2048], uint16_t (&vr)[262144])
 {
  while(MDFN_UNLIKELY(WQ_PopCount.load(std::memory_order_acquire) != Prod.PushLocal))
  {

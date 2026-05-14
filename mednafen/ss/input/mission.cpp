@@ -49,9 +49,9 @@ void IODevice_Mission::Power(void)
  afphase = false;
 }
 
-void IODevice_Mission::UpdateInput(const uint8* data, const int32 time_elapsed)
+void IODevice_Mission::UpdateInput(const uint8_t* data, const int32_t time_elapsed)
 {
- const uint32 dtmp = (uint32)data[0] | ((uint32)data[1] << 8) | ((uint32)data[2] << 16) | ((uint32)data[3] << 24);
+ const uint32_t dtmp = (uint32_t)data[0] | ((uint32_t)data[1] << 8) | ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
 
  dbuttons = (dbuttons & 0xF) | ((dtmp & 0xFFF) << 4);
  afeswitches = ((dtmp >> 12) & 0x8FF) << 4;
@@ -62,7 +62,7 @@ void IODevice_Mission::UpdateInput(const uint8* data, const int32 time_elapsed)
   for(unsigned axis = 0; axis < 3; axis++)
   {
    const unsigned off = 0x3 + ((axis + (stick * 3)) * 2);
-   int32 tmp = (uint16)(data[off] | (data[off + 1] << 8));
+   int32_t tmp = (uint16_t)(data[off] | (data[off + 1] << 8));
 
    axes[stick][axis] = (tmp * 255 + 32767) / 65535;
   }
@@ -105,9 +105,9 @@ void IODevice_Mission::StateAction(StateMem* sm, const unsigned load, const bool
  }
 }
 
-uint8 IODevice_Mission::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted)
+uint8_t IODevice_Mission::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
- uint8 tmp;
+ uint8_t tmp;
 
  if(smpc_out & 0x40)
  {
@@ -148,7 +148,7 @@ uint8 IODevice_Mission::UpdateBus(const sscpu_timestamp_t timestamp, const uint8
 
     if(!afcounter)
     {
-     static const uint8 speedtab[7] = { 12, 8, 7, 5, 4, 4/* ? */, 1 };
+     static const uint8_t speedtab[7] = { 12, 8, 7, 5, 4, 4/* ? */, 1 };
      afphase = !afphase;
      afcounter = speedtab[afspeed];
     }

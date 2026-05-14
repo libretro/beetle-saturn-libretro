@@ -38,16 +38,16 @@
 static SS_SCSP SCSP;
 
 static M68K SoundCPU(true);
-static int64 run_until_time;	// 32.32
-static int32 next_scsp_time;
+static int64_t run_until_time;	// 32.32
+static int32_t next_scsp_time;
 
-static uint32 clock_ratio;
+static uint32_t clock_ratio;
 static sscpu_timestamp_t lastts;
 
 static MDFN_jmp_buf jbuf;
 
-int16 IBuffer[1024][2];
-uint32 IBufferCount;
+int16_t IBuffer[1024][2];
+uint32_t IBufferCount;
 
 static INLINE void SCSP_SoundIntChanged(SS_SCSP* s, unsigned level)
 {
@@ -64,15 +64,15 @@ static INLINE void SCSP_MainIntChanged(SS_SCSP* s, bool state)
 //
 //
 template<typename T>
-static MDFN_FASTCALL T SoundCPU_BusRead(uint32 A);
+static MDFN_FASTCALL T SoundCPU_BusRead(uint32_t A);
 
-static MDFN_FASTCALL uint16 SoundCPU_BusReadInstr(uint32 A);
+static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A);
 
 template<typename T>
-static MDFN_FASTCALL void SoundCPU_BusWrite(uint32 A, T V);
+static MDFN_FASTCALL void SoundCPU_BusWrite(uint32_t A, T V);
 
-static MDFN_FASTCALL void SoundCPU_BusRMW(uint32 A, uint8 (MDFN_FASTCALL *cb)(M68K*, uint8));
-static MDFN_FASTCALL unsigned SoundCPU_BusIntAck(uint8 level);
+static MDFN_FASTCALL void SoundCPU_BusRMW(uint32_t A, uint8_t (MDFN_FASTCALL *cb)(M68K*, uint8_t));
+static MDFN_FASTCALL unsigned SoundCPU_BusIntAck(uint8_t level);
 static MDFN_FASTCALL void SoundCPU_BusRESET(bool state);
 //
 //
@@ -86,11 +86,11 @@ void SOUND_Init(void)
  next_scsp_time = 0;
  lastts = 0;
 
- SoundCPU.BusRead8 = SoundCPU_BusRead<uint8>;
- SoundCPU.BusRead16 = SoundCPU_BusRead<uint16>;
+ SoundCPU.BusRead8 = SoundCPU_BusRead<uint8_t>;
+ SoundCPU.BusRead16 = SoundCPU_BusRead<uint16_t>;
 
- SoundCPU.BusWrite8 = SoundCPU_BusWrite<uint8>;
- SoundCPU.BusWrite16 = SoundCPU_BusWrite<uint16>;
+ SoundCPU.BusWrite8 = SoundCPU_BusWrite<uint8_t>;
+ SoundCPU.BusWrite16 = SoundCPU_BusWrite<uint16_t>;
 
  SoundCPU.BusReadInstr = SoundCPU_BusReadInstr;
 
@@ -103,34 +103,34 @@ void SOUND_Init(void)
  // TODO: MEM4B: SS_SetPhysMemMap(0x05A00000, 0x05AFFFFF, SCSP.GetRAMPtr(), 0x40000, true);
 }
 
-uint8 SOUND_PeekRAM(uint32 A)
+uint8_t SOUND_PeekRAM(uint32_t A)
 {
- /* ne16_rbo_be<uint8> folded. */
+ /* ne16_rbo_be<uint8_t> folded. */
 #ifdef MSB_FIRST
- return ((const uint8*)SCSP.GetRAMPtr())[A & 0x7FFFF];
+ return ((const uint8_t*)SCSP.GetRAMPtr())[A & 0x7FFFF];
 #else
- return ((const uint8*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1];
+ return ((const uint8_t*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1];
 #endif
 }
 
-void SOUND_PokeRAM(uint32 A, uint8 V)
+void SOUND_PokeRAM(uint32_t A, uint8_t V)
 {
- /* ne16_wbo_be<uint8> folded. */
+ /* ne16_wbo_be<uint8_t> folded. */
 #ifdef MSB_FIRST
- ((uint8*)SCSP.GetRAMPtr())[A & 0x7FFFF] = V;
+ ((uint8_t*)SCSP.GetRAMPtr())[A & 0x7FFFF] = V;
 #else
- ((uint8*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1] = V;
+ ((uint8_t*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1] = V;
 #endif
 }
 
 static INLINE void ResetTS_68K(void)
 {
  next_scsp_time -= SoundCPU.timestamp;
- run_until_time -= (int64)SoundCPU.timestamp << 32;
+ run_until_time -= (int64_t)SoundCPU.timestamp << 32;
  SoundCPU.timestamp = 0;
 }
 
-void SOUND_AdjustTS(const int32 delta)
+void SOUND_AdjustTS(const int32_t delta)
 {
  ResetTS_68K();
  //
@@ -163,23 +163,23 @@ void SOUND_Set68KActive(bool active)
  SoundCPU.SetExtHalted(!active);
 }
 
-uint16 SOUND_Read16(uint32 A)
+uint16_t SOUND_Read16(uint32_t A)
 {
- uint16 ret;
+ uint16_t ret;
 
- SCSP.RW<uint16, false>(A, ret);
+ SCSP.RW<uint16_t, false>(A, ret);
 
  return ret;
 }
 
-void SOUND_Write8(uint32 A, uint8 V)
+void SOUND_Write8(uint32_t A, uint8_t V)
 {
- SCSP.RW<uint8, true>(A, V);
+ SCSP.RW<uint8_t, true>(A, V);
 }
 
-void SOUND_Write16(uint32 A, uint16 V)
+void SOUND_Write16(uint32_t A, uint16_t V)
 {
- SCSP.RW<uint16, true>(A, V);
+ SCSP.RW<uint16_t, true>(A, V);
 }
 
 static NO_INLINE void RunSCSP(void)
@@ -187,7 +187,7 @@ static NO_INLINE void RunSCSP(void)
  CDB_GetCDDA(SCSP.GetEXTSPtr());
  //
  //
- int16* const bp = IBuffer[IBufferCount];
+ int16_t* const bp = IBuffer[IBufferCount];
  SCSP.RunSample(bp);
  //bp[0] = rand();
  //bp[1] = rand();
@@ -199,8 +199,8 @@ static NO_INLINE void RunSCSP(void)
  // replacement.  Should probably be controlled by a boolean setting, too.
  for(unsigned lr = 0; lr < 2; lr++)
  {
-  static int32 filt[2];
-  filt[lr] += (((int64)(int32)((uint32)bp[lr] << 16) - filt[lr]) * 60500) >> 16;
+  static int32_t filt[2];
+  filt[lr] += (((int64_t)(int32_t)((uint32_t)bp[lr] << 16) - filt[lr]) * 60500) >> 16;
   bp[lr] = filt[lr] >> 16;
  }
 */
@@ -210,14 +210,14 @@ static NO_INLINE void RunSCSP(void)
 }
 
 // Ratio between SH-2 clock and 68K clock (sound clock / 2)
-void SOUND_SetClockRatio(uint32 ratio)
+void SOUND_SetClockRatio(uint32_t ratio)
 {
  clock_ratio = ratio;
 }
 
 sscpu_timestamp_t SOUND_Update(sscpu_timestamp_t timestamp)
 {
- run_until_time += ((uint64)(timestamp - lastts) * clock_ratio);
+ run_until_time += ((uint64_t)(timestamp - lastts) * clock_ratio);
  lastts = timestamp;
  //
  //
@@ -227,7 +227,7 @@ sscpu_timestamp_t SOUND_Update(sscpu_timestamp_t timestamp)
  {
   do
   {
-   int32 next_time = ((int32)(next_scsp_time) < (int32)(run_until_time >> 32) ? (int32)(next_scsp_time) : (int32)(run_until_time >> 32));
+   int32_t next_time = ((int32_t)(next_scsp_time) < (int32_t)(run_until_time >> 32) ? (int32_t)(next_scsp_time) : (int32_t)(run_until_time >> 32));
 
    SoundCPU.Run(next_time);
 
@@ -244,7 +244,7 @@ sscpu_timestamp_t SOUND_Update(sscpu_timestamp_t timestamp)
  return timestamp + 128;	// FIXME
 }
 
-void SOUND_StartFrame(double rate, uint32 quality)
+void SOUND_StartFrame(double rate, uint32_t quality)
 {
 }
 
@@ -260,12 +260,12 @@ void SOUND_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
  //
  next_scsp_time -= SoundCPU.timestamp;
- run_until_time -= (int64)SoundCPU.timestamp << 32;
+ run_until_time -= (int64_t)SoundCPU.timestamp << 32;
 
  MDFNSS_StateAction(sm, load, data_only, StateRegs, "SOUND", false);
 
  next_scsp_time += SoundCPU.timestamp;
- run_until_time += (int64)SoundCPU.timestamp << 32;
+ run_until_time += (int64_t)SoundCPU.timestamp << 32;
  //
 
  SoundCPU.StateAction(sm, load, data_only, "M68K");
@@ -276,7 +276,7 @@ void SOUND_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 //
 //
 template<typename T>
-static MDFN_FASTCALL T SoundCPU_BusRead(uint32 A)
+static MDFN_FASTCALL T SoundCPU_BusRead(uint32_t A)
 {
  if(MDFN_UNLIKELY(A & (0xE00000 | (sizeof(T) - 1))))
  {
@@ -304,7 +304,7 @@ static MDFN_FASTCALL T SoundCPU_BusRead(uint32 A)
  return ret;
 }
 
-static MDFN_FASTCALL uint16 SoundCPU_BusReadInstr(uint32 A)
+static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
 {
  if(MDFN_UNLIKELY(A & 0xE00001))
  {
@@ -318,14 +318,14 @@ static MDFN_FASTCALL uint16 SoundCPU_BusReadInstr(uint32 A)
   MDFN_longjmp(jbuf);
  }
  //
- uint16 ret;
+ uint16_t ret;
 
  SoundCPU.timestamp += 4;
 
  //if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))
  // RunSCSP();
 
- SCSP.RW<uint16, false>(A & 0x1FFFFF, ret);
+ SCSP.RW<uint16_t, false>(A & 0x1FFFFF, ret);
 
  SoundCPU.timestamp += 2;
 
@@ -333,7 +333,7 @@ static MDFN_FASTCALL uint16 SoundCPU_BusReadInstr(uint32 A)
 }
 
 template<typename T>
-static MDFN_FASTCALL void SoundCPU_BusWrite(uint32 A, T V)
+static MDFN_FASTCALL void SoundCPU_BusWrite(uint32_t A, T V)
 {
  if(MDFN_UNLIKELY(A & (0xE00000 | (sizeof(T) - 1))))
  {
@@ -359,7 +359,7 @@ static MDFN_FASTCALL void SoundCPU_BusWrite(uint32 A, T V)
 }
 
 
-static MDFN_FASTCALL void SoundCPU_BusRMW(uint32 A, uint8 (MDFN_FASTCALL *cb)(M68K*, uint8))
+static MDFN_FASTCALL void SoundCPU_BusRMW(uint32_t A, uint8_t (MDFN_FASTCALL *cb)(M68K*, uint8_t))
 {
  if(MDFN_UNLIKELY(A & 0xE00000))
  {
@@ -368,25 +368,25 @@ static MDFN_FASTCALL void SoundCPU_BusRMW(uint32 A, uint8 (MDFN_FASTCALL *cb)(M6
   MDFN_longjmp(jbuf);
  }
  //
- uint8 tmp;
+ uint8_t tmp;
 
  SoundCPU.timestamp += 4;
 
  if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))
   RunSCSP();
 
- SCSP.RW<uint8, false>(A & 0x1FFFFF, tmp);
+ SCSP.RW<uint8_t, false>(A & 0x1FFFFF, tmp);
 
  tmp = cb(&SoundCPU, tmp);
 
  SoundCPU.timestamp += 6;
 
- SCSP.RW<uint8, true>(A & 0x1FFFFF, tmp);
+ SCSP.RW<uint8_t, true>(A & 0x1FFFFF, tmp);
 
  SoundCPU.timestamp += 2;
 }
 
-static MDFN_FASTCALL unsigned SoundCPU_BusIntAck(uint8 level)
+static MDFN_FASTCALL unsigned SoundCPU_BusIntAck(uint8_t level)
 {
  SoundCPU.timestamp += 10;
 
@@ -399,22 +399,22 @@ static MDFN_FASTCALL void SoundCPU_BusRESET(bool state)
   SoundCPU.Reset(false);
 }
 
-uint32 SOUND_GetSCSPRegister(const unsigned id, char* const special, const uint32 special_len)
+uint32_t SOUND_GetSCSPRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
  return SCSP.GetRegister(id, special, special_len);
 }
 
-void SOUND_SetSCSPRegister(const unsigned id, const uint32 value)
+void SOUND_SetSCSPRegister(const unsigned id, const uint32_t value)
 {
  SCSP.SetRegister(id, value);
 }
 
-uint32 SOUND_GetM68KRegister(const unsigned id, char* const special, const uint32 special_len)
+uint32_t SOUND_GetM68KRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
  return SoundCPU.GetRegister(id, special, special_len);
 }
 
-void SOUND_SetM68KRegister(const unsigned id, const uint32 value)
+void SOUND_SetM68KRegister(const unsigned id, const uint32_t value)
 {
  SoundCPU.SetRegister(id, value);
 }

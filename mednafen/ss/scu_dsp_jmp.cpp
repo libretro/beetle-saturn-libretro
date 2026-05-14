@@ -31,10 +31,10 @@
 template<bool looped, unsigned cond>
 static NO_INLINE NO_CLONE void JMPInstr(DSPS* dsp)
 {
- const uint32 instr = DSP_InstrPre<looped>(dsp);
+ const uint32_t instr = DSP_InstrPre<looped>(dsp);
 
  if(DSP_TestCond<cond>(dsp))
-  dsp->PC = (uint8)instr;
+  dsp->PC = (uint8_t)instr;
 
  DSP_TailDispatch(dsp);
 }

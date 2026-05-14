@@ -21,10 +21,10 @@
 
 #if defined(__loongarch64__) || defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(__arm64__) || defined(__ppc64__) || defined(__PPC64__) || defined(__ppce64le__)
  #define DSP_INSTR_BASE_UIPT ((uintptr_t)DSP_Init)
- #define DSP_INSTR_RECOVER_TCAST int32
+ #define DSP_INSTR_RECOVER_TCAST int32_t
 #else
  #define DSP_INSTR_BASE_UIPT 0
- #define DSP_INSTR_RECOVER_TCAST uint32
+ #define DSP_INSTR_RECOVER_TCAST uint32_t
 #endif
 
 // See loop in "SCU_UpdateDSP()" in scu.inc, and END/ENDI handling in scu_dsp_misc.cpp
@@ -38,26 +38,26 @@ union DSPR48
 #ifdef MSB_FIRST
  struct
  {
-  uint16 dummy;
-  uint16 H;
-  uint32 L;
+  uint16_t dummy;
+  uint16_t H;
+  uint32_t L;
  };
 #else
  struct
  {
-  uint32 L;
-  uint16 H;
-  uint16 dummy;
+  uint32_t L;
+  uint16_t H;
+  uint16_t dummy;
  };
 #endif
- uint64 T;	// Upper 16 bits may be non-zero "garbage", so don't assume they're zero in code that reads from this variable.
+ uint64_t T;	// Upper 16 bits may be non-zero "garbage", so don't assume they're zero in code that reads from this variable.
 };
 
 struct DSPS
 {
  sscpu_timestamp_t LastTS;
- int32 CycleCounter;
- int32 T0_Until;
+ int32_t CycleCounter;
+ int32_t T0_Until;
  //
  enum
  {
@@ -68,17 +68,17 @@ struct DSPS
   STATE_MASK_PAUSE = 0x80000000,
   STATE_MASK_EXECUTE = 0x00000001,
  };
- int32 State;
+ int32_t State;
 
  FORCE_INLINE bool IsRunning(void)	// returns true if not stopped and not paused.
  {
   return State > 0;
  }
 
- uint64 NextInstr;
+ uint64_t NextInstr;
 
- uint8 PC;
- uint8 RA;
+ uint8_t PC;
+ uint8_t RA;
 
  bool FlagZ;
  bool FlagS;
@@ -87,33 +87,33 @@ struct DSPS
 
  bool FlagEnd;
 
- uint8 TOP;
- uint16 LOP;	// 12 bits
+ uint8_t TOP;
+ uint16_t LOP;	// 12 bits
 
  DSPR48 AC;
  DSPR48 P;
 
  union
  {
-  uint8 CT[4];	// 6 bits(each)
-  uint32 CT32;
+  uint8_t CT[4];	// 6 bits(each)
+  uint32_t CT32;
  };
 
- uint32 RX;
- uint32 RY;
+ uint32_t RX;
+ uint32_t RY;
 
- uint32 RAO;
- uint32 WAO;
+ uint32_t RAO;
+ uint32_t WAO;
 
- uint32 DataRAM[4][64];
+ uint32_t DataRAM[4][64];
 
- uint64 ProgRAM[256];	// Upper 32 bits = actual raw instruction, lower 32 bits = horrible emulator handler pointer madness
+ uint64_t ProgRAM[256];	// Upper 32 bits = actual raw instruction, lower 32 bits = horrible emulator handler pointer madness
 
  //
  // See comments at top of scu.inc regarding DSP DMA to program RAM.
  //
- uint32 PRAMDMABuf[256];
- uint32 PRAMDMABufCount;
+ uint32_t PRAMDMABuf[256];
+ uint32_t PRAMDMABufCount;
 };
 
 
@@ -152,7 +152,7 @@ MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(DSPS*);
 MDFN_HIDE extern DSPS DSP;
 
 template<bool looped = false>
-static FORCE_INLINE uint64 DSP_DecodeInstruction(const uint32 instr)
+static FORCE_INLINE uint64_t DSP_DecodeInstruction(const uint32_t instr)
 {
  void (*aal)(DSPS*);
 
@@ -190,13 +190,13 @@ static FORCE_INLINE uint64 DSP_DecodeInstruction(const uint32 instr)
 	break;
  }
 
- return ((uint64)instr << 32) | (uint32)((uintptr_t)aal - DSP_INSTR_BASE_UIPT);
+ return ((uint64_t)instr << 32) | (uint32_t)((uintptr_t)aal - DSP_INSTR_BASE_UIPT);
 }
 
 template<bool looped>
-static FORCE_INLINE uint32 DSP_InstrPre(DSPS* dsp)
+static FORCE_INLINE uint32_t DSP_InstrPre(DSPS* dsp)
 {
- const uint32 instr = dsp->NextInstr >> 32;
+ const uint32_t instr = dsp->NextInstr >> 32;
 
  if(!looped || !dsp->LOP)
  {

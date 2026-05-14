@@ -154,7 +154,7 @@ static void SubWrite(StateMem *st, const SFORMAT *sf)
 
       int32_t bytesize = sf->size;
       uintptr_t p = (uintptr_t)sf->data;
-      uint32 repcount = sf->repcount;
+      uint32_t repcount = sf->repcount;
       const size_t repstride = sf->repstride;
       char nameo[1 + 255];
       const int slen = strlen(sf->name);
@@ -170,9 +170,9 @@ static void SubWrite(StateMem *st, const SFORMAT *sf)
 		// Special case for the evil bool type, to convert bool to 1-byte elements.
 		if(!sf->type)
 		{
-			for(int32 bool_monster = 0; bool_monster < bytesize; bool_monster++)
+			for(int32_t bool_monster = 0; bool_monster < bytesize; bool_monster++)
 			{
-				uint8 tmp_bool = ((bool *)p)[bool_monster];
+				uint8_t tmp_bool = ((bool *)p)[bool_monster];
 				smem_write(st, &tmp_bool, 1);
 			}
 		}
@@ -220,7 +220,7 @@ static void MakeSFMap(const SFORMAT *sf, SFMap_t &sfmap)
  }
 }
 
-static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32 size)
+static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 {
 	SFMap_t sfmap;
 
@@ -259,9 +259,9 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32 size)
 			else
 			{
 				const auto type            = tmp->type;
-				const uint32 expected_size = tmp->size;	// In bytes
+				const uint32_t expected_size = tmp->size;	// In bytes
 				uintptr_t p                = (uintptr_t)tmp->data;
-				uint32 repcount            = tmp->repcount;
+				uint32_t repcount            = tmp->repcount;
 				const size_t repstride     = tmp->repstride;
 
 				do
@@ -271,8 +271,8 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32 size)
 					if(!type)
 					{
 						// Converting downwards is necessary for the case of sizeof(bool) > 1
-						for(int32 bool_monster = expected_size - 1; bool_monster >= 0; bool_monster--)
-							((bool *)p)[bool_monster] = ((uint8 *)p)[bool_monster];
+						for(int32_t bool_monster = expected_size - 1; bool_monster >= 0; bool_monster--)
+							((bool *)p)[bool_monster] = ((uint8_t *)p)[bool_monster];
 					}
 				} while(p += repstride, repcount--);
 			}
@@ -392,7 +392,7 @@ int MDFNSS_SaveSM(void *st_p, uint32_t ver, const void*, const void*, const void
 	// Write header.
 	memset( header, 0, sizeof(header) );
 	memcpy( header, header_magic, 8 );
-	/* MDFN_en32lsb folded inline: 4 LE byte stores per uint32. */
+	/* MDFN_en32lsb folded inline: 4 LE byte stores per uint32_t. */
 	header[16] = ver;       header[17] = ver >> 8;       header[18] = ver >> 16;       header[19] = ver >> 24;
 	header[24] = neowidth;  header[25] = neowidth >> 8;  header[26] = neowidth >> 16;  header[27] = neowidth >> 24;
 	header[28] = neoheight; header[29] = neoheight >> 8; header[30] = neoheight >> 16; header[31] = neoheight >> 24;
@@ -423,7 +423,7 @@ int MDFNSS_LoadSM(void *st_p, uint32_t ver)
 		return(0);
 
 	// Unsupported state version?
-	/* MDFN_de32lsb folded inline: build host-endian uint32 from 4 LE bytes. */
+	/* MDFN_de32lsb folded inline: build host-endian uint32_t from 4 LE bytes. */
 	stateversion = (uint32_t)header[16] | ((uint32_t)header[17] << 8) | ((uint32_t)header[18] << 16) | ((uint32_t)header[19] << 24);
 	if ( stateversion < 0x900 )
 		return(0);

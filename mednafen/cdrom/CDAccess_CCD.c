@@ -546,7 +546,7 @@ static bool CDAccess_CCD_Load(CDAccess_CCD *self, const char *path, bool image_m
 
       /* PLBA is signed in the C++ template instantiation - so we
        * parse it as unsigned and cast.  CCD files store negative
-       * LBA as the two's-complement uint32 representation. */
+       * LBA as the two's-complement uint32_t representation. */
       if (!ccd_read_uint(ts, "PLBA", &plba_u))
          return false;
       plba_signed = (long)(int32_t)plba_u;

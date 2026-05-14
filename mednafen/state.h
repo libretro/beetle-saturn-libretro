@@ -65,34 +65,34 @@ struct SFORMAT
 {
 	const char* name;	// Name;
 	void* data;		// Pointer to the variable/array
-	uint32 size;		// Length, in bytes, of the data to be saved EXCEPT:
+	uint32_t size;		// Length, in bytes, of the data to be saved EXCEPT:
 				//  In the case of 'bool' it is the number of bool elements to save(bool is not always 1-byte).
 				// If 0, the subchunk isn't saved.
-	uint32 type;		// Type/element size; 0(bool), 1, 2, 4, 8
-	uint32 repcount;
-	uint32 repstride;
+	uint32_t type;		// Type/element size; 0(bool), 1, 2, 4, 8
+	uint32_t repcount;
+	uint32_t repstride;
 };
 
-static INLINE int8* SF_FORCE_A8(int8* p) { return p; }
-static INLINE uint8* SF_FORCE_A8(uint8* p) { return p; }
+static INLINE int8_t* SF_FORCE_A8(int8_t* p) { return p; }
+static INLINE uint8_t* SF_FORCE_A8(uint8_t* p) { return p; }
 
-static INLINE int16* SF_FORCE_A16(int16* p) { return p; }
-static INLINE uint16* SF_FORCE_A16(uint16* p) { return p; }
+static INLINE int16_t* SF_FORCE_A16(int16_t* p) { return p; }
+static INLINE uint16_t* SF_FORCE_A16(uint16_t* p) { return p; }
 
-static INLINE int32* SF_FORCE_A32(int32* p) { return p; }
-static INLINE uint32* SF_FORCE_A32(uint32* p) { return p; }
+static INLINE int32_t* SF_FORCE_A32(int32_t* p) { return p; }
+static INLINE uint32_t* SF_FORCE_A32(uint32_t* p) { return p; }
 
-static INLINE int64* SF_FORCE_A64(int64* p) { return p; }
-static INLINE uint64* SF_FORCE_A64(uint64* p) { return p; }
+static INLINE int64_t* SF_FORCE_A64(int64_t* p) { return p; }
+static INLINE uint64_t* SF_FORCE_A64(uint64_t* p) { return p; }
 
 template<typename T>
 static INLINE void SF_FORCE_ANY(typename std::enable_if<!std::is_enum<T>::value>::type* = nullptr)
 {
  static_assert(	std::is_same<T, bool>::value ||
-		std::is_same<T, int8>::value || std::is_same<T, uint8>::value ||
-		std::is_same<T, int16>::value || std::is_same<T, uint16>::value ||
-		std::is_same<T, int32>::value || std::is_same<T, uint32>::value || std::is_same<T, float>::value ||
-		std::is_same<T, int64>::value || std::is_same<T, uint64>::value || std::is_same<T, double>::value, "Unsupported type");
+		std::is_same<T, int8_t>::value || std::is_same<T, uint8_t>::value ||
+		std::is_same<T, int16_t>::value || std::is_same<T, uint16_t>::value ||
+		std::is_same<T, int32_t>::value || std::is_same<T, uint32_t>::value || std::is_same<T, float>::value ||
+		std::is_same<T, int64_t>::value || std::is_same<T, uint64_t>::value || std::is_same<T, double>::value, "Unsupported type");
 }
 
 template<typename T>
@@ -102,10 +102,10 @@ static INLINE void SF_FORCE_ANY(typename std::enable_if<std::is_enum<T>::value>:
 }
 
 template<typename IT>
-static INLINE SFORMAT SFBASE_(IT* const iv, uint32 icount, const uint32 totalcount, const size_t repstride, void* repbase, const char* const name)
+static INLINE SFORMAT SFBASE_(IT* const iv, uint32_t icount, const uint32_t totalcount, const size_t repstride, void* repbase, const char* const name)
 {
  typedef typename std::remove_all_extents<IT>::type T;
- uint32 count = icount * (sizeof(IT) / sizeof(T));
+ uint32_t count = icount * (sizeof(IT) / sizeof(T));
  SF_FORCE_ANY<T>();
  //
  //
@@ -133,14 +133,14 @@ static INLINE SFORMAT SFBASE_(IT* const iv, uint32 icount, const uint32 totalcou
  Probably a bad idea unless we prevent derived classes.
 
 template<typename IT>
-static INLINE SFORMAT SFBASE_(std::array<IT, N>* iv, uint32 icount, const uint32 totalcount, const size_t repstride, void* repbase, const char* const name)
+static INLINE SFORMAT SFBASE_(std::array<IT, N>* iv, uint32_t icount, const uint32_t totalcount, const size_t repstride, void* repbase, const char* const name)
 {
  return SFBASE_(iv->data(), icount * N, totalcount, repstride, repbase, name);
 }
 */
 
 template<typename T>
-static INLINE SFORMAT SFBASE_(T* const v, const uint32 count, const char* const name)
+static INLINE SFORMAT SFBASE_(T* const v, const uint32_t count, const char* const name)
 {
  return SFBASE_(v, count, 1, 0, v, name);
 }

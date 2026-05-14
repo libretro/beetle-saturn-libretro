@@ -22,14 +22,14 @@
 #include "common.h"
 #include "backup.h"
 
-static uint8 ExtBackupRAM[0x80000];
+static uint8_t ExtBackupRAM[0x80000];
 static bool ExtBackupRAM_Dirty;
 
 // TODO: Check mirroring.
 template<typename T, bool IsWrite>
-static MDFN_HOT void ExtBackupRAM_RW_DB(uint32 A, uint16* DB)
+static MDFN_HOT void ExtBackupRAM_RW_DB(uint32_t A, uint16_t* DB)
 {
- uint8* const ptr = ExtBackupRAM + ((A >> 1) & 0x7FFFF);
+ uint8_t* const ptr = ExtBackupRAM + ((A >> 1) & 0x7FFFF);
 
  if(IsWrite)
  {
@@ -57,7 +57,7 @@ static MDFN_COLD bool GetClearNVDirty(void)
  return ret;
 }
 
-static MDFN_COLD void GetNVInfo(const char** ext, void** nv_ptr, bool* nv16, uint64* nv_size)
+static MDFN_COLD void GetNVInfo(const char** ext, void** nv_ptr, bool* nv16, uint64_t* nv_size)
 {
  *ext = "bcr";
  *nv_ptr = ExtBackupRAM;
@@ -83,7 +83,7 @@ static MDFN_COLD void StateAction(StateMem* sm, const unsigned load, const bool 
 
 void CART_Backup_Init(CartInfo* c)
 {
- static const uint8 init[0x10] = { 0x42, 0x61, 0x63, 0x6B, 0x55, 0x70, 0x52, 0x61, 0x6D, 0x20, 0x46, 0x6F, 0x72, 0x6D, 0x61, 0x74 };
+ static const uint8_t init[0x10] = { 0x42, 0x61, 0x63, 0x6B, 0x55, 0x70, 0x52, 0x61, 0x6D, 0x20, 0x46, 0x6F, 0x72, 0x6D, 0x61, 0x74 };
 
  memset(ExtBackupRAM, 0x00, sizeof(ExtBackupRAM));
  for(unsigned i = 0; i < 0x200; i += 0x10)
@@ -92,9 +92,9 @@ void CART_Backup_Init(CartInfo* c)
  ExtBackupRAM_Dirty = false;
 
  c->CS01_SetRW8W16(0x04000000, 0x04FFFFFF,
-	ExtBackupRAM_RW_DB<uint16, false>,
-	ExtBackupRAM_RW_DB<uint8, true>,
-	ExtBackupRAM_RW_DB<uint16, true>);
+	ExtBackupRAM_RW_DB<uint16_t, false>,
+	ExtBackupRAM_RW_DB<uint8_t, true>,
+	ExtBackupRAM_RW_DB<uint16_t, true>);
 
  c->GetClearNVDirty = GetClearNVDirty;
  c->GetNVInfo = GetNVInfo;

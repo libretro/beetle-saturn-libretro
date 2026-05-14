@@ -491,7 +491,7 @@ void input_init(void)
 		input_mode[ i ] = INPUT_MODE_DEFAULT;
 		input_throttle_latch[ i ] = 0;
 
-		SMPC_SetInput( i, "gamepad", (uint8*)&input_data[ i ] );
+		SMPC_SetInput( i, "gamepad", (uint8_t*)&input_data[ i ] );
 	}
 }
 
@@ -1661,59 +1661,59 @@ void retro_set_controller_port_device( unsigned in_port, unsigned device )
 
 		case RETRO_DEVICE_NONE:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Unplugged\n", (in_port+1) );
-			SMPC_SetInput( in_port, "none", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "none", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		case RETRO_DEVICE_JOYPAD:
 		case RETRO_DEVICE_SS_PAD:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Control Pad\n", (in_port+1) );
-			SMPC_SetInput( in_port, "gamepad", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "gamepad", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		case RETRO_DEVICE_SS_3D_PAD:
 			log_cb( RETRO_LOG_INFO, "Controller %u: 3D Control Pad\n", (in_port+1) );
-			SMPC_SetInput( in_port, "3dpad", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "3dpad", (uint8_t*)&input_data[ in_port ] );
 			input_mode[ in_port ] = INPUT_MODE_DEFAULT_3D_PAD;
 			break;
 
 		case RETRO_DEVICE_SS_WHEEL:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Arcade Racer\n", (in_port+1) );
-			SMPC_SetInput( in_port, "wheel", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "wheel", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		case RETRO_DEVICE_SS_MISSION:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Mission Stick\n", (in_port+1) );
-			SMPC_SetInput( in_port, "mission", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "mission", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		case RETRO_DEVICE_SS_MISSION2:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Dual Mission Sticks\n", (in_port+1) );
-			SMPC_SetInput( in_port, "dmission", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "dmission", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		case RETRO_DEVICE_SS_MOUSE:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Mouse\n", (in_port+1) );
-			SMPC_SetInput( in_port, "mouse", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "mouse", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		case RETRO_DEVICE_SS_GUN_US:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Stunner\n", (in_port+1) );
-			SMPC_SetInput( in_port, "gun", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "gun", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		case RETRO_DEVICE_SS_GUN_JP:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Virtua Gun\n", (in_port+1) );
-			SMPC_SetInput( in_port, "gun", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "gun", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		case RETRO_DEVICE_SS_TWINSTICK:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Twin-Stick\n", (in_port+1) );
-			SMPC_SetInput( in_port, "gamepad", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "gamepad", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		default:
 			log_cb( RETRO_LOG_WARN, "Controller %u: Unsupported Device (%u)\n", (in_port+1), device );
-			SMPC_SetInput( in_port, "none", (uint8*)&input_data[ in_port ] );
+			SMPC_SetInput( in_port, "none", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		}; // switch ( device )

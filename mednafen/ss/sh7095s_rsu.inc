@@ -29,7 +29,7 @@
    FRT_WDT_Recalc_NET();
   }
 
-  instr = (uint16)Pipe_ID;
+  instr = (uint16_t)Pipe_ID;
   OP_PAIR_TICK(1);
   //
   #include "sh7095_ops.inc"

@@ -9,13 +9,13 @@ class md5_context
  md5_context(void);
  ~md5_context(void);
 
- static std::string asciistr(const uint8 digest[16], bool borked_order);
+ static std::string asciistr(const uint8_t digest[16], bool borked_order);
  std::string asciistr(void);
  void starts(void);
- void update(const uint8 *input, uint32 length);
- inline void update_u32_as_lsb(const uint32 input)
+ void update(const uint8_t *input, uint32_t length);
+ inline void update_u32_as_lsb(const uint32_t input)
  {
-  uint8 buf[4];
+  uint8_t buf[4];
 
   buf[0] = input >> 0;
   buf[1] = input >> 8;
@@ -27,15 +27,15 @@ class md5_context
 
  inline void update_string(const char *string)
  {
-  update((const uint8 *)string, strlen(string));
+  update((const uint8_t *)string, strlen(string));
  }
- void finish(uint8 digest[16]); 
+ void finish(uint8_t digest[16]); 
 
  private:
- void process(const uint8 data[64]);
- uint32 total[2];
- uint32 state[4];
- uint8 buffer[64];
+ void process(const uint8_t data[64]);
+ uint32_t total[2];
+ uint32_t state[4];
+ uint8_t buffer[64];
 };
 
 #endif /* md5.h */

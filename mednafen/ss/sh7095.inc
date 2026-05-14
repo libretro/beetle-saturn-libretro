@@ -71,24 +71,24 @@
 
 #ifdef MSB_FIRST
  #define NE32ASU8_IDX_ADJ(T, idx) (idx)
- #define SH7095_RBO_BE_U8(base, A) (((const uint8*)(base))[(A)])
+ #define SH7095_RBO_BE_U8(base, A) (((const uint8_t*)(base))[(A)])
 #else
  #define NE32ASU8_IDX_ADJ(T, idx) ( ((idx) & ~(sizeof(T) - 1)) ^ (4 - (sizeof(T))) )
- #define SH7095_RBO_BE_U8(base, A) (((const uint8*)(base))[(A) ^ 1])
+ #define SH7095_RBO_BE_U8(base, A) (((const uint8_t*)(base))[(A) ^ 1])
 #endif
 
-/* SH7095_RBO_BE_T: BE-bus read of type T (uint8/16/32) over a
- * uint16-array fast-map slot.  Replaces the old ne16_rbo_be<T>
+/* SH7095_RBO_BE_T: BE-bus read of type T (uint8_t/16/32) over a
+ * uint16_t-array fast-map slot.  Replaces the old ne16_rbo_be<T>
  * template call inside the MemRead macro and the IBuffer prefetch.
  * sizeof(T) is compile-time per instantiation, so all branches but
- * one fold out.  uint16 and uint32 paths are host-endian-agnostic;
- * the uint8 path depends on host endian (see SH7095_RBO_BE_U8). */
+ * one fold out.  uint16_t and uint32_t paths are host-endian-agnostic;
+ * the uint8_t path depends on host endian (see SH7095_RBO_BE_U8). */
 #define SH7095_RBO_BE_T(T, base, A) \
    ( (sizeof(T) == 1) ? (T)SH7095_RBO_BE_U8((base), (A)) : \
-     (sizeof(T) == 2) ? (T)((const uint16*)(base))[(A) >> 1] : \
-     (T)(((uint32)((const uint16*)(base))[(A) >> 1] << 16) | ((const uint16*)(base))[((A) >> 1) + 1]) )
+     (sizeof(T) == 2) ? (T)((const uint16_t*)(base))[(A) >> 1] : \
+     (T)(((uint32_t)((const uint16_t*)(base))[(A) >> 1] << 16) | ((const uint16_t*)(base))[((A) >> 1) + 1]) )
 
-SH7095::SH7095(const char* const name_arg, const unsigned event_id_dma_arg, uint8 (*exivecfn_arg)(void)) : event_id_dma(event_id_dma_arg), ExIVecFetch(exivecfn_arg), CBH_Setting(false), EIC_Setting(false), DM_Setting(false), cpu_name(name_arg)
+SH7095::SH7095(const char* const name_arg, const unsigned event_id_dma_arg, uint8_t (*exivecfn_arg)(void)) : event_id_dma(event_id_dma_arg), ExIVecFetch(exivecfn_arg), CBH_Setting(false), EIC_Setting(false), DM_Setting(false), cpu_name(name_arg)
 {
  if(this == &CPU[1])
  {
@@ -120,11 +120,11 @@ SH7095::SH7095(const char* const name_arg, const unsigned event_id_dma_arg, uint
  Init(false, false);
 }
 
-template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32 IsInstr>
-static NO_INLINE MDFN_FASTCALL T C_MemReadRT(uint32 A) MDFN_HOT;
+template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
+static NO_INLINE MDFN_FASTCALL T C_MemReadRT(uint32_t A) MDFN_HOT;
 
 template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
-static NO_INLINE MDFN_FASTCALL void C_MemWriteRT(uint32 A, T V) MDFN_HOT;
+static NO_INLINE MDFN_FASTCALL void C_MemWriteRT(uint32_t A, T V) MDFN_HOT;
 
 // WARNING: Template arguments CacheEnabled and CacheBypassHack are only valid for region==0.
 void SH7095::RecalcMRWFP_0(void)
@@ -132,19 +132,19 @@ void SH7095::RecalcMRWFP_0(void)
  #define MAHL_(bs,w,nsc,cbh)									\
 		 if(CCR & CCR_CE)								\
 		 {										\
-		  if(bs == 16) { MRFP16_I[0] = C_MemReadRT<w, nsc, cbh, uint16, 0x0, true, -1>; }	\
-		  if(bs == 32) { MRFP32_I[0] = C_MemReadRT<w, nsc, cbh, uint32, 0x0, true, -1>; }	\
-		  MRFP##bs[0] = C_MemReadRT <w, nsc, cbh, uint##bs, 0x0, true, false>;		\
-		  MRFPI[0]    = C_MemReadRT <w, nsc, cbh, uint32,   0x0, true, true>;		\
-		  MWFP##bs[0] = C_MemWriteRT<w, nsc, uint##bs, 0x0, true>;			\
+		  if(bs == 16) { MRFP16_I[0] = C_MemReadRT<w, nsc, cbh, uint16_t, 0x0, true, -1>; }	\
+		  if(bs == 32) { MRFP32_I[0] = C_MemReadRT<w, nsc, cbh, uint32_t, 0x0, true, -1>; }	\
+		  MRFP##bs[0] = C_MemReadRT <w, nsc, cbh, uint##bs##_t, 0x0, true, false>;		\
+		  MRFPI[0]    = C_MemReadRT <w, nsc, cbh, uint32_t,   0x0, true, true>;		\
+		  MWFP##bs[0] = C_MemWriteRT<w, nsc, uint##bs##_t, 0x0, true>;			\
 		 }										\
 		 else										\
 		 {										\
-		  if(bs == 16) { MRFP16_I[0] = C_MemReadRT<w, nsc, cbh, uint16, 0x0, false, false>; }\
-		  if(bs == 32) { MRFP32_I[0] = C_MemReadRT<w, nsc, cbh, uint32, 0x0, false, false>; }\
-		  MRFP##bs[0] =  C_MemReadRT <w, nsc, cbh, uint##bs, 0x0, false, false>;		\
-		  MRFPI[0]    =  C_MemReadRT <w, nsc, cbh, uint32,   0x0, false, true>;		\
-		  MWFP##bs[0] =  C_MemWriteRT<w, nsc, uint##bs, 0x0, false>;			\
+		  if(bs == 16) { MRFP16_I[0] = C_MemReadRT<w, nsc, cbh, uint16_t, 0x0, false, false>; }\
+		  if(bs == 32) { MRFP32_I[0] = C_MemReadRT<w, nsc, cbh, uint32_t, 0x0, false, false>; }\
+		  MRFP##bs[0] =  C_MemReadRT <w, nsc, cbh, uint##bs##_t, 0x0, false, false>;		\
+		  MRFPI[0]    =  C_MemReadRT <w, nsc, cbh, uint32_t,   0x0, false, true>;		\
+		  MWFP##bs[0] =  C_MemWriteRT<w, nsc, uint##bs##_t, 0x0, false>;			\
 		 }
 
  #define MAHL(w, nsc, cbh)		\
@@ -190,15 +190,15 @@ void SH7095::RecalcMRWFP_0(void)
 void SH7095::RecalcMRWFP_1_7(void)
 {
  #define MAHL_P(w, nsc, region) {								\
-		  MRFP8[region]  = C_MemReadRT<w, nsc, false, uint8,  region, false, false>;	\
-		  MRFP16[region] = C_MemReadRT<w, nsc, false, uint16, region, false, false>;	\
-		  MRFP32[region] = C_MemReadRT<w, nsc, false, uint32, region, false, false>;	\
-		  MRFP16_I[region] = C_MemReadRT<w, nsc, false, uint16, region, false, false>;	\
-		  MRFP32_I[region] = C_MemReadRT<w, nsc, false, uint32, region, false, false>;	\
-		  MRFPI[region]  = C_MemReadRT<w, nsc, false, uint32, region, false, true>;	\
-		  MWFP8[region]  = C_MemWriteRT<w, nsc, uint8,  region, false>;	\
-		  MWFP16[region] = C_MemWriteRT<w, nsc, uint16, region, false>;	\
-		  MWFP32[region] = C_MemWriteRT<w, nsc, uint32, region, false>;	\
+		  MRFP8[region]  = C_MemReadRT<w, nsc, false, uint8_t,  region, false, false>;	\
+		  MRFP16[region] = C_MemReadRT<w, nsc, false, uint16_t, region, false, false>;	\
+		  MRFP32[region] = C_MemReadRT<w, nsc, false, uint32_t, region, false, false>;	\
+		  MRFP16_I[region] = C_MemReadRT<w, nsc, false, uint16_t, region, false, false>;	\
+		  MRFP32_I[region] = C_MemReadRT<w, nsc, false, uint32_t, region, false, false>;	\
+		  MRFPI[region]  = C_MemReadRT<w, nsc, false, uint32_t, region, false, true>;	\
+		  MWFP8[region]  = C_MemWriteRT<w, nsc, uint8_t,  region, false>;	\
+		  MWFP16[region] = C_MemWriteRT<w, nsc, uint16_t, region, false>;	\
+		  MWFP32[region] = C_MemWriteRT<w, nsc, uint32_t, region, false>;	\
 		  }
 
  #define MAHL(nsc, region)					\
@@ -464,7 +464,7 @@ void SH7095::SetActive(bool active)
  }
 }
 
-void SH7095::AdjustTS(int32 delta)
+void SH7095::AdjustTS(int32_t delta)
 {
  if(MDFN_UNLIKELY(timestamp == SS_EVENT_DISABLED_TS))
   return;
@@ -527,7 +527,7 @@ void SH7095::DMA_CheckEnterBurstHack(void)
 //
 INLINE void SH7095::DMA_DoTransfer(unsigned ch)
 {
- static const int8 ainc[3][4] = 
+ static const int8_t ainc[3][4] = 
  {
   { 0, 1, -1, -1 },
   { 0, 2, -2, -2 },
@@ -536,18 +536,18 @@ INLINE void SH7095::DMA_DoTransfer(unsigned ch)
  const unsigned ts = (DMACH[ch].CHCR >> 10) & 3;
  const unsigned sm = (DMACH[ch].CHCR >> 12) & 3;
  const unsigned dm = (DMACH[ch].CHCR >> 14) & 3;
- uint32 sar = DMACH[ch].SAR;
- uint32 dar = DMACH[ch].DAR;
- uint32 tcr = DMACH[ch].TCR;
+ uint32_t sar = DMACH[ch].SAR;
+ uint32_t dar = DMACH[ch].DAR;
+ uint32_t tcr = DMACH[ch].TCR;
 
  switch(ts)
  {
   case 0x00:	// 8-bit
 	{
-	 uint8 buffer;
+	 uint8_t buffer;
 
-	 buffer = BSC_BusRead<uint8>(sar & 0x07FFFFFF, false, &DMA_Timestamp);
-	 BSC_BusWrite<uint8>(dar & 0x07FFFFFF, buffer, false, &DMA_Timestamp);
+	 buffer = BSC_BusRead<uint8_t>(sar & 0x07FFFFFF, false, &DMA_Timestamp);
+	 BSC_BusWrite<uint8_t>(dar & 0x07FFFFFF, buffer, false, &DMA_Timestamp);
 
 	 sar += ainc[0][sm];
  	 dar += ainc[0][dm];
@@ -557,10 +557,10 @@ INLINE void SH7095::DMA_DoTransfer(unsigned ch)
 
   case 0x01:	// 16-bit
 	{
-	 uint16 buffer;
+	 uint16_t buffer;
 
-	 buffer = BSC_BusRead<uint16>(sar & 0x07FFFFFE, false, &DMA_Timestamp);
-	 BSC_BusWrite<uint16>(dar & 0x07FFFFFE, buffer, false, &DMA_Timestamp);
+	 buffer = BSC_BusRead<uint16_t>(sar & 0x07FFFFFE, false, &DMA_Timestamp);
+	 BSC_BusWrite<uint16_t>(dar & 0x07FFFFFE, buffer, false, &DMA_Timestamp);
 
 	 if(MDFN_UNLIKELY((sar | dar) & 0x1))
 	 {
@@ -578,10 +578,10 @@ INLINE void SH7095::DMA_DoTransfer(unsigned ch)
 
   case 0x02:	// 32-bit
 	{
-	 uint32 buffer;
+	 uint32_t buffer;
 
-	 buffer = BSC_BusRead<uint32>(sar & 0x07FFFFFC, false, &DMA_Timestamp);
-	 BSC_BusWrite<uint32>(dar & 0x07FFFFFC, buffer, false, &DMA_Timestamp);
+	 buffer = BSC_BusRead<uint32_t>(sar & 0x07FFFFFC, false, &DMA_Timestamp);
+	 BSC_BusWrite<uint32_t>(dar & 0x07FFFFFC, buffer, false, &DMA_Timestamp);
 
 	 if(MDFN_UNLIKELY((sar | dar) & 0x3))
 	 {
@@ -599,7 +599,7 @@ INLINE void SH7095::DMA_DoTransfer(unsigned ch)
 
   case 0x03:	// 4 * 32-bit, a mess...
 	{
-	 uint32 buffer[4];
+	 uint32_t buffer[4];
 
 	 if(MDFN_UNLIKELY((sar | dar) & 0x3))
 	 {
@@ -611,14 +611,14 @@ INLINE void SH7095::DMA_DoTransfer(unsigned ch)
 
 	 for(unsigned i = 0; i < 4; i++)
 	 {
-	  buffer[i] = BSC_BusRead<uint32>((sar + (i << 2)) & 0x07FFFFFC, (bool)i, &DMA_Timestamp);
+	  buffer[i] = BSC_BusRead<uint32_t>((sar + (i << 2)) & 0x07FFFFFC, (bool)i, &DMA_Timestamp);
 	 }
 
 	 sar += 0x10;
 
 	 for(unsigned i = 0; i < 4; i++)
 	 {
-	  BSC_BusWrite<uint32>(dar & 0x07FFFFFC, buffer[i], false, &DMA_Timestamp);
+	  BSC_BusWrite<uint32_t>(dar & 0x07FFFFFC, buffer[i], false, &DMA_Timestamp);
 	  dar += ainc[2][dm];
 	  tcr = (tcr - 1) & 0xFFFFFF;
 	  if(MDFN_UNLIKELY(!tcr))
@@ -725,7 +725,7 @@ NO_INLINE void SH7095::DMA_RecalcRunning(void)
  {
   if(DMA_RunCond(ch))
   {
-   const int32 npka = (((DMACH[ch].CHCR >> 10) & 3) == 3 && (DMACH[ch].SAR & DMACH[ch].DAR & 0x06000000) != 0x06000000) ? 23 : 19;
+   const int32_t npka = (((DMACH[ch].CHCR >> 10) & 3) == 3 && (DMACH[ch].SAR & DMACH[ch].DAR & 0x06000000) != 0x06000000) ? 23 : 19;
 
    if((npka) > DMA_PenaltyKludgeAmount) DMA_PenaltyKludgeAmount = (npka);
   }
@@ -811,7 +811,7 @@ INLINE void SH7095::FRT_ClockFRC(void)
 }
 
 
-static const uint8 wdt_cstab[8] = { 1, /**/ 6, 7, 8, 9, 10, /**/ 12, 13 };
+static const uint8_t wdt_cstab[8] = { 1, /**/ 6, 7, 8, 9, 10, /**/ 12, 13 };
 
 //
 // Call after:
@@ -820,12 +820,12 @@ static const uint8 wdt_cstab[8] = { 1, /**/ 6, 7, 8, 9, 10, /**/ 12, 13 };
 //
 void SH7095::FRT_WDT_Recalc_NET(void)
 {
- int32 rt = 1000;
+ int32_t rt = 1000;
 
  if((FRT.TCR & 0x3) != 0x3)	// when == 3, count on rising edge of external clock(not handled here).
  {
-  const uint32 frt_clockshift = 3 + ((FRT.TCR & 0x3) << 1);	// /8, /32, /128, count at falling edge
-  int32 next_frc = 0x10000;
+  const uint32_t frt_clockshift = 3 + ((FRT.TCR & 0x3) << 1);	// /8, /32, /128, count at falling edge
+  int32_t next_frc = 0x10000;
 
   if(FRT.OCR[0] > FRT.FRC)
    next_frc = FRT.OCR[0];
@@ -839,7 +839,7 @@ void SH7095::FRT_WDT_Recalc_NET(void)
  if(WDT.WTCSR & 0x28)	// TME(0x20) and internal use standby NMI recover bit(0x08)
  {
   const unsigned wdt_clockshift = wdt_cstab[WDT.WTCSR & 0x7];
-  int32 wdt_rt;
+  int32_t wdt_rt;
 
   wdt_rt = ((0x100 - WDT.WTCNT) << wdt_clockshift) - (FRT_WDT_ClockDivider & ((1 << wdt_clockshift) - 1));
   if((wdt_rt) < rt) rt = (wdt_rt);
@@ -854,20 +854,20 @@ void SH7095::FRT_WDT_Update(void)
 {
  assert(timestamp >= FRT.lastts);
 
- uint32 clocks = timestamp - FRT.lastts;
+ uint32_t clocks = timestamp - FRT.lastts;
 
  FRT.lastts = timestamp;
 
  //
  // 
  //
- const uint32 PreAddCD = FRT_WDT_ClockDivider;
+ const uint32_t PreAddCD = FRT_WDT_ClockDivider;
  FRT_WDT_ClockDivider += clocks;
 
  if((FRT.TCR & 0x3) != 0x3)	// when == 3, count on rising edge of external clock(not handled here).
  {
-  const uint32 frt_clockshift = 3 + ((FRT.TCR & 0x3) << 1);	// /8, /32, /128, count at falling edge
-  uint32 divided_clocks = (FRT_WDT_ClockDivider >> frt_clockshift) - (PreAddCD >> frt_clockshift);
+  const uint32_t frt_clockshift = 3 + ((FRT.TCR & 0x3) << 1);	// /8, /32, /128, count at falling edge
+  uint32_t divided_clocks = (FRT_WDT_ClockDivider >> frt_clockshift) - (PreAddCD >> frt_clockshift);
 
   while(divided_clocks-- > 0)
   {
@@ -879,8 +879,8 @@ void SH7095::FRT_WDT_Update(void)
  if(WDT.WTCSR & 0x28)	// TME(0x20) and internal use standby NMI recover bit(0x08)
  {
   const unsigned wdt_clockshift = wdt_cstab[WDT.WTCSR & 0x7];
-  uint32 divided_clocks = (FRT_WDT_ClockDivider >> wdt_clockshift) - (PreAddCD >> wdt_clockshift);
-  uint32 tmp_counter = WDT.WTCNT;
+  uint32_t divided_clocks = (FRT_WDT_ClockDivider >> wdt_clockshift) - (PreAddCD >> wdt_clockshift);
+  uint32_t tmp_counter = WDT.WTCNT;
 
   tmp_counter += divided_clocks;
   WDT.WTCNT = tmp_counter;
@@ -990,7 +990,7 @@ void NO_INLINE SH7095::WDT_StandbyReset(void)
 //
 //
 
-static INLINE uint64 DIVU64_Partial(uint64 dividend, uint32 divisor)
+static INLINE uint64_t DIVU64_Partial(uint64_t dividend, uint32_t divisor)
 {
  bool M, Q;
 
@@ -1000,9 +1000,9 @@ static INLINE uint64 DIVU64_Partial(uint64 dividend, uint32 divisor)
  for(unsigned x = 0; x < 3; x++)
  {
 	if(!(Q ^ M))
-	 dividend -= (uint64)divisor << 32;
+	 dividend -= (uint64_t)divisor << 32;
 	else
-	 dividend += (uint64)divisor << 32;
+	 dividend += (uint64_t)divisor << 32;
 
 	Q = dividend >> 63;
         dividend <<= 1;
@@ -1021,12 +1021,12 @@ INLINE void SH7095::DIVU_S32_S32(void)
   DVCR |= 1;
   RecalcPendingIntPEX();
 
-  DVDNTH = (int32)DVDNT >> 29;
+  DVDNTH = (int32_t)DVDNT >> 29;
 
   if(!(DVCR & 2))
-   DVDNT = DVDNTL = 0x7FFFFFFF + ((int32)DVDNT < 0);
+   DVDNT = DVDNTL = 0x7FFFFFFF + ((int32_t)DVDNT < 0);
   else
-   DVDNT = DVDNTL = (DVDNT << 3) | (((int32)~DVDNT >> 31) & 7);
+   DVDNT = DVDNTL = (DVDNT << 3) | (((int32_t)~DVDNT >> 31) & 7);
  }
  else
  {
@@ -1039,8 +1039,8 @@ INLINE void SH7095::DIVU_S32_S32(void)
   }
   else
   {
-   DVDNTH = (int32)DVDNTL % (int32)DVSR;
-   DVDNT = DVDNTL = (int32)DVDNTL / (int32)DVSR;
+   DVDNTH = (int32_t)DVDNTL % (int32_t)DVSR;
+   DVDNT = DVDNTL = (int32_t)DVDNTL / (int32_t)DVSR;
   }
  }
  DVDNTH_Shadow = DVDNTH;
@@ -1049,14 +1049,14 @@ INLINE void SH7095::DIVU_S32_S32(void)
 
 INLINE void SH7095::DIVU_S64_S32(void)
 {
- const int32 divisor = DVSR;
- const int64 dividend = ((int64)DVDNTH << 32) | DVDNTL;
- int64 quotient;
+ const int32_t divisor = DVSR;
+ const int64_t dividend = ((int64_t)DVDNTH << 32) | DVDNTL;
+ int64_t quotient;
 
  if(!divisor)
   goto Overflow;
 
- if((uint64)dividend == (1ULL << 63) && (uint32)divisor == ~(uint32)0)
+ if((uint64_t)dividend == (1ULL << 63) && (uint32_t)divisor == ~(uint32_t)0)
   goto Overflow;
 
  quotient = dividend / divisor;
@@ -1071,13 +1071,13 @@ INLINE void SH7095::DIVU_S64_S32(void)
   DVCR |= 1;
   RecalcPendingIntPEX();
   //
-  uint64 tmp = DIVU64_Partial(dividend, divisor);
+  uint64_t tmp = DIVU64_Partial(dividend, divisor);
   DVDNTH = tmp >> 32;
 
   if(DVCR & 2)
    DVDNT = DVDNTL = tmp;
   else
-   DVDNT = DVDNTL = 0x7FFFFFFF + ((int32)((dividend >> 32) ^ divisor) < 0);
+   DVDNT = DVDNTL = 0x7FFFFFFF + ((int32_t)((dividend >> 32) ^ divisor) < 0);
  }
  else
  {
@@ -1122,7 +1122,7 @@ void SH7095::SCI_Reset(void)
 // Misaligned/wrong-sized accesses aren't handled correctly, it's a mess, but probably doesn't matter.
 //
 template<typename T>
-NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32 A, uint32 V)
+NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32_t A, uint32_t V)
 {
  if(A & 0x100)
  {
@@ -1134,7 +1134,7 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32 A, uint32 V)
   if(sizeof(T) == 1)
   {
    SetPEX(PEX_CPUADDR);
-   V |= (uint8)V << 8;
+   V |= (uint8_t)V << 8;
   }
 
   switch(A)
@@ -1154,7 +1154,7 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32 A, uint32 V)
    case 0x04:
 	DVDNT = V;
 	DVDNTL = V;
-	DVDNTH = (int32)V >> 31;
+	DVDNTH = (int32_t)V >> 31;
 	DIVU_S32_S32();
 	break;
 
@@ -1365,7 +1365,7 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32 A, uint32 V)
 	{
 	 FRT_WDT_Update();
 	 //
-	 //const uint8 old_TCR = FRT.TCR;
+	 //const uint8_t old_TCR = FRT.TCR;
  	 FRT.TCR = V;
 	 //
 	 //
@@ -1517,11 +1517,11 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32 A, uint32 V)
 }
 
 template<typename T>
-INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
+INLINE T SH7095::OnChipRegRead_INLINE(uint32_t A)
 {
  if(A & 0x100)
  {
-  uint32 ret = 0;
+  uint32_t ret = 0;
 
   MA_until++;
 
@@ -1696,9 +1696,9 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
  }
  else
  {
-  const unsigned Am = (uint8)A;
+  const unsigned Am = (uint8_t)A;
   const unsigned shift = ((sizeof(T) != 2) ? (((A & 1) ^ 1) << 3) : 0);
-  uint16 ret = 0;
+  uint16_t ret = 0;
 
   if(Am < 0x20)
    MA_until = (MA_until + 11) &~ 1; // FIXME: not quite right. //3;
@@ -1887,9 +1887,9 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32 A)
 }
 
 template<typename T>
-void INLINE SH7095::BSC_BusWrite(uint32 A, T V, const bool BurstHax, int32* SH2DMAHax)
+void INLINE SH7095::BSC_BusWrite(uint32_t A, T V, const bool BurstHax, int32_t* SH2DMAHax)
 {
- uint32 DB = SH7095_DB;
+ uint32_t DB = SH7095_DB;
 
  if(!BurstHax)
   SH7095_mem_timestamp += (SH7095_mem_timestamp == BSC.last_mem_time) & BSC.last_mem_type;
@@ -1903,18 +1903,18 @@ void INLINE SH7095::BSC_BusWrite(uint32 A, T V, const bool BurstHax, int32* SH2D
    // SH7095_BusLock++;
 
    DB = (DB & 0xFFFF0000) | (V >> 16);
-   BusRW_DB_CS0<uint16, true>(A, DB, BurstHax, SH2DMAHax);
+   BusRW_DB_CS0<uint16_t, true>(A, DB, BurstHax, SH2DMAHax);
 
-   DB = (DB & 0xFFFF0000) | (uint16)V;
-   BusRW_DB_CS0<uint16, true>(A | 2, DB, BurstHax, SH2DMAHax);
+   DB = (DB & 0xFFFF0000) | (uint16_t)V;
+   BusRW_DB_CS0<uint16_t, true>(A | 2, DB, BurstHax, SH2DMAHax);
 
    //if(!SH2DMAHax)
    // SH7095_BusLock--;
   }
   else
   {
-   const uint32 shift = ((A & 1) ^ (2 - sizeof(T))) << 3;
-   const uint32 mask = (0xFFFF >> ((2 - sizeof(T)) * 8)) << shift;
+   const uint32_t shift = ((A & 1) ^ (2 - sizeof(T))) << 3;
+   const uint32_t mask = (0xFFFF >> ((2 - sizeof(T)) * 8)) << shift;
 
    DB = (DB & ~mask) | (V << shift);
    BusRW_DB_CS0<T, true>(A, DB, BurstHax, SH2DMAHax);
@@ -1922,8 +1922,8 @@ void INLINE SH7095::BSC_BusWrite(uint32 A, T V, const bool BurstHax, int32* SH2D
  }
  else if(A >= 0x06000000)	// CS3; 32-bit
  {
-  const uint32 shift = ((A & 3) ^ (4 - sizeof(T))) << 3;
-  const uint32 mask = (0xFFFFFFFF >> ((4 - sizeof(T)) * 8)) << shift;
+  const uint32_t shift = ((A & 3) ^ (4 - sizeof(T))) << 3;
+  const uint32_t mask = (0xFFFFFFFF >> ((4 - sizeof(T)) * 8)) << shift;
 
   DB = (DB & ~mask) | (V << shift);
   BusRW_DB_CS3<T, true>(A, DB, BurstHax, SH2DMAHax);
@@ -1944,8 +1944,8 @@ void INLINE SH7095::BSC_BusWrite(uint32 A, T V, const bool BurstHax, int32* SH2D
  }
  else	// CS1, CS2; 32-bit
  {
-  const uint32 shift = ((A & 3) ^ (4 - sizeof(T))) << 3;
-  const uint32 mask = (0xFFFFFFFF >> ((4 - sizeof(T)) * 8)) << shift;
+  const uint32_t shift = ((A & 3) ^ (4 - sizeof(T))) << 3;
+  const uint32_t mask = (0xFFFFFFFF >> ((4 - sizeof(T)) * 8)) << shift;
 
   DB = (DB & ~mask) | (V << shift);
   BusRW_DB_CS12<T, true>(A, DB, BurstHax, SH2DMAHax);
@@ -1962,12 +1962,12 @@ void INLINE SH7095::BSC_BusWrite(uint32 A, T V, const bool BurstHax, int32* SH2D
 }
 
 template<typename T>
-T INLINE SH7095::BSC_BusRead(uint32 A, const bool BurstHax, int32* SH2DMAHax)
+T INLINE SH7095::BSC_BusRead(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax)
 {
  //
  //
  //
- uint32 DB = SH7095_DB;
+ uint32_t DB = SH7095_DB;
  T ret;
 
  if(!BurstHax)
@@ -1981,11 +1981,11 @@ T INLINE SH7095::BSC_BusRead(uint32 A, const bool BurstHax, int32* SH2DMAHax)
    //if(!SH2DMAHax)
    // SH7095_BusLock++;
 
-   BusRW_DB_CS0<uint16, false>(A, DB, BurstHax, SH2DMAHax);
+   BusRW_DB_CS0<uint16_t, false>(A, DB, BurstHax, SH2DMAHax);
    ret = DB << 16;
 
-   BusRW_DB_CS0<uint16, false>(A | 2, DB, BurstHax, SH2DMAHax);
-   ret |= (uint16)DB;
+   BusRW_DB_CS0<uint16_t, false>(A | 2, DB, BurstHax, SH2DMAHax);
+   ret |= (uint16_t)DB;
 
    //if(!SH2DMAHax)
    // SH7095_BusLock--;
@@ -2037,7 +2037,7 @@ T INLINE SH7095::BSC_BusRead(uint32 A, const bool BurstHax, int32* SH2DMAHax)
 
 
 template<bool SlavePenalty, typename T, bool BurstHax>
-INLINE T SH7095::ExtBusRead_INLINE(uint32 A)
+INLINE T SH7095::ExtBusRead_INLINE(uint32_t A)
 {
  T ret;
 
@@ -2071,7 +2071,7 @@ INLINE T SH7095::ExtBusRead_INLINE(uint32 A)
 }
 
 template<bool SlavePenalty, typename T>
-INLINE void SH7095::ExtBusWrite_INLINE(uint32 A, T V)
+INLINE void SH7095::ExtBusWrite_INLINE(uint32_t A, T V)
 {
  A &= (1U << 27) - 1;
 
@@ -2098,19 +2098,19 @@ INLINE void SH7095::ExtBusWrite_INLINE(uint32 A, T V)
 }
 
 template<unsigned w, bool SlavePenalty, typename T, bool BurstHax>
-static NO_INLINE MDFN_HOT T ExtBusRead_NI(uint32 A)
+static NO_INLINE MDFN_HOT T ExtBusRead_NI(uint32_t A)
 {
  return CPU[w].ExtBusRead_INLINE<SlavePenalty, T, BurstHax>(A);
 }
 
 template<unsigned w, bool SlavePenalty, typename T>
-static NO_INLINE MDFN_HOT void ExtBusWrite_NI(uint32 A, T V)
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI(uint32_t A, T V)
 {
  CPU[w].ExtBusWrite_INLINE<SlavePenalty, T>(A, V);
 }
 
 template<unsigned w, typename T>
-static NO_INLINE MDFN_HOT T OnChipRegRead_NI(uint32 A)
+static NO_INLINE MDFN_HOT T OnChipRegRead_NI(uint32_t A)
 {
  return CPU[w].OnChipRegRead_INLINE<T>(A);
 }
@@ -2120,8 +2120,8 @@ static NO_INLINE MDFN_HOT T OnChipRegRead_NI(uint32 A)
 //
 static const struct
 {
- uint8 AND;
- uint8 OR;
+ uint8_t AND;
+ uint8_t OR;
 } LRU_Update_Tab[4] =
 {
  { (1 << 2) | (1 << 1) | (1 << 0), /**/ (0 << 5) | (0 << 4) | (0 << 3) },	// Way 0
@@ -2130,7 +2130,7 @@ static const struct
  { (1 << 5) | (1 << 4) | (1 << 2), /**/ (1 << 3) | (1 << 1) | (1 << 0) },	// Way 3
 };
 
-static const int8 LRU_Replace_Tab[0x40] =
+static const int8_t LRU_Replace_Tab[0x40] =
 {
  /* 0x00 */ 0x03, 0x02,   -1, 0x02, 0x03,   -1, 0x01, 0x01,   -1, 0x02,   -1, 0x02,   -1,   -1, 0x01, 0x01,
  /* 0x10 */ 0x03,   -1,   -1,   -1, 0x03,   -1, 0x01, 0x01,   -1,   -1,   -1,   -1,   -1,   -1, 0x01, 0x01,
@@ -2138,7 +2138,7 @@ static const int8 LRU_Replace_Tab[0x40] =
  /* 0x30 */ 0x03,   -1,   -1,   -1, 0x03,   -1,   -1,   -1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
-static INLINE uint32 cmov_eq_thing(const uint32 reg_compval, const uint32 mem_compval, uint32 var, const uint32 repl_var)
+static INLINE uint32_t cmov_eq_thing(const uint32_t reg_compval, const uint32_t mem_compval, uint32_t var, const uint32_t repl_var)
 {
 #if defined(__i386__) || defined(__x86_64__) || defined(_M_X64) || defined(i386) || defined(__i386) || defined(_M_IX86)
  asm(	"cmpl %1, %2\n\t"
@@ -2155,9 +2155,9 @@ static INLINE uint32 cmov_eq_thing(const uint32 reg_compval, const uint32 mem_co
  return var;
 }
 
-INLINE void SH7095::Cache_AssocPurge(const uint32 A)
+INLINE void SH7095::Cache_AssocPurge(const uint32_t A)
 {
- const uint32 ATM = A & (0x7FFFF << 10);
+ const uint32_t ATM = A & (0x7FFFF << 10);
  auto* cent = &Cache[(A >> 4) & 0x3F];
 
  // Ignore two-way-mode bit in CCR here.
@@ -2167,7 +2167,7 @@ INLINE void SH7095::Cache_AssocPurge(const uint32 A)
  cent->Tag[3] |= (ATM == cent->Tag[3]);
 }
 
-INLINE int SH7095::Cache_FindWay(CacheEntry* const cent, const uint32 ATM)
+INLINE int SH7095::Cache_FindWay(CacheEntry* const cent, const uint32_t ATM)
 {
 #if defined(HAVE_SSE2_INTRINSICS)
  __m128i atm = _mm_set1_epi32(ATM);
@@ -2193,9 +2193,9 @@ INLINE int SH7095::Cache_FindWay(CacheEntry* const cent, const uint32 ATM)
 }
 
 template<typename T>
-INLINE void SH7095::Cache_WriteUpdate(uint32 A, T V)
+INLINE void SH7095::Cache_WriteUpdate(uint32_t A, T V)
 {
- const uint32 ATM = A & (0x7FFFF << 10);
+ const uint32_t ATM = A & (0x7FFFF << 10);
  const unsigned ena = (A >> 4) & 0x3F;
  CacheEntry* cent = &Cache[ena];
  const int way_match = Cache_FindWay(cent, ATM);
@@ -2211,7 +2211,7 @@ INLINE void SH7095::Cache_WriteUpdate(uint32 A, T V)
 }
 
 template<typename T>
-INLINE void SH7095::Cache_WriteAddressArray(uint32 A, T V)
+INLINE void SH7095::Cache_WriteAddressArray(uint32_t A, T V)
 {
  const unsigned way = (CCR >> 6) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
@@ -2221,7 +2221,7 @@ INLINE void SH7095::Cache_WriteAddressArray(uint32 A, T V)
 }
 
 template<typename T>
-INLINE void SH7095::Cache_WriteDataArray(uint32 A, T V)
+INLINE void SH7095::Cache_WriteDataArray(uint32_t A, T V)
 {
  const unsigned way = (A >> 10) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
@@ -2230,7 +2230,7 @@ INLINE void SH7095::Cache_WriteDataArray(uint32 A, T V)
 }
 
 template<typename T>
-INLINE T SH7095::Cache_ReadAddressArray(uint32 A)
+INLINE T SH7095::Cache_ReadAddressArray(uint32_t A)
 {
  const unsigned way = (CCR >> 6) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
@@ -2239,7 +2239,7 @@ INLINE T SH7095::Cache_ReadAddressArray(uint32 A)
 }
 
 template<typename T>
-INLINE T SH7095::Cache_ReadDataArray(uint32 A)
+INLINE T SH7095::Cache_ReadDataArray(uint32_t A)
 {
  const unsigned way = (A >> 10) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
@@ -2250,7 +2250,7 @@ INLINE T SH7095::Cache_ReadDataArray(uint32 A)
 }
 
 template<typename T>
-INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, const uint32 A)
+INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, const uint32_t A)
 {
 }
 
@@ -2282,7 +2282,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
   case 0:													\
 	if(MDFN_LIKELY(CacheEnabled))										\
 	{													\
-	 uint32 ATM;												\
+	 uint32_t ATM;												\
 														\
 	 ATM = A & (0x7FFFF << 10);										\
 	 cent = &Cache[(A >> 4) & 0x3F];									\
@@ -2303,11 +2303,11 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	  /* Don't use ATM after this point. */									\
 	  CHECK_EXIT_RESUME();											\
 	  {													\
-	   unsigned di = (A + 4 + 0) & 0xC; { uint32 vtmp__ = ExtBusRead(uint32, false, (A &~ 0xF) + di); memcpy(&cent->Data[way_match][di], &vtmp__, 4); }	\
+	   unsigned di = (A + 4 + 0) & 0xC; { uint32_t vtmp__ = ExtBusRead(uint32_t, false, (A &~ 0xF) + di); memcpy(&cent->Data[way_match][di], &vtmp__, 4); }	\
 	  }													\
 	  for(unsigned i = 4; i < 16; i += 4)									\
 	  {													\
-	   unsigned di = (A + 4 + i) & 0xC; { uint32 vtmp__ = ExtBusRead(uint32,  true, (A &~ 0xF) + di); memcpy(&cent->Data[way_match][di], &vtmp__, 4); }	\
+	   unsigned di = (A + 4 + i) & 0xC; { uint32_t vtmp__ = ExtBusRead(uint32_t,  true, (A &~ 0xF) + di); memcpy(&cent->Data[way_match][di], &vtmp__, 4); }	\
 	  }													\
 	  if(IsInstr <= 0)											\
 	  { if((SH7095_mem_timestamp + 1) > MA_until) MA_until = (SH7095_mem_timestamp + 1); }				\
@@ -2446,14 +2446,14 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 #define OnChipRegRead(T, A) OnChipRegRead_INLINE<T>(A)
 #define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<which, false, T, BurstHax>(A)
 #define ExtBusWrite(T, A, V) ExtBusWrite_NI<which, false, T>(A, V)
-template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32 IsInstr>
-INLINE T SH7095::MemReadRT(uint32 A)
+template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
+INLINE T SH7095::MemReadRT(uint32_t A)
 {
  static_assert(region < 0x8, "Wrong region argument.");
  static_assert(!NeedSlaveCall || (!which && region < 2), "Wrong arguments.");
  static_assert(IsInstr >= 0 || (CacheEnabled && region == 0x0), "Wrong arguments.");
  T ret;
- uint32 unmasked_A;
+ uint32_t unmasked_A;
  CacheEntry* cent;
  int way_match;
 
@@ -2463,11 +2463,11 @@ INLINE T SH7095::MemReadRT(uint32 A)
 }
 
 template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
-INLINE void SH7095::MemWriteRT(uint32 A, T V)
+INLINE void SH7095::MemWriteRT(uint32_t A, T V)
 {
  static_assert(region < 0x8, "Wrong region argument.");
  static_assert(!NeedSlaveCall || (!which && region < 2), "Wrong arguments.");
- uint32 unmasked_A;
+ uint32_t unmasked_A;
 
  MemWrite(T, region, CacheEnabled, A, V, A, unmasked_A, V);
 }
@@ -2476,19 +2476,19 @@ INLINE void SH7095::MemWriteRT(uint32 A, T V)
 #undef ExtBusRead
 #undef ExtBusWrite
 
-template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32 IsInstr>
-static NO_INLINE MDFN_HOT MDFN_FASTCALL T C_MemReadRT(uint32 A)
+template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
+static NO_INLINE MDFN_HOT MDFN_FASTCALL T C_MemReadRT(uint32_t A)
 {
  return CPU[which].MemReadRT<which, NeedSlaveCall, CacheBypassHack, T, region, CacheEnabled, IsInstr>(A);
 }
 
 template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
-static NO_INLINE MDFN_HOT MDFN_FASTCALL void C_MemWriteRT(uint32 A, T V)
+static NO_INLINE MDFN_HOT MDFN_FASTCALL void C_MemWriteRT(uint32_t A, T V)
 {
  CPU[which].MemWriteRT<which, NeedSlaveCall, T, region, CacheEnabled>(A, V);
 }
 
-INLINE void SH7095::SetCCR(uint8 V)
+INLINE void SH7095::SetCCR(uint8_t V)
 {
  if(V & CCR_CP)
  {
@@ -2676,7 +2676,7 @@ void SH7095::ForceInternalEventUpdates(void)
 //  FRT-OVI
 //
 //
-uint8 INLINE SH7095::GetPendingInt(uint8* vecnum_out)
+uint8_t INLINE SH7095::GetPendingInt(uint8_t* vecnum_out)
 {
  unsigned ipr;
  unsigned vecnum;
@@ -2719,7 +2719,7 @@ uint8 INLINE SH7095::GetPendingInt(uint8* vecnum_out)
  //
  //
  //
- const uint32 frt_ip_tmp = (FRT.FTCSR & FRT.TIER & 0x8E);
+ const uint32_t frt_ip_tmp = (FRT.FTCSR & FRT.TIER & 0x8E);
  if(frt_ip_tmp && (tmp_ipr = ((IPRB >> 8) & 0xF)) > ipr)
  {
   ipr = tmp_ipr;
@@ -2766,7 +2766,7 @@ void NO_INLINE SH7095::RecalcPendingIntPEX(void)
   ClearPEX(PEX_INT);
 }
 
-static const uint8 InstrDecodeTab[65536] =
+static const uint8_t InstrDecodeTab[65536] =
 {
  #include "sh7095_idecodetab.inc"
 };
@@ -2774,8 +2774,8 @@ static const uint8 InstrDecodeTab[65536] =
 #ifdef SH7095_OP_PAIR_PROFILE
 namespace {
  struct OpPairProf {
-  uint32 counter[256][256];
-  uint8 prev_op;
+  uint32_t counter[256][256];
+  uint8_t prev_op;
  };
  OpPairProf op_pair_prof[2];
 }
@@ -2783,7 +2783,7 @@ namespace {
 #define OP_PAIR_TICK(which_idx)							\
  do {										\
   const unsigned _wi = (which_idx);						\
-  const uint8 _curr = (uint8)(Pipe_ID >> 24);					\
+  const uint8_t _curr = (uint8_t)(Pipe_ID >> 24);					\
   op_pair_prof[_wi].counter[op_pair_prof[_wi].prev_op][_curr]++;		\
   op_pair_prof[_wi].prev_op = _curr;						\
  } while(0)
@@ -2794,7 +2794,7 @@ void SS_DumpOpPairProfile(void)
  for(unsigned i = 0; i < 2; i++) {
   FILE* f = fopen(paths[i], "wb");
   if(!f) continue;
-  fwrite(&op_pair_prof[i].counter[0][0], sizeof(uint32), 256u * 256u, f);
+  fwrite(&op_pair_prof[i].counter[0][0], sizeof(uint32_t), 256u * 256u, f);
   fclose(f);
  }
 }
@@ -2809,7 +2809,7 @@ void SS_DumpOpPairProfile(void)
 {									\
  if(EmulateICache)							\
  {									\
-  Pipe_IF = (uint16)IBuffer;						\
+  Pipe_IF = (uint16_t)IBuffer;						\
 									\
   if(!(PC & 0x2))							\
   {									\
@@ -2819,13 +2819,13 @@ void SS_DumpOpPairProfile(void)
  }									\
  else									\
  {									\
-  if(timestamp < (MA_until - ((int32)(PC & 0x2) << 28)))		\
+  if(timestamp < (MA_until - ((int32_t)(PC & 0x2) << 28)))		\
    timestamp = MA_until;						\
 									\
-  Pipe_IF = *(uint16*)(SH7095_FastMap[PC >> SH7095_EXT_MAP_GRAN_BITS] + PC);	\
+  Pipe_IF = *(uint16_t*)(SH7095_FastMap[PC >> SH7095_EXT_MAP_GRAN_BITS] + PC);	\
 									\
-  if(MDFN_UNLIKELY((int32)PC < 0))      /* Mr. Boooones */		\
-   Pipe_IF = Cache_ReadDataArray<uint16>(PC);				\
+  if(MDFN_UNLIKELY((int32_t)PC < 0))      /* Mr. Boooones */		\
+   Pipe_IF = Cache_ReadDataArray<uint16_t>(PC);				\
  }									\
  timestamp++;								\
 }
@@ -2835,8 +2835,8 @@ void SS_DumpOpPairProfile(void)
  if(EmulateICache)							\
  {									\
   MemReadInstr(PC &~ 2, IBuffer);					\
-  /*Pipe_IF = (uint16)(IBuffer >> (((PC & 2) ^ 2) << 3));*/		\
-  Pipe_IF = (uint16)IBuffer;						\
+  /*Pipe_IF = (uint16_t)(IBuffer >> (((PC & 2) ^ 2) << 3));*/		\
+  Pipe_IF = (uint16_t)IBuffer;						\
   if(!(PC & 0x2))							\
    Pipe_IF = IBuffer >> 16;						\
  }									\
@@ -2845,18 +2845,18 @@ void SS_DumpOpPairProfile(void)
   if(timestamp < MA_until)						\
    timestamp = MA_until;						\
 									\
-  Pipe_IF = *(uint16*)(SH7095_FastMap[PC >> SH7095_EXT_MAP_GRAN_BITS] + PC);	\
+  Pipe_IF = *(uint16_t*)(SH7095_FastMap[PC >> SH7095_EXT_MAP_GRAN_BITS] + PC);	\
 									\
-  if(MDFN_UNLIKELY((int32)PC < 0))      /* Mr. Boooones */		\
-   Pipe_IF = Cache_ReadDataArray<uint16>(PC);				\
+  if(MDFN_UNLIKELY((int32_t)PC < 0))      /* Mr. Boooones */		\
+   Pipe_IF = Cache_ReadDataArray<uint16_t>(PC);				\
  }									\
  timestamp++;								\
 }
 
 #define DoID(IntPreventNext)						\
 {									\
- uint32 op = InstrDecodeTab[Pipe_IF];					\
- uint32 epo = EPending;							\
+ uint32_t op = InstrDecodeTab[Pipe_IF];					\
+ uint32_t epo = EPending;							\
 									\
  if(IntPreventNext)							\
  {									\
@@ -2880,7 +2880,7 @@ void SS_DumpOpPairProfile(void)
 #define DelayBranch(target_)						\
 {									\
  {									\
-  const uint32 target = (target_);					\
+  const uint32_t target = (target_);					\
   PC = target;								\
  }									\
 									\
@@ -2890,7 +2890,7 @@ void SS_DumpOpPairProfile(void)
  /* call to DoID()), and forces usage of the second half of the   */	\
  /* opcode table so we can generate illegal slot instruction      */	\
  /* exceptions as appropriate. */					\
- Pipe_ID = (uint16)Pipe_ID;						\
+ Pipe_ID = (uint16_t)Pipe_ID;						\
  Pipe_ID |= (InstrDecodeTab[Pipe_ID] | 0x80) << 24;			\
 									\
  if(MDFN_UNLIKELY(PC & 1))						\
@@ -2913,7 +2913,7 @@ void SS_DumpOpPairProfile(void)
 #define Branch(target_)					\
 {									\
  {									\
-  const uint32 target = (target_);					\
+  const uint32_t target = (target_);					\
 									\
   PC = target;								\
  }									\
@@ -3071,7 +3071,7 @@ FORCE_INLINE void SH7095::Step(void)
   FRT_WDT_Recalc_NET();
  }
 
- const uint32 instr = (uint16)Pipe_ID;
+ const uint32_t instr = (uint16_t)Pipe_ID;
  const unsigned instr_nyb1 = (instr >> 4) & 0xF;
  const unsigned instr_nyb2 = (instr >> 8) & 0xF;
 // asm volatile("":: "a"(instr_nyb1), "d"(instr_nyb2));
@@ -3113,16 +3113,16 @@ FORCE_INLINE void SH7095::Step(void)
 #define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<1, true, T, BurstHax>(A)
 #define ExtBusWrite(T, A, V) ExtBusWrite_NI<1, true, T>(A, V)
 
-#define MemReadInstr(A, outval) MemRead(true,  uint32, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint32_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
-#define MemRead8(A, outval)	MemRead(false, uint8,  ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint8_A,  Resume_unmasked_A, Resume_cent, Resume_way_match)
-#define MemRead16(A, outval)	MemRead(false, uint16, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint16_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
-#define MemRead32(A, outval)	MemRead(false, uint32, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint32_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
-#define MemRead16_I(A, outval)	MemRead(-1,    uint16, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint16_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
-#define MemRead32_I(A, outval)	MemRead(-1,    uint32, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint32_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
+#define MemReadInstr(A, outval) MemRead(true,  uint32_t, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint32_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
+#define MemRead8(A, outval)	MemRead(false, uint8_t,  ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint8_A,  Resume_unmasked_A, Resume_cent, Resume_way_match)
+#define MemRead16(A, outval)	MemRead(false, uint16_t, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint16_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
+#define MemRead32(A, outval)	MemRead(false, uint32_t, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint32_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
+#define MemRead16_I(A, outval)	MemRead(-1,    uint16_t, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint16_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
+#define MemRead32_I(A, outval)	MemRead(-1,    uint32_t, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint32_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
 
-#define MemWrite8(A, V)  MemWrite(uint8,  ((A) >> 29), (CCR & CCR_CE), (A), (V), /**/ Resume_uint8_A,  Resume_unmasked_A, Resume_uint8_V)
-#define MemWrite16(A, V) MemWrite(uint16, ((A) >> 29), (CCR & CCR_CE), (A), (V), /**/ Resume_uint16_A, Resume_unmasked_A, Resume_uint16_V)
-#define MemWrite32(A, V) MemWrite(uint32, ((A) >> 29), (CCR & CCR_CE), (A), (V), /**/ Resume_uint32_A, Resume_unmasked_A, Resume_uint32_V)
+#define MemWrite8(A, V)  MemWrite(uint8_t,  ((A) >> 29), (CCR & CCR_CE), (A), (V), /**/ Resume_uint8_A,  Resume_unmasked_A, Resume_uint8_V)
+#define MemWrite16(A, V) MemWrite(uint16_t, ((A) >> 29), (CCR & CCR_CE), (A), (V), /**/ Resume_uint16_A, Resume_unmasked_A, Resume_uint16_V)
+#define MemWrite32(A, V) MemWrite(uint32_t, ((A) >> 29), (CCR & CCR_CE), (A), (V), /**/ Resume_uint32_A, Resume_unmasked_A, Resume_uint32_V)
 
 #define CHECK_EXIT_RESUME__(n)		\
 	{					\
@@ -3238,7 +3238,12 @@ void SH7095::StateAction(StateMem* sm, const unsigned load, const bool data_only
 
   SFPTR32(Cache->Tag, 4, 64, sizeof(*Cache), Cache),
   SFVARN(Cache_LRU, "Cache->LRU"),
-  SFPTR32((uint32*)Cache->Data, 16, 64, sizeof(*Cache), Cache),	// Cast because it's stored as native-endian 32-bit.
+  // Cast because it's stored as native-endian 32-bit.  SFPTR32N (explicit
+  // name) rather than SFPTR32 (auto #x name): the typedef rename changed the
+  // cast spelling from (uint32*) to (uint32_t*), and SFPTR32 would stringize
+  // that into a different savestate field name.  Pass the original name
+  // verbatim to keep savestates byte-compatible.
+  SFPTR32N((uint32_t*)Cache->Data, 16, 64, sizeof(*Cache), Cache, "(uint32*)Cache->Data"),
 
   SFVAR(CCR),
 
@@ -3355,14 +3360,14 @@ void SH7095::StateAction(StateMem* sm, const unsigned load, const bool data_only
 
 void SH7095::StateAction_SlaveResume(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
 {
- int32 ResumePointI = -1;
- uint32 Resume_cent_I = 0;
+ int32_t ResumePointI = -1;
+ uint32_t Resume_cent_I = 0;
 
  if(!load)
  {
   if(ResumePoint)
   {
-   for(uint32 i = 0; i < 512; i++)
+   for(uint32_t i = 0; i < 512; i++)
    {
     if(ResumeTableP[DM_Setting][i] == ResumePoint)
     {
@@ -3444,7 +3449,7 @@ void SH7095::PostStateLoad(const unsigned state_version, const bool recorded_nee
 
   for(unsigned way = 0; way < 4; way++)
   {
-   const uint32 ATM = ce->Tag[way] & (0x7FFFF << 10);
+   const uint32_t ATM = ce->Tag[way] & (0x7FFFF << 10);
    const bool invalid = ce->Tag[way] & ~(0x7FFFF << 10);	// Handles backwards compat when invalid was bit31 instead of bit0.
 
    ce->Tag[way] = ATM | invalid;
@@ -3467,13 +3472,13 @@ void SH7095::PostStateLoad(const unsigned state_version, const bool recorded_nee
   // May not cover all cases, needs more testing.
   //
   //
-  //const uint32 old_IBuffer = IBuffer;
-  const uint32 A = (PC - 2) & ~3;
+  //const uint32_t old_IBuffer = IBuffer;
+  const uint32_t A = (PC - 2) & ~3;
 
-  if((int32)A < 0)
-   memcpy(&IBuffer, &Cache[(A >> 4) & 0x3F].Data[(A >> 10) & 0x3][NE32ASU8_IDX_ADJ(uint32, A & 0x0F)], sizeof(uint32));
+  if((int32_t)A < 0)
+   memcpy(&IBuffer, &Cache[(A >> 4) & 0x3F].Data[(A >> 10) & 0x3][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)], sizeof(uint32_t));
   else
-   IBuffer = SH7095_RBO_BE_T(uint32, SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);
+   IBuffer = SH7095_RBO_BE_T(uint32_t, SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);
 
  }
  //
@@ -3532,9 +3537,9 @@ void SH7095::PostStateLoad(const unsigned state_version, const bool recorded_nee
 //
 //
 
-INLINE uint32 SH7095::GetRegister(const unsigned id, char* const special, const uint32 special_len)
+INLINE uint32_t SH7095::GetRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
- uint32 ret = 0xDEADBEEF;
+ uint32_t ret = 0xDEADBEEF;
 
  switch(id)
  {
@@ -3791,7 +3796,7 @@ INLINE uint32 SH7095::GetRegister(const unsigned id, char* const special, const 
  return ret;
 }
 
-void SH7095::SetRegister(const unsigned id, const uint32 value)
+void SH7095::SetRegister(const unsigned id, const uint32_t value)
 {
  switch(id)
  {
@@ -3874,14 +3879,14 @@ void SH7095::SetRegister(const unsigned id, const uint32 value)
 //
 //
 //
-INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr), void (*MWrite)(unsigned len, uint32 addr)) const
+INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr), void (*MWrite)(unsigned len, uint32_t addr)) const
 {
- uint32 lpid = Pipe_ID;
+ uint32_t lpid = Pipe_ID;
  //
  //
  //
  //SPEPRecover:;
- const uint32 instr = (uint16)lpid;
+ const uint32_t instr = (uint16_t)lpid;
  const unsigned instr_nyb1 = (instr >> 4) & 0xF;
  const unsigned instr_nyb2 = (instr >> 8) & 0xF;
 
@@ -3896,7 +3901,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_W_PCREL_REG)
 	const unsigned d = (instr >> 0) & 0xff;
-	const uint32 ea = PC + (d << 1);
+	const uint32_t ea = PC + (d << 1);
 
 	MRead(2, ea);
  END_BP_OP
@@ -3907,7 +3912,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_L_PCREL_REG)
 	const unsigned d = (instr >> 0) & 0xff;
-	const uint32 ea = (PC &~ 0x3) + (d << 2);
+	const uint32_t ea = (PC &~ 0x3) + (d << 2);
 
 	MRead(4, ea);
  END_BP_OP
@@ -3918,7 +3923,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_B_REG_REGINDIR)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[n];
+	const uint32_t ea = R[n];
 
 	MWrite(1, ea);
  END_BP_OP
@@ -3929,7 +3934,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_W_REG_REGINDIR)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[n];
+	const uint32_t ea = R[n];
 
 	MWrite(2, ea);
  END_BP_OP
@@ -3940,7 +3945,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_L_REG_REGINDIR)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[n];
+	const uint32_t ea = R[n];
 
 	MWrite(4, ea);
  END_BP_OP
@@ -3951,7 +3956,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_B_REGINDIR_REG)
 	const unsigned m = instr_nyb1;
-	const uint32 ea = R[m];
+	const uint32_t ea = R[m];
 
 	MRead(1, ea);
  END_BP_OP
@@ -3962,7 +3967,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_W_REGINDIR_REG)
 	const unsigned m = instr_nyb1;
-	const uint32 ea = R[m];
+	const uint32_t ea = R[m];
 
 	MRead(2, ea);
  END_BP_OP
@@ -3973,7 +3978,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_L_REGINDIR_REG)
 	const unsigned m = instr_nyb1;
-	const uint32 ea = R[m];
+	const uint32_t ea = R[m];
 
 	MRead(4, ea);
  END_BP_OP
@@ -3984,7 +3989,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_B_REG_REGINDIRPD)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[n] - 1;
+	const uint32_t ea = R[n] - 1;
 
 	MWrite(1, ea);
  END_BP_OP
@@ -3995,7 +4000,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_W_REG_REGINDIRPD)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[n] - 2;
+	const uint32_t ea = R[n] - 2;
 
 	MWrite(2, ea);
  END_BP_OP
@@ -4006,7 +4011,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_L_REG_REGINDIRPD)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[n] - 4;
+	const uint32_t ea = R[n] - 4;
 
 	MWrite(4, ea);
  END_BP_OP
@@ -4017,7 +4022,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_B_REGINDIRPI_REG)
 	const unsigned m = instr_nyb1;
-	const uint32 ea = R[m];
+	const uint32_t ea = R[m];
 
 	MRead(1, ea);
  END_BP_OP
@@ -4028,7 +4033,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_W_REGINDIRPI_REG)
 	const unsigned m = instr_nyb1;
-	const uint32 ea = R[m];
+	const uint32_t ea = R[m];
 
 	MRead(2, ea);
  END_BP_OP
@@ -4039,7 +4044,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_L_REGINDIRPI_REG)
 	const unsigned m = instr_nyb1;
-	const uint32 ea = R[m];
+	const uint32_t ea = R[m];
 
 	MRead(4, ea);
  END_BP_OP
@@ -4051,7 +4056,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  BEGIN_BP_OP(MOV_B_REG0_REGINDIRDISP)
 	const unsigned n = instr_nyb1;
 	const unsigned d = (instr >> 0) & 0xf;
-	const uint32 ea = R[n] + (d << 0);
+	const uint32_t ea = R[n] + (d << 0);
 
 	MWrite(1, ea);
  END_BP_OP
@@ -4063,7 +4068,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  BEGIN_BP_OP(MOV_W_REG0_REGINDIRDISP)
 	const unsigned n = instr_nyb1;
 	const unsigned d = (instr >> 0) & 0xf;
-	const uint32 ea = R[n] + (d << 1);
+	const uint32_t ea = R[n] + (d << 1);
 
 	MWrite(2, ea);
  END_BP_OP
@@ -4075,7 +4080,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  BEGIN_BP_OP(MOV_L_REG_REGINDIRDISP)
 	const unsigned n = instr_nyb2;
 	const unsigned d = (instr >> 0) & 0xf;
-	const uint32 ea = R[n] + (d << 2);
+	const uint32_t ea = R[n] + (d << 2);
 
 	MWrite(4, ea);
  END_BP_OP
@@ -4087,7 +4092,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  BEGIN_BP_OP(MOV_B_REGINDIRDISP_REG0)
 	const unsigned m = instr_nyb1;
 	const unsigned d = (instr >> 0) & 0xf;
-	const uint32 ea = R[m] + (d << 0);
+	const uint32_t ea = R[m] + (d << 0);
 
 	MRead(1, ea);
  END_BP_OP
@@ -4099,7 +4104,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  BEGIN_BP_OP(MOV_W_REGINDIRDISP_REG0)
 	const unsigned m = instr_nyb1;
 	const unsigned d = (instr >> 0) & 0xf;
-	const uint32 ea = R[m] + (d << 1);
+	const uint32_t ea = R[m] + (d << 1);
 
 	MRead(2, ea);
  END_BP_OP
@@ -4111,7 +4116,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  BEGIN_BP_OP(MOV_L_REGINDIRDISP_REG)
 	const unsigned m = instr_nyb1;
 	const unsigned d = (instr >> 0) & 0xf;
-	const uint32 ea = R[m] + (d << 2);
+	const uint32_t ea = R[m] + (d << 2);
 
 	MRead(4, ea);
  END_BP_OP
@@ -4122,7 +4127,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_B_REG_IDXREGINDIR)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[0] + R[n];
+	const uint32_t ea = R[0] + R[n];
 
 	MWrite(1, ea);
  END_BP_OP
@@ -4133,7 +4138,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_W_REG_IDXREGINDIR)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[0] + R[n];
+	const uint32_t ea = R[0] + R[n];
 
 	MWrite(2, ea);
  END_BP_OP
@@ -4144,7 +4149,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_L_REG_IDXREGINDIR)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[0] + R[n];
+	const uint32_t ea = R[0] + R[n];
 
 	MWrite(4, ea);
  END_BP_OP
@@ -4155,7 +4160,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_B_IDXREGINDIR_REG)
 	const unsigned m = instr_nyb1;
-	const uint32 ea = R[0] + R[m];
+	const uint32_t ea = R[0] + R[m];
 
 	MRead(1, ea);
  END_BP_OP
@@ -4166,7 +4171,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_W_IDXREGINDIR_REG)
 	const unsigned m = instr_nyb1;
-	const uint32 ea = R[0] + R[m];
+	const uint32_t ea = R[0] + R[m];
 
 	MRead(2, ea);
  END_BP_OP
@@ -4177,7 +4182,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_L_IDXREGINDIR_REG)
 	const unsigned m = instr_nyb1;
-	const uint32 ea = R[0] + R[m];
+	const uint32_t ea = R[0] + R[m];
 
 	MRead(4, ea);
  END_BP_OP
@@ -4188,7 +4193,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_B_REG0_GBRINDIRDISP)
 	const unsigned d = (instr >> 0) & 0xff;
-	const uint32 ea = GBR + (d << 0);
+	const uint32_t ea = GBR + (d << 0);
 
 	MWrite(1, ea);
  END_BP_OP
@@ -4199,7 +4204,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_W_REG0_GBRINDIRDISP)
 	const unsigned d = (instr >> 0) & 0xff;
-	const uint32 ea = GBR + (d << 1);
+	const uint32_t ea = GBR + (d << 1);
 
 	MWrite(2, ea);
  END_BP_OP
@@ -4210,7 +4215,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_L_REG0_GBRINDIRDISP)
 	const unsigned d = (instr >> 0) & 0xff;
-	const uint32 ea = GBR + (d << 2);
+	const uint32_t ea = GBR + (d << 2);
 
 	MWrite(4, ea);
  END_BP_OP
@@ -4221,7 +4226,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_B_GBRINDIRDISP_REG0)
 	const unsigned d = (instr >> 0) & 0xff;
-	const uint32 ea = GBR + (d << 0);
+	const uint32_t ea = GBR + (d << 0);
 
 	MRead(1, ea);
  END_BP_OP
@@ -4232,7 +4237,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_W_GBRINDIRDISP_REG0)
 	const unsigned d = (instr >> 0) & 0xff;
-	const uint32 ea = GBR + (d << 1);
+	const uint32_t ea = GBR + (d << 1);
 
 	MRead(2, ea);
  END_BP_OP
@@ -4243,7 +4248,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(MOV_L_GBRINDIRDISP_REG0)
 	const unsigned d = (instr >> 0) & 0xff;
-	const uint32 ea = GBR + (d << 2);
+	const uint32_t ea = GBR + (d << 2);
 
 	MRead(4, ea);
  END_BP_OP
@@ -4277,7 +4282,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  // AND.B #imm,@(R0,GBR)
  //
  BEGIN_BP_OP(AND_B_IMM_IDXGBRINDIR)
-	const uint32 ea = R[0] + GBR;
+	const uint32_t ea = R[0] + GBR;
 
 	MRead(1, ea);
 	MWrite(1, ea);
@@ -4287,7 +4292,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  // OR.B #imm,@(R0,GBR)
  //
  BEGIN_BP_OP(OR_B_IMM_IDXGBRINDIR)
-	const uint32 ea = R[0] + GBR;
+	const uint32_t ea = R[0] + GBR;
 
 	MRead(1, ea);
 	MWrite(1, ea);
@@ -4299,7 +4304,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(TAS_B_REGINDIR)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[n];
+	const uint32_t ea = R[n];
 
 	MRead(1, ea);
 	MWrite(1, ea);
@@ -4310,7 +4315,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  // TST.B #imm,@(R0,GBR)
  //
  BEGIN_BP_OP(TST_B_IMM_IDXGBRINDIR)
-	const uint32 ea = R[0] + GBR;
+	const uint32_t ea = R[0] + GBR;
 
 	MRead(1, ea);
  END_BP_OP
@@ -4320,7 +4325,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  // XOR.B #imm,@(R0,GBR)
  //
  BEGIN_BP_OP(XOR_B_IMM_IDXGBRINDIR)
-	const uint32 ea = R[0] + GBR;
+	const uint32_t ea = R[0] + GBR;
 
 	MRead(1, ea);
 	MWrite(1, ea);
@@ -4332,7 +4337,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(LDC_L)
 	const unsigned m = instr_nyb2;
-	const uint32 ea = R[m];
+	const uint32_t ea = R[m];
 
 	MRead(4, ea);
  END_BP_OP
@@ -4343,7 +4348,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(LDS_L)
 	const unsigned m = instr_nyb2;
-	const uint32 ea = R[m];
+	const uint32_t ea = R[m];
 
 	MRead(4, ea);
  END_BP_OP
@@ -4362,7 +4367,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(STC_L)
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[n] - 4;
+	const uint32_t ea = R[n] - 4;
 
 	MWrite(4, ea);
  END_BP_OP
@@ -4372,7 +4377,7 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr),
  //
  BEGIN_BP_OP(STS_L)	// Pipeline same as ordinary store instruction
 	const unsigned n = instr_nyb2;
-	const uint32 ea = R[n] - 4;
+	const uint32_t ea = R[n] - 4;
 
 	MWrite(4, ea);
  END_BP_OP

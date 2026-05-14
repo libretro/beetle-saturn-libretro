@@ -51,35 +51,35 @@ enum : int { VDP1_IdleTimingGran = 1019 };
 namespace VDP1
 {
 
-uint8 spr_w_shift_tab[8];
-uint8 gouraud_lut[0x40];
+uint8_t spr_w_shift_tab[8];
+uint8_t gouraud_lut[0x40];
 line_data LineData;
 line_inner_data LineInnerData;
 prim_data PrimData;
 
-int32 SysClipX, SysClipY;
-int32 UserClipX0, UserClipY0, UserClipX1, UserClipY1;
+int32_t SysClipX, SysClipY;
+int32_t UserClipX0, UserClipY0, UserClipX1, UserClipY1;
 
-int32 LocalX, LocalY;
+int32_t LocalX, LocalY;
 
-uint8 TVMR;
-uint8 FBCR;
-static uint8 PTMR;
-static uint8 EDSR;
+uint8_t TVMR;
+uint8_t FBCR;
+static uint8_t PTMR;
+static uint8_t EDSR;
 
-uint16* FBDrawWhichPtr;
+uint16_t* FBDrawWhichPtr;
 static bool FBDrawWhich;
 
 static bool DrawingActive;
-static uint32 CurCommandAddr;
-static int32 RetCommandAddr;
-static uint16 LOPR;
+static uint32_t CurCommandAddr;
+static int32_t RetCommandAddr;
+static uint16_t LOPR;
 
 static sscpu_timestamp_t lastts;
-static int32 CycleCounter;
-static int32 CommandPhase;
-static uint16 CommandData[0x10];
-uint32 DTACounter;
+static int32_t CycleCounter;
+static int32_t CommandPhase;
+static uint16_t CommandData[0x10];
+uint32_t DTACounter;
 
 static bool vb_status, hb_status;
 static bool vbcdpending;
@@ -90,30 +90,30 @@ static bool FBVBEraseActive;
 static sscpu_timestamp_t FBVBEraseLastTS;
 static sscpu_timestamp_t LastRWTS;
 
-static uint16 EWDR;	// Erase/Write Data
-static uint16 EWLR;	// Erase/Write Upper Left Coordinate
-static uint16 EWRR;	// Erase/Write Lower Right Coordinate
+static uint16_t EWDR;	// Erase/Write Data
+static uint16_t EWLR;	// Erase/Write Upper Left Coordinate
+static uint16_t EWRR;	// Erase/Write Lower Right Coordinate
 
 static struct
 {
  bool rot8;
- uint32 fb_x_mask;
+ uint32_t fb_x_mask;
 
- uint32 y_start;
- uint32 x_start;
+ uint32_t y_start;
+ uint32_t x_start;
 
- uint32 y_end;
- uint32 x_bound;
+ uint32_t y_end;
+ uint32_t x_bound;
 
- uint16 fill_data;
+ uint16_t fill_data;
 } EraseParams;
 
-static uint32 EraseYCounter;
+static uint32_t EraseYCounter;
 
-static uint32 InstantDrawSanityLimit; // ss_horrible_hacks
+static uint32_t InstantDrawSanityLimit; // ss_horrible_hacks
 
-uint16 VRAM[0x40000];
-uint16 FB[2][0x20000];
+uint16_t VRAM[0x40000];
+uint16_t FB[2][0x20000];
 
 // Side-buffer for "improved mesh transparency" mode. When MeshImproved
 // is true, VDP1 mesh-bit primitives write their colour here (with MSB
@@ -127,8 +127,8 @@ uint16 FB[2][0x20000];
 // Double-buffered in lockstep with FB; MeshFBDrawWhichPtr tracks
 // MeshFB[FBDrawWhich]. Erased in the same loops that erase FB so the
 // per-frame clear matches the game's intent for the main framebuffer.
-uint16 MeshFB[2][0x20000];
-uint16* MeshFBDrawWhichPtr;
+uint16_t MeshFB[2][0x20000];
+uint16_t* MeshFBDrawWhichPtr;
 
 // Module-level toggle for the "improved mesh transparency" mode.
 // Read by PlotPixel in vdp1_common.h when its MeshEn template
@@ -177,7 +177,7 @@ void Reset(bool powering_up)
  {
   for(unsigned i = 0; i < 0x40000; i++)
   {
-   uint16 val;
+   uint16_t val;
 
    if((i & 0xF) == 0)
     val = 0x8000;
@@ -250,7 +250,7 @@ void Reset(bool powering_up)
  EraseYCounter = ~0U;
 }
 
-static int32 CMD_SetUserClip(const uint16* cmd_data)
+static int32_t CMD_SetUserClip(const uint16_t* cmd_data)
 {
  UserClipX0 = cmd_data[0x6] & 0x1FFF;
  UserClipY0 = cmd_data[0x7] & 0x1FFF;
@@ -261,7 +261,7 @@ static int32 CMD_SetUserClip(const uint16* cmd_data)
  return 0;
 }
 
-int32 CMD_SetSystemClip(const uint16* cmd_data)
+int32_t CMD_SetSystemClip(const uint16_t* cmd_data)
 {
  SysClipX = cmd_data[0xA] & 0x1FFF;
  SysClipY = cmd_data[0xB] & 0x1FFF;
@@ -269,7 +269,7 @@ int32 CMD_SetSystemClip(const uint16* cmd_data)
  return 0;
 }
 
-int32 CMD_SetLocalCoord(const uint16* cmd_data)
+int32_t CMD_SetLocalCoord(const uint16_t* cmd_data)
 {
  LocalX = sign_x_to_s32(11, cmd_data[0x6] & 0x7FF);
  LocalY = sign_x_to_s32(11, cmd_data[0x7] & 0x7FF);
@@ -278,15 +278,15 @@ int32 CMD_SetLocalCoord(const uint16* cmd_data)
 }
 
 template<unsigned ECDSPDMode>
-static uint32 MDFN_FASTCALL TexFetch(uint32 x)
+static uint32_t MDFN_FASTCALL TexFetch(uint32_t x)
 {
- const uint32 base = LineData.tex_base;
+ const uint32_t base = LineData.tex_base;
  const bool ECD = ECDSPDMode & 0x10;
  const bool SPD = ECDSPDMode & 0x08;
  const unsigned ColorMode = ECDSPDMode & 0x07;
 
- uint32 rtd;
- uint32 ret_or = 0;
+ uint32_t rtd;
+ uint32_t ret_or = 0;
 
  switch(ColorMode)
  {
@@ -300,7 +300,7 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 	}
 	ret_or = LineData.cb_or;
 	
-	if(!SPD) ret_or |= (int32)(rtd - 1) >> 31;
+	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
 	return rtd | ret_or;
 
@@ -313,7 +313,7 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 	 return -1;
 	}
 
-	if(!SPD) ret_or |= (int32)(rtd - 1) >> 31;
+	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
 	return LineData.CLUT[rtd] | ret_or;
 
@@ -328,7 +328,7 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 
 	ret_or = LineData.cb_or;
 
-	if(!SPD) ret_or |= (int32)(rtd - 1) >> 31;
+	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
 	return (rtd & 0x3F) | ret_or;
 
@@ -343,7 +343,7 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 
 	ret_or = LineData.cb_or;
 
-	if(!SPD) ret_or |= (int32)(rtd - 1) >> 31;
+	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
 	return (rtd & 0x7F) | ret_or;
 
@@ -358,7 +358,7 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 
 	ret_or = LineData.cb_or;
 
-	if(!SPD) ret_or |= (int32)(rtd - 1) >> 31;
+	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
 	return rtd | ret_or;
 
@@ -376,14 +376,14 @@ static uint32 MDFN_FASTCALL TexFetch(uint32 x)
 	 return -1;
 	}
 
-	if(!SPD) ret_or |= (int32)(rtd - 0x4000) >> 31;
+	if(!SPD) ret_or |= (int32_t)(rtd - 0x4000) >> 31;
 
 	return rtd | ret_or;
  }
 }
 
 
-MDFN_HIDE extern uint32 (MDFN_FASTCALL *const TexFetchTab[0x20])(uint32 x) =
+MDFN_HIDE extern uint32_t (MDFN_FASTCALL *const TexFetchTab[0x20])(uint32_t x) =
 {
  #define TF(a) (TexFetch<a>)
 
@@ -402,7 +402,7 @@ MDFN_HIDE extern uint32 (MDFN_FASTCALL *const TexFetchTab[0x20])(uint32 x) =
  #undef TF
 };
 
-bool SetupDrawLine(int32* const cycle_counter, const bool AA, const bool Textured, const uint16 mode)
+bool SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textured, const uint16_t mode)
 {
  const bool HSS = (mode & 0x1000);
  const bool PCD = (mode & 0x800);
@@ -456,15 +456,15 @@ bool SetupDrawLine(int32* const cycle_counter, const bool AA, const bool Texture
 
  //
  //
- const int32 dx = sign_x_to_s32(13, p1.x - p0.x);
- const int32 dy = sign_x_to_s32(13, p1.y - p0.y);
- const int32 abs_dx = abs(dx); // & 0xFFF;
- const int32 abs_dy = abs(dy); // & 0xFFF;
- const int32 max_adx_ady = ((int32)(abs_dx) > (int32)(abs_dy) ? (int32)(abs_dx) : (int32)(abs_dy));
- const int32 x_inc = (dx >= 0) ? 1 : -1;
- const int32 y_inc = (dy >= 0) ? 1 : -1;
- const int32 lid_x_inc = (x_inc & 0x7FF) <<  0;
- const int32 lid_y_inc = (y_inc & 0x7FF) << 16;
+ const int32_t dx = sign_x_to_s32(13, p1.x - p0.x);
+ const int32_t dy = sign_x_to_s32(13, p1.y - p0.y);
+ const int32_t abs_dx = abs(dx); // & 0xFFF;
+ const int32_t abs_dy = abs(dy); // & 0xFFF;
+ const int32_t max_adx_ady = ((int32_t)(abs_dx) > (int32_t)(abs_dy) ? (int32_t)(abs_dx) : (int32_t)(abs_dy));
+ const int32_t x_inc = (dx >= 0) ? 1 : -1;
+ const int32_t y_inc = (dy >= 0) ? 1 : -1;
+ const int32_t lid_x_inc = (x_inc & 0x7FF) <<  0;
+ const int32_t lid_y_inc = (y_inc & 0x7FF) << 16;
 
  lid.xy = (p0.x & 0x7FF) + ((p0.y & 0x7FF) << 16);
  lid.term_xy = (p1.x & 0x7FF) + ((p1.y & 0x7FF) << 16);
@@ -490,8 +490,8 @@ bool SetupDrawLine(int32* const cycle_counter, const bool AA, const bool Texture
  }
 
  {
-  int32 aa_x_inc;
-  int32 aa_y_inc;
+  int32_t aa_x_inc;
+  int32_t aa_y_inc;
 
   if(abs_dy > abs_dx)
   {
@@ -563,18 +563,18 @@ bool SetupDrawLine(int32* const cycle_counter, const bool AA, const bool Texture
  lid.error_inc <<= 32 - 13;
  lid.error_adj <<= 32 - 13;
  lid.error <<= 32 - 13;
- lid.error_cmp = (uint32)lid.error_cmp << (32 - 13);
+ lid.error_cmp = (uint32_t)lid.error_cmp << (32 - 13);
 
  return clipped;
 }
 
-void EdgeStepper::Setup(const bool gourauden, const line_vertex& p0, const line_vertex& p1, const int32 dmax)
+void EdgeStepper::Setup(const bool gourauden, const line_vertex& p0, const line_vertex& p1, const int32_t dmax)
 {
-  int32 dx = sign_x_to_s32(13, p1.x - p0.x);
-  int32 dy = sign_x_to_s32(13, p1.y - p0.y);
-  int32 abs_dx = abs(dx);
-  int32 abs_dy = abs(dy);
-  int32 max_adxdy = ((int32)(abs_dx) > (int32)(abs_dy) ? (int32)(abs_dx) : (int32)(abs_dy));
+  int32_t dx = sign_x_to_s32(13, p1.x - p0.x);
+  int32_t dy = sign_x_to_s32(13, p1.y - p0.y);
+  int32_t abs_dx = abs(dx);
+  int32_t abs_dy = abs(dy);
+  int32_t max_adxdy = ((int32_t)(abs_dx) > (int32_t)(abs_dy) ? (int32_t)(abs_dx) : (int32_t)(abs_dy));
 
   x = p0.x;
   x_inc = (dx >= 0) ? 1 : -1;
@@ -598,17 +598,17 @@ void EdgeStepper::Setup(const bool gourauden, const line_vertex& p0, const line_
   x_error <<= (32 - 13);
   x_error_inc <<= (32 - 13);
   x_error_adj <<= (32 - 13);
-  x_error_cmp = (uint32)x_error_cmp << (32 - 13);
+  x_error_cmp = (uint32_t)x_error_cmp << (32 - 13);
 
   y_error <<= (32 - 13);
   y_error_inc <<= (32 - 13);
   y_error_adj <<= (32 - 13);
-  y_error_cmp = (uint32)y_error_cmp << (32 - 13);
+  y_error_cmp = (uint32_t)y_error_cmp << (32 - 13);
 
   d_error <<= (32 - 13);
   d_error_inc <<= (32 - 13);
   d_error_adj <<= (32 - 13);
-  d_error_cmp = (uint32)d_error_cmp << (32 - 13);
+  d_error_cmp = (uint32_t)d_error_cmp << (32 - 13);
   //
   if(gourauden)
    g.Setup(max_adxdy + 1, p0.g, p1.g);
@@ -653,7 +653,7 @@ static INLINE void DoDrawing(void)
     }
     else
     {
-     static int32 (*const command_table[0xC])(const uint16* cmd_data) =
+     static int32_t (*const command_table[0xC])(const uint16_t* cmd_data) =
      {
       /* 0x0 */         /* 0x1 */           /* 0x2 */            /* 0x3 */
       CMD_NormalSprite, CMD_ScaledSprite,   CMD_DistortedSprite, CMD_DistortedSprite,
@@ -665,7 +665,7 @@ static INLINE void DoDrawing(void)
       CMD_SetUserClip,  CMD_SetSystemClip,  CMD_SetLocalCoord,   CMD_SetUserClip
      };
 
-     static int32 (*const resume_table[0x8])(const uint16* cmd_data) =
+     static int32_t (*const resume_table[0x8])(const uint16_t* cmd_data) =
      {
       /* 0x0 */         /* 0x1 */         /* 0x2 */            /* 0x3 */
       RESUME_Sprite, RESUME_Sprite, RESUME_Sprite, RESUME_Sprite,
@@ -679,7 +679,7 @@ static INLINE void DoDrawing(void)
      {
       for(;;)
       {
-       int32 cycles;
+       int32_t cycles;
 
        cycles = resume_table[CommandData[0] & 0x7](CommandData);
 
@@ -750,7 +750,7 @@ sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
  //
  // 
  //
- int32 cycles = timestamp - lastts;
+ int32_t cycles = timestamp - lastts;
  lastts = timestamp;
 
  CycleCounter += cycles;
@@ -762,7 +762,7 @@ sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
  else if(DrawingActive)
   DoDrawing();
 
- return timestamp + (DrawingActive ? ((int32)(VDP1_UpdateTimingGran) > (int32)(0 - CycleCounter) ? (int32)(VDP1_UpdateTimingGran) : (int32)(0 - CycleCounter)) : VDP1_IdleTimingGran);
+ return timestamp + (DrawingActive ? ((int32_t)(VDP1_UpdateTimingGran) > (int32_t)(0 - CycleCounter) ? (int32_t)(VDP1_UpdateTimingGran) : (int32_t)(0 - CycleCounter)) : VDP1_IdleTimingGran);
 }
 
 // Draw-clear minimum x amount is 2(16-bit units) for normal and 8bpp, and 8 for rotate...actually, seems like
@@ -813,17 +813,17 @@ void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, 
    // Run vblank erase at end of vblank all at once(not strictly accurate, but should only have visible side effects wrt the debugger and reset).
    if(FBVBEraseActive)
    {
-    int32 count = event_timestamp - FBVBEraseLastTS;
+    int32_t count = event_timestamp - FBVBEraseLastTS;
     //
     //
     //
-    uint32 y = EraseParams.y_start;
+    uint32_t y = EraseParams.y_start;
 
     do
     {
-     uint16* fbyptr;
-     uint16* mfbyptr;
-     uint32 x = EraseParams.x_start;
+     uint16_t* fbyptr;
+     uint16_t* mfbyptr;
+     uint32_t x = EraseParams.x_start;
 
      fbyptr = &FB[!FBDrawWhich][(y & 0xFF) << 9];
      mfbyptr = &MeshFB[!FBDrawWhich][(y & 0xFF) << 9];
@@ -921,7 +921,7 @@ void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, 
  vbcdpending |= old_vb_status ^ vb_status;
 }
 
-bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 rot_x, uint32 rot_y, uint32 rot_xinc, uint32 rot_yinc)
+bool GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w, uint32_t rot_x, uint32_t rot_y, uint32_t rot_xinc, uint32_t rot_yinc)
 {
  bool ret = false;
  //
@@ -929,15 +929,15 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
  //
  if(TVMR & TVMR_ROTATE)
  {
-  const uint16* fbptr = FB[!FBDrawWhich];
-  const uint16* mfbptr = MeshFB[!FBDrawWhich];
+  const uint16_t* fbptr = FB[!FBDrawWhich];
+  const uint16_t* mfbptr = MeshFB[!FBDrawWhich];
 
   if(TVMR & TVMR_8BPP)
   {
    for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
    {
-    const uint32 fb_x = rot_x >> 9;
-    const uint32 fb_y = rot_y >> 9;
+    const uint32_t fb_x = rot_x >> 9;
+    const uint32_t fb_y = rot_y >> 9;
 
     if((fb_x | fb_y) &~ 0x1FF)
     {
@@ -946,14 +946,14 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
     }
     else
     {
-     const uint16* fbyptr = fbptr + ((fb_y & 0xFF) << 9);
-     /* ne16_rbo_be<uint8>(base_u16, byte_off) folded:
-      * byte read from BE bus over uint16-array. */
-     const uint32 boff_ = (fb_x & 0x1FF) | ((fb_y & 0x100) << 1);
+     const uint16_t* fbyptr = fbptr + ((fb_y & 0xFF) << 9);
+     /* ne16_rbo_be<uint8_t>(base_u16, byte_off) folded:
+      * byte read from BE bus over uint16_t-array. */
+     const uint32_t boff_ = (fb_x & 0x1FF) | ((fb_y & 0x100) << 1);
 #ifdef MSB_FIRST
-     uint8 tmp = ((const uint8*)fbyptr)[boff_];
+     uint8_t tmp = ((const uint8_t*)fbyptr)[boff_];
 #else
-     uint8 tmp = ((const uint8*)fbyptr)[boff_ ^ 1];
+     uint8_t tmp = ((const uint8_t*)fbyptr)[boff_ ^ 1];
 #endif
 
      buf[i] = 0xFF00 | tmp;
@@ -961,11 +961,11 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
      // gates improved mesh on the 16bpp path only), so MeshFB
      // is guaranteed clear in 8bpp mode -- but read it anyway
      // in case mode bits changed mid-frame.
-     const uint16* mfbyptr = mfbptr + ((fb_y & 0xFF) << 9);
+     const uint16_t* mfbyptr = mfbptr + ((fb_y & 0xFF) << 9);
 #ifdef MSB_FIRST
-     uint8 mtmp = ((const uint8*)mfbyptr)[boff_];
+     uint8_t mtmp = ((const uint8_t*)mfbyptr)[boff_];
 #else
-     uint8 mtmp = ((const uint8*)mfbyptr)[boff_ ^ 1];
+     uint8_t mtmp = ((const uint8_t*)mfbyptr)[boff_ ^ 1];
 #endif
      mesh_buf[i] = mtmp;
     }
@@ -978,8 +978,8 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
   {
    for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
    {
-    const uint32 fb_x = rot_x >> 9;
-    const uint32 fb_y = rot_y >> 9;
+    const uint32_t fb_x = rot_x >> 9;
+    const uint32_t fb_y = rot_y >> 9;
 
     if((fb_x &~ 0x1FF) | (fb_y &~ 0xFF))
     {
@@ -999,21 +999,21 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
  }
  else
  {
-  const uint16* fbyptr = &FB[!FBDrawWhich][(line & 0xFF) << 9];
-  const uint16* mfbyptr = &MeshFB[!FBDrawWhich][(line & 0xFF) << 9];
+  const uint16_t* fbyptr = &FB[!FBDrawWhich][(line & 0xFF) << 9];
+  const uint16_t* mfbyptr = &MeshFB[!FBDrawWhich][(line & 0xFF) << 9];
 
   if(TVMR & TVMR_8BPP)
    ret = true;
 
-  // Plain contiguous copy of w uint16 framebuffer cells into the
+  // Plain contiguous copy of w uint16_t framebuffer cells into the
   // per-scanline sprite buffer. Same job in both 16bpp (each cell =
   // one pixel) and 8bpp (each cell = two pixels) modes, since the
   // copy is byte-for-byte either way. memcpy guarantees a vectorised
   // path on every backend (rep-movsq on x86-64, LDP/STP on AArch64);
   // the previous scalar for-loop with MDFN_LIKELY was at the mercy
   // of the compiler's autovectorisation heuristics.
-  memcpy(buf, fbyptr, (size_t)w * sizeof(uint16));
-  memcpy(mesh_buf, mfbyptr, (size_t)w * sizeof(uint16));
+  memcpy(buf, fbyptr, (size_t)w * sizeof(uint16_t));
+  memcpy(mesh_buf, mfbyptr, (size_t)w * sizeof(uint16_t));
  }
 
  //
@@ -1021,9 +1021,9 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
  //
  if(EraseYCounter <= EraseParams.y_end)
  {
-  uint16* fbyptr;
-  uint16* mfbyptr;
-  uint32 x = EraseParams.x_start;
+  uint16_t* fbyptr;
+  uint16_t* mfbyptr;
+  uint32_t x = EraseParams.x_start;
 
   fbyptr = &FB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
   mfbyptr = &MeshFB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
@@ -1049,7 +1049,7 @@ bool GetLine(const int line, uint16* buf, uint16* mesh_buf, unsigned w, uint32 r
  return ret;
 }
 
-void AdjustTS(const int32 delta)
+void AdjustTS(const int32_t delta)
 {
  lastts += delta;
  if(FBVBEraseActive)
@@ -1058,7 +1058,7 @@ void AdjustTS(const int32 delta)
  LastRWTS = ((sscpu_timestamp_t)(-1000000) > (sscpu_timestamp_t)(LastRWTS + delta) ? (sscpu_timestamp_t)(-1000000) : (sscpu_timestamp_t)(LastRWTS + delta));
 }
 
-static INLINE void WriteReg(const unsigned which, const uint16 value)
+static INLINE void WriteReg(const unsigned which, const uint16_t value)
 {
  SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2::Update(SH7095_mem_timestamp));
  sscpu_timestamp_t nt = Update(SH7095_mem_timestamp);
@@ -1129,7 +1129,7 @@ static INLINE void WriteReg(const unsigned which, const uint16 value)
  SS_SetEventNT(&events[SS_EVENT_VDP1], nt);
 }
 
-static INLINE uint16 ReadReg(const unsigned which)
+static INLINE uint16_t ReadReg(const unsigned which)
 {
  switch(which)
  {
@@ -1158,60 +1158,60 @@ static INLINE uint16 ReadReg(const unsigned which)
 // and the game could subsequently hang waiting for drawing to complete.  With this in mind, only selectively enable it for games that are known
 // to benefit, via the horrible hacks mechanism.
 //
-MDFN_FASTCALL void Write_CheckDrawSlowdown(uint32 A, sscpu_timestamp_t time_thing)
+MDFN_FASTCALL void Write_CheckDrawSlowdown(uint32_t A, sscpu_timestamp_t time_thing)
 {
  if(DrawingActive && time_thing > LastRWTS && (ss_horrible_hacks & HORRIBLEHACK_VDP1RWDRAWSLOWDOWN))
  {
-  const int32 count = (A & 0x100000) ? 22 : 25;
-  const uint32 a = ((uint32)(count) < (uint32)(time_thing - LastRWTS) ? (uint32)(count) : (uint32)(time_thing - LastRWTS));
+  const int32_t count = (A & 0x100000) ? 22 : 25;
+  const uint32_t a = ((uint32_t)(count) < (uint32_t)(time_thing - LastRWTS) ? (uint32_t)(count) : (uint32_t)(time_thing - LastRWTS));
 
   CycleCounter -= a;
   LastRWTS = time_thing;
  }
 }
 
-MDFN_FASTCALL void Read_CheckDrawSlowdown(uint32 A, sscpu_timestamp_t time_thing)
+MDFN_FASTCALL void Read_CheckDrawSlowdown(uint32_t A, sscpu_timestamp_t time_thing)
 {
  if(!(A & 0x100000) && time_thing > LastRWTS && DrawingActive && (ss_horrible_hacks & HORRIBLEHACK_VDP1RWDRAWSLOWDOWN))
  {
-  const int32 count = (A & 0x80000) ? 44 : 41;
-  const uint32 a = ((uint32)(count) < (uint32)(time_thing - LastRWTS) ? (uint32)(count) : (uint32)(time_thing - LastRWTS));
+  const int32_t count = (A & 0x80000) ? 44 : 41;
+  const uint32_t a = ((uint32_t)(count) < (uint32_t)(time_thing - LastRWTS) ? (uint32_t)(count) : (uint32_t)(time_thing - LastRWTS));
 
   CycleCounter -= a;
   LastRWTS = time_thing;
  }
 }
 
-MDFN_FASTCALL void Write8_DB(uint32 A, uint16 DB)
+MDFN_FASTCALL void Write8_DB(uint32_t A, uint16_t DB)
 {
  A &= 0x1FFFFF;
 
  if(A < 0x80000)
  {
-  /* ne16_wbo_be<uint8>(VRAM, A, val) folded. */
-  const uint8 val_ = DB >> (((A & 1) ^ 1) << 3);
+  /* ne16_wbo_be<uint8_t>(VRAM, A, val) folded. */
+  const uint8_t val_ = DB >> (((A & 1) ^ 1) << 3);
 #ifdef MSB_FIRST
-  ((uint8*)VRAM)[A] = val_;
+  ((uint8_t*)VRAM)[A] = val_;
 #else
-  ((uint8*)VRAM)[A ^ 1] = val_;
+  ((uint8_t*)VRAM)[A ^ 1] = val_;
 #endif
   return;
  }
 
  if(A < 0x100000)
  {
-  uint32 FBA = A;
+  uint32_t FBA = A;
 
   if((TVMR & (TVMR_8BPP | TVMR_ROTATE)) == (TVMR_8BPP | TVMR_ROTATE))
    FBA = (FBA & 0x1FF) | ((FBA << 1) & 0x3FC00) | ((FBA >> 8) & 0x200);
 
-  /* ne16_wbo_be<uint8>(FB[..], offs, val) folded. */
-  const uint32 fbo_ = FBA & 0x3FFFF;
-  const uint8 val_ = DB >> (((A & 1) ^ 1) << 3);
+  /* ne16_wbo_be<uint8_t>(FB[..], offs, val) folded. */
+  const uint32_t fbo_ = FBA & 0x3FFFF;
+  const uint8_t val_ = DB >> (((A & 1) ^ 1) << 3);
 #ifdef MSB_FIRST
-  ((uint8*)FB[FBDrawWhich])[fbo_] = val_;
+  ((uint8_t*)FB[FBDrawWhich])[fbo_] = val_;
 #else
-  ((uint8*)FB[FBDrawWhich])[fbo_ ^ 1] = val_;
+  ((uint8_t*)FB[FBDrawWhich])[fbo_ ^ 1] = val_;
 #endif
   return;
  }
@@ -1219,7 +1219,7 @@ MDFN_FASTCALL void Write8_DB(uint32 A, uint16 DB)
  WriteReg((A - 0x100000) >> 1, DB);
 }
 
-MDFN_FASTCALL void Write16_DB(uint32 A, uint16 DB)
+MDFN_FASTCALL void Write16_DB(uint32_t A, uint16_t DB)
 {
  A &= 0x1FFFFE;
 
@@ -1231,7 +1231,7 @@ MDFN_FASTCALL void Write16_DB(uint32 A, uint16 DB)
 
  if(A < 0x100000)
  {
-  uint32 FBA = A;
+  uint32_t FBA = A;
 
   if((TVMR & (TVMR_8BPP | TVMR_ROTATE)) == (TVMR_8BPP | TVMR_ROTATE))
    FBA = (FBA & 0x1FF) | ((FBA << 1) & 0x3FC00) | ((FBA >> 8) & 0x200);
@@ -1243,7 +1243,7 @@ MDFN_FASTCALL void Write16_DB(uint32 A, uint16 DB)
  WriteReg((A - 0x100000) >> 1, DB);
 }
 
-MDFN_FASTCALL uint16 Read16_DB(uint32 A)
+MDFN_FASTCALL uint16_t Read16_DB(uint32_t A)
 {
  A &= 0x1FFFFE;
 
@@ -1252,7 +1252,7 @@ MDFN_FASTCALL uint16 Read16_DB(uint32 A)
 
  if(A < 0x100000)
  {
-  uint32 FBA = A;
+  uint32_t FBA = A;
 
   if((TVMR & (TVMR_8BPP | TVMR_ROTATE)) == (TVMR_8BPP | TVMR_ROTATE))
    FBA = (FBA & 0x1FF) | ((FBA << 1) & 0x3FC00) | ((FBA >> 8) & 0x200);
@@ -1344,7 +1344,7 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(LineData.p->t, 0x2, sizeof(*LineData.p), LineData.p),
   SFVAR(LineData.color),
   SFVAR(LineData.ec_count),
-  //uint32 (MDFN_FASTCALL *tffn)(uint32);
+  //uint32_t (MDFN_FASTCALL *tffn)(uint32_t);
   SFVAR(LineData.CLUT),
   SFVAR(LineData.cb_or),
   SFVAR(LineData.tex_base),
@@ -1467,9 +1467,9 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
  }
 }
 
-uint32 GetRegister(const unsigned id, char* const special, const uint32 special_len)
+uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
- uint32 ret = 0xDEADBEEF;
+ uint32_t ret = 0xDEADBEEF;
 
  switch(id)
  {
@@ -1529,7 +1529,7 @@ uint32 GetRegister(const unsigned id, char* const special, const uint32 special_
  return ret;
 }
 
-void SetRegister(const unsigned id, const uint32 value)
+void SetRegister(const unsigned id, const uint32_t value)
 {
  // TODO
  switch(id)

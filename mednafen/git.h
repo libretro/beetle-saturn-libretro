@@ -37,10 +37,10 @@ struct CheatInfoStruct
  //
  // See also "SubCheats" global stuff in mempatcher.h.
  //
- void (*InstallReadPatch)(uint32 address, uint8 value, int compare); // Compare is >= 0 when utilized.
+ void (*InstallReadPatch)(uint32_t address, uint8_t value, int compare); // Compare is >= 0 when utilized.
  void (*RemoveReadPatches)(void);
- uint8 (*MemRead)(uint32 addr);
- void (*MemWrite)(uint32 addr, uint8 val);
+ uint8_t (*MemRead)(uint32_t addr);
+ void (*MemWrite)(uint32_t addr, uint8_t val);
 
  const std::vector<CheatFormatStruct>& CheatFormatInfo;
 
@@ -61,11 +61,11 @@ struct EmulateSpecStruct
 	// is ignored while drawing the image.
 	MDFN_Rect DisplayRect = { 0, 0, 0, 0 };
 
-	// Pointer to an array of int32, number of elements = fb_height, set by the driver code.  Individual elements written
+	// Pointer to an array of int32_t, number of elements = fb_height, set by the driver code.  Individual elements written
 	// to by system emulation code.  If the emulated system doesn't support multiple screen widths per frame, or if you handle
 	// such a situation by outputting at a constant width-per-frame that is the least-common-multiple of the screen widths, then
 	// you can ignore this.  If you do wish to use this, you must set all elements every frame.
-	int32 *LineWidths = nullptr;
+	int32_t *LineWidths = nullptr;
 
 	// Set(optionally) by emulation code.  If InterlaceOn is true, then assume field height is 1/2 DisplayRect.h, and
 	// only every other line in surface (with the start line defined by InterlacedField) has valid data
@@ -77,12 +77,12 @@ struct EmulateSpecStruct
 	int skip = false;
 
 	// Number of frames currently in internal sound buffer.  Set by the system emulation code, to be read by the driver code.
-	int32 SoundBufSize = 0;
+	int32_t SoundBufSize = 0;
 
 	// Number of cycles that this frame consumed, using MDFNGI::MasterClock as a time base.
 	// Set by emulation code.
 	// MasterCycles value at last MidSync(), 0 if mid sync isn't implemented for the emulation module in use.
-	int64 MasterCycles = 0;
+	int64_t MasterCycles = 0;
 };
 
 struct GameDB_Entry
@@ -111,8 +111,8 @@ typedef struct
  // MasterClock must be >= MDFN_MASTERCLOCK_FIXED(1.0)
  // All or part of the fractional component may be ignored in some timekeeping operations in the emulator to prevent integer overflow,
  // so it is unwise to have a fractional component when the integral component is very small(less than say, 10000).
- #define MDFN_MASTERCLOCK_FIXED(n)	((int64)((double)(n) * (1LL << 32)))
- int64 MasterClock;
+ #define MDFN_MASTERCLOCK_FIXED(n)	((int64_t)((double)(n) * (1LL << 32)))
+ int64_t MasterClock;
 
  int lcm_width;
  int lcm_height;
@@ -125,7 +125,7 @@ typedef struct
  int fb_width;		// Width of the framebuffer(not necessarily width of the image).  MDFN_Surface width should be >= this.
  int fb_height;		// Height of the framebuffer passed to the Emulate() function(not necessarily height of the image)
 
- uint8 MD5[16];
+ uint8_t MD5[16];
 
  // For mouse relative motion.
  double mouse_sensitivity;

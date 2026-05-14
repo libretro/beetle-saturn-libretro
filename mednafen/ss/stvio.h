@@ -36,13 +36,13 @@ void STVIO_StateAction(StateMem* sm, const unsigned load, const bool data_only) 
 void STVIO_LoadNV(cdstream* s) MDFN_COLD;
 void STVIO_SaveNV(cdstream* s) MDFN_COLD;
 
-void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8 A, uint8 V) MDFN_HOT;
-uint8 STVIO_ReadIOGA(const sscpu_timestamp_t timestamp, uint8 A) MDFN_HOT;
+void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8_t A, uint8_t V) MDFN_HOT;
+uint8_t STVIO_ReadIOGA(const sscpu_timestamp_t timestamp, uint8_t A) MDFN_HOT;
 
 void STVIO_TransformInput(void);
-void STVIO_UpdateInput(int32 elapsed_time);
-void STVIO_SetInput(unsigned port, const char* type, uint8* ptr) MDFN_COLD;
-void STVIO_SetCrosshairsColor(unsigned port, uint32 color) MDFN_COLD;
+void STVIO_UpdateInput(int32_t elapsed_time);
+void STVIO_SetInput(unsigned port, const char* type, uint8_t* ptr) MDFN_COLD;
+void STVIO_SetCrosshairsColor(unsigned port, uint32_t color) MDFN_COLD;
 
 void STVIO_InsertCoin(void);
 

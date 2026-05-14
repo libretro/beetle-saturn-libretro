@@ -38,7 +38,7 @@ void IODevice_Gamepad::Power(void)
 
 }
 
-void IODevice_Gamepad::UpdateInput(const uint8* data, const int32 time_elapsed)
+void IODevice_Gamepad::UpdateInput(const uint8_t* data, const int32_t time_elapsed)
 {
  buttons = (~(data[0] | (data[1] << 8))) &~ 0x3000;
 }
@@ -59,9 +59,9 @@ void IODevice_Gamepad::StateAction(StateMem* sm, const unsigned load, const bool
   buttons = (buttons | 0x4000) &~ 0x3000;
 }
 
-uint8 IODevice_Gamepad::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted)
+uint8_t IODevice_Gamepad::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
- uint8 tmp;
+ uint8_t tmp;
 
  tmp = (buttons >> ((smpc_out >> 5) << 2)) & 0xF;
 

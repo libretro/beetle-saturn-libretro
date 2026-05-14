@@ -8,15 +8,10 @@
 #include <type_traits>
 #endif
 
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
+/* int{8,16,32,64} / uint{8,16,32,64} were typedef'd here to the
+ * <stdint.h> fixed-width types.  All call sites now use the
+ * <stdint.h> spellings (uint8_t, ...) directly; <stdint.h> above
+ * provides them.  The aliases are gone. */
 
 #include <retro_inline.h>
 
@@ -78,14 +73,14 @@ typedef struct
   struct
   {
    #ifdef MSB_FIRST
-   uint8   High;
-   uint8   Low;
+   uint8_t   High;
+   uint8_t   Low;
    #else
-   uint8   Low;
-   uint8   High;
+   uint8_t   Low;
+   uint8_t   High;
    #endif
   } Union8;
-  uint16 Val16;
+  uint16_t Val16;
  };
 } Uuint16;
 
@@ -103,7 +98,7 @@ typedef struct
    Uuint16   High;
    #endif
   } Union16;
-  uint32  Val32;
+  uint32_t  Val32;
  };
 } Uuint32;
 

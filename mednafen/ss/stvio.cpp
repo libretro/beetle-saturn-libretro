@@ -36,24 +36,24 @@
 
 static unsigned ControlScheme;
 
-static uint8* DPtr[13];
+static uint8_t* DPtr[13];
 
-static uint8 DataDir;
-static uint8 DataOut[0x8];
-static uint8 DataIn[0x8];
+static uint8_t DataDir;
+static uint8_t DataOut[0x8];
+static uint8_t DataIn[0x8];
 
-static uint32 CoinPending;
-static int32 CoinActiveCounter;
+static uint32_t CoinPending;
+static int32_t CoinActiveCounter;
 
-static uint8 HammerX, HammerY;
+static uint8_t HammerX, HammerY;
 
-static uint8 prev_sctrl;
-static uint8 prev_ectrl;
+static uint8_t prev_sctrl;
+static uint8_t prev_ectrl;
 static AK93C45 eep;
 
 static IODevice_Gun gun;
 
-void STVIO_SetInput(unsigned port, const char* type, uint8* ptr)
+void STVIO_SetInput(unsigned port, const char* type, uint8_t* ptr)
 {
  assert(port < 13);
 
@@ -71,7 +71,7 @@ void STVIO_SetInput(unsigned port, const char* type, uint8* ptr)
  DPtr[port] = ptr;
 }
 
-void STVIO_SetCrosshairsColor(unsigned port, uint32 color)
+void STVIO_SetCrosshairsColor(unsigned port, uint32_t color)
 {
  if(!port)
   gun.SetCrosshairsColor(color);
@@ -82,7 +82,7 @@ void STVIO_TransformInput(void)
  *DPtr[12] &= ~0x01; // Zero SS reset button bit to SMPC.
 }
 
-void STVIO_UpdateInput(int32 elapsed_time)
+void STVIO_UpdateInput(int32_t elapsed_time)
 {
  memset(DataIn, 0xFF, sizeof(DataIn));
 
@@ -93,8 +93,8 @@ void STVIO_UpdateInput(int32 elapsed_time)
  }
  else if(ControlScheme == STV_CONTROL_HAMMER)
  {
-  uint8 tmp_data[2 + 2 + 1];
-  int16 nom_x, nom_y;
+  uint8_t tmp_data[2 + 2 + 1];
+  int16_t nom_x, nom_y;
   int x, y;
 
   memset(tmp_data, 0, sizeof(tmp_data));
@@ -105,8 +105,8 @@ void STVIO_UpdateInput(int32 elapsed_time)
    tmp_data[4] = DPtr[0][4] & 0x1;
   }
 
-  nom_x = (int16)(uint16)(tmp_data[0] | (tmp_data[1] << 8));
-  nom_y = (int16)(uint16)(tmp_data[2] | (tmp_data[3] << 8));
+  nom_x = (int16_t)(uint16_t)(tmp_data[0] | (tmp_data[1] << 8));
+  nom_y = (int16_t)(uint16_t)(tmp_data[2] | (tmp_data[3] << 8));
   x = ((nom_x * 193) + 32768) >> 16;
   y = ((nom_y + 7) * 49 + 128) >> 8; //55;
 
@@ -114,8 +114,8 @@ void STVIO_UpdateInput(int32 elapsed_time)
 
   if((tmp_data[4] & 0x01) && x >= (0 - 3) && x <= (62 + 3) && y >= (0 - 3) && y <= (46 + 3))
   {
-   HammerX = ((int32)(62) < (int32)(((int32)(0) > (int32)(x) ? (int32)(0) : (int32)(x))) ? (int32)(62) : (int32)(((int32)(0) > (int32)(x) ? (int32)(0) : (int32)(x))));
-   HammerY = ((int32)(46) < (int32)(((int32)(0) > (int32)(y) ? (int32)(0) : (int32)(y))) ? (int32)(46) : (int32)(((int32)(0) > (int32)(y) ? (int32)(0) : (int32)(y))));
+   HammerX = ((int32_t)(62) < (int32_t)(((int32_t)(0) > (int32_t)(x) ? (int32_t)(0) : (int32_t)(x))) ? (int32_t)(62) : (int32_t)(((int32_t)(0) > (int32_t)(x) ? (int32_t)(0) : (int32_t)(x))));
+   HammerY = ((int32_t)(46) < (int32_t)(((int32_t)(0) > (int32_t)(y) ? (int32_t)(0) : (int32_t)(y))) ? (int32_t)(46) : (int32_t)(((int32_t)(0) > (int32_t)(y) ? (int32_t)(0) : (int32_t)(y))));
 
    // HAMMERTIME:
    DataIn[0x2] &= ~0x10;
@@ -133,7 +133,7 @@ void STVIO_UpdateInput(int32 elapsed_time)
  {
   for(unsigned i = 0; i < 2; i++)
   {
-   uint16 tmp = DPtr[i] ? (uint16)(DPtr[i][0] | (DPtr[i][1] << 8)) : 0;
+   uint16_t tmp = DPtr[i] ? (uint16_t)(DPtr[i][0] | (DPtr[i][1] << 8)) : 0;
    {
     // SW1, SW2, SW3:
     DataIn[i] ^= (((tmp & 0xA0) >> 1) | ((tmp & 0x50) << 1)) | ((tmp >> 10) & 0x01) | ((tmp >> 7) & 0x06);
@@ -173,7 +173,7 @@ void STVIO_UpdateInput(int32 elapsed_time)
  // Pause
  DataIn[0x2] ^= (DPtr[12][0] & 0x10) << 3;
 
- CoinActiveCounter = ((int32)(-75000) > (int32)(CoinActiveCounter - elapsed_time) ? (int32)(-75000) : (int32)(CoinActiveCounter - elapsed_time));
+ CoinActiveCounter = ((int32_t)(-75000) > (int32_t)(CoinActiveCounter - elapsed_time) ? (int32_t)(-75000) : (int32_t)(CoinActiveCounter - elapsed_time));
 
  if(CoinPending && CoinActiveCounter == -75000)
  {
@@ -243,14 +243,14 @@ void STVIO_Reset(bool powering_up)
 */
 static void InitEEPROM(const STVGameInfo* sgi)
 {
- std::unique_ptr<uint8[]> rom_data(new uint8[0x1000]);
+ std::unique_ptr<uint8_t[]> rom_data(new uint8_t[0x1000]);
  unsigned cab_players = 2;
- uint16 crc16, settings;
- uint8 tmp[0x80];
+ uint16_t crc16, settings;
+ uint8_t tmp[0x80];
 
  for(int i = 1; i >= 0; i--)
  {
-  for(uint32 offs = 0; offs < 0x1000; offs++)
+  for(uint32_t offs = 0; offs < 0x1000; offs++)
    rom_data[offs] = CART_STV_PeekROM((offs << i) | i | (!i << 21));
 
   if(!memcmp(rom_data.get(), "SEGA ST-V(TITAN)", 16))
@@ -314,7 +314,7 @@ static void InitEEPROM(const STVGameInfo* sgi)
  tmp[0x18] = 0x00; // ?
  tmp[0x19] = 0x08; // ?
 
- /* MDFN_en16msb folded: write host uint16 as 2 BE bytes. */
+ /* MDFN_en16msb folded: write host uint16_t as 2 BE bytes. */
  tmp[0x1A] = settings >> 8;
  tmp[0x1B] = settings;
 
@@ -322,10 +322,10 @@ static void InitEEPROM(const STVGameInfo* sgi)
  memcpy(tmp + 0x1E, rom_data.get() + 0xF48, 0x8);
 
  crc16 = crc16_ccitt(0x5A81, tmp + 0x0C, 0x38 - 0x02);
- /* MDFN_de16msb folded: 2 BE bytes -> host uint16.  This is the
+ /* MDFN_de16msb folded: 2 BE bytes -> host uint16_t.  This is the
   * one MSB_FIRST-aware fold in the file: result is the SAME on
   * either endian since the byte arithmetic is explicit. */
- crc16 ^= (uint16)((tmp[0x42] << 8) | tmp[0x43]);
+ crc16 ^= (uint16_t)((tmp[0x42] << 8) | tmp[0x43]);
  /* MDFN_en16msb folded again. */
  tmp[0x8] = crc16 >> 8;
  tmp[0x9] = crc16;
@@ -334,8 +334,8 @@ static void InitEEPROM(const STVGameInfo* sgi)
  //
  for(unsigned addr = 0; addr < 0x40; addr++)
  {
-  const uint8 *bp__ = tmp + (addr << 1);
-  eep.PokeMem(addr, (uint16)((bp__[0] << 8) | bp__[1]));
+  const uint8_t *bp__ = tmp + (addr << 1);
+  eep.PokeMem(addr, (uint16_t)((bp__[0] << 8) | bp__[1]));
  }
 }
 
@@ -353,25 +353,25 @@ void STVIO_Init(const STVGameInfo* sgi)
 
 void STVIO_LoadNV(cdstream* s)
 {
- uint8 tmp[0x80];
+ uint8_t tmp[0x80];
 
  cdstream_read(s, tmp, sizeof(tmp));
 
  for(unsigned addr = 0; addr < 0x40; addr++)
  {
-  const uint8 *bp__ = tmp + (addr << 1);
-  eep.PokeMem(addr, (uint16)((bp__[0] << 8) | bp__[1]));
+  const uint8_t *bp__ = tmp + (addr << 1);
+  eep.PokeMem(addr, (uint16_t)((bp__[0] << 8) | bp__[1]));
  }
 }
 
 void STVIO_SaveNV(cdstream* s)
 {
- uint8 tmp[0x80];
+ uint8_t tmp[0x80];
 
  for(unsigned addr = 0; addr < 0x40; addr++)
  {
-  uint8 *bp__ = tmp + (addr << 1);
-  uint16 v__ = eep.PeekMem(addr);
+  uint8_t *bp__ = tmp + (addr << 1);
+  uint16_t v__ = eep.PeekMem(addr);
   bp__[0] = v__ >> 8;
   bp__[1] = v__;
  }
@@ -379,7 +379,7 @@ void STVIO_SaveNV(cdstream* s)
  cdstream_write(s, tmp, sizeof(tmp));
 }
 
-void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8 A, uint8 V)
+void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8_t A, uint8_t V)
 {
  //printf("[IOGA] Write: %02x %02x\n", A, V);
 
@@ -400,9 +400,9 @@ void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8 A, uint8 V)
  //	Port F output, Port E input: 0xDF
 }
 
-uint8 STVIO_ReadIOGA(const sscpu_timestamp_t timestamp, uint8 A)
+uint8_t STVIO_ReadIOGA(const sscpu_timestamp_t timestamp, uint8_t A)
 {
- uint8 ret = 0xFF;
+ uint8_t ret = 0xFF;
 
  //printf("[IOGA] Read: %02x\n", A);
  //assert(A <= 0x8);
@@ -457,17 +457,17 @@ class IODevice_STVSMPC final : public IODevice
 {
  public:
 
- virtual void TransformInput(uint8* const data, float gun_x_scale, float gun_x_offs) const override;
- virtual void SetTSFreq(const int32 rate) override;
+ virtual void TransformInput(uint8_t* const data, float gun_x_scale, float gun_x_offs) const override;
+ virtual void SetTSFreq(const int32_t rate) override;
 
  virtual void ResetTS(void) override;
 
- virtual uint8 UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted) override;
- virtual void Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32* lw, int ifield, float gun_x_scale, float gun_x_offs) const override;
+ virtual uint8_t UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted) override;
+ virtual void Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const override;
 };
 
 template<bool sport>
-void IODevice_STVSMPC<sport>::SetTSFreq(const int32 rate)
+void IODevice_STVSMPC<sport>::SetTSFreq(const int32_t rate)
 {
  if(!sport)
   eep.SetTSFreq(rate);
@@ -481,14 +481,14 @@ void IODevice_STVSMPC<sport>::ResetTS(void)
 }
 
 template<bool sport>
-void IODevice_STVSMPC<sport>::TransformInput(uint8* const data, float gun_x_scale, float gun_x_offs) const
+void IODevice_STVSMPC<sport>::TransformInput(uint8_t* const data, float gun_x_scale, float gun_x_offs) const
 {
  if((ControlScheme == STV_CONTROL_HAMMER) && !sport && DPtr[0])
   gun.TransformInput(DPtr[0], gun_x_scale, gun_x_offs);
 }
 
 template<bool sport>
-void IODevice_STVSMPC<sport>::Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32* lw, int ifield, float gun_x_scale, float gun_x_offs) const
+void IODevice_STVSMPC<sport>::Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const
 {
  if((ControlScheme == STV_CONTROL_HAMMER) && !sport && DPtr[0])
  {
@@ -497,13 +497,13 @@ void IODevice_STVSMPC<sport>::Draw(MDFN_Surface* surface, const MDFN_Rect& drect
 }
 
 template<bool sport>
-uint8 IODevice_STVSMPC<sport>::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted)
+uint8_t IODevice_STVSMPC<sport>::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
- uint8 tmp = 0x7F;
+ uint8_t tmp = 0x7F;
 
  if(!sport)
  {
-  const uint8 cur_ectrl = smpc_out & 0x1C;
+  const uint8_t cur_ectrl = smpc_out & 0x1C;
 
   eep.UpdateBus(timestamp, (bool)(cur_ectrl & 0x04), (bool)(cur_ectrl & 0x08), (bool)(cur_ectrl & 0x10));
 
@@ -513,7 +513,7 @@ uint8 IODevice_STVSMPC<sport>::UpdateBus(const sscpu_timestamp_t timestamp, cons
  }
  else
  {
-  const uint8 cur_sctrl = smpc_out & 0x18;
+  const uint8_t cur_sctrl = smpc_out & 0x18;
 
   tmp = (tmp &~ 1) | eep.UpdateBus(timestamp, (bool)(prev_ectrl & 0x04), (bool)(prev_ectrl & 0x08), (bool)(prev_ectrl & 0x10));
 

@@ -27,12 +27,12 @@ switch(Pipe_ID >> 24)
  #define FUSE_COND_BRANCH(next_op_id, cond_expr)				\
   if(MDFN_LIKELY((Pipe_ID >> 24) == (next_op_id)))			\
   {									\
-   const uint16 br_instr = (uint16)Pipe_ID;				\
+   const uint16_t br_instr = (uint16_t)Pipe_ID;				\
    PC += 2;								\
    if(EmulateICache) { UCRead_IF_Kludge = false; }			\
    DoIDIF(false);							\
    if(EmulateICache) { timestamp -= UCRead_IF_Kludge; }			\
-   CondRelBranch((cond_expr), (uint32)(int8)br_instr << 1);		\
+   CondRelBranch((cond_expr), (uint32_t)(int8_t)br_instr << 1);		\
   }
  // Delay-slot fusion: collapse a NOP delay slot into its preceding
  // delay-branch handler.  After DelayBranch(), Pipe_ID's high byte is
@@ -49,21 +49,21 @@ switch(Pipe_ID >> 24)
   }
  // Triplet fusion: load -> cmp/tst -> conditional branch.  At the load's
  // tail, Pipe_ID has the cmp/tst (decoded by the load's BEGIN_OP DoIDIF)
- // and Pipe_IF has the branch instruction word (raw uint16, op-id NOT yet
+ // and Pipe_IF has the branch instruction word (raw uint16_t, op-id NOT yet
  // computed -- DoID decodes during rotation).  Detection therefore needs an
  // explicit InstrDecodeTab lookup on Pipe_IF; the high byte of Pipe_IF is
- // always zero (FetchIF only writes a uint16) so testing it would fail
- // closed.  alu_set_t_expr reads alu_instr (uint16) as the cmp/tst word.
+ // always zero (FetchIF only writes a uint16_t) so testing it would fail
+ // closed.  alu_set_t_expr reads alu_instr (uint16_t) as the cmp/tst word.
  // The two DoIDIF_INLINE calls model the cmp/tst's and the branch's fetch
  // slots; PC interleaves +=2 between them so each fetches the right address.
  // The branch's slot keeps its FUDGEIF kludge wrap.  Total PC advance =
  // 2+2 inside macro + 2 post-switch = 6 bytes for 3 folded instructions.
  #define FUSE_LOAD_CMPTST_BRANCH(alu_op_id, br_op_id, alu_set_t_expr, br_cond_expr)	\
   if(MDFN_LIKELY((Pipe_ID >> 24) == (alu_op_id) &&					\
-                 InstrDecodeTab[(uint16)Pipe_IF] == (br_op_id)))			\
+                 InstrDecodeTab[(uint16_t)Pipe_IF] == (br_op_id)))			\
   {											\
-   const uint16 alu_instr = (uint16)Pipe_ID;						\
-   const uint16 br_instr = (uint16)Pipe_IF;						\
+   const uint16_t alu_instr = (uint16_t)Pipe_ID;						\
+   const uint16_t br_instr = (uint16_t)Pipe_IF;						\
    WB_EX_CHECK(0)									\
    alu_set_t_expr;									\
    PC += 2;										\
@@ -72,7 +72,7 @@ switch(Pipe_ID >> 24)
    if(EmulateICache) { UCRead_IF_Kludge = false; }					\
    DoIDIF_INLINE<EmulateICache, false>();						\
    if(EmulateICache) { timestamp -= UCRead_IF_Kludge; }					\
-   CondRelBranch((br_cond_expr), (uint32)(int8)br_instr << 1);				\
+   CondRelBranch((br_cond_expr), (uint32_t)(int8_t)br_instr << 1);				\
   }
  #else
  #define FUSE_COND_BRANCH(next_op_id, cond_expr) do {} while(0)
@@ -82,11 +82,11 @@ switch(Pipe_ID >> 24)
 
  #define WB_EX_CHECK(r) { if(timestamp < WB_until[(r)]) timestamp = WB_until[(r)]; }
  #define WB_WRITE(r, v) { R[(r)] = (v); WB_until[(r)] = MA_until + 1; }
- #define WB_READ8(r, A) { uint8 memrv; MemRead8(A, memrv); WB_WRITE((r), (int8)memrv); }
- #define WB_READ16(r, A) { uint16 memrv; MemRead16(A, memrv); WB_WRITE((r), (int16)memrv); }
- #define WB_READ32(r, A) { uint32 memrv; MemRead32(A, memrv); WB_WRITE((r), memrv); }
- #define WB_READ16_I(r, A) { uint16 memrv; MemRead16_I(A, memrv); WB_WRITE((r), (int16)memrv); }
- #define WB_READ32_I(r, A) { uint32 memrv; MemRead32_I(A, memrv); WB_WRITE((r), memrv); }
+ #define WB_READ8(r, A) { uint8_t memrv; MemRead8(A, memrv); WB_WRITE((r), (int8_t)memrv); }
+ #define WB_READ16(r, A) { uint16_t memrv; MemRead16(A, memrv); WB_WRITE((r), (int16_t)memrv); }
+ #define WB_READ32(r, A) { uint32_t memrv; MemRead32(A, memrv); WB_WRITE((r), memrv); }
+ #define WB_READ16_I(r, A) { uint16_t memrv; MemRead16_I(A, memrv); WB_WRITE((r), (int16_t)memrv); }
+ #define WB_READ32_I(r, A) { uint32_t memrv; MemRead32_I(A, memrv); WB_WRITE((r), memrv); }
  //
  //
  //
@@ -95,7 +95,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_IMM_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
-	CONST_VAR(uint32, imm) = (int8)instr;
+	CONST_VAR(uint32_t, imm) = (int8_t)instr;
 
 	WB_EX_CHECK(n)
 
@@ -108,7 +108,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_W_PCREL_REG)
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xff;
-	CONST_VAR(uint32, ea) = PC + (d << 1);
+	CONST_VAR(uint32_t, ea) = PC + (d << 1);
 
 	WB_READ16_I(instr_nyb2, ea);
  END_OP
@@ -119,7 +119,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_L_PCREL_REG)
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xff;
-	CONST_VAR(uint32, ea) = (PC &~ 0x3) + (d << 2);
+	CONST_VAR(uint32_t, ea) = (PC &~ 0x3) + (d << 2);
 
 	WB_READ32_I(instr_nyb2, ea);
  END_OP
@@ -145,8 +145,8 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_B_REG_REGINDIR)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, val) = R[m];
-	CONST_VAR(uint32, ea) = R[n];
+	CONST_VAR(uint32_t, val) = R[m];
+	CONST_VAR(uint32_t, ea) = R[n];
 
 	MemWrite8(ea, val);
  END_OP
@@ -158,8 +158,8 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_W_REG_REGINDIR)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, val) = R[m];
-	CONST_VAR(uint32, ea) = R[n];
+	CONST_VAR(uint32_t, val) = R[m];
+	CONST_VAR(uint32_t, ea) = R[n];
 
 	MemWrite16(ea, val);
  END_OP
@@ -171,8 +171,8 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_L_REG_REGINDIR)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, val) = R[m];
-	CONST_VAR(uint32, ea) = R[n];
+	CONST_VAR(uint32_t, val) = R[m];
+	CONST_VAR(uint32_t, ea) = R[n];
 
 	MemWrite32(ea, val);
  END_OP
@@ -183,12 +183,12 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_B_REGINDIR_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, ea) = R[m];
+	CONST_VAR(uint32_t, ea) = R[m];
 
 	WB_READ8(instr_nyb2, ea);
 
 	FUSE_LOAD_CMPTST_BRANCH(OP_CMP_EQ_IMM_REG0_ID, OP_BF_ID,
-		SetT((int32)(int8)alu_instr == (int32)R[0]), !GetT());
+		SetT((int32_t)(int8_t)alu_instr == (int32_t)R[0]), !GetT());
  END_OP
 
 
@@ -197,7 +197,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_W_REGINDIR_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, ea) = R[m];
+	CONST_VAR(uint32_t, ea) = R[m];
 
 	WB_READ16(instr_nyb2, ea);
  END_OP
@@ -208,7 +208,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_L_REGINDIR_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, ea) = R[m];
+	CONST_VAR(uint32_t, ea) = R[m];
 
 	WB_READ32(instr_nyb2, ea);
  END_OP
@@ -220,8 +220,8 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_B_REG_REGINDIRPD)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, val) = R[m];
-	uint32 ea;
+	CONST_VAR(uint32_t, val) = R[m];
+	uint32_t ea;
 
 	R[n] -= 1;
 	ea = R[n];
@@ -236,8 +236,8 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_W_REG_REGINDIRPD)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, val) = R[m];
-	uint32 ea;
+	CONST_VAR(uint32_t, val) = R[m];
+	uint32_t ea;
 
 	R[n] -= 2;
 	ea = R[n];
@@ -252,8 +252,8 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_L_REG_REGINDIRPD)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, val) = R[m];
-	uint32 ea;
+	CONST_VAR(uint32_t, val) = R[m];
+	uint32_t ea;
 
 	R[n] -= 4;
 	ea = R[n];
@@ -267,7 +267,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_B_REGINDIRPI_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	uint32 ea;
+	uint32_t ea;
 
 	ea = R[m];
 	R[m] += 1;
@@ -281,7 +281,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_W_REGINDIRPI_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	uint32 ea;
+	uint32_t ea;
 
 	ea = R[m];
 	R[m] += 2;
@@ -295,7 +295,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_L_REGINDIRPI_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	uint32 ea;
+	uint32_t ea;
 
 	ea = R[m];
 	R[m] += 4;
@@ -310,7 +310,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_B_REG0_REGINDIRDISP)
 	CONST_VAR(unsigned, n) = instr_nyb1;
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xf;
-	CONST_VAR(uint32, ea) = R[n] + (d << 0);
+	CONST_VAR(uint32_t, ea) = R[n] + (d << 0);
 
 	MemWrite8(ea, R[0]);
  END_OP
@@ -322,7 +322,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_W_REG0_REGINDIRDISP)
 	CONST_VAR(unsigned, n) = instr_nyb1;
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xf;
-	CONST_VAR(uint32, ea) = R[n] + (d << 1);
+	CONST_VAR(uint32_t, ea) = R[n] + (d << 1);
 
 	MemWrite16(ea, R[0]);
  END_OP
@@ -335,7 +335,7 @@ switch(Pipe_ID >> 24)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xf;
-	CONST_VAR(uint32, ea) = R[n] + (d << 2);
+	CONST_VAR(uint32_t, ea) = R[n] + (d << 2);
 
 	MemWrite32(ea, R[m]);
  END_OP
@@ -347,12 +347,12 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_B_REGINDIRDISP_REG0)
 	CONST_VAR(unsigned, m) = instr_nyb1;
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xf;
-	CONST_VAR(uint32, ea) = R[m] + (d << 0);
+	CONST_VAR(uint32_t, ea) = R[m] + (d << 0);
 
 	WB_READ8(0, ea);
 
 	FUSE_LOAD_CMPTST_BRANCH(OP_TST_IMM_REG0_ID, OP_BT_ID,
-		SetT(!(R[0] & (uint8)alu_instr)), GetT());
+		SetT(!(R[0] & (uint8_t)alu_instr)), GetT());
  END_OP
 
 
@@ -362,7 +362,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_W_REGINDIRDISP_REG0)
 	CONST_VAR(unsigned, m) = instr_nyb1;
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xf;
-	CONST_VAR(uint32, ea) = R[m] + (d << 1);
+	CONST_VAR(uint32_t, ea) = R[m] + (d << 1);
 
 	WB_READ16(0, ea);
  END_OP
@@ -374,7 +374,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_L_REGINDIRDISP_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xf;
-	CONST_VAR(uint32, ea) = R[m] + (d << 2);
+	CONST_VAR(uint32_t, ea) = R[m] + (d << 2);
 
 	WB_READ32(instr_nyb2, ea);
  END_OP
@@ -386,7 +386,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_B_REG_IDXREGINDIR)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, ea) = R[0] + R[n];
+	CONST_VAR(uint32_t, ea) = R[0] + R[n];
 
 	MemWrite8(ea, R[m]);
  END_OP
@@ -398,7 +398,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_W_REG_IDXREGINDIR)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, ea) = R[0] + R[n];
+	CONST_VAR(uint32_t, ea) = R[0] + R[n];
 
 	MemWrite16(ea, R[m]);
  END_OP
@@ -410,7 +410,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(MOV_L_REG_IDXREGINDIR)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, ea) = R[0] + R[n];
+	CONST_VAR(uint32_t, ea) = R[0] + R[n];
 
 	MemWrite32(ea, R[m]);
  END_OP
@@ -421,7 +421,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_B_IDXREGINDIR_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, ea) = R[0] + R[m];
+	CONST_VAR(uint32_t, ea) = R[0] + R[m];
 
 	WB_READ8(instr_nyb2, ea);
  END_OP
@@ -432,7 +432,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_W_IDXREGINDIR_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, ea) = R[0] + R[m];
+	CONST_VAR(uint32_t, ea) = R[0] + R[m];
 
 	WB_READ16(instr_nyb2, ea);
  END_OP
@@ -443,7 +443,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_L_IDXREGINDIR_REG)
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	CONST_VAR(uint32, ea) = R[0] + R[m];
+	CONST_VAR(uint32_t, ea) = R[0] + R[m];
 
 	WB_READ32(instr_nyb2, ea);
  END_OP
@@ -454,7 +454,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_B_REG0_GBRINDIRDISP)
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xff;
-	CONST_VAR(uint32, ea) = GBR + (d << 0);
+	CONST_VAR(uint32_t, ea) = GBR + (d << 0);
 
 	MemWrite8(ea, R[0]);
  END_OP
@@ -465,7 +465,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_W_REG0_GBRINDIRDISP)
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xff;
-	CONST_VAR(uint32, ea) = GBR + (d << 1);
+	CONST_VAR(uint32_t, ea) = GBR + (d << 1);
 
 	MemWrite16(ea, R[0]);
  END_OP
@@ -476,7 +476,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_L_REG0_GBRINDIRDISP)
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xff;
-	CONST_VAR(uint32, ea) = GBR + (d << 2);
+	CONST_VAR(uint32_t, ea) = GBR + (d << 2);
 
 	MemWrite32(ea, R[0]);
  END_OP
@@ -487,7 +487,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_B_GBRINDIRDISP_REG0)
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xff;
-	CONST_VAR(uint32, ea) = GBR + (d << 0);
+	CONST_VAR(uint32_t, ea) = GBR + (d << 0);
 
 	WB_READ8(0, ea);
  END_OP
@@ -498,7 +498,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_W_GBRINDIRDISP_REG0)
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xff;
-	CONST_VAR(uint32, ea) = GBR + (d << 1);
+	CONST_VAR(uint32_t, ea) = GBR + (d << 1);
 
 	WB_READ16(0, ea);
  END_OP
@@ -509,7 +509,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOV_L_GBRINDIRDISP_REG0)
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xff;
-	CONST_VAR(uint32, ea) = GBR + (d << 2);
+	CONST_VAR(uint32_t, ea) = GBR + (d << 2);
 
 	WB_READ32(0, ea);
  END_OP
@@ -520,7 +520,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(MOVA_PCREL_REG0)
 	CONST_VAR(unsigned, d) = (instr >> 0) & 0xff;
-	CONST_VAR(uint32, ea) = (PC &~ 0x3) + (d << 2);
+	CONST_VAR(uint32_t, ea) = (PC &~ 0x3) + (d << 2);
 
 	WB_EX_CHECK(0)
 
@@ -601,7 +601,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP(ADD_IMM_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
-	CONST_VAR(uint32, imm) = (int8)instr;
+	CONST_VAR(uint32_t, imm) = (int8_t)instr;
 
 	WB_EX_CHECK(n)
 
@@ -615,7 +615,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(ADDC_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint64 result = (uint64)R[n] + R[m] + GetT();
+	const uint64_t result = (uint64_t)R[n] + R[m] + GetT();
 
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
@@ -631,7 +631,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(ADDV_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint32 result = R[n] + R[m];
+	const uint32_t result = R[n] + R[m];
 
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
@@ -645,7 +645,7 @@ switch(Pipe_ID >> 24)
  // CMP/EQ #imm,R0
  //
  BEGIN_OP(CMP_EQ_IMM_REG0)
-	CONST_VAR(uint32, imm) = (int8)instr;
+	CONST_VAR(uint32_t, imm) = (int8_t)instr;
 
 	WB_EX_CHECK(0)
 
@@ -693,7 +693,7 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	SetT((int32)R[n] >= (int32)R[m]);
+	SetT((int32_t)R[n] >= (int32_t)R[m]);
  END_OP
 
 
@@ -721,7 +721,7 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	SetT((int32)R[n] > (int32)R[m]);
+	SetT((int32_t)R[n] > (int32_t)R[m]);
 
 	FUSE_COND_BRANCH(OP_BT_ID, GetT());
  END_OP
@@ -735,7 +735,7 @@ switch(Pipe_ID >> 24)
 
 	WB_EX_CHECK(n)
 
-	SetT((int32)R[n] >= 0);
+	SetT((int32_t)R[n] >= 0);
  END_OP
 
 
@@ -747,7 +747,7 @@ switch(Pipe_ID >> 24)
 
 	WB_EX_CHECK(n)
 
-	SetT((int32)R[n] > 0);
+	SetT((int32_t)R[n] > 0);
  END_OP
 
 
@@ -757,7 +757,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(CMP_STR_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint32 tmp = R[n] ^ R[m];
+	const uint32_t tmp = R[n] ^ R[m];
 	unsigned new_T = 0;
 
 	WB_EX_CHECK(n)
@@ -778,7 +778,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(DIV1_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	uint32 tmp;
+	uint32_t tmp;
 	bool new_Q;
 
 	WB_EX_CHECK(n)
@@ -860,7 +860,7 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	R[n] = (int8)R[m];
+	R[n] = (int8_t)R[m];
  END_OP
 
 
@@ -874,7 +874,7 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	R[n] = (int16)R[m];
+	R[n] = (int16_t)R[m];
  END_OP
 
 
@@ -888,7 +888,7 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	R[n] = (uint8)R[m];
+	R[n] = (uint8_t)R[m];
  END_OP
 
 
@@ -902,7 +902,7 @@ switch(Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	R[n] = (uint16)R[m];
+	R[n] = (uint16_t)R[m];
  END_OP
 
 
@@ -911,8 +911,8 @@ switch(Pipe_ID >> 24)
  //
  //  Pipeline: page 188(not implemented right here)
  BEGIN_OP(MAC_L)
-	RESUME_VAR(int32, opexec_MAC_L_m0);
-	RESUME_VAR(int32, opexec_MAC_L_m1);
+	RESUME_VAR(int32_t, opexec_MAC_L_m0);
+	RESUME_VAR(int32_t, opexec_MAC_L_m1);
 	{
 	 // Order confirmed.
 	 MemRead32(R[instr_nyb1], opexec_MAC_L_m0);
@@ -920,15 +920,15 @@ switch(Pipe_ID >> 24)
 	 MemRead32(R[instr_nyb2], opexec_MAC_L_m1);
 	 R[instr_nyb2] += 4;
 	}
-	uint64 a, b, sum;
+	uint64_t a, b, sum;
 
 	a = GetMAC64();
-	b = (int64)opexec_MAC_L_m0 * opexec_MAC_L_m1;
+	b = (int64_t)opexec_MAC_L_m0 * opexec_MAC_L_m1;
 	sum = a + b;
 
 	if(GetS() && sum > 0x00007FFFFFFFFFFFULL && sum < 0xFFFF800000000000ULL)
 	{
-	 if((int32)(opexec_MAC_L_m0 ^ opexec_MAC_L_m1) < 0)
+	 if((int32_t)(opexec_MAC_L_m0 ^ opexec_MAC_L_m1) < 0)
 	  sum = 0xFFFF800000000000ULL;
 	 else
 	  sum = 0x00007FFFFFFFFFFFULL;
@@ -945,8 +945,8 @@ switch(Pipe_ID >> 24)
  //
  //  Pipeline: page 180(not implemented right here)
  BEGIN_OP(MAC_W)
-	RESUME_VAR(int16, opexec_MAC_W_m0);
-	RESUME_VAR(int16, opexec_MAC_W_m1);
+	RESUME_VAR(int16_t, opexec_MAC_W_m0);
+	RESUME_VAR(int16_t, opexec_MAC_W_m1);
 	{
 	 // Order confirmed.
 	 MemRead16(R[instr_nyb1], opexec_MAC_W_m0);
@@ -957,8 +957,8 @@ switch(Pipe_ID >> 24)
 
 	if(GetS())
 	{
-	 int32 b = (int32)opexec_MAC_W_m0 * opexec_MAC_W_m1;
-	 uint64 sum = (int64)(int32)MACL + b;
+	 int32_t b = (int32_t)opexec_MAC_W_m0 * opexec_MAC_W_m1;
+	 uint64_t sum = (int64_t)(int32_t)MACL + b;
 
 	 if(sum > 0x000000007FFFFFFFULL && sum < 0xFFFFFFFF80000000ULL)
 	 {
@@ -973,7 +973,7 @@ switch(Pipe_ID >> 24)
 	 MACL = sum;
 	}
 	else
-	 SetMAC64(GetMAC64() + (int64)opexec_MAC_W_m0 * opexec_MAC_W_m1);
+	 SetMAC64(GetMAC64() + (int64_t)opexec_MAC_W_m0 * opexec_MAC_W_m1);
 
 	timestamp++;
  END_OP
@@ -993,7 +993,7 @@ switch(Pipe_ID >> 24)
 	}
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint64 result = (int64)(int32)R[n] * (int32)R[m];
+	const uint64_t result = (int64_t)(int32_t)R[n] * (int32_t)R[m];
 
 	MACL = result >> 0;
 	MACH = result >> 32;
@@ -1014,7 +1014,7 @@ switch(Pipe_ID >> 24)
 	}
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint64 result = (uint64)R[n] * R[m];
+	const uint64_t result = (uint64_t)R[n] * R[m];
 
 	MACL = result >> 0;
 	MACH = result >> 32;
@@ -1051,7 +1051,7 @@ switch(Pipe_ID >> 24)
 	{ sscpu_timestamp_t t__ = timestamp + 1; if(MM_until > MA_until) MA_until = MM_until; if(t__ > MA_until) MA_until = t__; }
 	MM_until = MA_until + 2;
 
-	MACL = (int16)R[n] * (int16)R[m];
+	MACL = (int16_t)R[n] * (int16_t)R[m];
  END_OP
 
 
@@ -1066,7 +1066,7 @@ switch(Pipe_ID >> 24)
 	{ sscpu_timestamp_t t__ = timestamp + 1; if(MM_until > MA_until) MA_until = MM_until; if(t__ > MA_until) MA_until = t__; }
 	MM_until = MA_until + 2;
 
-	MACL = (uint32)(uint16)R[n] * (uint32)(uint16)R[m];
+	MACL = (uint32_t)(uint16_t)R[n] * (uint32_t)(uint16_t)R[m];
  END_OP
 
 
@@ -1090,7 +1090,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(NEGC_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint64 result = (uint64)0 - R[m] - GetT();
+	const uint64_t result = (uint64_t)0 - R[m] - GetT();
 
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
@@ -1120,7 +1120,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(SUBC_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint64 result = (uint64)R[n] - R[m] - GetT();
+	const uint64_t result = (uint64_t)R[n] - R[m] - GetT();
 
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
@@ -1136,7 +1136,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP(SUBV_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint32 result = R[n] - R[m];
+	const uint32_t result = R[n] - R[m];
 
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
@@ -1164,7 +1164,7 @@ switch(Pipe_ID >> 24)
  // AND #imm,R0
  //
  BEGIN_OP(AND_IMM_REG0)
-	const unsigned imm = (uint8)instr;
+	const unsigned imm = (uint8_t)instr;
 
 	WB_EX_CHECK(0)
 
@@ -1176,13 +1176,13 @@ switch(Pipe_ID >> 24)
  // AND.B #imm,@(R0,GBR)
  //
  BEGIN_OP(AND_B_IMM_IDXGBRINDIR)
-	RESUME_VAR(uint32, opexec_ea);
+	RESUME_VAR(uint32_t, opexec_ea);
 	opexec_ea = R[0] + GBR;
-	uint32 tmp;
+	uint32_t tmp;
 
 	MemRead8(opexec_ea, tmp);
 	timestamp++;
-	tmp &= (uint8)instr;
+	tmp &= (uint8_t)instr;
 	MemWrite8(opexec_ea, tmp);
 	timestamp++;
  END_OP
@@ -1220,7 +1220,7 @@ switch(Pipe_ID >> 24)
  // OR #imm,R0
  //
  BEGIN_OP(OR_IMM_REG0)
-	const unsigned imm = (uint8)instr;
+	const unsigned imm = (uint8_t)instr;
 
 	WB_EX_CHECK(0)
 
@@ -1232,13 +1232,13 @@ switch(Pipe_ID >> 24)
  // OR.B #imm,@(R0,GBR)
  //
  BEGIN_OP(OR_B_IMM_IDXGBRINDIR)
-	RESUME_VAR(uint32, opexec_ea);
+	RESUME_VAR(uint32_t, opexec_ea);
 	opexec_ea = R[0] + GBR;
-	uint32 tmp;
+	uint32_t tmp;
 
 	MemRead8(opexec_ea, tmp);
 	timestamp++;
-	tmp |= (uint8)instr;
+	tmp |= (uint8_t)instr;
 	MemWrite8(opexec_ea, tmp);
 	timestamp++;
  END_OP
@@ -1248,15 +1248,15 @@ switch(Pipe_ID >> 24)
  // TAS.B @Rn
  //
  BEGIN_OP(TAS_B_REGINDIR)
-	uint8 tmp;
-	RESUME_VAR(uint32, opexec_ea);
+	uint8_t tmp;
+	RESUME_VAR(uint32_t, opexec_ea);
 
 	opexec_ea = R[instr_nyb2];
 
 	CHECK_EXIT_RESUME();
 
 	SH7095_BusLock++;
-	tmp = ExtBusRead(uint8, false, opexec_ea);	// FIXME: Address error on invalid address(>= 0x40000000 ?).
+	tmp = ExtBusRead(uint8_t, false, opexec_ea);	// FIXME: Address error on invalid address(>= 0x40000000 ?).
 	timestamp = SH7095_mem_timestamp;
 
 	SetT(!tmp);
@@ -1291,7 +1291,7 @@ switch(Pipe_ID >> 24)
  // TST #imm,R0
  //
  BEGIN_OP(TST_IMM_REG0)
-	const unsigned imm = (uint8)instr;
+	const unsigned imm = (uint8_t)instr;
 
 	WB_EX_CHECK(0)
 
@@ -1305,12 +1305,12 @@ switch(Pipe_ID >> 24)
  // TST.B #imm,@(R0,GBR)
  //
  BEGIN_OP(TST_B_IMM_IDXGBRINDIR)
-	CONST_VAR(uint32, ea) = R[0] + GBR;
-	uint32 tmp;
+	CONST_VAR(uint32_t, ea) = R[0] + GBR;
+	uint32_t tmp;
 
 	MemRead8(ea, tmp);
 	timestamp++;
-	SetT(!(tmp & (uint8)instr));
+	SetT(!(tmp & (uint8_t)instr));
 	timestamp++;
  END_OP
 
@@ -1333,7 +1333,7 @@ switch(Pipe_ID >> 24)
  // XOR #imm,R0
  //
  BEGIN_OP(XOR_IMM_REG0)
-	const unsigned imm = (uint8)instr;
+	const unsigned imm = (uint8_t)instr;
 
 	WB_EX_CHECK(0)
 
@@ -1345,13 +1345,13 @@ switch(Pipe_ID >> 24)
  // XOR.B #imm,@(R0,GBR)
  //
  BEGIN_OP(XOR_B_IMM_IDXGBRINDIR)
-	RESUME_VAR(uint32, opexec_ea);
+	RESUME_VAR(uint32_t, opexec_ea);
 	opexec_ea = R[0] + GBR;
-	uint32 tmp;
+	uint32_t tmp;
 
 	MemRead8(opexec_ea, tmp);
 	timestamp++;
-	tmp ^= (uint8)instr;
+	tmp ^= (uint8_t)instr;
 	MemWrite8(opexec_ea, tmp);
 	timestamp++;
  END_OP
@@ -1422,7 +1422,7 @@ switch(Pipe_ID >> 24)
 
 	WB_EX_CHECK(n)
 
-	R[n] = (int32)R[n] >> 1;
+	R[n] = (int32_t)R[n] >> 1;
 	SetT(shbit);
  END_OP
 
@@ -1531,7 +1531,7 @@ switch(Pipe_ID >> 24)
  // BF 
  //
  BEGIN_OP_FUDGEIF(BF)
-	CondRelBranch(!GetT(), (uint32)(int8)instr << 1);
+	CondRelBranch(!GetT(), (uint32_t)(int8_t)instr << 1);
  END_OP
 
 
@@ -1539,7 +1539,7 @@ switch(Pipe_ID >> 24)
  // BF/S 
  //
  BEGIN_OP_FUDGEIF(BF_S)
-	CondRelDelayBranch(!GetT(), (uint32)(int8)instr << 1);
+	CondRelDelayBranch(!GetT(), (uint32_t)(int8_t)instr << 1);
 	FUSE_DELAY_SLOT_NOP();
  END_OP
 
@@ -1548,7 +1548,7 @@ switch(Pipe_ID >> 24)
  // BT 
  //
  BEGIN_OP_FUDGEIF(BT)
-	CondRelBranch(GetT(), (uint32)(int8)instr << 1);
+	CondRelBranch(GetT(), (uint32_t)(int8_t)instr << 1);
  END_OP
 
 
@@ -1556,7 +1556,7 @@ switch(Pipe_ID >> 24)
  // BT/S 
  //
  BEGIN_OP_FUDGEIF(BT_S)
-	CondRelDelayBranch(GetT(), (uint32)(int8)instr << 1);
+	CondRelDelayBranch(GetT(), (uint32_t)(int8_t)instr << 1);
 	FUSE_DELAY_SLOT_NOP();
  END_OP
 
@@ -1565,7 +1565,7 @@ switch(Pipe_ID >> 24)
  // BRA 
  //
  BEGIN_OP_DLYIDIF(BRA)
-	UCRelDelayBranch((uint32)sign_x_to_s32(12, instr) << 1);
+	UCRelDelayBranch((uint32_t)sign_x_to_s32(12, instr) << 1);
 	FUSE_DELAY_SLOT_NOP();
  END_OP
 
@@ -1585,7 +1585,7 @@ switch(Pipe_ID >> 24)
  BEGIN_OP_DLYIDIF(BSR)
 	PR = PC;
 
-	UCRelDelayBranch((uint32)sign_x_to_s32(12, instr) << 1);
+	UCRelDelayBranch((uint32_t)sign_x_to_s32(12, instr) << 1);
 	FUSE_DELAY_SLOT_NOP();
  END_OP
 
@@ -1672,7 +1672,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP_DLYIDIF(LDC_L)
 	{
-	 uint32 ea;
+	 uint32_t ea;
 	 ea = R[instr_nyb2];
 	 R[instr_nyb2] += 4;
 
@@ -1709,7 +1709,7 @@ switch(Pipe_ID >> 24)
  //
  BEGIN_OP_DLYIDIF(LDS_L)	// Pipeline same as ordinary load instruction
 	{
-	 uint32 ea;
+	 uint32_t ea;
 
 	 ea = R[instr_nyb2];
 	 R[instr_nyb2] += 4;
@@ -1733,8 +1733,8 @@ switch(Pipe_ID >> 24)
  // Pipeline: page 241
  //
  BEGIN_OP(RTE)
-	RESUME_VAR(uint32, opexec_new_PC);
-	RESUME_VAR(uint32, opexec_new_SR);
+	RESUME_VAR(uint32_t, opexec_new_PC);
+	RESUME_VAR(uint32_t, opexec_new_SR);
 
 	MemRead32(R[15], opexec_new_PC);
 	R[15] += 4;
@@ -1848,7 +1848,7 @@ switch(Pipe_ID >> 24)
 	{
 	 CONST_VAR(unsigned, n) = instr_nyb2;
 	 CONST_VAR(unsigned, cri) = (instr >> 4) & 0x3;
-	 uint32 ea;
+	 uint32_t ea;
 
 	 R[n] -= 4;
 	 ea = R[n];
@@ -1881,7 +1881,7 @@ switch(Pipe_ID >> 24)
 	{
 	 CONST_VAR(unsigned, n) = instr_nyb2;
 	 CONST_VAR(unsigned, sri) = (instr >> 4) & 0x3;
-	 uint32 ea;
+	 uint32_t ea;
 
 	 R[n] -= 4;
 	 ea = R[n];
@@ -1898,10 +1898,10 @@ switch(Pipe_ID >> 24)
  // Saved PC is the address of the instruction after the TRAPA instruction
  //
  BEGIN_OP_DLYIDIF(TRAPA)
-	RESUME_VAR(uint32, opexec_new_PC);
+	RESUME_VAR(uint32_t, opexec_new_PC);
 
 	PC -= 2;
-	Exception((uint8)instr, opexec_new_PC)
+	Exception((uint8_t)instr, opexec_new_PC)
 	Branch(opexec_new_PC);
  END_OP
 
@@ -1916,7 +1916,7 @@ switch(Pipe_ID >> 24)
  // Saved PC is the address of the illegal instruction.
  //
  BEGIN_OP_DLYIDIF(ILLEGAL)
-	RESUME_VAR(uint32, opexec_new_PC);
+	RESUME_VAR(uint32_t, opexec_new_PC);
 
 	PC -= 4;
 	Exception(VECNUM_ILLINSTR, opexec_new_PC);
@@ -1929,7 +1929,7 @@ switch(Pipe_ID >> 24)
  // Saved PC is the effective target address of the jump.
  //
  BEGIN_OP_DLYIDIF(SLOT_ILLEGAL)
-	RESUME_VAR(uint32, opexec_new_PC);
+	RESUME_VAR(uint32_t, opexec_new_PC);
 
 	PC -= 2;
 	Exception(VECNUM_ILLSLOT, opexec_new_PC);
@@ -1940,8 +1940,8 @@ switch(Pipe_ID >> 24)
  // Pending exception(address error/interrupt)
  //
  BEGIN_OP_DLYIDIF(PSEUDO_EPENDING)
-	RESUME_VAR(uint32, opexec_new_PC);
-	RESUME_VAR(uint8, opexec_vecnum);
+	RESUME_VAR(uint32_t, opexec_new_PC);
+	RESUME_VAR(uint8_t, opexec_vecnum);
 
 	opexec_new_PC = 0;
 
@@ -2006,7 +2006,7 @@ switch(Pipe_ID >> 24)
 	}
 	else	// Int
 	{
-	 RESUME_VAR(uint8, opexec_ipr);
+	 RESUME_VAR(uint8_t, opexec_ipr);
 
 	 opexec_ipr = GetPendingInt(NULL);
 
@@ -2040,7 +2040,7 @@ switch(Pipe_ID >> 24)
 	  //	:"r"(0), "r"(0xFFFFFE88), "r"(0xA500 | 0x00)
 	  // 	: "memory");
 	  //
-	  Pipe_ID = (uint16)Pipe_ID;
+	  Pipe_ID = (uint16_t)Pipe_ID;
 	  Pipe_ID |= InstrDecodeTab[Pipe_ID] << 24;
 	  goto SPEPRecover;
 	 }
@@ -2091,7 +2091,7 @@ switch(Pipe_ID >> 24)
 	 Pipe_ID &= 0x00FFFFFF;
 	 Pipe_ID &= ~(1U << (PEX_PSEUDO_DMABURST + EPENDING_PEXBITS_SHIFT));
 	 Pipe_ID &= ~(1U << (PEX_PSEUDO_EXTHALT + EPENDING_PEXBITS_SHIFT));
-	 Pipe_ID |= InstrDecodeTab[(uint16)Pipe_ID] << 24;
+	 Pipe_ID |= InstrDecodeTab[(uint16_t)Pipe_ID] << 24;
 	 if(Pipe_ID & (0xFF << EPENDING_PEXBITS_SHIFT))
 	  Pipe_ID |= EPENDING_OP_OR;
 

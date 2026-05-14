@@ -173,7 +173,7 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 
 /* LED interface */
 extern int Running; // variable in ss.cpp
-extern uint8 GetDriveStatus(void);
+extern uint8_t GetDriveStatus(void);
 static retro_set_led_state_t led_state_cb = NULL;
 static unsigned int retro_led_state[2] = {0};
 static void retro_led_interface(void)
@@ -627,7 +627,7 @@ static bool MDFNI_LoadGame(const char *name)
           (!strcasecmp( ext, "toc" )) ||
           (!strcasecmp( ext, "m3u" )) )
       {
-         uint8 fd_id[16];
+         uint8_t fd_id[16];
          char sgid[16 + 1]     = { 0 };
          char sgname[0x70 + 1] = { 0 };
          char sgarea[0x10 + 1] = { 0 };
@@ -927,7 +927,7 @@ void retro_run(void)
 
    // rects is 2.3KB; previously declared 'static' for no good reason
    // (it's fully written by Emulate each frame). Plain stack-local now.
-   int32 rects[MEDNAFEN_CORE_GEOMETRY_MAX_H];
+   int32_t rects[MEDNAFEN_CORE_GEOMETRY_MAX_H];
    rects[0] = ~0;
 
    EmulateSpecStruct spec;

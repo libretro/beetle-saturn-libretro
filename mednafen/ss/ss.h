@@ -80,12 +80,12 @@
   HORRIBLEHACK_VDP1INSTANT	 = (1U << 4),
   /*HORRIBLEHACK_SCUINTDELAY = (1U << 5),*/
  };
- MDFN_HIDE extern uint32 ss_horrible_hacks;
+ MDFN_HIDE extern uint32_t ss_horrible_hacks;
 #endif
 
  #define WORKRAM_BANK_SIZE_BYTES (1024*1024)
 
-  extern uint8 WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
+  extern uint8_t WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
 
  // Backup RAM is exposed so libretro.cpp can hand it to the frontend via
  // RETRO_MEMORY_SAVE_RAM. The dirty flags are maintained by the emulation
@@ -93,7 +93,7 @@
  // CartNV_Dirty is set at end-of-frame when CART_GetClearNVDirty returns
  // true), and consumed by libretro.cpp after Emulate() returns. See the
  // long comment in Emulate() in ss.cpp.
- extern uint8 BackupRAM[32768];
+ extern uint8_t BackupRAM[32768];
  extern bool BackupRAM_Dirty;
  extern bool CartNV_Dirty;
 
@@ -104,13 +104,13 @@
  bool SS_FlushCartNV(void);
 
 
- typedef int32 sscpu_timestamp_t;
+ typedef int32_t sscpu_timestamp_t;
 
  class SH7095;
 
  MDFN_HIDE extern SH7095 CPU[2];	// for smpc.cpp
 
- MDFN_HIDE extern int32 SH7095_mem_timestamp;
+ MDFN_HIDE extern int32_t SH7095_mem_timestamp;
 
  void SS_RequestMLExit(void);
  void SS_RequestEHLExit(void);
@@ -167,7 +167,7 @@
  // (length is in units of bytes, not 16-bit units)
  //
  // is_writeable is mostly for cheat stuff.
- void SS_SetPhysMemMap(uint32 Astart, uint32 Aend, uint16* ptr, uint32 length, bool is_writeable = false) MDFN_COLD;
+ void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable = false) MDFN_COLD;
 
  void SS_Reset(bool powering_up) MDFN_COLD;
 

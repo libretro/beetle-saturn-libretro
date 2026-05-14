@@ -79,14 +79,14 @@ void IODevice_Keyboard::Power(void)
  rep_dcnt = 0;
 }
 
-void IODevice_Keyboard::UpdateInput(const uint8* data, const int32 time_elapsed)
+void IODevice_Keyboard::UpdateInput(const uint8_t* data, const int32_t time_elapsed)
 {
  /* MDFN_de64lsb / MDFN_de16lsb folded: byte-wise LE construction. */
- phys[0] = (uint64)data[0x00] | ((uint64)data[0x01] << 8) | ((uint64)data[0x02] << 16) | ((uint64)data[0x03] << 24)
-         | ((uint64)data[0x04] << 32) | ((uint64)data[0x05] << 40) | ((uint64)data[0x06] << 48) | ((uint64)data[0x07] << 56);
- phys[1] = (uint64)data[0x08] | ((uint64)data[0x09] << 8) | ((uint64)data[0x0A] << 16) | ((uint64)data[0x0B] << 24)
-         | ((uint64)data[0x0C] << 32) | ((uint64)data[0x0D] << 40) | ((uint64)data[0x0E] << 48) | ((uint64)data[0x0F] << 56);
- phys[2] = (uint16)(data[0x10] | (data[0x11] << 8));
+ phys[0] = (uint64_t)data[0x00] | ((uint64_t)data[0x01] << 8) | ((uint64_t)data[0x02] << 16) | ((uint64_t)data[0x03] << 24)
+         | ((uint64_t)data[0x04] << 32) | ((uint64_t)data[0x05] << 40) | ((uint64_t)data[0x06] << 48) | ((uint64_t)data[0x07] << 56);
+ phys[1] = (uint64_t)data[0x08] | ((uint64_t)data[0x09] << 8) | ((uint64_t)data[0x0A] << 16) | ((uint64_t)data[0x0B] << 24)
+         | ((uint64_t)data[0x0C] << 32) | ((uint64_t)data[0x0D] << 40) | ((uint64_t)data[0x0E] << 48) | ((uint64_t)data[0x0F] << 56);
+ phys[2] = (uint16_t)(data[0x10] | (data[0x11] << 8));
  phys[3] = 0;
  //
  if(rep_dcnt > 0)
@@ -94,12 +94,12 @@ void IODevice_Keyboard::UpdateInput(const uint8* data, const int32 time_elapsed)
 
  for(unsigned i = 0; i < 4; i++)
  {
-  uint64 tmp = phys[i] ^ processed[i];
+  uint64_t tmp = phys[i] ^ processed[i];
   unsigned bp;
 
   while((bp = (63 ^ MDFN_lzcount64(tmp))) < 64)
   {
-   const uint64 mask = ((uint64)1 << bp);
+   const uint64_t mask = ((uint64_t)1 << bp);
    const int sc = ((i << 6) + bp);
 
    if(fifo_cnt >= (fifo_size - (sc == 0x82)))
@@ -151,7 +151,7 @@ void IODevice_Keyboard::UpdateInput(const uint8* data, const int32 time_elapsed)
  fifo_oflow_abort:;
 }
 
-void IODevice_Keyboard::UpdateOutput(uint8* data)
+void IODevice_Keyboard::UpdateOutput(uint8_t* data)
 {
  data[0x12] = lock;
 }
@@ -205,7 +205,7 @@ void IODevice_Keyboard::StateAction(StateMem* sm, const unsigned load, const boo
  }
 }
 
-uint8 IODevice_Keyboard::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted)
+uint8_t IODevice_Keyboard::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
  if(smpc_out & 0x40)
  {
@@ -222,7 +222,7 @@ uint8 IODevice_Keyboard::UpdateBus(const sscpu_timestamp_t timestamp, const uint
 
    if(!phase)
    {
-    if(mkbrk_pend == (uint8)mkbrk_pend && fifo_cnt)
+    if(mkbrk_pend == (uint8_t)mkbrk_pend && fifo_cnt)
     {
      mkbrk_pend = fifo[fifo_rdp];
      fifo_rdp = (fifo_rdp + 1) % fifo_size;
@@ -267,7 +267,7 @@ uint8 IODevice_Keyboard::UpdateBus(const sscpu_timestamp_t timestamp, const uint
 
    if(phase == 9)
    {
-    mkbrk_pend = (uint8)mkbrk_pend;
+    mkbrk_pend = (uint8_t)mkbrk_pend;
     lock = lock_pend;
     simbutt = simbutt_pend;
    }

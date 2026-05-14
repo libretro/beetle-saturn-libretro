@@ -69,7 +69,7 @@ uint32_t EDCCrc32(const unsigned char*, int);
  ***
  * This is currently the hardcoded GF(2**8).
  * int32_t gives abundant space for the GF.
- * Squeezing it down to uint8 won't probably gain much,
+ * Squeezing it down to uint8_t won't probably gain much,
  * so we implement this defensively here.
  *
  * Note that some performance critical stuff needs to

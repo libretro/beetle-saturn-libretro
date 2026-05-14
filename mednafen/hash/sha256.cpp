@@ -26,7 +26,7 @@
 #include <string.h>
 
 
-static const uint32 K[64] =
+static const uint32_t K[64] =
 {
  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -39,51 +39,51 @@ static const uint32 K[64] =
 };
 
 template<unsigned n>
-static INLINE uint32 rotr(const uint32 val)
+static INLINE uint32_t rotr(const uint32_t val)
 {
  return (val >> n) | (val << (32 - n));
 }
 
-static INLINE uint32 ch(const uint32 x, const uint32 y, const uint32 z)
+static INLINE uint32_t ch(const uint32_t x, const uint32_t y, const uint32_t z)
 {
  return (x & y) ^ ((~x) & z);
 }
 
-static INLINE uint32 maj(const uint32 x, const uint32 y, const uint32 z)
+static INLINE uint32_t maj(const uint32_t x, const uint32_t y, const uint32_t z)
 {
  return (x & y) ^ (x & z) ^ (y & z);
 }
 
-static INLINE uint32 bs0(const uint32 x)
+static INLINE uint32_t bs0(const uint32_t x)
 {
  return rotr<2>(x) ^ rotr<13>(x) ^ rotr<22>(x);
 }
 
-static INLINE uint32 bs1(const uint32 x)
+static INLINE uint32_t bs1(const uint32_t x)
 {
  return rotr<6>(x) ^ rotr<11>(x) ^ rotr<25>(x);
 }
 
-static INLINE uint32 ls0(const uint32 x)
+static INLINE uint32_t ls0(const uint32_t x)
 {
  return rotr<7>(x) ^ rotr<18>(x) ^ (x >> 3);
 }
 
-static INLINE uint32 ls1(const uint32 x)
+static INLINE uint32_t ls1(const uint32_t x)
 {
  return rotr<17>(x) ^ rotr<19>(x) ^ (x >> 10);
 }
 
-static INLINE void block(std::array<uint32, 8> &h, void* blk_data)
+static INLINE void block(std::array<uint32_t, 8> &h, void* blk_data)
 {
- alignas(16) uint32 w[64];
+ alignas(16) uint32_t w[64];
  alignas(16) auto v = h;
 
  for(unsigned t = 0; t < 16; t++)
  {
-  /* MDFN_de32msb folded: 4 BE bytes -> host uint32. */
-  const uint8 *bp__ = (const uint8*)blk_data + (t << 2);
-  w[t] = ((uint32)bp__[0] << 24) | ((uint32)bp__[1] << 16) | ((uint32)bp__[2] << 8) | (uint32)bp__[3];
+  /* MDFN_de32msb folded: 4 BE bytes -> host uint32_t. */
+  const uint8_t *bp__ = (const uint8_t*)blk_data + (t << 2);
+  w[t] = ((uint32_t)bp__[0] << 24) | ((uint32_t)bp__[1] << 16) | ((uint32_t)bp__[2] << 8) | (uint32_t)bp__[3];
  }
 
  for(unsigned t = 16; t < 64; t++)
@@ -91,8 +91,8 @@ static INLINE void block(std::array<uint32, 8> &h, void* blk_data)
 
  for(unsigned t = 0; t < 64; t++)
  {
-  uint32 T1 = v[7] + bs1(v[4]) + ch(v[4], v[5], v[6]) + K[t] + w[t];
-  uint32 T2 = bs0(v[0]) + maj(v[0], v[1], v[2]);
+  uint32_t T1 = v[7] + bs1(v[4]) + ch(v[4], v[5], v[6]) + K[t] + w[t];
+  uint32_t T2 = bs0(v[0]) + maj(v[0], v[1], v[2]);
 
   v[7] = v[6];
   v[6] = v[5];
@@ -108,12 +108,12 @@ static INLINE void block(std::array<uint32, 8> &h, void* blk_data)
   h[i] += v[i];
 }
 
-sha256_digest sha256(const void* data, const uint64 len)
+sha256_digest sha256(const void* data, const uint64_t len)
 {
  sha256_digest ret;
- alignas(16) std::array<uint32, 8> h({{ 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 }});
- uint8* p = (uint8*)data;
- uint64 dc = len;
+ alignas(16) std::array<uint32_t, 8> h({{ 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 }});
+ uint8_t* p = (uint8_t*)data;
+ uint64_t dc = len;
 
  while(MDFN_LIKELY(dc >= 64))
  {
@@ -124,7 +124,7 @@ sha256_digest sha256(const void* data, const uint64 len)
  }
 
  {
-  alignas(16) uint8 tmp[128];
+  alignas(16) uint8_t tmp[128];
 
   memcpy(tmp, p, dc);
   memset(tmp + dc, 0, 128 - dc);
@@ -135,7 +135,7 @@ sha256_digest sha256(const void* data, const uint64 len)
   /* MDFN_en64msb<true>(ptr, len*8) folded: aligned BE 64-bit store.
    * On MSB_FIRST host: plain memcpy. On LE host: bswap64 then memcpy. */
   {
-   uint64 v__ = len * 8;
+   uint64_t v__ = len * 8;
 #ifndef MSB_FIRST
    v__ =  (v__ << 56) | (v__ >> 56)
        | ((v__ & 0xFF00ULL) << 40) | ((v__ >> 40) & 0xFF00ULL)
@@ -152,8 +152,8 @@ sha256_digest sha256(const void* data, const uint64 len)
 
  for(unsigned i = 0; i < 8; i++)
  {
-  /* MDFN_en32msb folded: write host uint32 as 4 BE bytes. */
-  const uint32 v__ = h[i];
+  /* MDFN_en32msb folded: write host uint32_t as 4 BE bytes. */
+  const uint32_t v__ = h[i];
   ret[i * 4 + 0] = v__ >> 24;
   ret[i * 4 + 1] = v__ >> 16;
   ret[i * 4 + 2] = v__ >>  8;
@@ -175,16 +175,16 @@ void sha256_hasher::reset(void)
  h = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
 }
 
-INLINE void sha256_hasher::process_block(const uint8* blk_data)
+INLINE void sha256_hasher::process_block(const uint8_t* blk_data)
 {
- alignas(16) uint32 w[64];
+ alignas(16) uint32_t w[64];
  alignas(16) auto v = h;
 
  for(unsigned t = 0; t < 16; t++)
  {
-  /* MDFN_de32msb folded: 4 BE bytes -> host uint32. */
-  const uint8 *bp__ = blk_data + (t << 2);
-  w[t] = ((uint32)bp__[0] << 24) | ((uint32)bp__[1] << 16) | ((uint32)bp__[2] << 8) | (uint32)bp__[3];
+  /* MDFN_de32msb folded: 4 BE bytes -> host uint32_t. */
+  const uint8_t *bp__ = blk_data + (t << 2);
+  w[t] = ((uint32_t)bp__[0] << 24) | ((uint32_t)bp__[1] << 16) | ((uint32_t)bp__[2] << 8) | (uint32_t)bp__[3];
  }
 
  for(unsigned t = 16; t < 64; t++)
@@ -192,8 +192,8 @@ INLINE void sha256_hasher::process_block(const uint8* blk_data)
 
  for(unsigned t = 0; t < 64; t++)
  {
-  uint32 T1 = v[7] + bs1(v[4]) + ch(v[4], v[5], v[6]) + K[t] + w[t];
-  uint32 T2 = bs0(v[0]) + maj(v[0], v[1], v[2]);
+  uint32_t T1 = v[7] + bs1(v[4]) + ch(v[4], v[5], v[6]) + K[t] + w[t];
+  uint32_t T2 = bs0(v[0]) + maj(v[0], v[1], v[2]);
 
   v[7] = v[6];
   v[6] = v[5];
@@ -211,7 +211,7 @@ INLINE void sha256_hasher::process_block(const uint8* blk_data)
 
 void sha256_hasher::process(const void* data, size_t len)
 {
- uint8* d8 = (uint8*)data;
+ uint8_t* d8 = (uint8_t*)data;
 
  bytes_processed += len;
 
@@ -246,7 +246,7 @@ sha256_digest sha256_hasher::digest(void) const
  sha256_digest ret;
  sha256_hasher tmp = *this;
  const size_t footer_len = ((buf_count <= (0x40 - 9)) ? 0x40 : 0x80) - buf_count;
- alignas(16) uint8 footer[0x80];
+ alignas(16) uint8_t footer[0x80];
 
  memset(footer, 0, sizeof(footer));
  footer[0] |= 0x80;
@@ -254,8 +254,8 @@ sha256_digest sha256_hasher::digest(void) const
  /* MDFN_en64msb folded: byte-by-byte BE 64-bit store (no MSB_FIRST
   * needed - explicit byte arithmetic gives BE bytes on any host). */
  {
-  uint8 *fp__ = &footer[footer_len - 8];
-  uint64 v__ = bytes_processed * 8;
+  uint8_t *fp__ = &footer[footer_len - 8];
+  uint64_t v__ = bytes_processed * 8;
   fp__[0] = v__ >> 56;
   fp__[1] = v__ >> 48;
   fp__[2] = v__ >> 40;
@@ -270,8 +270,8 @@ sha256_digest sha256_hasher::digest(void) const
 
  for(unsigned i = 0; i < 8; i++)
  {
-  /* MDFN_en32msb folded: write host uint32 as 4 BE bytes. */
-  const uint32 v__ = tmp.h[i];
+  /* MDFN_en32msb folded: write host uint32_t as 4 BE bytes. */
+  const uint32_t v__ = tmp.h[i];
   ret[i * 4 + 0] = v__ >> 24;
   ret[i * 4 + 1] = v__ >> 16;
   ret[i * 4 + 2] = v__ >>  8;

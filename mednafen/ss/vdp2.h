@@ -28,24 +28,24 @@
 namespace VDP2
 {
 
-uint32 Write8_DB(uint32 A, uint16 DB) MDFN_HOT;
-uint32 Write16_DB(uint32 A, uint16 DB) MDFN_HOT;
+uint32_t Write8_DB(uint32_t A, uint16_t DB) MDFN_HOT;
+uint32_t Write16_DB(uint32_t A, uint16_t DB) MDFN_HOT;
 // DSP-DMA burst of n16 16-bit writes into the VDP2 window: words[i] -> (base + i*((1<<add_mode)&~1)).
 // Performs the SH2-side array writes here and queues a single renderer burst; returns the summed VRAM access penalty.
-uint32 Write16Burst_DB(uint32 base, uint32 n16, uint32 add_mode, const uint16* words) MDFN_HOT;
-uint16 Read16_DB(uint32 A) MDFN_HOT;
+uint32_t Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const uint16_t* words) MDFN_HOT;
+uint16_t Read16_DB(uint32_t A) MDFN_HOT;
 
-void Init(const bool IsPAL, const uint64 affinity) MDFN_COLD;
+void Init(const bool IsPAL, const uint64_t affinity) MDFN_COLD;
 void SetGetVideoParams(MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend) MDFN_COLD;
 void Kill(void) MDFN_COLD;
 void StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
 void Reset(bool powering_up) MDFN_COLD;
-void SetLayerEnableMask(uint64 mask) MDFN_COLD;
+void SetLayerEnableMask(uint64_t mask) MDFN_COLD;
 void SetDeinterlaceOff(bool off) MDFN_COLD;
 
 sscpu_timestamp_t Update(sscpu_timestamp_t timestamp);
-void AdjustTS(const int32 delta);
+void AdjustTS(const int32_t delta);
 
 void GetGunXTranslation(const bool clock28m, float* scale, float* offs);
 void StartFrame(EmulateSpecStruct* espec, const bool clock28m);
@@ -141,12 +141,12 @@ enum
  GSREG_PRIR
 };
 
-uint32 GetRegister(const unsigned id, char* const special, const uint32 special_len) MDFN_COLD;
-void SetRegister(const unsigned id, const uint32 value) MDFN_COLD;
-uint8 PeekVRAM(uint32 addr) MDFN_COLD;
-void PokeVRAM(uint32 addr, const uint8 val) MDFN_COLD;
+uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
+void SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
+uint8_t PeekVRAM(uint32_t addr) MDFN_COLD;
+void PokeVRAM(uint32_t addr, const uint8_t val) MDFN_COLD;
 
-INLINE uint32 PeekLine(void) { MDFN_HIDE extern int32 VCounter; return VCounter; }
-INLINE uint32 PeekHPos(void) { MDFN_HIDE extern int32 HCounter; return HCounter; }
+INLINE uint32_t PeekLine(void) { MDFN_HIDE extern int32_t VCounter; return VCounter; }
+INLINE uint32_t PeekHPos(void) { MDFN_HIDE extern int32_t HCounter; return HCounter; }
 }
 #endif

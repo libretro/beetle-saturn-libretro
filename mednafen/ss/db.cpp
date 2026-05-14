@@ -37,7 +37,7 @@
 
 static const struct
 {
- uint8 id[16];
+ uint8_t id[16];
  unsigned area;
  const char* game_name;
 } regiondb[] =
@@ -63,7 +63,7 @@ static const struct
  int cart_type;
  const char* game_name;
  const char* purpose;
- uint8 fd_id[16];
+ uint8_t fd_id[16];
 } cartdb[] =
 {
  //
@@ -236,7 +236,7 @@ static const struct
  unsigned mode;
  const char* game_name;
  const char* purpose;
- uint8 fd_id[16];
+ uint8_t fd_id[16];
 } cemdb[] =
 {
  { "T-9705H",	NULL, NULL, CPUCACHE_EMUMODE_DATA_CB, "Area 51 (USA)", "Fixes game hang." },
@@ -1651,13 +1651,13 @@ static const STVGameInfo STVGI[] =
 
 const STVGameInfo* DB_LookupSTV(const std::string& fname, cdstream* s)
 {
- uint8 tmp[0x80];
- uint32 dr;
- uint32 head_crc32;
+ uint8_t tmp[0x80];
+ uint32_t dr;
+ uint32_t head_crc32;
 
  // cdstream_read returns count actually read (0 on error or EOF).
  // We accept short reads -- compute CRC32 over what we got.
- dr = (uint32)cdstream_read(s, tmp, sizeof(tmp));
+ dr = (uint32_t)cdstream_read(s, tmp, sizeof(tmp));
 
  // Rewind for any caller that re-reads after lookup.
  cdstream_seek(s, 0, SEEK_SET);
@@ -1679,7 +1679,7 @@ const STVGameInfo* DB_LookupSTV(const std::string& fname, cdstream* s)
  return nullptr;
 }
 
-void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode)
+void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8_t* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode)
 {
  for(auto& re : regiondb)
  {
@@ -1742,7 +1742,7 @@ static const struct
  unsigned horrible_hacks;
  const char* game_name;
  const char* purpose;
- uint8 fd_id[16];
+ uint8_t fd_id[16];
 } hhdb[] =
 {
  { "GS-9126", HORRIBLEHACK_NOSH2DMAPENALTY,	"Fighters Megamix (Japan)", "Fixes hang after watching or aborting FMV playback." },
@@ -1789,7 +1789,7 @@ static const struct
  { "T-11501H00", HORRIBLEHACK_NOSH2DMALINE106 | HORRIBLEHACK_VDP1INSTANT, "Thunderstrike II (USA)", "Fixes hangs just before and during gameplay." },
 };
 
-uint32 DB_LookupHH(const char* sgid, const uint8* fd_id)
+uint32_t DB_LookupHH(const char* sgid, const uint8_t* fd_id)
 {
  for(auto& hh : hhdb)
  {
@@ -1802,7 +1802,7 @@ uint32 DB_LookupHH(const char* sgid, const uint8* fd_id)
  return 0;
 }
 
-static std::string FDIDToString(const uint8 (&fd_id)[16])
+static std::string FDIDToString(const uint8_t (&fd_id)[16])
 {
        char tmp[ 128 ];
        sprintf( tmp, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
@@ -1810,7 +1810,7 @@ static std::string FDIDToString(const uint8 (&fd_id)[16])
        return std::string( tmp );
 }
 
-std::string DB_GetHHDescriptions(const uint32 hhv)
+std::string DB_GetHHDescriptions(const uint32_t hhv)
 {
  std::string sv;
 

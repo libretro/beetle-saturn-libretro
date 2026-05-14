@@ -29,14 +29,14 @@
 
 static bool FLASH_Dirty;
 
-static uint16* FLASH = nullptr; //[0x20000];
-static uint16* ExtRAM = nullptr; //[0x200000];
+static uint16_t* FLASH = nullptr; //[0x20000];
+static uint16_t* ExtRAM = nullptr; //[0x200000];
 
 template<typename T, bool IsWrite>
-static MDFN_HOT void ExtRAM_RW_DB(uint32 A, uint16* DB)
+static MDFN_HOT void ExtRAM_RW_DB(uint32_t A, uint16_t* DB)
 {
- const uint32 mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
- uint16* const ptr = (uint16*)((uint8*)ExtRAM + (A & 0x3FFFFE));
+ const uint32_t mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+ uint16_t* const ptr = (uint16_t*)((uint8_t*)ExtRAM + (A & 0x3FFFFE));
 
  if(IsWrite)
   *ptr = (*ptr & ~mask) | (*DB & mask);
@@ -44,20 +44,20 @@ static MDFN_HOT void ExtRAM_RW_DB(uint32 A, uint16* DB)
   *DB = *ptr;
 }
 
-static MDFN_HOT void FLASH_Read(uint32 A, uint16* DB)
+static MDFN_HOT void FLASH_Read(uint32_t A, uint16_t* DB)
 {
  if(MDFN_UNLIKELY(A & 0x080000))
   *DB = 0xFFFF;
  else
-  *DB = *(uint16*)((uint8*)FLASH + (A & 0x3FFFE));
+  *DB = *(uint16_t*)((uint8_t*)FLASH + (A & 0x3FFFE));
 }
 
-static MDFN_HOT void CV_Read(uint32 A, uint16* DB)
+static MDFN_HOT void CV_Read(uint32_t A, uint16_t* DB)
 {
  *DB = 0xFFFF ^ ((A >> 20) & ((A >> 18) | (A >> 19) | ((A >> 21) ^ (A >> 22))) & 0x2);
 }
 
-static MDFN_HOT void RAMID_Read(uint32 A, uint16* DB)
+static MDFN_HOT void RAMID_Read(uint32_t A, uint16_t* DB)
 {
  *DB = 0xFF5C;
 }
@@ -77,7 +77,7 @@ static MDFN_COLD bool GetClearNVDirty(void)
  return ret;
 }
 
-static MDFN_COLD void GetNVInfo(const char** ext, void** nv_ptr, bool* nv16, uint64* nv_size)
+static MDFN_COLD void GetNVInfo(const char** ext, void** nv_ptr, bool* nv16, uint64_t* nv_size)
 {
  *ext = "arp";
  *nv_ptr = FLASH;
@@ -120,8 +120,8 @@ static MDFN_COLD void Kill(void)
 
 void CART_AR4MP_Init(CartInfo* c, RFILE* str)
 {
- std::unique_ptr<uint16[]> new_FLASH(new uint16[0x20000]);
- std::unique_ptr<uint16[]> new_ExtRAM(new uint16[0x200000]);
+ std::unique_ptr<uint16_t[]> new_FLASH(new uint16_t[0x20000]);
+ std::unique_ptr<uint16_t[]> new_ExtRAM(new uint16_t[0x200000]);
 
  FLASH = new_FLASH.get();
  ExtRAM = new_ExtRAM.get();
@@ -133,7 +133,7 @@ void CART_AR4MP_Init(CartInfo* c, RFILE* str)
  {
   /* MDFN_de16msb<true> folded: BE-on-disk to host-endian. */
 #ifndef MSB_FIRST
-  FLASH[i] = (uint16)((FLASH[i] << 8) | (FLASH[i] >> 8));
+  FLASH[i] = (uint16_t)((FLASH[i] << 8) | (FLASH[i] >> 8));
 #endif
  }
 
@@ -144,9 +144,9 @@ void CART_AR4MP_Init(CartInfo* c, RFILE* str)
 
  SS_SetPhysMemMap (0x02400000, 0x027FFFFF, ExtRAM, 0x400000, true);
  c->CS01_SetRW8W16(0x02400000, 0x027FFFFF,
-	ExtRAM_RW_DB<uint16, false>,
-	ExtRAM_RW_DB<uint8, true>,
-	ExtRAM_RW_DB<uint16, true>);
+	ExtRAM_RW_DB<uint16_t, false>,
+	ExtRAM_RW_DB<uint8_t, true>,
+	ExtRAM_RW_DB<uint16_t, true>);
 
 
  FLASH_Dirty = false;

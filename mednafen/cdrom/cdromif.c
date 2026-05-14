@@ -32,7 +32,7 @@
  *     std::string for FATAL_ERROR diagnostic text.  No code path
  *     ever constructed a string-bearing message in Beetle Saturn;
  *     the CDIF_MSG_FATAL_ERROR code was wired up but never sent.
- *     The std::string field is gone; messages are 5-uint32 PODs.
+ *     The std::string field is gone; messages are 5-uint32_t PODs.
  *
  *   - CDIF_Queue was std::queue<CDIF_Message>.  In practice the
  *     in-flight depth is 1-3 messages (DIE + a handful of READ

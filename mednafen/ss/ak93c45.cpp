@@ -51,7 +51,7 @@ void AK93C45::ResetTS(void)
   write_finish_counter = 0;
 }
 
-void AK93C45::SetTSFreq(const int32 rate)
+void AK93C45::SetTSFreq(const int32_t rate)
 {
  tsratio = 1000000 * (1ULL << 32) / rate;
 }
@@ -75,11 +75,11 @@ void AK93C45::Power(void)
 }
 
 
-bool AK93C45::UpdateBus(int32 timestamp, bool cs, bool sk, bool di)
+bool AK93C45::UpdateBus(int32_t timestamp, bool cs, bool sk, bool di)
 {
- int64 clocks;
+ int64_t clocks;
 
- clocks = (int64)(timestamp - lastts) * tsratio;
+ clocks = (int64_t)(timestamp - lastts) * tsratio;
  lastts = timestamp;
 
  write_finish_counter -= clocks;
@@ -104,7 +104,7 @@ bool AK93C45::UpdateBus(int32 timestamp, bool cs, bool sk, bool di)
     mem[addr & 0x3F] = data_buffer;
 
    phase = PHASE_WRITING;
-   write_finish_counter = (int64)10000 << 32;
+   write_finish_counter = (int64_t)10000 << 32;
   }
   else if(phase != PHASE_WRITING)
    phase = PHASE_IDLE;

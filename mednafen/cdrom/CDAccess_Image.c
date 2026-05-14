@@ -1259,7 +1259,7 @@ static bool CDAccess_Image_Read_Raw_Sector(CDAccess_Image *self, uint8_t *buf, i
 
          for (i = 0; i < 588 * 2; i++)
          {
-            /* MDFN_en16lsb folded: write host int16 as 2 LE bytes. */
+            /* MDFN_en16lsb folded: write host int16_t as 2 LE bytes. */
             uint16_t v__ = (uint16_t)AudioBuf[i];
             buf[i * 2 + 0] = (uint8_t)v__;
             buf[i * 2 + 1] = (uint8_t)(v__ >> 8);

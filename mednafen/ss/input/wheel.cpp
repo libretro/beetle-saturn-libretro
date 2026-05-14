@@ -39,15 +39,15 @@ void IODevice_Wheel::Power(void)
  data_out = 0x01;
 }
 
-void IODevice_Wheel::UpdateInput(const uint8* data, const int32 time_elapsed)
+void IODevice_Wheel::UpdateInput(const uint8_t* data, const int32_t time_elapsed)
 {
- dbuttons = (dbuttons & 0xC) | (((uint16)(data[0] | (data[1] << 8))) & 0x07F3);
+ dbuttons = (dbuttons & 0xC) | (((uint16_t)(data[0] | (data[1] << 8))) & 0x07F3);
 
  //
  {
-  int32 tmp = 32767
-            + (uint16)(data[0x2 + 2] | (data[0x2 + 2 + 1] << 8))
-            - (uint16)(data[0x2 + 0] | (data[0x2 + 0 + 1] << 8));
+  int32_t tmp = 32767
+            + (uint16_t)(data[0x2 + 2] | (data[0x2 + 2 + 1] << 8))
+            - (uint16_t)(data[0x2 + 0] | (data[0x2 + 0 + 1] << 8));
 
   wheel = 1 + tmp * 253 / 65534;
 
@@ -91,9 +91,9 @@ void IODevice_Wheel::StateAction(StateMem* sm, const unsigned load, const bool d
  }
 }
 
-uint8 IODevice_Wheel::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted)
+uint8_t IODevice_Wheel::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
- uint8 tmp;
+ uint8_t tmp;
 
  if(smpc_out & 0x40)
  {

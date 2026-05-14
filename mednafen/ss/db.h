@@ -51,11 +51,11 @@ enum
 //
 struct STVROMLayout
 {
- uint32 offset;
- uint32 size;
+ uint32_t offset;
+ uint32_t size;
  unsigned map;
  const char* fname;
- uint32 head_crc32;
+ uint32_t head_crc32;
 };
 
 enum
@@ -103,10 +103,10 @@ struct STVGameInfo
 
 const STVGameInfo* DB_LookupSTV(const std::string& fname, cdstream* s);
 
-void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode);
-uint32 DB_LookupHH(const char* sgid, const uint8* fd_id);
+void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8_t* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode);
+uint32_t DB_LookupHH(const char* sgid, const uint8_t* fd_id);
 void DB_GetInternalDB(std::vector<GameDB_Database>* databases) MDFN_COLD;
-std::string DB_GetHHDescriptions(const uint32 hhv) MDFN_COLD;
+std::string DB_GetHHDescriptions(const uint32_t hhv) MDFN_COLD;
 
 
 #endif

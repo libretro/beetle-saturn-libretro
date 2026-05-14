@@ -31,11 +31,11 @@ class M68K
  M68K(const bool rev_e = false) MDFN_COLD;
  ~M68K() MDFN_COLD;
 
- void Run(int32 run_until_time);
+ void Run(int32_t run_until_time);
 
  void Reset(bool powering_up) MDFN_COLD;
 
- void SetIPL(uint8 ipl_new);
+ void SetIPL(uint8_t ipl_new);
  void SetExtHalted(bool state);
 
 
@@ -44,12 +44,12 @@ class M68K
  // bus read/write handlers as appropriate, followed by a longjmp() to above
  // Run().
  //
- INLINE void SignalDTACKHalted(uint32 addr)
+ INLINE void SignalDTACKHalted(uint32_t addr)
  {
   XPending |= XPENDING_MASK_DTACKHALTED;
  }
 
- INLINE void SignalAddressError(uint32 addr, uint8 type)
+ INLINE void SignalAddressError(uint32_t addr, uint8_t type)
  {
   if(XPending & (XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_RESET))
   {
@@ -71,24 +71,24 @@ class M68K
  //
  union
  {
-  uint32 DA[16];
+  uint32_t DA[16];
   struct
   {
-   uint32 D[8];
-   uint32 A[8];
+   uint32_t D[8];
+   uint32_t A[8];
   };
  };
- int32 timestamp;
+ int32_t timestamp;
 
- uint32 PC;
- uint8 SRHB;
- uint8 IPL;
+ uint32_t PC;
+ uint8_t SRHB;
+ uint8_t IPL;
 
  bool Flag_Z, Flag_N;
  bool Flag_X, Flag_C, Flag_V;
 
- uint32 SP_Inactive;
- uint32 XPending;
+ uint32_t SP_Inactive;
+ uint32_t XPending;
  enum
  {
   XPENDING_MASK_INT 	= 0x0001,
@@ -113,17 +113,17 @@ class M68K
  void RecalcInt(void);
 
  template<typename T>
- T Read(uint32 addr);
+ T Read(uint32_t addr);
 
- uint16 ReadOp(void);
+ uint16_t ReadOp(void);
 
 #ifdef M68K_SPLIT_SWITCH
- void RunSplit0(uint16 instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
- void RunSplit1(uint16 instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
+ void RunSplit0(uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
+ void RunSplit1(uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
 #endif
 
  template<typename T, bool long_dec = false>
- void Write(uint32 addr, const T val);
+ void Write(uint32_t addr, const T val);
 
  template<typename T>
  void Push(const T value);
@@ -176,10 +176,10 @@ class M68K
  template<typename T, bool Z_OnlyClear = false>
  void CalcZN(const T val);
 
- uint8 GetCCR(void);
- void SetCCR(uint8 val);
- uint16 GetSR(void);
- void SetSR(uint16 val);
+ uint8_t GetCCR(void);
+ void SetCCR(uint8_t val);
+ uint16_t GetSR(void);
+ void SetSR(uint16_t val);
 
  bool GetSVisor(void);
 
@@ -277,7 +277,7 @@ class M68K
  void MULS(HAM<T, SAM> &src, const unsigned dr);
 
  template<bool sdiv>
- void Divide(uint16 divisor, const unsigned dr);
+ void Divide(uint16_t divisor, const unsigned dr);
 
  template<typename T, M68K::AddressMode SAM>
  void DIVU(HAM<T, SAM> &src, const unsigned dr);
@@ -288,7 +288,7 @@ class M68K
  template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
  void ABCD(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
- uint8 DecimalSubtractX(const uint8 src_data, const uint8 dst_data);
+ uint8_t DecimalSubtractX(const uint8_t src_data, const uint8_t dst_data);
 
  template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
  void SBCD(HAM<T, SAM> &src, HAM<T, DAM> &dst);
@@ -318,10 +318,10 @@ class M68K
  void MOVEA(HAM<T, SAM> &src, const unsigned ar);
 
  template<bool pseudo_predec, typename T, M68K::AddressMode DAM>
- void MOVEM_to_MEM(const uint16 reglist, HAM<T, DAM> &dst);
+ void MOVEM_to_MEM(const uint16_t reglist, HAM<T, DAM> &dst);
 
  template<bool pseudo_postinc, typename T, M68K::AddressMode SAM>
- void MOVEM_to_REGS(HAM<T, SAM> &src, const uint16 reglist);
+ void MOVEM_to_REGS(HAM<T, SAM> &src, const uint16_t reglist);
 
  template<typename T, M68K::AddressMode TAM, bool Arithmetic, bool ShiftLeft>
  void ShiftBase(HAM<T, TAM> &targ, unsigned count);
@@ -370,13 +370,13 @@ class M68K
 
  void SWAP(const unsigned dr);
 
- void EXG(uint32* a, uint32* b);
+ void EXG(uint32_t* a, uint32_t* b);
 
  template<unsigned cc>
  bool TestCond(void);
 
  template<unsigned cc>
- void Bxx(uint32 disp);
+ void Bxx(uint32_t disp);
 
  template<unsigned cc>
  void DBcc(const unsigned dr);
@@ -414,7 +414,7 @@ class M68K
  void RTS(void);
  void TRAP(const unsigned vf);
  void TRAPV(void);
- void ILLEGAL(const uint16 instr);
+ void ILLEGAL(const uint16_t instr);
  void LINEA(void);
  void LINEF(void);
  void NOP(void);
@@ -430,15 +430,15 @@ class M68K
  // These externally-provided functions should add >= 4 to M68K::timestamp per call:
  enum { BUS_INT_ACK_AUTO = -1 };
 
- uint16 (MDFN_FASTCALL *BusReadInstr)(uint32 A);
- uint8 (MDFN_FASTCALL *BusRead8)(uint32 A);
- uint16 (MDFN_FASTCALL *BusRead16)(uint32 A);
- void (MDFN_FASTCALL *BusWrite8)(uint32 A, uint8 V);
- void (MDFN_FASTCALL *BusWrite16)(uint32 A, uint16 V);
+ uint16_t (MDFN_FASTCALL *BusReadInstr)(uint32_t A);
+ uint8_t (MDFN_FASTCALL *BusRead8)(uint32_t A);
+ uint16_t (MDFN_FASTCALL *BusRead16)(uint32_t A);
+ void (MDFN_FASTCALL *BusWrite8)(uint32_t A, uint8_t V);
+ void (MDFN_FASTCALL *BusWrite16)(uint32_t A, uint16_t V);
  //
  //
- void (MDFN_FASTCALL *BusRMW)(uint32 A, uint8 (MDFN_FASTCALL *cb)(M68K*, uint8));
- unsigned (MDFN_FASTCALL *BusIntAck)(uint8 level);
+ void (MDFN_FASTCALL *BusRMW)(uint32_t A, uint8_t (MDFN_FASTCALL *cb)(M68K*, uint8_t));
+ unsigned (MDFN_FASTCALL *BusIntAck)(uint8_t level);
  void (MDFN_FASTCALL *BusRESET)(bool state);	// Optional; Calling Reset(false) from this callback *is* permitted.
 
  //
@@ -474,8 +474,8 @@ class M68K
   GSREG_USP
  };
 
- uint32 GetRegister(unsigned which, char* special = nullptr, const uint32 special_len = 0);
- void SetRegister(unsigned which, uint32 value);
+ uint32_t GetRegister(unsigned which, char* special = nullptr, const uint32_t special_len = 0);
+ void SetRegister(unsigned which, uint32_t value);
 };
 
 #endif

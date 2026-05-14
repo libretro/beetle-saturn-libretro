@@ -49,7 +49,7 @@ static INLINE void MDFN_DecodeColor(uint32_t value,
 }
 
 /*
- * Framebuffer descriptor. A single calloc'd uint32 buffer of
+ * Framebuffer descriptor. A single calloc'd uint32_t buffer of
  * pitchinpix*h pixels, plus the dimensions used by the GPU /
  * Deinterlacer / scaler code paths.
  *
@@ -78,7 +78,7 @@ typedef struct
 } MDFN_Surface;
 
 /*
- * Allocate a new surface backed by a calloc'd uint32 pixel buffer
+ * Allocate a new surface backed by a calloc'd uint32_t pixel buffer
  * of pitchinpix*height entries. Returns NULL on allocation
  * failure (caller must check). Width and pitchinpix are normally
  * equal; the libretro driver picks them based on

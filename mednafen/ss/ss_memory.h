@@ -29,11 +29,11 @@
 #include <stdlib.h>
 
 // "Array" is a bit of a misnomer, but it helps avoid confusion with memset() semantics hopefully.
-static INLINE void MDFN_FastArraySet(uint64* const dst, const uint64 value, const size_t count)
+static INLINE void MDFN_FastArraySet(uint64_t* const dst, const uint64_t value, const size_t count)
 {
  #if defined(__x86_64__) && !defined(_MSC_VER)
  {
-  uint32 dummy_output0, dummy_output1;
+  uint32_t dummy_output0, dummy_output1;
 
   asm volatile(
         "cld\n\t"
@@ -44,17 +44,17 @@ static INLINE void MDFN_FastArraySet(uint64* const dst, const uint64 value, cons
  }
  #else
 
- for(uint64 *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
+ for(uint64_t *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
   *ai = value;
 
  #endif
 }
 
-static INLINE void MDFN_FastArraySet(uint32* const dst, const uint32 value, const size_t count)
+static INLINE void MDFN_FastArraySet(uint32_t* const dst, const uint32_t value, const size_t count)
 {
  #if defined(__x86_64__) && !defined(_MSC_VER)
  {
-  uint32 dummy_output0, dummy_output1;
+  uint32_t dummy_output0, dummy_output1;
 
   asm volatile(
         "cld\n\t"
@@ -66,34 +66,34 @@ static INLINE void MDFN_FastArraySet(uint32* const dst, const uint32 value, cons
   return;
  }
  #else
- if(0 == ((uintptr_t)dst & (sizeof(uint64) - 1)) && !(count & 1))
-  MDFN_FastArraySet((uint64*)dst, value | ((uint64)value << 32), count >> 1);
+ if(0 == ((uintptr_t)dst & (sizeof(uint64_t) - 1)) && !(count & 1))
+  MDFN_FastArraySet((uint64_t*)dst, value | ((uint64_t)value << 32), count >> 1);
  else
  {
-  for(uint32 *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
+  for(uint32_t *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
    *ai = value;
  }
  #endif
 }
 
-static INLINE void MDFN_FastArraySet(uint16* const dst, const uint16 value, const size_t count)
+static INLINE void MDFN_FastArraySet(uint16_t* const dst, const uint16_t value, const size_t count)
 {
- if(0 == ((uintptr_t)dst & (sizeof(uint32) - 1)) && !(count & 1))
-  MDFN_FastArraySet((uint32*)dst, value | (value << 16), count >> 1);
+ if(0 == ((uintptr_t)dst & (sizeof(uint32_t) - 1)) && !(count & 1))
+  MDFN_FastArraySet((uint32_t*)dst, value | (value << 16), count >> 1);
  else
  {
-  for(uint16 *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
+  for(uint16_t *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
    *ai = value;
  }
 }
 
-static INLINE void MDFN_FastArraySet(uint8* const dst, const uint16 value, const size_t count)
+static INLINE void MDFN_FastArraySet(uint8_t* const dst, const uint16_t value, const size_t count)
 {
- if(0 == ((uintptr_t)dst & (sizeof(uint16) - 1)) && !(count & 1))
-  MDFN_FastArraySet((uint16*)dst, value | (value << 8), count >> 1);
+ if(0 == ((uintptr_t)dst & (sizeof(uint16_t) - 1)) && !(count & 1))
+  MDFN_FastArraySet((uint16_t*)dst, value | (value << 8), count >> 1);
  else
  {
-  for(uint8 *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
+  for(uint8_t *ai = dst; MDFN_LIKELY(ai != (dst + count)); ai++)
    *ai = value;
  }
 }

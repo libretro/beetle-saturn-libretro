@@ -28,7 +28,7 @@ class SH7095 final
 {
  public:
 
- SH7095(const char* const name_arg, const unsigned dma_event_id_arg, uint8 (*exivecfn_arg)(void)) MDFN_COLD;
+ SH7095(const char* const name_arg, const unsigned dma_event_id_arg, uint8_t (*exivecfn_arg)(void)) MDFN_COLD;
  ~SH7095() MDFN_COLD;
 
  void Init(const bool EmulateICache, const bool CacheBypassHack) MDFN_COLD;
@@ -38,7 +38,7 @@ class SH7095 final
  void PostStateLoad(const unsigned state_version, const bool recorded_needicache, const bool needicache) MDFN_COLD;
 
  void ForceInternalEventUpdates(void);
- void AdjustTS(int32 delta);
+ void AdjustTS(int32_t delta);
  void SetActive(bool active);
 
  void TruePowerOn(void) MDFN_COLD;
@@ -74,19 +74,19 @@ class SH7095 final
  NO_CLONE NO_INLINE void RunSlaveUntil_Debug(sscpu_timestamp_t bound_timestamp) MDFN_COLD;
 
  //private:
- uint32 R[16];
- uint32 PC;
+ uint32_t R[16];
+ uint32_t PC;
 
  // Control registers
  union
  {
   struct
   {
-   uint32 SR;
-   uint32 GBR;
-   uint32 VBR;
+   uint32_t SR;
+   uint32_t GBR;
+   uint32_t VBR;
   };
-  uint32 CtrlRegs[3];
+  uint32_t CtrlRegs[3];
  };
 
  sscpu_timestamp_t timestamp;
@@ -108,15 +108,15 @@ class SH7095 final
  {
   struct
   {
-   uint32 MACH;
-   uint32 MACL;
-   uint32 PR;
+   uint32_t MACH;
+   uint32_t MACL;
+   uint32_t PR;
   };
-  uint32 SysRegs[3];
+  uint32_t SysRegs[3];
  };
 
- INLINE uint64 GetMAC64(void) { return MACL | ((uint64)MACH << 32); }
- INLINE void SetMAC64(uint64 nv) { MACL = nv; MACH = nv >> 32; }
+ INLINE uint64_t GetMAC64(void) { return MACL | ((uint64_t)MACH << 32); }
+ INLINE void SetMAC64(uint64_t nv) { MACL = nv; MACH = nv >> 32; }
 
  enum // must be in range of 0 ... 7
  {
@@ -132,7 +132,7 @@ class SH7095 final
  enum { EPENDING_PEXBITS_SHIFT = 16 };
  enum { EPENDING_OP_OR = 0xFF000000 };
 
- uint32 EPending;
+ uint32_t EPending;
 
  INLINE void SetPEX(const unsigned which)
  {
@@ -148,8 +148,8 @@ class SH7095 final
    EPending = 0;
  }
 
- uint32 Pipe_ID;
- uint32 Pipe_IF;
+ uint32_t Pipe_ID;
+ uint32_t Pipe_IF;
 
  enum
  {
@@ -187,24 +187,24 @@ class SH7095 final
   EPENDING_IPRIOLEV_SHIFT = 28	// 4 bits
  };
 
- uint32 Exception(const unsigned exnum, const unsigned vecnum);
+ uint32_t Exception(const unsigned exnum, const unsigned vecnum);
 
  //
  //
  //
- uint32 IBuffer;
- uint32 (MDFN_FASTCALL *MRFPI[8])(uint32 A);
+ uint32_t IBuffer;
+ uint32_t (MDFN_FASTCALL *MRFPI[8])(uint32_t A);
 
- uint8 (MDFN_FASTCALL *MRFP8[8])(uint32 A);
- uint16 (MDFN_FASTCALL *MRFP16[8])(uint32 A);
- uint32 (MDFN_FASTCALL *MRFP32[8])(uint32 A);
+ uint8_t (MDFN_FASTCALL *MRFP8[8])(uint32_t A);
+ uint16_t (MDFN_FASTCALL *MRFP16[8])(uint32_t A);
+ uint32_t (MDFN_FASTCALL *MRFP32[8])(uint32_t A);
 
- uint16 (MDFN_FASTCALL *MRFP16_I[8])(uint32 A);
- uint32 (MDFN_FASTCALL *MRFP32_I[8])(uint32 A);
+ uint16_t (MDFN_FASTCALL *MRFP16_I[8])(uint32_t A);
+ uint32_t (MDFN_FASTCALL *MRFP32_I[8])(uint32_t A);
 
- void (MDFN_FASTCALL *MWFP8[8])(uint32 A, uint8);
- void (MDFN_FASTCALL *MWFP16[8])(uint32 A, uint16);
- void (MDFN_FASTCALL *MWFP32[8])(uint32 A, uint32);
+ void (MDFN_FASTCALL *MWFP8[8])(uint32_t A, uint8_t);
+ void (MDFN_FASTCALL *MWFP16[8])(uint32_t A, uint16_t);
+ void (MDFN_FASTCALL *MWFP32[8])(uint32_t A, uint32_t);
 
  void RecalcMRWFP_0(void);
  void RecalcMRWFP_1_7(void);
@@ -220,17 +220,17 @@ class SH7095 final
  {
   // Rather than have separate validity bits, we're putting an INvalidity bit(invalid when =1)
   // in the lower bit of the Tag variables.
-  uint32 Tag[4];
-  uint8 Data[4][16];
+  uint32_t Tag[4];
+  uint8_t Data[4][16];
  };
  alignas(16) CacheEntry Cache[64];
 
- uint8 Cache_LRU[64];
- int32 CCRC_Replace_OR[2];	// Cached cache var, calculated from the ID and OD bits of CCR in SetCCR()
- uint8 CCRC_Replace_AND;	// Cached cache var, calculated from the TW bit of CCR in SetCCR()
- uint8 CCR;
+ uint8_t Cache_LRU[64];
+ int32_t CCRC_Replace_OR[2];	// Cached cache var, calculated from the ID and OD bits of CCR in SetCCR()
+ uint8_t CCRC_Replace_AND;	// Cached cache var, calculated from the TW bit of CCR in SetCCR()
+ uint8_t CCR;
 
- void SetCCR(uint8 V);
+ void SetCCR(uint8_t V);
  enum { CCR_CE = 0x01 };	// Cache Enable
  enum { CCR_ID = 0x02 };	// Instruction Replacement Disable
  enum { CCR_OD = 0x04 };	// Data Replacement Disable
@@ -239,27 +239,27 @@ class SH7095 final
  enum { CCR_W0 = 0x40 };	//
  enum { CCR_W1 = 0x80 };	//
 
- void Cache_AssocPurge(const uint32 A);
+ void Cache_AssocPurge(const uint32_t A);
 
- int Cache_FindWay(CacheEntry* const cent, const uint32 ATM);
-
- template<typename T>
- void Cache_WriteAddressArray(uint32 A, T V);
+ int Cache_FindWay(CacheEntry* const cent, const uint32_t ATM);
 
  template<typename T>
- void Cache_WriteDataArray(uint32 A, T V);
+ void Cache_WriteAddressArray(uint32_t A, T V);
 
  template<typename T>
- T Cache_ReadAddressArray(uint32 A);
+ void Cache_WriteDataArray(uint32_t A, T V);
 
  template<typename T>
- T Cache_ReadDataArray(uint32 A);
+ T Cache_ReadAddressArray(uint32_t A);
 
  template<typename T>
- void Cache_CheckReadIncoherency(CacheEntry* cent, const int way, const uint32 A);
+ T Cache_ReadDataArray(uint32_t A);
 
  template<typename T>
- void Cache_WriteUpdate(uint32 A, T V);
+ void Cache_CheckReadIncoherency(CacheEntry* cent, const int way, const uint32_t A);
+
+ template<typename T>
+ void Cache_WriteUpdate(uint32_t A, T V);
  //
  // End cache stuff
  //
@@ -269,60 +269,60 @@ class SH7095 final
  //
  struct
  {
-  uint16 BCR1;
-  uint8 BCR2;
-  uint16 WCR;
-  uint16 MCR;
+  uint16_t BCR1;
+  uint8_t BCR2;
+  uint16_t WCR;
+  uint16_t MCR;
 
-  uint8 RTCSR;
-  uint8 RTCSRM;
-  uint8 RTCNT;
-  uint8 RTCOR;
+  uint8_t RTCSR;
+  uint8_t RTCSRM;
+  uint8_t RTCNT;
+  uint8_t RTCOR;
   //
   //
   //
   sscpu_timestamp_t sdram_finish_time;
   sscpu_timestamp_t last_mem_time;
-  uint32 last_mem_addr;
-  uint32 last_mem_type;
+  uint32_t last_mem_addr;
+  uint32_t last_mem_type;
  } BSC;
 
  template<typename T>
- void INLINE BSC_BusWrite(uint32 A, T V, const bool BurstHax, int32* SH2DMAHax);
+ void INLINE BSC_BusWrite(uint32_t A, T V, const bool BurstHax, int32_t* SH2DMAHax);
 
  template<typename T>
- T INLINE BSC_BusRead(uint32 A, const bool BurstHax, int32* SH2DMAHax);
+ T INLINE BSC_BusRead(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
 
- uint32 UCRead_IF_Kludge;
+ uint32_t UCRead_IF_Kludge;
 
  //
  // Exit/Resume stuff for slave CPU with icache emulation(RunSlaveUntil())
  //
  const void* ResumePoint;
  CacheEntry* Resume_cent;
- uint32 Resume_instr;
+ uint32_t Resume_instr;
  int Resume_way_match;
- uint32 Resume_uint8_A;
- uint32 Resume_uint16_A;
- uint32 Resume_uint32_A;
- uint32 Resume_unmasked_A;
- uint32 Resume_uint32_V;
- uint16 Resume_uint16_V;
- uint8 Resume_uint8_V;
+ uint32_t Resume_uint8_A;
+ uint32_t Resume_uint16_A;
+ uint32_t Resume_uint32_A;
+ uint32_t Resume_unmasked_A;
+ uint32_t Resume_uint32_V;
+ uint16_t Resume_uint16_V;
+ uint8_t Resume_uint8_V;
 
- int32 Resume_MAC_L_m0;
- int32 Resume_MAC_L_m1;
+ int32_t Resume_MAC_L_m0;
+ int32_t Resume_MAC_L_m1;
 
- int16 Resume_MAC_W_m0;
- int16 Resume_MAC_W_m1;
+ int16_t Resume_MAC_W_m0;
+ int16_t Resume_MAC_W_m1;
 
- uint32 Resume_ea;
- uint32 Resume_new_PC;
- uint32 Resume_new_SR;
+ uint32_t Resume_ea;
+ uint32_t Resume_new_PC;
+ uint32_t Resume_new_SR;
 
- uint8 Resume_ipr;
- uint8 Resume_exnum;
- uint8 Resume_vecnum;
+ uint8_t Resume_ipr;
+ uint8_t Resume_exnum;
+ uint8_t Resume_vecnum;
 
  //
  //
@@ -332,21 +332,21 @@ class SH7095 final
  void INTC_Reset(void) MDFN_COLD;
 
  bool NMILevel;
- uint8 IRL;
+ uint8_t IRL;
 
- uint16 IPRA;
- uint16 IPRB;
- uint16 VCRWDT;
- uint16 VCRA;
- uint16 VCRB;
- uint16 VCRC;
- uint16 VCRD;
- uint16 ICR;
+ uint16_t IPRA;
+ uint16_t IPRB;
+ uint16_t VCRWDT;
+ uint16_t VCRA;
+ uint16_t VCRB;
+ uint16_t VCRC;
+ uint16_t VCRD;
+ uint16_t ICR;
 
  //
  //
  //
- uint8 SBYCR;
+ uint8_t SBYCR;
  bool Standby;
 
  //
@@ -361,15 +361,15 @@ class SH7095 final
   bool FTI;
   bool FTCI;
 
-  uint16 FRC;
-  uint16 OCR[2];
-  uint16 FICR;
-  uint8 TIER;
-  uint8 FTCSR;
-  uint8 FTCSRM;	// Bits set to 1 like FTCSR, but unconditionally reset all bits to 0 on FTCSR read.
-  uint8 TCR;
-  uint8 TOCR;
-  uint8 RW_Temp;
+  uint16_t FRC;
+  uint16_t OCR[2];
+  uint16_t FICR;
+  uint8_t TIER;
+  uint8_t FTCSR;
+  uint8_t FTCSRM;	// Bits set to 1 like FTCSR, but unconditionally reset all bits to 0 on FTCSR read.
+  uint8_t TCR;
+  uint8_t TOCR;
+  uint8_t RW_Temp;
  } FRT;
 
  void FRT_Reset(void) MDFN_COLD;
@@ -379,7 +379,7 @@ class SH7095 final
 
  void FRT_WDT_Update(void);
  void FRT_WDT_Recalc_NET(void);
- uint32 FRT_WDT_ClockDivider;
+ uint32_t FRT_WDT_ClockDivider;
  sscpu_timestamp_t FRT_WDT_NextTS;
 
  //
@@ -389,11 +389,11 @@ class SH7095 final
  //
  struct
  {
-  uint8 WTCSR;	// We don't let a CPU program set bit3 to 1, but we do set bit3 to 1 as part of the standby NMI recovery process(for internal use).
-  uint8 WTCSRM;
-  uint8 WTCNT;
-  uint8 RSTCSR;
-  uint8 RSTCSRM;
+  uint8_t WTCSR;	// We don't let a CPU program set bit3 to 1, but we do set bit3 to 1 as part of the standby NMI recovery process(for internal use).
+  uint8_t WTCSRM;
+  uint8_t WTCNT;
+  uint8_t RSTCSR;
+  uint8_t RSTCSRM;
  } WDT;
 
  void WDT_Reset(bool from_internal_wdt) MDFN_COLD;	// Reset-reset only, NOT standby reset!
@@ -417,22 +417,22 @@ class SH7095 final
  sscpu_timestamp_t DMA_SGEndTimestamp; // For smaller granularity scheduling for DMA_Update() after start of DMA.
  bool DMA_RoundRobinRockinBoppin;
 
- uint32 DMA_PenaltyKludgeAmount;
- uint32 DMA_PenaltyKludgeAccum;
+ uint32_t DMA_PenaltyKludgeAmount;
+ uint32_t DMA_PenaltyKludgeAccum;
 
  struct
  {
-  uint32 SAR;
-  uint32 DAR;
-  uint32 TCR;	// 24-bit, value of 0 = 2^24 tranfers
-  uint16 CHCR;
-  uint16 CHCRM;
-  uint8 VCR;
-  uint8 DRCR;
+  uint32_t SAR;
+  uint32_t DAR;
+  uint32_t TCR;	// 24-bit, value of 0 = 2^24 tranfers
+  uint16_t CHCR;
+  uint16_t CHCRM;
+  uint8_t VCR;
+  uint8_t DRCR;
  } DMACH[2];
 
- uint8 DMAOR;
- uint8 DMAORM;
+ uint8_t DMAOR;
+ uint8_t DMAORM;
 
 
  //
@@ -444,26 +444,26 @@ class SH7095 final
  void DIVU_S64_S32(void);
 
  sscpu_timestamp_t divide_finish_timestamp;
- uint32 DVSR;
- uint32 DVDNT;
- uint32 DVDNTH;
- uint32 DVDNTL;
- uint32 DVDNTH_Shadow;
- uint32 DVDNTL_Shadow;
- uint16 VCRDIV;
- uint8 DVCR;
+ uint32_t DVSR;
+ uint32_t DVDNT;
+ uint32_t DVDNTH;
+ uint32_t DVDNTL;
+ uint32_t DVDNTH_Shadow;
+ uint32_t DVDNTL_Shadow;
+ uint16_t VCRDIV;
+ uint8_t DVCR;
 
  struct
  {
-  uint8 SMR;	// Mode
-  uint8 BRR;	// Bit rate
-  uint8 SCR;	// Control
-  uint8 TDR;	// Transmit data
-  uint8 SSR, SSRM;	// Status
-  uint8 RDR;	// Receive data
+  uint8_t SMR;	// Mode
+  uint8_t BRR;	// Bit rate
+  uint8_t SCR;	// Control
+  uint8_t TDR;	// Transmit data
+  uint8_t SSR, SSRM;	// Status
+  uint8_t RDR;	// Receive data
 
-  uint8 RSR;	// Receive shift register
-  uint8 TSR;	// Transmit shift register
+  uint8_t RSR;	// Receive shift register
+  uint8_t TSR;	// Transmit shift register
  } SCI;
 
  void SCI_Reset(void) MDFN_COLD;
@@ -472,10 +472,10 @@ class SH7095 final
  //
  //
  bool ExtHalt;
- uint8 ExtHaltDMA;
+ uint8_t ExtHaltDMA;
 
- uint8 (*const ExIVecFetch)(void);
- uint8 GetPendingInt(uint8*);
+ uint8_t (*const ExIVecFetch)(void);
+ uint8_t GetPendingInt(uint8_t*);
  void RecalcPendingIntPEX(void);
 
  template<bool EmulateICache, bool IntPreventNext>
@@ -485,22 +485,22 @@ class SH7095 final
  NO_INLINE void DoIDIF_NI(void) MDFN_HOT;
 
  template<bool SlavePenalty, typename T, bool BurstHax>
- INLINE T ExtBusRead_INLINE(uint32 A);
+ INLINE T ExtBusRead_INLINE(uint32_t A);
 
  template<bool SlavePenalty, typename T>
- INLINE void ExtBusWrite_INLINE(uint32 A, T V);
+ INLINE void ExtBusWrite_INLINE(uint32_t A, T V);
 
  template<typename T>
- NO_INLINE void OnChipRegWrite(uint32 A, uint32 V) MDFN_HOT;
+ NO_INLINE void OnChipRegWrite(uint32_t A, uint32_t V) MDFN_HOT;
 
  template<typename T>
- INLINE T OnChipRegRead_INLINE(uint32 A);
+ INLINE T OnChipRegRead_INLINE(uint32_t A);
 
- template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32 IsInstr>
- INLINE T MemReadRT(uint32 A);
+ template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
+ INLINE T MemReadRT(uint32_t A);
 
  template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
- INLINE void MemWriteRT(uint32 A, T V);
+ INLINE void MemWriteRT(uint32_t A, T V);
  //
  //
  //
@@ -603,15 +603,15 @@ class SH7095 final
   GSREG_SBYCR
  };
 
- uint32 GetRegister(const unsigned id, char* const special, const uint32 special_len);
- void SetRegister(const unsigned id, const uint32 value) MDFN_COLD;
+ uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len);
+ void SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
 
- void CheckRWBreakpoints(void (*MRead)(unsigned len, uint32 addr), void (*MWrite)(unsigned len, uint32 addr)) const;
+ void CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr), void (*MWrite)(unsigned len, uint32_t addr)) const;
  private:
  bool CBH_Setting;
  bool EIC_Setting;
  bool DM_Setting;
- uint32 PC_IF, PC_ID;	// Debug-related variables.
+ uint32_t PC_IF, PC_ID;	// Debug-related variables.
  const char* const cpu_name;
  const void*const* ResumeTableP[2];
 };

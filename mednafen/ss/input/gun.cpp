@@ -35,7 +35,7 @@ IODevice_Gun::~IODevice_Gun()
 
 }
 
-void IODevice_Gun::SetCrosshairsColor(uint32 color)
+void IODevice_Gun::SetCrosshairsColor(uint32_t color)
 {
 	chair_r = (color >> 16) & 0xFF;
 	chair_g = (color >>  8) & 0xFF;
@@ -43,7 +43,7 @@ void IODevice_Gun::SetCrosshairsColor(uint32 color)
 }
 
 static void crosshair_plot( MDFN_Surface* surface,
-							uint32* lpix,
+							uint32_t* lpix,
 							int x,
 							int y,
 							int chair_r,
@@ -88,7 +88,7 @@ static void crosshair_plot( MDFN_Surface* surface,
 
 void IODevice_Gun::Draw( MDFN_Surface* surface,
 						 const MDFN_Rect& drect,
-						 const int32* lw,
+						 const int32_t* lw,
 						 int ifield,
 						 float gun_x_scale,
 						 float gun_x_offs ) const
@@ -103,30 +103,30 @@ void IODevice_Gun::Draw( MDFN_Surface* surface,
 
 		for( int oy = -8; oy <= 8; oy++ )
 		{
-			int32 y = drect.y + (((nom_coord[1] - MDFNGameInfo->mouse_offs_y) + oy) * ((ifield >= 0) ? 2 : 1)) + (ifield == 1);
+			int32_t y = drect.y + (((nom_coord[1] - MDFNGameInfo->mouse_offs_y) + oy) * ((ifield >= 0) ? 2 : 1)) + (ifield == 1);
 
 			if(y < drect.y || (y - drect.y) >= drect.h)
 				continue;
 
-			uint32* lpix = surface->pixels + y * surface->pitchinpix;
-			int32 cx = floorf(0.5 + (((nom_coord[0] - gun_x_offs) / gun_x_scale) - MDFNGameInfo->mouse_offs_x) * lw[y] / MDFNGameInfo->mouse_scale_x);
-			int32 xmin, xmax;
+			uint32_t* lpix = surface->pixels + y * surface->pitchinpix;
+			int32_t cx = floorf(0.5 + (((nom_coord[0] - gun_x_offs) / gun_x_scale) - MDFNGameInfo->mouse_offs_x) * lw[y] / MDFNGameInfo->mouse_scale_x);
+			int32_t xmin, xmax;
 
 			xmin = drect.x + cx;
 			xmax = xmin + ((lw[y] * 2 + MDFNGameInfo->nominal_width) / (MDFNGameInfo->nominal_width * 2)) - 1;
 
 			if(!oy)
 			{
-				int32 ehw = (lw[y] * 16 + MDFNGameInfo->nominal_width) / (MDFNGameInfo->nominal_width * 2);
+				int32_t ehw = (lw[y] * 16 + MDFNGameInfo->nominal_width) / (MDFNGameInfo->nominal_width * 2);
 
 				xmin -= ehw;
 				xmax += ehw;
 			}
 
-			xmin = ((int32)(drect.x) > (int32)(xmin) ? (int32)(drect.x) : (int32)(xmin));
-			xmax = ((int32)(drect.x + lw[y] - 1) < (int32)(xmax) ? (int32)(drect.x + lw[y] - 1) : (int32)(xmax));
+			xmin = ((int32_t)(drect.x) > (int32_t)(xmin) ? (int32_t)(drect.x) : (int32_t)(xmin));
+			xmax = ((int32_t)(drect.x + lw[y] - 1) < (int32_t)(xmax) ? (int32_t)(drect.x + lw[y] - 1) : (int32_t)(xmax));
 
-			for( int32 x = xmin; x <= xmax; x++ )
+			for( int32_t x = xmin; x <= xmax; x++ )
 			{
 				crosshair_plot( surface, lpix, x, y, chair_r, chair_g, chair_b );
 			}
@@ -138,27 +138,27 @@ void IODevice_Gun::Draw( MDFN_Surface* surface,
 
 		for( int oy = -1; oy <= 1; oy++ )
 		{
-			int32 y = drect.y + (((nom_coord[1] - MDFNGameInfo->mouse_offs_y) + oy) * ((ifield >= 0) ? 2 : 1)) + (ifield == 1);
+			int32_t y = drect.y + (((nom_coord[1] - MDFNGameInfo->mouse_offs_y) + oy) * ((ifield >= 0) ? 2 : 1)) + (ifield == 1);
 
 			if(y < drect.y || (y - drect.y) >= drect.h)
 				continue;
 
-			uint32* lpix = surface->pixels + y * surface->pitchinpix;
-			int32 cx = floorf(0.5 + (((nom_coord[0] - gun_x_offs) / gun_x_scale) - MDFNGameInfo->mouse_offs_x) * lw[y] / MDFNGameInfo->mouse_scale_x);
-			int32 xmin, xmax;
+			uint32_t* lpix = surface->pixels + y * surface->pitchinpix;
+			int32_t cx = floorf(0.5 + (((nom_coord[0] - gun_x_offs) / gun_x_scale) - MDFNGameInfo->mouse_offs_x) * lw[y] / MDFNGameInfo->mouse_scale_x);
+			int32_t xmin, xmax;
 
 			xmin = drect.x + cx;
 			xmax = xmin + ((lw[y] * 2 + MDFNGameInfo->nominal_width) / (MDFNGameInfo->nominal_width * 2)) - 1;
 
-			int32 ehw = (lw[y] * 2 + MDFNGameInfo->nominal_width) / (MDFNGameInfo->nominal_width * 2);
+			int32_t ehw = (lw[y] * 2 + MDFNGameInfo->nominal_width) / (MDFNGameInfo->nominal_width * 2);
 
 			xmin -= ehw;
 			xmax += ehw;
 
-			xmin = ((int32)(drect.x) > (int32)(xmin) ? (int32)(drect.x) : (int32)(xmin));
-			xmax = ((int32)(drect.x + lw[y] - 1) < (int32)(xmax) ? (int32)(drect.x + lw[y] - 1) : (int32)(xmax));
+			xmin = ((int32_t)(drect.x) > (int32_t)(xmin) ? (int32_t)(drect.x) : (int32_t)(xmin));
+			xmax = ((int32_t)(drect.x + lw[y] - 1) < (int32_t)(xmax) ? (int32_t)(drect.x + lw[y] - 1) : (int32_t)(xmax));
 
-			for( int32 x = xmin; x <= xmax; x++ )
+			for( int32_t x = xmin; x <= xmax; x++ )
 			{
 				crosshair_plot( surface, lpix, x, y, chair_r, chair_g, chair_b );
 			}
@@ -178,22 +178,22 @@ void IODevice_Gun::Power(void)
  state |= 0x40;
 }
 
-void IODevice_Gun::TransformInput(uint8* const data, float gun_x_scale, float gun_x_offs) const
+void IODevice_Gun::TransformInput(uint8_t* const data, float gun_x_scale, float gun_x_offs) const
 {
- int32 tmp = (int16)(uint16)(data[0] | (data[1] << 8));
+ int32_t tmp = (int16_t)(uint16_t)(data[0] | (data[1] << 8));
 
  tmp = floorf(0.5 + tmp * gun_x_scale + gun_x_offs);
- tmp = ((int32)(-32768) > (int32)(((int32)(32767) < (int32)(tmp) ? (int32)(32767) : (int32)(tmp))) ? (int32)(-32768) : (int32)(((int32)(32767) < (int32)(tmp) ? (int32)(32767) : (int32)(tmp))));
+ tmp = ((int32_t)(-32768) > (int32_t)(((int32_t)(32767) < (int32_t)(tmp) ? (int32_t)(32767) : (int32_t)(tmp))) ? (int32_t)(-32768) : (int32_t)(((int32_t)(32767) < (int32_t)(tmp) ? (int32_t)(32767) : (int32_t)(tmp))));
 
  /* MDFN_en16lsb folded: write host int into 2 LE bytes. */
  data[0] = tmp;
  data[1] = tmp >> 8;
 }
 
-void IODevice_Gun::UpdateInput(const uint8* data, const int32 time_elapsed)
+void IODevice_Gun::UpdateInput(const uint8_t* data, const int32_t time_elapsed)
 {
- nom_coord[0] = (int16)(uint16)(data[0] | (data[1] << 8));
- nom_coord[1] = (int16)(uint16)(data[2] | (data[3] << 8));
+ nom_coord[0] = (int16_t)(uint16_t)(data[0] | (data[1] << 8));
+ nom_coord[1] = (int16_t)(uint16_t)(data[2] | (data[3] << 8));
 
  state = ((((~(unsigned)data[4]) << 4) & 0x30) | 0x0C) | (state & 0x40);
 
@@ -204,7 +204,7 @@ void IODevice_Gun::UpdateInput(const uint8* data, const int32 time_elapsed)
 
  if(osshot_counter >= 0)
  {
-  const int32 osshot_total = 250000;
+  const int32_t osshot_total = 250000;
 
   osshot_counter += time_elapsed;
   if(osshot_counter >= osshot_total)
@@ -280,7 +280,7 @@ INLINE void IODevice_Gun::UpdateLight(const sscpu_timestamp_t timestamp)
  }
 }
 
-uint8 IODevice_Gun::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted)
+uint8_t IODevice_Gun::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
  UpdateLight(timestamp);
  //
@@ -288,15 +288,15 @@ uint8 IODevice_Gun::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smp
  return ((smpc_out & smpc_out_asserted) | (state &~ smpc_out_asserted)) & 0x7C;
 }
 
-void IODevice_Gun::LineHook(const sscpu_timestamp_t timestamp, int32 out_line, int32 div, int32 coord_adj)
+void IODevice_Gun::LineHook(const sscpu_timestamp_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj)
 {
  UpdateLight(timestamp);
  //
- if(abs((int)((uint32)nom_coord[1] - (uint32)out_line)) <= 1)
+ if(abs((int)((uint32_t)nom_coord[1] - (uint32_t)out_line)) <= 1)
  {
   if(nom_coord[0] >= 0 && nom_coord[0] < 21472)
   {
-   int32 pd = (nom_coord[0] + coord_adj) * 4 / div;
+   int32_t pd = (nom_coord[0] + coord_adj) * 4 / div;
 
    if(pd >= 1 /*&& pd <= */)
    {

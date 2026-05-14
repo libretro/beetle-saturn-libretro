@@ -22,13 +22,13 @@
 #include "common.h"
 #include "cs1ram.h"
 
-static uint16* CS1RAM = nullptr;
+static uint16_t* CS1RAM = nullptr;
 
 template<typename T, bool IsWrite>
-static MDFN_HOT void CS1RAM_RW_DB(uint32 A, uint16* DB)
+static MDFN_HOT void CS1RAM_RW_DB(uint32_t A, uint16_t* DB)
 {
- const uint32 mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
- uint16* const ptr = (uint16*)((uint8*)CS1RAM + (A & 0x00FFFFFE));
+ const uint32_t mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+ uint16_t* const ptr = (uint16_t*)((uint8_t*)CS1RAM + (A & 0x00FFFFFE));
 
  if(IsWrite)
   *ptr = (*ptr & ~mask) | (*DB & mask);
@@ -64,13 +64,13 @@ static MDFN_COLD void StateAction(StateMem* sm, const unsigned load, const bool 
 
 void CART_CS1RAM_Init(CartInfo* c)
 {
- CS1RAM = new uint16[0x1000000 / sizeof(uint16)];
+ CS1RAM = new uint16_t[0x1000000 / sizeof(uint16_t)];
 
  SS_SetPhysMemMap   (0x04000000, 0x04FFFFFF, CS1RAM, 0x1000000, true);
  c->CS01_SetRW8W16(0x04000000, 0x04FFFFFF, 
-	CS1RAM_RW_DB<uint16, false>,
-	CS1RAM_RW_DB<uint8, true>,
-	CS1RAM_RW_DB<uint16, true>);
+	CS1RAM_RW_DB<uint16_t, false>,
+	CS1RAM_RW_DB<uint8_t, true>,
+	CS1RAM_RW_DB<uint16_t, true>);
 
  c->Reset = Reset;
  c->Kill = Kill;

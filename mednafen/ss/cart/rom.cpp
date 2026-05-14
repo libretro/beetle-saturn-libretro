@@ -22,12 +22,12 @@
 #include "common.h"
 #include "rom.h"
 
-static uint16 ROM[0x100000];
+static uint16_t ROM[0x100000];
 
-static MDFN_HOT void ROM_Read(uint32 A, uint16* DB)
+static MDFN_HOT void ROM_Read(uint32_t A, uint16_t* DB)
 {
  // TODO: Check mirroring.
- *DB = *(uint16*)((uint8*)ROM + (A & 0x1FFFFE));
+ *DB = *(uint16_t*)((uint8_t*)ROM + (A & 0x1FFFFE));
 }
 
 void CART_ROM_Init(CartInfo* c, RFILE *str)
@@ -40,7 +40,7 @@ void CART_ROM_Init(CartInfo* c, RFILE *str)
        * On MSB_FIRST host: ROM[i] = ROM[i] (no-op). On LE host:
        * byteswap each ROM[i] to convert BE-on-disk to host-endian. */
 #ifndef MSB_FIRST
-      ROM[i] = (uint16)((ROM[i] << 8) | (ROM[i] >> 8));
+      ROM[i] = (uint16_t)((ROM[i] << 8) | (ROM[i] >> 8));
 #endif
    }
 

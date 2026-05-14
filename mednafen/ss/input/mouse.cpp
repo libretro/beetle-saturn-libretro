@@ -41,10 +41,10 @@ void IODevice_Mouse::Power(void)
  accum_ydelta = 0;
 }
 
-void IODevice_Mouse::UpdateInput(const uint8* data, const int32 time_elapsed)
+void IODevice_Mouse::UpdateInput(const uint8_t* data, const int32_t time_elapsed)
 {
- accum_xdelta += (int16)(uint16)(data[0] | (data[1] << 8));
- accum_ydelta -= (int16)(uint16)(data[2] | (data[3] << 8));
+ accum_xdelta += (int16_t)(uint16_t)(data[0] | (data[1] << 8));
+ accum_ydelta -= (int16_t)(uint16_t)(data[2] | (data[3] << 8));
  buttons = data[4] & 0xF;
 }
 
@@ -77,9 +77,9 @@ void IODevice_Mouse::StateAction(StateMem* sm, const unsigned load, const bool d
  }
 }
 
-uint8 IODevice_Mouse::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted)
+uint8_t IODevice_Mouse::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
- uint8 tmp;
+ uint8_t tmp;
 
  if(smpc_out & 0x40)
  {
@@ -102,7 +102,7 @@ uint8 IODevice_Mouse::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 s
  {
   if(phase < 0)
   {
-   uint8 flags = 0;
+   uint8_t flags = 0;
 
    if(accum_xdelta < 0)
     flags |= 0x1;

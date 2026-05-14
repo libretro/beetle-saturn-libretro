@@ -31,20 +31,20 @@ class IODevice_Mouse final : public IODevice
  virtual ~IODevice_Mouse() override MDFN_COLD;
 
  virtual void Power(void) override MDFN_COLD;
- virtual void UpdateInput(const uint8* data, const int32 time_elapsed) override;
+ virtual void UpdateInput(const uint8_t* data, const int32_t time_elapsed) override;
  virtual void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname_prefix) override;
 
- virtual uint8 UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted) override;
+ virtual uint8_t UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted) override;
 
  private:
- int32 accum_xdelta;
- int32 accum_ydelta;
+ int32_t accum_xdelta;
+ int32_t accum_ydelta;
 
- uint8 buttons;
- uint8 buffer[0x10];
- uint8 data_out;
+ uint8_t buttons;
+ uint8_t buffer[0x10];
+ uint8_t data_out;
  bool tl;
- int8 phase;
+ int8_t phase;
 };
 
 #endif

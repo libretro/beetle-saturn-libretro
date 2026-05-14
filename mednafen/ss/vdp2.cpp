@@ -45,7 +45,7 @@ static sscpu_timestamp_t lastts;
 //
 //
 //
-static uint16 RawRegs[0x100];	// For debugging
+static uint16_t RawRegs[0x100];	// For debugging
 
 static bool DisplayOn;
 static bool BorderMode;
@@ -56,12 +56,12 @@ static bool DispAreaSelect;
 
 static bool VRAMSize;
 
-static uint8 HRes, VRes;
-static uint8 InterlaceMode;
+static uint8_t HRes, VRes;
+static uint8_t InterlaceMode;
 enum { IM_NONE, IM_ILLEGAL, IM_SINGLE, IM_DOUBLE };
 
-static uint16 RAMCTL_Raw;
-static uint8 CRAM_Mode;
+static uint16_t RAMCTL_Raw;
+static uint8_t CRAM_Mode;
 enum
 {
  CRAM_MODE_RGB555_1024	= 0,
@@ -70,59 +70,59 @@ enum
  CRAM_MODE_ILLEGAL	= 3
 };
 
-static uint16 BGON;
-static uint8 VCPRegs[4][8];
-static uint32 VRAMPenalty[4];
+static uint16_t BGON;
+static uint8_t VCPRegs[4][8];
+static uint32_t VRAMPenalty[4];
 
-static uint32 RPTA;
-static uint8 RPRCTL[2];
-static uint8 KTAOF[2];
+static uint32_t RPTA;
+static uint8_t RPRCTL[2];
+static uint8_t KTAOF[2];
 
 static struct
 {
- uint16 YStart, YEnd;
+ uint16_t YStart, YEnd;
  bool YEndMet;
  bool YIn;
 } Window[2];
 
-static uint16 VRAM[262144];
+static uint16_t VRAM[262144];
 
-static uint16 CRAM[2048];
+static uint16_t CRAM[2048];
 
 static struct
 {
  // Signed values are stored sign-extended to the full 32 bits.
- int32 Xst, Yst, Zst;	// 1.12.10
- int32 DXst, DYst;	// 1. 2.10
- int32 DX, DY;		// 1. 2.10
- int32 RotMatrix[6];	// 1. 3.10
- int32 Px, Py, Pz;	// 1.13. 0
- int32 Cx, Cy, Cz;	// 1.13. 0
- int32 Mx, My;		// 1.13.10
- int32 kx, ky;		// 1. 7.16
+ int32_t Xst, Yst, Zst;	// 1.12.10
+ int32_t DXst, DYst;	// 1. 2.10
+ int32_t DX, DY;		// 1. 2.10
+ int32_t RotMatrix[6];	// 1. 3.10
+ int32_t Px, Py, Pz;	// 1.13. 0
+ int32_t Cx, Cy, Cz;	// 1.13. 0
+ int32_t Mx, My;		// 1.13.10
+ int32_t kx, ky;		// 1. 7.16
 
- uint32 KAst;		// 0.16.10
- uint32 DKAst;		// 1. 9.10
- uint32 DKAx;		// 1. 9.10
+ uint32_t KAst;		// 0.16.10
+ uint32_t DKAst;		// 1. 9.10
+ uint32_t DKAx;		// 1. 9.10
  //
  //
  //
- uint32 XstAccum, YstAccum;	// 1.12.10 (sorta)
- uint32 KAstAccum;		//     .10
+ uint32_t XstAccum, YstAccum;	// 1.12.10 (sorta)
+ uint32_t KAstAccum;		//     .10
 } RotParams[2];
 
 static void FetchRotParams(const bool field)
 {
- uint32 a = RPTA & 0x7FFBE;
+ uint32_t a = RPTA & 0x7FFBE;
 
- /* ne16_rbo_be<uint32>(VRAM, idx*2) folded.  VRAM is uint16[]
+ /* ne16_rbo_be<uint32_t>(VRAM, idx*2) folded.  VRAM is uint16_t[]
   * holding a big-endian 16-bit bus.  A 32-bit big-endian read
-  * from byte-offset (idx*2) is two consecutive uint16 reads
+  * from byte-offset (idx*2) is two consecutive uint16_t reads
   * where the first holds the upper half and the second holds
   * the lower half.  Expression works identically on BE and LE
-  * host: the result is always a host-endian uint32 built from
-  * host-endian uint16 halves in MSB-first order. */
-#define BE32_VRAM(idx_expr) (((uint32)VRAM[(idx_expr)] << 16) | VRAM[(idx_expr) + 1])
+  * host: the result is always a host-endian uint32_t built from
+  * host-endian uint16_t halves in MSB-first order. */
+#define BE32_VRAM(idx_expr) (((uint32_t)VRAM[(idx_expr)] << 16) | VRAM[(idx_expr) + 1])
 
  for(unsigned i = 0; i < 2; i++)
  {
@@ -200,7 +200,7 @@ enum
  VPHASE__COUNT
 };
 
-static const int32 VTimings[2][4][VPHASE__COUNT] = // End lines
+static const int32_t VTimings[2][4][VPHASE__COUNT] = // End lines
 {
  { // NTSC:
   { 0x0E0, 0xE8, 0xED, 0xF0, 0x0FF, 0x107 },
@@ -219,12 +219,12 @@ static const int32 VTimings[2][4][VPHASE__COUNT] = // End lines
 
 static bool Out_VB;	// VB output signal
 
-static uint32 VPhase;
-/*static*/ MDFN_HIDE int32 VCounter;
+static uint32_t VPhase;
+/*static*/ MDFN_HIDE int32_t VCounter;
 static bool InternalVB;
 static bool Odd;
 
-static uint32 CRTLineCounter;
+static uint32_t CRTLineCounter;
 static bool Clock28M;
 //
 static int SurfInterlaceField;
@@ -247,7 +247,7 @@ static INLINE void RecalcVRAMPenalty(void)
   const unsigned VRAM_Mode = (RAMCTL_Raw >> 8) & 0x3;
   const unsigned RDBS_Mode = (RAMCTL_Raw & 0xFF);
   const size_t sh = ((HRes & 0x6) ? 0 : 4);
-  uint8 vcp_type_penalty[0x10];
+  uint8_t vcp_type_penalty[0x10];
 
   for(unsigned vcp_type = 0; vcp_type < 0x10; vcp_type++)
   {
@@ -263,8 +263,8 @@ static INLINE void RecalcVRAMPenalty(void)
   for(unsigned bank = 0; bank < 4; bank++)
   {
    const unsigned esb = bank & (2 | ((VRAM_Mode >> (bank >> 1)) & 1));
-   const uint8 rdbs = (RDBS_Mode >> (esb << 1)) & 0x3;
-   uint32 tmp = 0;
+   const uint8_t rdbs = (RDBS_Mode >> (esb << 1)) & 0x3;
+   uint32_t tmp = 0;
 
    if(BGON & 0x20)
    {
@@ -289,7 +289,7 @@ static INLINE void RecalcVRAMPenalty(void)
     }
    }
 
-   static const uint8 tab[9] = { 0, 0, 0, 0, 1, 1, 2, 3, 4 };
+   static const uint8_t tab[9] = { 0, 0, 0, 0, 1, 1, 2, 3, 4 };
    VRAMPenalty[bank] = tab[tmp];
   }
  }
@@ -307,16 +307,16 @@ enum
  HPHASE__COUNT
 };
 
-static const int32 HTimings[2][HPHASE__COUNT] =
+static const int32_t HTimings[2][HPHASE__COUNT] =
 {
  { 0x140, 0x15B, 0x1AB },
  { 0x160, 0x177, 0x1C7 },
 };
 
-static uint32 HPhase;
-/*static*/ MDFN_HIDE int32 HCounter;
+static uint32_t HPhase;
+/*static*/ MDFN_HIDE int32_t HCounter;
 
-static uint16 Latched_VCNT, Latched_HCNT;
+static uint16_t Latched_VCNT, Latched_HCNT;
 static bool HVIsExLatched;
 bool ExLatchIn;
 bool ExLatchPending;
@@ -455,7 +455,7 @@ static INLINE void IncVCounter(const sscpu_timestamp_t event_timestamp)
  SMPC_SetVBVS(event_timestamp, Out_VB, VPhase == VPHASE_VSYNC);
 }
 
-static INLINE int32 AddHCounter(const sscpu_timestamp_t event_timestamp, int32 count)
+static INLINE int32_t AddHCounter(const sscpu_timestamp_t event_timestamp, int32_t count)
 {
  HCounter += count;
 
@@ -474,8 +474,8 @@ static INLINE int32 AddHCounter(const sscpu_timestamp_t event_timestamp, int32 c
   if(HPhase == HPHASE_ACTIVE)
   {
    {
-    const int32 div = Clock28M ? 61 : 65;
-    const int32 coord_adj = 6832 - 80 * div;
+    const int32_t div = Clock28M ? 61 : 65;
+    const int32_t coord_adj = 6832 - 80 * div;
 
     SMPC_LineHook(event_timestamp, CRTLineCounter, div, coord_adj);
    }
@@ -506,7 +506,7 @@ static INLINE int32 AddHCounter(const sscpu_timestamp_t event_timestamp, int32 c
      // identical to running it -- LIB[].rv just goes unread.
      //
      // For non-RBG games (the vast majority of 2D titles) this
-     // saves ~30 multiplications + 2 int64 shifts per scanline x
+     // saves ~30 multiplications + 2 int64_t shifts per scanline x
      // 240 lines x 60 fps ~= 0.5 M ops/s of producer-thread work
      // that was producing dead data.
      if(BGON & 0x30)
@@ -521,12 +521,12 @@ static INLINE int32 AddHCounter(const sscpu_timestamp_t event_timestamp, int32 c
        auto const& rp = RotParams[i];
        auto& r = lib->rv[i];
 
-       r.Xsp = ((int64)rp.RotMatrix[0] * ((int32)rp.XstAccum - (rp.Px * 1024)) +
-	       (int64)rp.RotMatrix[1] * ((int32)rp.YstAccum - (rp.Py * 1024)) +
-	       (int64)rp.RotMatrix[2] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
-       r.Ysp = ((int64)rp.RotMatrix[3] * ((int32)rp.XstAccum - (rp.Px * 1024)) +
-	       (int64)rp.RotMatrix[4] * ((int32)rp.YstAccum - (rp.Py * 1024)) +
-	       (int64)rp.RotMatrix[5] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
+       r.Xsp = ((int64_t)rp.RotMatrix[0] * ((int32_t)rp.XstAccum - (rp.Px * 1024)) +
+	       (int64_t)rp.RotMatrix[1] * ((int32_t)rp.YstAccum - (rp.Py * 1024)) +
+	       (int64_t)rp.RotMatrix[2] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
+       r.Ysp = ((int64_t)rp.RotMatrix[3] * ((int32_t)rp.XstAccum - (rp.Px * 1024)) +
+	       (int64_t)rp.RotMatrix[4] * ((int32_t)rp.YstAccum - (rp.Py * 1024)) +
+	       (int64_t)rp.RotMatrix[5] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
   
        r.Xp = rp.RotMatrix[0] * (rp.Px - rp.Cx) +
 	     rp.RotMatrix[1] * (rp.Py - rp.Cy) +
@@ -549,7 +549,7 @@ static INLINE int32 AddHCounter(const sscpu_timestamp_t event_timestamp, int32 c
       }
      }
     }
-    lib->vdp1_hires8 = VDP1::GetLine(VCounter, lib->vdp1_line, lib->vdp1_mesh_line, (HRes & 1) ? 352 : 320, (int32)RotParams[0].XstAccum >> 1, (int32)RotParams[0].YstAccum >> 1, (int32)RotParams[0].DX >> 1, (int32)RotParams[0].DY >> 1); // Always call, has side effects.
+    lib->vdp1_hires8 = VDP1::GetLine(VCounter, lib->vdp1_line, lib->vdp1_mesh_line, (HRes & 1) ? 352 : 320, (int32_t)RotParams[0].XstAccum >> 1, (int32_t)RotParams[0].YstAccum >> 1, (int32_t)RotParams[0].DX >> 1, (int32_t)RotParams[0].DY >> 1); // Always call, has side effects.
     VDP2REND_DrawLine(InternalVB ? -1 : VCounter, CRTLineCounter, !Odd);
     CRTLineCounter++;
    }
@@ -570,7 +570,7 @@ static INLINE int32 AddHCounter(const sscpu_timestamp_t event_timestamp, int32 c
 
 sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
 {
- int32 clocks;
+ int32_t clocks;
 
  if(MDFN_UNLIKELY(timestamp < lastts))
   clocks = 0;
@@ -580,8 +580,8 @@ sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
  lastts += clocks << 2;
  //
  //
- int32 tmp;
- int32 ne = AddHCounter(timestamp, clocks);
+ int32_t tmp;
+ int32_t ne = AddHCounter(timestamp, clocks);
  VDP1::SetHBVB(timestamp, HPhase > HPHASE_ACTIVE, Out_VB);
  tmp = SCU_SetHBVB(clocks, HPhase > HPHASE_ACTIVE, Out_VB);
  if(tmp < ne)
@@ -603,7 +603,7 @@ sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
 //
 // Register writes seem to always be 16-bit
 //
-static INLINE void RegsWrite(uint32 A, uint16 V)
+static INLINE void RegsWrite(uint32_t A, uint16_t V)
 {
  A &= 0x1FE;
 
@@ -655,7 +655,7 @@ static INLINE void RegsWrite(uint32 A, uint16 V)
   case 0x1C:
   case 0x1E:
 	{
-	 uint8* const b = &VCPRegs[(A >> 2) & 3][(A & 0x2) << 1];
+	 uint8_t* const b = &VCPRegs[(A >> 2) & 3][(A & 0x2) << 1];
 	 b[0] = (V >> 12) & 0xF;
 	 b[1] = (V >>  8) & 0xF;
 	 b[2] = (V >>  4) & 0xF;
@@ -693,7 +693,7 @@ static INLINE void RegsWrite(uint32 A, uint16 V)
  }
 }
 
-static INLINE uint16 RegsRead(uint32 A)
+static INLINE uint16_t RegsRead(uint32_t A)
 {
  switch(A & 0x1FE)
  {
@@ -710,7 +710,7 @@ static INLINE uint16 RegsRead(uint32 A)
 	SS_SetEventNT(&events[SS_EVENT_VDP2], Update(SH7095_mem_timestamp));
 	{
 	 // TODO: EXSYFG
-	 uint16 ret = (HVIsExLatched << 9) | (InternalVB << 3) | ((HPhase > HPHASE_ACTIVE) << 2) | (Odd << 1) | (PAL << 0);
+	 uint16_t ret = (HVIsExLatched << 9) | (InternalVB << 3) | ((HPhase > HPHASE_ACTIVE) << 2) | (Odd << 1) | (PAL << 0);
 
 	 HVIsExLatched = false;
 
@@ -732,7 +732,7 @@ static INLINE uint16 RegsRead(uint32 A)
 }
 
 template<typename T, bool IsWrite>
-static INLINE uint32 RW(uint32 A, uint16* DB)
+static INLINE uint32_t RW(uint32_t A, uint16_t* DB)
 {
  static_assert(IsWrite || sizeof(T) == 2, "Wrong type for read.");
 
@@ -825,42 +825,42 @@ static INLINE uint32 RW(uint32 A, uint16* DB)
  return 0;
 }
 
-uint16 Read16_DB(uint32 A)
+uint16_t Read16_DB(uint32_t A)
 {
- uint16 DB;
+ uint16_t DB;
 
- RW<uint16, false>(A, &DB);
+ RW<uint16_t, false>(A, &DB);
 
  return DB;
 }
 
 
-uint32 Write8_DB(uint32 A, uint16 DB)
+uint32_t Write8_DB(uint32_t A, uint16_t DB)
 {
  VDP2REND_Write8_DB(A, DB);
 
- return RW<uint8, true>(A, &DB);
+ return RW<uint8_t, true>(A, &DB);
 }
 
-uint32 Write16_DB(uint32 A, uint16 DB)
+uint32_t Write16_DB(uint32_t A, uint16_t DB)
 {
  VDP2REND_Write16_DB(A, DB);
 
- return RW<uint16, true>(A, &DB);
+ return RW<uint16_t, true>(A, &DB);
 }
 
-uint32 Write16Burst_DB(uint32 base, uint32 n16, uint32 add_mode, const uint16* words)
+uint32_t Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const uint16_t* words)
 {
  VDP2REND_WriteBurst16_DB(base, n16, add_mode, words);
 
- const uint32 stride = (1u << add_mode) &~ 1u;
- uint32 a = base;
- uint32 penalty_sum = 0;
+ const uint32_t stride = (1u << add_mode) &~ 1u;
+ uint32_t a = base;
+ uint32_t penalty_sum = 0;
 
- for(uint32 i = 0; i < n16; i++)
+ for(uint32_t i = 0; i < n16; i++)
  {
-  uint16 w = words[i];
-  penalty_sum += RW<uint16, true>(a, &w);
+  uint16_t w = words[i];
+  penalty_sum += RW<uint16_t, true>(a, &w);
   a += stride;
  }
 
@@ -872,13 +872,13 @@ uint32 Write16Burst_DB(uint32 base, uint32 n16, uint32 add_mode, const uint16* w
 //
 //
 
-void AdjustTS(const int32 delta)
+void AdjustTS(const int32_t delta)
 {
  lastts += delta;
 }
 
 
-void Init(const bool IsPAL, const uint64 affinity)
+void Init(const bool IsPAL, const uint64_t affinity)
 {
  SurfInterlaceField = -1;
  PAL = IsPAL;
@@ -984,7 +984,7 @@ void Reset(bool powering_up)
 //
 //
 //
-uint32 GetRegister(const unsigned id, char* const special, const uint32 special_len)
+uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
  switch(id)
  {
@@ -1092,7 +1092,7 @@ uint32 GetRegister(const unsigned id, char* const special, const uint32 special_
  return 0xDEADBEEF;
 }
 
-void SetRegister(const unsigned id, const uint32 value)
+void SetRegister(const unsigned id, const uint32_t value)
 {
    int rr = -1;
 
@@ -1257,39 +1257,39 @@ void SetRegister(const unsigned id, const uint32 value)
 
    if(rr >= 0)
    {
-      RawRegs[rr] = (uint16)value;
+      RawRegs[rr] = (uint16_t)value;
       VDP2REND_Write16_DB(0x180000 + (rr << 1), RawRegs[rr]);
    }
 }
 
-uint8 PeekVRAM(uint32 addr)
+uint8_t PeekVRAM(uint32_t addr)
 {
- /* ne16_rbo_be<uint8>: byte read from uint16-array BE bus. */
+ /* ne16_rbo_be<uint8_t>: byte read from uint16_t-array BE bus. */
 #ifdef MSB_FIRST
- return ((const uint8*)VRAM)[addr & 0x7FFFF];
+ return ((const uint8_t*)VRAM)[addr & 0x7FFFF];
 #else
- return ((const uint8*)VRAM)[(addr & 0x7FFFF) ^ 1];
+ return ((const uint8_t*)VRAM)[(addr & 0x7FFFF) ^ 1];
 #endif
 }
 
-void PokeVRAM(uint32 addr, const uint8 val)
+void PokeVRAM(uint32_t addr, const uint8_t val)
 {
  addr &= 0x7FFFF;
 
- /* ne16_wbo_be<uint8>: byte write into uint16-array BE bus. */
+ /* ne16_wbo_be<uint8_t>: byte write into uint16_t-array BE bus. */
 #ifdef MSB_FIRST
- ((uint8*)VRAM)[addr] = val;
+ ((uint8_t*)VRAM)[addr] = val;
 #else
- ((uint8*)VRAM)[addr ^ 1] = val;
+ ((uint8_t*)VRAM)[addr ^ 1] = val;
 #endif
- /* ne16_rbo_be<uint16>(VRAM, addr & ~1): aligned uint16 read.
-  * The aligned uint16 read is just VRAM[idx] regardless of host:
-  * the uint16 is stored host-endian and the bus address is in
-  * uint16 units. */
+ /* ne16_rbo_be<uint16_t>(VRAM, addr & ~1): aligned uint16_t read.
+  * The aligned uint16_t read is just VRAM[idx] regardless of host:
+  * the uint16_t is stored host-endian and the bus address is in
+  * uint16_t units. */
  VDP2REND_Write16_DB(addr & ~1, VRAM[(addr & ~1) >> 1]);
 }
 
-void SetLayerEnableMask(uint64 mask)
+void SetLayerEnableMask(uint64_t mask)
 {
  VDP2REND_SetLayerEnableMask(mask);
 }
@@ -1447,7 +1447,7 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   // safe with any value -- but we mask for consistency with
   // RegsWrite (3 bits).
   //
-  // KTAOF feeds `KTAOF[i] << 26` (line ~174). KTAOF is uint8, so
+  // KTAOF feeds `KTAOF[i] << 26` (line ~174). KTAOF is uint8_t, so
   // the operand is promoted to signed int; values >= 0x20 then
   // produce a left shift whose result doesn't fit in int, which is
   // UB in C++. The result becomes part of KAstAccum so the symptom

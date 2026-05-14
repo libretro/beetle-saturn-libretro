@@ -9,56 +9,56 @@
 #define MAS_NATIVE_IS_BIGENDIAN 0
 #endif
 
-static INLINE uint16 LoadU16_RBO(const uint16 *a)
+static INLINE uint16_t LoadU16_RBO(const uint16_t *a)
 {
  #ifdef ARCH_POWERPC
-  uint16 tmp;
+  uint16_t tmp;
 
   __asm__ ("lhbrx %0, %y1" : "=r"(tmp) : "Z"(*a));
 
   return(tmp);
 
  #else
-  uint16 tmp = *a;
+  uint16_t tmp = *a;
   return((tmp << 8) | (tmp >> 8));
  #endif
 }
 
-static INLINE uint32 LoadU32_RBO(const uint32 *a)
+static INLINE uint32_t LoadU32_RBO(const uint32_t *a)
 {
  #ifdef ARCH_POWERPC
-  uint32 tmp;
+  uint32_t tmp;
 
   __asm__ ("lwbrx %0, %y1" : "=r"(tmp) : "Z"(*a));
 
   return(tmp);
  #else
-  uint32 tmp = *a;
+  uint32_t tmp = *a;
   return((tmp << 24) | ((tmp & 0xFF00) << 8) | ((tmp >> 8) & 0xFF00) | (tmp >> 24));
  #endif
 }
 
-static INLINE void StoreU16_RBO(uint16 *a, const uint16 v)
+static INLINE void StoreU16_RBO(uint16_t *a, const uint16_t v)
 {
  #ifdef ARCH_POWERPC
   __asm__ ("sthbrx %0, %y1" : : "r"(v), "Z"(*a));
  #else
-  uint16 tmp = (v << 8) | (v >> 8);
+  uint16_t tmp = (v << 8) | (v >> 8);
   *a = tmp;
  #endif
 }
 
-static INLINE void StoreU32_RBO(uint32 *a, const uint32 v)
+static INLINE void StoreU32_RBO(uint32_t *a, const uint32_t v)
 {
  #ifdef ARCH_POWERPC
   __asm__ ("stwbrx %0, %y1" : : "r"(v), "Z"(*a));
  #else
-  uint32 tmp = (v << 24) | ((v & 0xFF00) << 8) | ((v >> 8) & 0xFF00) | (v >> 24);
+  uint32_t tmp = (v << 24) | ((v & 0xFF00) << 8) | ((v >> 8) & 0xFF00) | (v >> 24);
   *a = tmp;
  #endif
 }
 
-static INLINE uint16 LoadU16_LE(const uint16 *a)
+static INLINE uint16_t LoadU16_LE(const uint16_t *a)
 {
 #ifdef MSB_FIRST
    return LoadU16_RBO(a);
@@ -67,7 +67,7 @@ static INLINE uint16 LoadU16_LE(const uint16 *a)
 #endif
 }
 
-static INLINE uint32 LoadU32_LE(const uint32 *a)
+static INLINE uint32_t LoadU32_LE(const uint32_t *a)
 {
 #ifdef MSB_FIRST
    return LoadU32_RBO(a);
@@ -76,7 +76,7 @@ static INLINE uint32 LoadU32_LE(const uint32 *a)
 #endif
 }
 
-static INLINE void StoreU16_LE(uint16 *a, const uint16 v)
+static INLINE void StoreU16_LE(uint16_t *a, const uint16_t v)
 {
 #ifdef MSB_FIRST
  StoreU16_RBO(a, v);
@@ -85,7 +85,7 @@ static INLINE void StoreU16_LE(uint16 *a, const uint16 v)
 #endif
 }
 
-static INLINE void StoreU32_LE(uint32 *a, const uint32 v)
+static INLINE void StoreU32_LE(uint32_t *a, const uint32_t v)
 {
 #ifdef MSB_FIRST
  StoreU32_RBO(a, v);
@@ -98,7 +98,7 @@ static INLINE void StoreU32_LE(uint32 *a, const uint32 v)
 // address must not be >= size specified by template parameter, and address must be a multiple of the byte-size of the
 // unit(1,2,4) being read(except for Read/WriteU24, which only needs to be byte-aligned).
 //
-// max_unit_type should be uint16 or uint32
+// max_unit_type should be uint16_t or uint32_t
 //
 // pre_padding and post_padding are specified in units of sizeof(max_unit_type).
 //
@@ -109,37 +109,37 @@ struct MultiAccessSizeMem
 
  union
  {
-  uint8 data8[size];
-  uint16 data16[size / sizeof(uint16)];
-  uint32 data32[size / sizeof(uint32)];
+  uint8_t data8[size];
+  uint16_t data16[size / sizeof(uint16_t)];
+  uint32_t data32[size / sizeof(uint32_t)];
  };
 
  //max_unit_type post_padding[post_padding_count ? post_padding_count : 1];
 
- INLINE uint8 ReadU8(uint32 address)
+ INLINE uint8_t ReadU8(uint32_t address)
  {
   return data8[address];
  }
 
- INLINE uint16 ReadU16(uint32 address)
+ INLINE uint16_t ReadU16(uint32_t address)
  {
   if(MAS_NATIVE_IS_BIGENDIAN == big_endian)
-   return *(uint16*)(((uint8*)data16) + address);
+   return *(uint16_t*)(((uint8_t*)data16) + address);
   else
-   return LoadU16_RBO((uint16*)(((uint8*)data16) + address));
+   return LoadU16_RBO((uint16_t*)(((uint8_t*)data16) + address));
  }
 
- INLINE uint32 ReadU32(uint32 address)
+ INLINE uint32_t ReadU32(uint32_t address)
  {
   if(MAS_NATIVE_IS_BIGENDIAN == big_endian)
-   return *(uint32*)(((uint8*)data32) + address);
+   return *(uint32_t*)(((uint8_t*)data32) + address);
   else
-   return LoadU32_RBO((uint32*)(((uint8*)data32) + address));
+   return LoadU32_RBO((uint32_t*)(((uint8_t*)data32) + address));
  }
 
- INLINE uint32 ReadU24(uint32 address)
+ INLINE uint32_t ReadU24(uint32_t address)
  {
-  uint32 ret;
+  uint32_t ret;
 
   if(!big_endian)
   {
@@ -150,28 +150,28 @@ struct MultiAccessSizeMem
  }
 
 
- INLINE void WriteU8(uint32 address, uint8 value)
+ INLINE void WriteU8(uint32_t address, uint8_t value)
  {
   data8[address] = value;
  }
 
- INLINE void WriteU16(uint32 address, uint16 value)
+ INLINE void WriteU16(uint32_t address, uint16_t value)
  {
   if(MAS_NATIVE_IS_BIGENDIAN == big_endian)
-   *(uint16*)(((uint8*)data16) + address) = value;
+   *(uint16_t*)(((uint8_t*)data16) + address) = value;
   else
-   StoreU16_RBO((uint16*)(((uint8*)data16) + address), value);
+   StoreU16_RBO((uint16_t*)(((uint8_t*)data16) + address), value);
  }
 
- INLINE void WriteU32(uint32 address, uint32 value)
+ INLINE void WriteU32(uint32_t address, uint32_t value)
  {
   if(MAS_NATIVE_IS_BIGENDIAN == big_endian)
-   *(uint32*)(((uint8*)data32) + address) = value;
+   *(uint32_t*)(((uint8_t*)data32) + address) = value;
   else
-   StoreU32_RBO((uint32*)(((uint8*)data32) + address), value);
+   StoreU32_RBO((uint32_t*)(((uint8_t*)data32) + address), value);
  }
 
- INLINE void WriteU24(uint32 address, uint32 value)
+ INLINE void WriteU24(uint32_t address, uint32_t value)
  {
   if(!big_endian)
   {
@@ -182,7 +182,7 @@ struct MultiAccessSizeMem
  }
 
  template<typename T>
- INLINE T Read(uint32 address)
+ INLINE T Read(uint32_t address)
  {
   if(sizeof(T) == 4)
    return(ReadU32(address));
@@ -193,7 +193,7 @@ struct MultiAccessSizeMem
  }
 
  template<typename T>
- INLINE void Write(uint32 address, T value)
+ INLINE void Write(uint32_t address, T value)
  {
   if(sizeof(T) == 4)
    WriteU32(address, value);

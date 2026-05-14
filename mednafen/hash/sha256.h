@@ -24,7 +24,7 @@
 
 #include <array>
 
-typedef std::array<uint8, 32> sha256_digest;
+typedef std::array<uint8_t, 32> sha256_digest;
 class sha256_hasher
 {
  public:
@@ -45,26 +45,26 @@ class sha256_hasher
  {
   if(std::is_same<T, bool>::value)
   {
-   uint8 tmp = v;
+   uint8_t tmp = v;
 
    process(&tmp, 1);
   }
   else
   {
-   alignas(T) uint8 tmp[sizeof(T)];
+   alignas(T) uint8_t tmp[sizeof(T)];
 
    /* MDFN_enlsb folded inline: size-dispatched LE byte store.
     * Only ever instantiated for T sizes 2 or 4 - other sizes are
     * a no-op same as before. */
    if(sizeof(v[0]) == 2)
    {
-    uint16 val__ = *(const uint16*)v;
+    uint16_t val__ = *(const uint16_t*)v;
     tmp[0] = val__;
     tmp[1] = val__ >> 8;
    }
    else if(sizeof(v[0]) == 4)
    {
-    uint32 val__ = *(const uint32*)v;
+    uint32_t val__ = *(const uint32_t*)v;
     tmp[0] = val__;
     tmp[1] = val__ >> 8;
     tmp[2] = val__ >> 16;
@@ -79,24 +79,24 @@ class sha256_hasher
 
  private:
 
- void process_block(const uint8* data);
- std::array<uint32, 8> h;
+ void process_block(const uint8_t* data);
+ std::array<uint32_t, 8> h;
 
- uint8 buf[64];
+ uint8_t buf[64];
  size_t buf_count;
 
- uint64 bytes_processed;
+ uint64_t bytes_processed;
 };
 
 void sha256_test(void);
-sha256_digest sha256(const void* data, const uint64 len);
+sha256_digest sha256(const void* data, const uint64_t len);
 
-static INLINE constexpr uint8 sha256_cton(char c)
+static INLINE constexpr uint8_t sha256_cton(char c)
 {
  return ((c >= 'A' && c <= 'F') ? c - 'A' + 0xa : ((c >= 'a' && c <= 'f') ? c - 'a' + 0xa : c - '0'));
 }
 
-static INLINE constexpr uint8 sha256_cton2(char c, char d)
+static INLINE constexpr uint8_t sha256_cton2(char c, char d)
 {
  return (sha256_cton(c) << 4) | (sha256_cton(d) << 0);
 }

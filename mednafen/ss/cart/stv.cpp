@@ -36,14 +36,14 @@
 #include <cstring>
 
 static unsigned ECChip;
-static uint16* ROM;
+static uint16_t* ROM;
 
-static uint8 rsg_thingy;
-static uint8 rsg_counter;
+static uint8_t rsg_thingy;
+static uint8_t rsg_counter;
 
-static MDFN_HOT void ROM_Read(uint32 A, uint16* DB)
+static MDFN_HOT void ROM_Read(uint32_t A, uint16_t* DB)
 {
- *DB = *(uint16*)((uint8*)ROM + ((A - 0x2000000) & 0x3FFFFFE));
+ *DB = *(uint16_t*)((uint8_t*)ROM + ((A - 0x2000000) & 0x3FFFFFE));
 
  if(A >= 0x04FFFFFC && rsg_thingy)
  {
@@ -52,19 +52,19 @@ static MDFN_HOT void ROM_Read(uint32 A, uint16* DB)
  }
 }
 
-uint8 CART_STV_PeekROM(uint32 A)
+uint8_t CART_STV_PeekROM(uint32_t A)
 {
  assert(A < 0x3000000);
- /* ne16_rbo_be<uint8>(ROM, A) folded. */
+ /* ne16_rbo_be<uint8_t>(ROM, A) folded. */
 #ifdef MSB_FIRST
- return ((const uint8*)ROM)[A];
+ return ((const uint8_t*)ROM)[A];
 #else
- return ((const uint8*)ROM)[A ^ 1];
+ return ((const uint8_t*)ROM)[A ^ 1];
 #endif
 }
 
 template<typename T>
-static MDFN_HOT void Write(uint32 A, uint16* DB)
+static MDFN_HOT void Write(uint32_t A, uint16_t* DB)
 {
  if(A >= 0x04FFFFF0 && ECChip == STV_EC_CHIP_RSG)
  {
@@ -128,7 +128,7 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
  {
   ECChip = sgi->ec_chip;
 
-  ROM = new uint16[0x3000000 / sizeof(uint16)];
+  ROM = new uint16_t[0x3000000 / sizeof(uint16_t)];
   memset(ROM, 0xFF, 0x3000000);
 
   for(size_t i = 0; i < sizeof(sgi->rom_layout) / sizeof(sgi->rom_layout[0]) && sgi->rom_layout[i].size; i++)
@@ -146,24 +146,24 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
 
     if(rle->map == STV_MAP_BYTE)
     {
-     for(uint32 j = 0; j < rle->size; j++)
+     for(uint32_t j = 0; j < rle->size; j++)
      {
-      const uint32 src_off = prev_rle->offset + (j << 1);
-      const uint32 dst_off = rle->offset + (j << 1);
-      uint8 tmp;
-      /* ne16_rbo_be<uint8>(ROM, src) / ne16_wbo_be<uint8>(ROM, dst, val). */
+      const uint32_t src_off = prev_rle->offset + (j << 1);
+      const uint32_t dst_off = rle->offset + (j << 1);
+      uint8_t tmp;
+      /* ne16_rbo_be<uint8_t>(ROM, src) / ne16_wbo_be<uint8_t>(ROM, dst, val). */
 #ifdef MSB_FIRST
-      tmp = ((const uint8*)ROM)[src_off];
-      ((uint8*)ROM)[dst_off] = tmp;
+      tmp = ((const uint8_t*)ROM)[src_off];
+      ((uint8_t*)ROM)[dst_off] = tmp;
 #else
-      tmp = ((const uint8*)ROM)[src_off ^ 1];
-      ((uint8*)ROM)[dst_off ^ 1] = tmp;
+      tmp = ((const uint8_t*)ROM)[src_off ^ 1];
+      ((uint8_t*)ROM)[dst_off ^ 1] = tmp;
 #endif
      }
     }
     else
     {
-     memmove((uint8*)ROM + rle->offset, (uint8*)ROM + prev_rle->offset, rle->size);
+     memmove((uint8_t*)ROM + rle->offset, (uint8_t*)ROM + prev_rle->offset, rle->size);
     }
     continue;
    }
@@ -181,17 +181,17 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
     {
      // Byte-interleaved into 16-bit ROM: one source byte per 16-bit
      // ROM slot, big-endian high byte.
-     for(uint32 j = 0; j < rle->size; j++)
+     for(uint32_t j = 0; j < rle->size; j++)
      {
-      uint8 tmp;
+      uint8_t tmp;
       if(filestream_read(fp, &tmp, 1) != 1)
        throw MDFN_Error(0, _("ST-V: ROM image \"%s\" shorter than expected (need %u bytes)"), fpath.c_str(), rle->size);
-      /* ne16_wbo_be<uint8>(ROM, offs, tmp) folded. */
-      const uint32 dst_off = rle->offset + (j << 1);
+      /* ne16_wbo_be<uint8_t>(ROM, offs, tmp) folded. */
+      const uint32_t dst_off = rle->offset + (j << 1);
 #ifdef MSB_FIRST
-      ((uint8*)ROM)[dst_off] = tmp;
+      ((uint8_t*)ROM)[dst_off] = tmp;
 #else
-      ((uint8*)ROM)[dst_off ^ 1] = tmp;
+      ((uint8_t*)ROM)[dst_off ^ 1] = tmp;
 #endif
      }
     }
@@ -199,12 +199,12 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
     {
      assert(!(rle->offset & 1));
      assert(!(rle->size & 1));
-     uint8* dest = (uint8*)ROM + rle->offset;
+     uint8_t* dest = (uint8_t*)ROM + rle->offset;
      int64_t dr = filestream_read(fp, dest, rle->size);
      if(dr != (int64_t)rle->size)
       throw MDFN_Error(0, _("ST-V: ROM image \"%s\" shorter than expected (got %lld of %u bytes)"), fpath.c_str(), (long long)dr, rle->size);
 
-     // Re-pack source bytes into native-endian uint16 slots.
+     // Re-pack source bytes into native-endian uint16_t slots.
      // Host is LSB_FIRST (the only build configuration this fork ships).
      // For 16LE-packed source: data is already little-endian, native order
      // matches, so this is a no-op. For 16BE-packed source: byteswap each
@@ -212,12 +212,12 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
      if(rle->map == STV_MAP_16BE)
      {
       /* Endian_A16_Swap folded: byte-pair swap loop. */
-      uint8 *p__ = (uint8*)dest;
-      uint32 n__ = rle->size >> 1;
-      uint32 k__;
+      uint8_t *p__ = (uint8_t*)dest;
+      uint32_t n__ = rle->size >> 1;
+      uint32_t k__;
       for(k__ = 0; k__ < n__; k__++)
       {
-       uint8 t = p__[k__ * 2];
+       uint8_t t = p__[k__ * 2];
        p__[k__ * 2]     = p__[k__ * 2 + 1];
        p__[k__ * 2 + 1] = t;
       }
@@ -242,22 +242,22 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
    // on either endian -- the bit operations don't care about byte order
    // since they operate per-byte (mask constants are byte-aligned). This
    // fork doesn't ship those helpers, so use memcpy explicitly.
-   for(uint32 i = 0; i < 0x3000000 / sizeof(uint64_t); i++)
+   for(uint32_t i = 0; i < 0x3000000 / sizeof(uint64_t); i++)
    {
     uint64_t tmp;
-    memcpy(&tmp, (uint8*)ROM + (i << 3), sizeof(tmp));
+    memcpy(&tmp, (uint8_t*)ROM + (i << 3), sizeof(tmp));
     tmp = ~tmp;
     tmp = ((tmp & 0x0404040404040404ULL) >> 2) | ((tmp & 0x0101010101010101ULL) << 6)
         |  (tmp & 0x2020202020202020ULL)
         | ((tmp & 0x1010101010101010ULL) >> 3) | ((tmp & 0x4040404040404040ULL) << 1)
         | ((tmp & 0x0808080808080808ULL) >> 1) | ((tmp & 0x8080808080808080ULL) >> 3)
         | ((tmp & 0x0202020202020202ULL) << 2);
-    memcpy((uint8*)ROM + (i << 3), &tmp, sizeof(tmp));
+    memcpy((uint8_t*)ROM + (i << 3), &tmp, sizeof(tmp));
    }
   }
 
   SS_SetPhysMemMap(0x02000000, 0x04FFFFFF, ROM, 0x3000000, false);
-  c->CS01_SetRW8W16(0x02000000, 0x04FFFFFF, ROM_Read, Write<uint8>, Write<uint16>);
+  c->CS01_SetRW8W16(0x02000000, 0x04FFFFFF, ROM_Read, Write<uint8_t>, Write<uint16_t>);
 
   c->StateAction = StateAction;
   c->Reset = Reset;

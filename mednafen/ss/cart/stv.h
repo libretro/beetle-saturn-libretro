@@ -45,6 +45,6 @@ void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, con
 
 // Peek a byte from STV ROM, byte-addressed.  Used by stvio.cpp's InitEEPROM
 // to read the game's onboard ROM header for cabinet detection.
-uint8 CART_STV_PeekROM(uint32 A);
+uint8_t CART_STV_PeekROM(uint32_t A);
 
 #endif

@@ -33,9 +33,9 @@ class IODevice_Multitap final : public IODevice
 
  virtual void Power(void) override MDFN_COLD;
  virtual void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname_prefix) override MDFN_COLD;
- virtual void Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32* lw, int ifield, float gun_x_scale, float gun_x_offs) const override;
- virtual uint8 UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted) override;
- virtual void LineHook(const sscpu_timestamp_t timestamp, int32 out_line, int32 div, int32 coord_adj) override;
+ virtual void Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const override;
+ virtual uint8_t UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted) override;
+ virtual void LineHook(const sscpu_timestamp_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj) override;
  virtual void ResetTS(void) override;
 
  void ForceSubUpdate(const sscpu_timestamp_t timestamp);
@@ -44,18 +44,18 @@ class IODevice_Multitap final : public IODevice
 
  private:
 
- uint8 UASB(const sscpu_timestamp_t timestamp);
+ uint8_t UASB(const sscpu_timestamp_t timestamp);
 
  IODevice* devices[6];
- uint8 sub_state[6];
- uint8 tmp[4];
- uint8 id1;
- uint8 id2;
- uint8 data_out;
+ uint8_t sub_state[6];
+ uint8_t tmp[4];
+ uint8_t id1;
+ uint8_t id2;
+ uint8_t data_out;
  bool tl;
- int32 phase;
- uint8 port_counter;
- uint8 read_counter;
+ int32_t phase;
+ uint8_t port_counter;
+ uint8_t read_counter;
 };
 
 

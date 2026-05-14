@@ -76,13 +76,13 @@ static const char* bsize_to_type(unsigned size)
   return "std::tuple<>";
 
  if(size == 1)
-  return "uint8";
+  return "uint8_t";
   
  if(size == 2)
-  return "uint16"; 
+  return "uint16_t"; 
   
  if(size == 4)
-  return "uint32";
+  return "uint32_t";
 
  return NULL;
 }
@@ -164,7 +164,7 @@ static void PrivilegeWrap(std::string *str, bool mfsr = false)
   *str = s("if(CheckPrivilege()) { %s }", str->c_str());
 }
 
-static const char* size_names[4] = { "uint8", "uint16", "uint32", NULL };
+static const char* size_names[4] = { "uint8_t", "uint16_t", "uint32_t", NULL };
 
 //
 // Bit manipulation, MOVEP, immediate
@@ -179,7 +179,7 @@ static std::string Instr0(const unsigned i)
   if((i & 0x38) == 0x08)
   {
    assert(ret.size() == 0);
-   const char* sn = (i & 0x40) ? "uint32" : "uint16";
+   const char* sn = (i & 0x40) ? "uint32_t" : "uint16_t";
 
    ret += s("MOVEP<%s, %s>(instr_b2_b0, instr_b11_b9);", sn, (i & 0x80) ? "true" : "false");
   } 
@@ -342,7 +342,7 @@ static std::string form_dar_opm_ea(const unsigned i, const char* name)
  if(decode_ea(allowed, 1U << szi, i, to_mem ? "dst" : "src", &tmp_ea))
  {
   tmp_ea += "; ";
-  tmp_reg = s("HAM<%s, %s> %s\(this, instr_b11_b9); ", is_a ? "uint32" : size_names[szi], is_a ? "ADDR_REG_DIR" : "DATA_REG_DIR", to_mem ? "src" : "dst");
+  tmp_reg = s("HAM<%s, %s> %s\(this, instr_b11_b9); ", is_a ? "uint32_t" : size_names[szi], is_a ? "ADDR_REG_DIR" : "DATA_REG_DIR", to_mem ? "src" : "dst");
 
   if(to_mem)
    ret += tmp_reg + tmp_ea;
@@ -400,7 +400,7 @@ static std::string Instr4(const unsigned instr)
  {
   const bool dr = (instr >> 10) & 1;	// 0 = reg->mem, 1 = mem->reg
   const bool sz = (instr >> 6) & 1;	// 0 = word, 1 = long
-  std::string rls = "const uint16 reglist = ReadOp()";
+  std::string rls = "const uint16_t reglist = ReadOp()";
   unsigned instr_adj = instr;
 
   if(!dr)
@@ -479,7 +479,7 @@ static std::string Instr4(const unsigned instr)
    {
     assert(ret.size() == 0);
     
-    ret += s("%s; HAM<uint16, DATA_REG_DIR> dst(this, instr_b11_b9); CHK(src, dst);", tmp.c_str());
+    ret += s("%s; HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); CHK(src, dst);", tmp.c_str());
    }
   }
   else if(type == 0x7)
@@ -582,7 +582,7 @@ static std::string Instr4(const unsigned instr)
   {
    assert(ret.size() == 0);
 
-   ret = s("HAM<%s, DATA_REG_DIR> dst(this, instr_b2_b0); EXT(dst);", (type & 0x1) ? "uint32" : "uint16");
+   ret = s("HAM<%s, DATA_REG_DIR> dst(this, instr_b2_b0); EXT(dst);", (type & 0x1) ? "uint32_t" : "uint16_t");
   }
  }
 
@@ -748,7 +748,7 @@ static std::string Instr5(const unsigned i)
 
 static std::string Instr6(const unsigned i)
 {
- return s("Bxx<0x%02x>((int8)instr);", (i >> 8) & 0xF);
+ return s("Bxx<0x%02x>((int8_t)instr);", (i >> 8) & 0xF);
 }
 
 static std::string Instr7(const unsigned i)
@@ -758,7 +758,7 @@ static std::string Instr7(const unsigned i)
  // MOVEQ
  if(((i >> 8) & 0x1) == 0x0)
  {
-  ret = s("HAM<uint32, IMMEDIATE> src(this, (int8)instr); HAM<uint32, DATA_REG_DIR> dst(this, instr_b11_b9); MOVE(src, dst);");
+  ret = s("HAM<uint32_t, IMMEDIATE> src(this, (int8_t)instr); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); MOVE(src, dst);");
  }
 
  return ret;

@@ -56,32 +56,32 @@ enum
  SMPC_RTC_LANG_JAPANESE = 5,
 };
 
-void SMPC_Init(const uint8 area_code, const int32 master_clock, bool block_soundcpu_control = false) MDFN_COLD;
+void SMPC_Init(const uint8_t area_code, const int32_t master_clock, bool block_soundcpu_control = false) MDFN_COLD;
 void SMPC_Reset(bool powering_up) MDFN_COLD;
 void SMPC_LoadNV(cdstream* s) MDFN_COLD;
 void SMPC_SaveNV(cdstream* s) MDFN_COLD;
 void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
-void SMPC_SetRTC(const struct tm* ht, const uint8 lang) MDFN_COLD;
+void SMPC_SetRTC(const struct tm* ht, const uint8_t lang) MDFN_COLD;
 
-void SMPC_Write(const sscpu_timestamp_t timestamp, uint8 A, uint8 V) MDFN_HOT;
-uint8 SMPC_Read(const sscpu_timestamp_t timestamp, uint8 A) MDFN_HOT;
+void SMPC_Write(const sscpu_timestamp_t timestamp, uint8_t A, uint8_t V) MDFN_HOT;
+uint8_t SMPC_Read(const sscpu_timestamp_t timestamp, uint8_t A) MDFN_HOT;
 
 sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp);
 void SMPC_ResetTS(void);
 
 void SMPC_ProcessSlaveOffOn(void);
-int32 SMPC_StartFrame(void);
+int32_t SMPC_StartFrame(void);
 void SMPC_EndFrame(EmulateSpecStruct* espec, sscpu_timestamp_t timestamp);
 void SMPC_TransformInput(void);
-void SMPC_UpdateInput(const int32 time_elapsed);
+void SMPC_UpdateInput(const int32_t time_elapsed);
 void SMPC_UpdateOutput(void);
-void SMPC_SetInput(unsigned port, const char* type, uint8* ptr) MDFN_COLD;
+void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr) MDFN_COLD;
 void SMPC_SetMultitap(unsigned sport, bool enabled) MDFN_COLD;
-void SMPC_SetCrosshairsColor(unsigned port, uint32 color) MDFN_COLD;
+void SMPC_SetCrosshairsColor(unsigned port, uint32_t color) MDFN_COLD;
 
 void SMPC_SetVBVS(sscpu_timestamp_t event_timestamp, bool vb_status, bool vsync_status);
 
-void SMPC_LineHook(sscpu_timestamp_t event_timestamp, int32 out_line, int32 div, int32 coord_adj);
+void SMPC_LineHook(sscpu_timestamp_t event_timestamp, int32_t out_line, int32_t div, int32_t coord_adj);
 
 #endif

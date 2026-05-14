@@ -240,7 +240,7 @@ static INLINE uint64_t cdstream_write_u8(cdstream *s, uint8_t v)
    return cdstream_write(s, &v, 1);
 }
 
-/* Big-endian uint16 write.  Used by the cart NV save path for
+/* Big-endian uint16_t write.  Used by the cart NV save path for
  * NV-RAM regions that store data in big-endian word order. */
 static INLINE uint64_t cdstream_write_be_u16(cdstream *s, uint16_t v)
 {

@@ -24,7 +24,7 @@
 
 #include <zlib.h>
 
-uint16 crc16_ccitt(uint16 initial, const void* data, size_t len)
+uint16_t crc16_ccitt(uint16_t initial, const void* data, size_t len)
 {
  /* CRC-16-CCITT, polynomial 0x1021, MSB-first, no reflection, no final XOR.
   * Matches Mednafen's crc16_ccitt(initial, data, len). Slow bitwise form;
@@ -32,20 +32,20 @@ uint16 crc16_ccitt(uint16 initial, const void* data, size_t len)
   * EEPROM contents with ~0x36 bytes, so a table-driven version isn't worth
   * the binary bloat. */
  const uint8_t* p = (const uint8_t*)data;
- uint16 crc = initial;
+ uint16_t crc = initial;
  for(size_t i = 0; i < len; i++)
  {
-  crc ^= ((uint16)p[i]) << 8;
+  crc ^= ((uint16_t)p[i]) << 8;
   for(int b = 0; b < 8; b++)
    crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
  }
  return crc;
 }
 
-uint32 crc32_zip(uint32 initial, const void* data, size_t len)
+uint32_t crc32_zip(uint32_t initial, const void* data, size_t len)
 {
  /* The "zip" CRC32 is the standard Ethernet/PNG/zip CRC32, identical to
   * what zlib's crc32() computes, so forward to it. zlib's crc32(0, ...) is
   * exactly initial=0, the seed Mednafen documents. */
- return (uint32)crc32(initial, (const unsigned char*)data, (unsigned int)len);
+ return (uint32_t)crc32(initial, (const unsigned char*)data, (unsigned int)len);
 }

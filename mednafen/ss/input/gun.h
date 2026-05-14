@@ -31,30 +31,30 @@ class IODevice_Gun final : public IODevice
  virtual ~IODevice_Gun() override MDFN_COLD;
 
  virtual void Power(void) override MDFN_COLD;
- virtual void TransformInput(uint8* const data, float gun_x_scale, float gun_x_offs) const override;
- virtual void UpdateInput(const uint8* data, const int32 time_elapsed) override;
+ virtual void TransformInput(uint8_t* const data, float gun_x_scale, float gun_x_offs) const override;
+ virtual void UpdateInput(const uint8_t* data, const int32_t time_elapsed) override;
  virtual void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname_prefix) override;
- virtual void Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32* lw, int ifield, float gun_x_scale, float gun_x_offs) const override;
+ virtual void Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const override;
 
- virtual uint8 UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted) override;
+ virtual uint8_t UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted) override;
 
- virtual void LineHook(const sscpu_timestamp_t timestamp, int32 out_line, int32 div, int32 coord_adj) override;
+ virtual void LineHook(const sscpu_timestamp_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj) override;
 
- void SetCrosshairsColor(uint32 color);
+ void SetCrosshairsColor(uint32_t color);
 
  private:
 
  void UpdateLight(const sscpu_timestamp_t timestamp);
 
- uint8 state;
+ uint8_t state;
 
- int32 osshot_counter;
+ int32_t osshot_counter;
  bool prev_ossb;
 
  //
- int32 nom_coord[2];
+ int32_t nom_coord[2];
  bool light_phase;
- int32 light_phase_counter;
+ int32_t light_phase_counter;
 
  int chair_r, chair_g, chair_b;
 };

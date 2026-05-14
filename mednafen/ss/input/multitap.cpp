@@ -40,13 +40,13 @@ void IODevice_Multitap::ForceSubUpdate(const sscpu_timestamp_t timestamp)
  LastTS = timestamp;
 }
 
-void IODevice_Multitap::Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32* lw, int ifield, float gun_x_scale, float gun_x_offs) const
+void IODevice_Multitap::Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const
 {
  for(unsigned i = 0; i < 6; i++)
   devices[i]->Draw(surface, drect, lw, ifield, gun_x_scale, gun_x_offs);
 }
 
-void IODevice_Multitap::LineHook(const sscpu_timestamp_t timestamp, int32 out_line, int32 div, int32 coord_adj)
+void IODevice_Multitap::LineHook(const sscpu_timestamp_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj)
 {
  for(unsigned i = 0; i < 6; i++)
   devices[i]->LineHook(timestamp, out_line, div, coord_adj);
@@ -149,12 +149,12 @@ enum : int { PhaseBias = __COUNTER__ + 1 };
 #define WR_NYB(v) { WAIT_UNTIL((bool)(smpc_out & 0x20) != tl); data_out = (v) & 0xF; tl = !tl; }
 
 
-INLINE uint8 IODevice_Multitap::UASB(const sscpu_timestamp_t timestamp)
+INLINE uint8_t IODevice_Multitap::UASB(const sscpu_timestamp_t timestamp)
 {
  return devices[port_counter]->UpdateBus(timestamp, sub_state[port_counter], 0x60);
 }
 
-uint8 IODevice_Multitap::UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted)
+uint8_t IODevice_Multitap::UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
  if(smpc_out & 0x40)
  {

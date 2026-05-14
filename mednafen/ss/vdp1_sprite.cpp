@@ -27,7 +27,7 @@
 namespace VDP1
 {
 
-static int32 (*LineFuncTab[2][3][0x20][8 + 1])(bool* need_line_resume) =
+static int32_t (*LineFuncTab[2][3][0x20][8 + 1])(bool* need_line_resume) =
 {
  #define LINEFN_BC(die, bpp8, b, c)	\
 	DrawLine<true, true, die, bpp8, c == 0x8, (bool)(b & 0x10), (b & 0x10) && (b & 0x08), (bool)(b & 0x04), (bool)(b & 0x02), (bool)(b & 0x01), (bool)(c & 0x4), (!bpp8) && (c & 0x2), (bool)(c & 0x1)>
@@ -77,9 +77,9 @@ enum
 };
 
 template<bool gourauden>
-static int32 SpriteResumeBase(const uint16* cmd_data)
+static int32_t SpriteResumeBase(const uint16_t* cmd_data)
 {
- const uint16 mode = cmd_data[0x2];
+ const uint16_t mode = cmd_data[0x2];
  auto* fnptr = LineFuncTab[(bool)(FBCR & FBCR_DIE)][(TVMR & TVMR_8BPP) ? ((TVMR & TVMR_ROTATE) ? 2 : 1) : 0][(mode >> 6) & 0x1F][(mode & 0x8000) ? 8 : (mode & 0x7)];
  LineData.tffn = TexFetchTab[(mode >> 3) & 0x1F];
  //
@@ -88,9 +88,9 @@ static int32 SpriteResumeBase(const uint16* cmd_data)
  EdgeStepper e0 = PrimData.e[0];
  EdgeStepper e1 = PrimData.e[1];
  VileTex big_t = PrimData.big_t;
- const uint32 tex_base = PrimData.tex_base;
- int32 iter = PrimData.iter;
- int32 ret = 0;
+ const uint32_t tex_base = PrimData.tex_base;
+ int32_t iter = PrimData.iter;
+ int32_t ret = 0;
  //
  //
  if(MDFN_UNLIKELY(PrimData.need_line_resume))
@@ -130,7 +130,7 @@ static int32 SpriteResumeBase(const uint16* cmd_data)
  return ret;
 }
 
-int32 RESUME_Sprite(const uint16* cmd_data)
+int32_t RESUME_Sprite(const uint16_t* cmd_data)
 {
  if(cmd_data[0x2] & 0x4) // gouraud
   return SpriteResumeBase<true>(cmd_data);
@@ -139,16 +139,16 @@ int32 RESUME_Sprite(const uint16* cmd_data)
 }
 
 template<unsigned format>
-static INLINE int32 SpriteBase(const uint16* cmd_data)
+static INLINE int32_t SpriteBase(const uint16_t* cmd_data)
 {
  const unsigned dir = (cmd_data[0] >> 4) & 0x3;
- const uint16 mode = cmd_data[0x2];
+ const uint16_t mode = cmd_data[0x2];
  const unsigned cm = (mode >> 3) & 0x7;
- const uint16 color = cmd_data[0x3];
- const uint32 w = ((cmd_data[0x5] >> 8) & 0x3F) << 3;
- const uint32 h = cmd_data[0x5] & 0xFF;
+ const uint16_t color = cmd_data[0x3];
+ const uint32_t w = ((cmd_data[0x5] >> 8) & 0x3F) << 3;
+ const uint32_t h = cmd_data[0x5] & 0xFF;
  line_vertex p[4];
- int32 ret = 0;
+ int32_t ret = 0;
 
  LineData.color = cmd_data[0x3];
 
@@ -165,11 +165,11 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
   p[0].x = sign_x_to_s32(13, cmd_data[0x6]) + LocalX;
   p[0].y = sign_x_to_s32(13, cmd_data[0x7]) + LocalY;
 
-  p[1].x = p[0].x + (((uint32)(w) > (uint32)(1) ? (uint32)(w) : (uint32)(1)) - 1);
+  p[1].x = p[0].x + (((uint32_t)(w) > (uint32_t)(1) ? (uint32_t)(w) : (uint32_t)(1)) - 1);
   p[1].y = p[0].y;
 
   p[2].x = p[1].x;
-  p[2].y = p[0].y + (((uint32)(h) > (uint32)(1) ? (uint32)(h) : (uint32)(1)) - 1);
+  p[2].y = p[0].y + (((uint32_t)(h) > (uint32_t)(1) ? (uint32_t)(h) : (uint32_t)(1)) - 1);
 
   p[3].x = p[0].x;
   p[3].y = p[2].y;
@@ -178,12 +178,12 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
  {
   const unsigned zp = (cmd_data[0] >> 8) & 0xF;
   {
-   int32 zp_x = sign_x_to_s32(13, cmd_data[0x6]);
-   int32 zp_y = sign_x_to_s32(13, cmd_data[0x7]);
-   int32 disp_w = sign_x_to_s32(13, cmd_data[0x8]);
-   int32 disp_h = sign_x_to_s32(13, cmd_data[0x9]);
-   int32 alt_x = sign_x_to_s32(13, cmd_data[0xA]);
-   int32 alt_y = sign_x_to_s32(13, cmd_data[0xB]);
+   int32_t zp_x = sign_x_to_s32(13, cmd_data[0x6]);
+   int32_t zp_y = sign_x_to_s32(13, cmd_data[0x7]);
+   int32_t disp_w = sign_x_to_s32(13, cmd_data[0x8]);
+   int32_t disp_h = sign_x_to_s32(13, cmd_data[0x9]);
+   int32_t alt_x = sign_x_to_s32(13, cmd_data[0xA]);
+   int32_t alt_y = sign_x_to_s32(13, cmd_data[0xB]);
 
    for(unsigned i = 0; i < 4; i++)
    {
@@ -251,7 +251,7 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
 
  if(cmd_data[0x2] & 0x4) // gouraud
  {
-  const uint16* gtb = &VRAM[cmd_data[0xE] << 2];
+  const uint16_t* gtb = &VRAM[cmd_data[0xE] << 2];
 
   ret += 4;
   for(unsigned i = 0; i < 4; i++)
@@ -290,7 +290,7 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
  //
  //
  //
- int32 dmax;
+ int32_t dmax;
 
  dmax = 		      abs(sign_x_to_s32(13, p[3].x - p[0].x));
  if((abs(sign_x_to_s32(13, p[3].y - p[0].y))) > dmax) dmax = (abs(sign_x_to_s32(13, p[3].y - p[0].y)));
@@ -298,7 +298,7 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
  if((abs(sign_x_to_s32(13, p[2].y - p[1].y))) > dmax) dmax = (abs(sign_x_to_s32(13, p[2].y - p[1].y)));
  dmax &= 0xFFF;
 
- int32 tex_base = cmd_data[0x4] << 2;
+ int32_t tex_base = cmd_data[0x4] << 2;
  const bool gourauden = (bool)(cmd_data[0x2] & 0x4);
  if(cm == 5) // RGB
   tex_base &= ~0x7;
@@ -311,7 +311,7 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
 
  {
   const bool v_inv = dir & 2;
-  int32 tv[2];
+  int32_t tv[2];
 
   tv[0 ^ v_inv] = 0;
   tv[1 ^ v_inv] = h ? (h - 1) : 0;
@@ -322,17 +322,17 @@ static INLINE int32 SpriteBase(const uint16* cmd_data)
  return ret;
 }
 
-int32 CMD_DistortedSprite(const uint16* cmd_data)
+int32_t CMD_DistortedSprite(const uint16_t* cmd_data)
 {
  return SpriteBase<FORMAT_DISTORTED>(cmd_data);
 }
 
-int32 CMD_NormalSprite(const uint16* cmd_data)
+int32_t CMD_NormalSprite(const uint16_t* cmd_data)
 {
  return SpriteBase<FORMAT_NORMAL>(cmd_data);
 }
 
-int32 CMD_ScaledSprite(const uint16* cmd_data)
+int32_t CMD_ScaledSprite(const uint16_t* cmd_data)
 {
  return SpriteBase<FORMAT_SCALED>(cmd_data);
 }

@@ -25,7 +25,7 @@
 namespace VDP1
 {
 
-static int32 (*LineFuncTab[2][3][0x20][8 + 1])(bool* need_line_resume) =
+static int32_t (*LineFuncTab[2][3][0x20][8 + 1])(bool* need_line_resume) =
 {
  #define LINEFN_BC(die, bpp8, b, c)	\
 	DrawLine<false, false, die, bpp8, c == 0x8, (bool)(b & 0x10), (b & 0x10) && (b & 0x08), (bool)(b & 0x04), false/*b & 0x02*/, (bool)(b & 0x01), (bool)(c & 0x4), (bool)(c & 0x2), (bool)(c & 0x1)>
@@ -67,15 +67,15 @@ static int32 (*LineFuncTab[2][3][0x20][8 + 1])(bool* need_line_resume) =
  #undef LINEFN_BC
 };
 
-int32 RESUME_Line(const uint16* cmd_data)
+int32_t RESUME_Line(const uint16_t* cmd_data)
 {
- const uint16 mode = cmd_data[0x2];
+ const uint16_t mode = cmd_data[0x2];
  // Abusing the SPD bit passed to the line draw function to denote non-transparency when == 1, transparent when == 0.
- const bool SPD_Opaque = (((mode >> 3) & 0x7) < 0x6) ? ((int32)(TexFetchTab[(mode >> 3) & 0x1F](0xFFFFFFFF)) >= 0) : true;
+ const bool SPD_Opaque = (((mode >> 3) & 0x7) < 0x6) ? ((int32_t)(TexFetchTab[(mode >> 3) & 0x1F](0xFFFFFFFF)) >= 0) : true;
  auto* const fnptr = LineFuncTab[(bool)(FBCR & FBCR_DIE)][(TVMR & TVMR_8BPP) ? ((TVMR & TVMR_ROTATE) ? 2 : 1) : 0][((mode >> 6) & 0x1E) | SPD_Opaque /*(mode >> 6) & 0x1F*/][(mode & 0x8000) ? 8 : (mode & 0x7)];
- const uint32 num_lines = (cmd_data[0] & 0x1) ? 4 : 1;
- uint32 iter = PrimData.iter;
- int32 ret = 0;
+ const uint32_t num_lines = (cmd_data[0] & 0x1) ? 4 : 1;
+ uint32_t iter = PrimData.iter;
+ int32_t ret = 0;
 
  if(MDFN_UNLIKELY(PrimData.need_line_resume))
  {
@@ -94,7 +94,7 @@ int32 RESUME_Line(const uint16* cmd_data)
 
    if(mode & 0x4) // Gouraud
    {
-    const uint16* gtb = &VRAM[cmd_data[0xE] << 2];
+    const uint16_t* gtb = &VRAM[cmd_data[0xE] << 2];
 
     ret += 2;
     LineData.p[0].g = gtb[(iter + 0) & 0x3];
@@ -115,7 +115,7 @@ int32 RESUME_Line(const uint16* cmd_data)
  return ret;
 }
 
-int32 CMD_Line(const uint16* cmd_data)
+int32_t CMD_Line(const uint16_t* cmd_data)
 {
  //
  //

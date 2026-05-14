@@ -36,21 +36,21 @@ void SOUND_Set68KActive(bool active);
 void SOUND_Reset68K(void);
 void SOUND_ResetSCSP(void);
 
-void SOUND_SetClockRatio(uint32 ratio); // Ratio between SH-2 clock and 68K clock (sound clock / 2)
+void SOUND_SetClockRatio(uint32_t ratio); // Ratio between SH-2 clock and 68K clock (sound clock / 2)
 sscpu_timestamp_t SOUND_Update(sscpu_timestamp_t timestamp);
-void SOUND_AdjustTS(const int32 delta);
+void SOUND_AdjustTS(const int32_t delta);
 void SOUND_StateAction(StateMem *sm, const unsigned load, const bool data_only);
 
-uint16 SOUND_Read16(uint32 A);
-void SOUND_Write8(uint32 A, uint8 V);
-void SOUND_Write16(uint32 A, uint16 V);
+uint16_t SOUND_Read16(uint32_t A);
+void SOUND_Write8(uint32_t A, uint8_t V);
+void SOUND_Write16(uint32_t A, uint16_t V);
 
-uint8 SOUND_PeekRAM(uint32 A);
-void SOUND_PokeRAM(uint32 A, uint8 V);
+uint8_t SOUND_PeekRAM(uint32_t A);
+void SOUND_PokeRAM(uint32_t A, uint8_t V);
 
-uint32 SOUND_GetSCSPRegister(const unsigned id, char* const special, const uint32 special_len) MDFN_COLD;
-void SOUND_SetSCSPRegister(const unsigned id, const uint32 value) MDFN_COLD;
-uint32 SOUND_GetM68KRegister(const unsigned id, char* const special, const uint32 special_len) MDFN_COLD;
-void SOUND_SetM68KRegister(const unsigned id, const uint32 value) MDFN_COLD;
+uint32_t SOUND_GetSCSPRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
+void SOUND_SetSCSPRegister(const unsigned id, const uint32_t value) MDFN_COLD;
+uint32_t SOUND_GetM68KRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
+void SOUND_SetM68KRegister(const unsigned id, const uint32_t value) MDFN_COLD;
 
 #endif

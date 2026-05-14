@@ -33,28 +33,28 @@ class IODevice
 
  virtual void Power(void) MDFN_COLD;
 
- virtual void TransformInput(uint8* const data, float gun_x_scale, float gun_x_offs) const;
+ virtual void TransformInput(uint8_t* const data, float gun_x_scale, float gun_x_offs) const;
  //
  // time_elapsed is emulated time elapsed since last call to UpdateInput(), in microseconds;
  // it's mostly for keyboard emulation, to keep the implementation from becoming unnecessarily complex.
  //
- virtual void UpdateInput(const uint8* data, const int32 time_elapsed);
- virtual void UpdateOutput(uint8* data);
+ virtual void UpdateInput(const uint8_t* data, const int32_t time_elapsed);
+ virtual void UpdateOutput(uint8_t* data);
  virtual void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname_prefix) MDFN_COLD;
 
- virtual void Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32* lw, int ifield, float gun_x_scale, float gun_x_offs) const;
+ virtual void Draw(MDFN_Surface* surface, const MDFN_Rect& drect, const int32_t* lw, int ifield, float gun_x_scale, float gun_x_offs) const;
 
  //
  // timestamp passed to UpdateBus() and LineHook() may exceed that as specified by NextEventTS under certain conditions(behind emulated multitap) for performance reasons,
  // so write code that can handle this.
  //
- virtual uint8 UpdateBus(const sscpu_timestamp_t timestamp, const uint8 smpc_out, const uint8 smpc_out_asserted);
- virtual void LineHook(const sscpu_timestamp_t timestamp, int32 out_line, int32 div, int32 coord_adj);
+ virtual uint8_t UpdateBus(const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted);
+ virtual void LineHook(const sscpu_timestamp_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj);
  virtual void ResetTS(void);
  // SetTSFreq is called when the emulator's master clock changes; ST-V's
  // EEPROM (AK93C45) needs this to recompute its time-base ratio. Base
  // implementation is empty -- standard Saturn input devices don't care.
- virtual void SetTSFreq(const int32 rate);
+ virtual void SetTSFreq(const int32_t rate);
  sscpu_timestamp_t NextEventTS = SS_EVENT_DISABLED_TS;
  sscpu_timestamp_t LastTS = 0;
 };

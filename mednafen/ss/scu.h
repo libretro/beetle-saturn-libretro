@@ -49,7 +49,7 @@ enum
 void SCU_Reset(bool powering_up) MDFN_COLD;
 
 void SCU_SetInt(unsigned which, bool active);
-int32 SCU_SetHBVB(int32 pclocks, bool hblank_in, bool vblank_in);
+int32_t SCU_SetHBVB(int32_t pclocks, bool hblank_in, bool vblank_in);
 
 bool SCU_CheckVDP1HaltKludge(void);
 
@@ -98,7 +98,7 @@ enum
  SCU_GSREG_DSP_END,
 };
 
-uint32 SCU_GetRegister(const unsigned id, char* const special, const uint32 special_len) MDFN_COLD;
-void SCU_SetRegister(const unsigned id, const uint32 value) MDFN_COLD;
+uint32_t SCU_GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
+void SCU_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
 
 #endif

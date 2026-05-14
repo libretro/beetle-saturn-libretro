@@ -3,7 +3,7 @@
 
 #include <string>
 
-extern uint32 MDFN_RoundUpPow2(uint32);
+extern uint32_t MDFN_RoundUpPow2(uint32_t);
 
 void GetFileBase(const char *f);
 

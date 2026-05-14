@@ -22,15 +22,15 @@
 #include "common.h"
 #include "extram.h"
 
-static uint16 ExtRAM[0x200000];
+static uint16_t ExtRAM[0x200000];
 static size_t ExtRAM_Mask;
-static uint8 Cart_ID;
+static uint8_t Cart_ID;
 
 template<typename T, bool IsWrite>
-static MDFN_HOT void ExtRAM_RW_DB(uint32 A, uint16* DB)
+static MDFN_HOT void ExtRAM_RW_DB(uint32_t A, uint16_t* DB)
 {
- const uint32 mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
- uint16* const ptr = (uint16*)((uint8*)ExtRAM + (A & ExtRAM_Mask));
+ const uint32_t mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+ uint16_t* const ptr = (uint16_t*)((uint8_t*)ExtRAM + (A & ExtRAM_Mask));
 
  if(IsWrite)
   *ptr = (*ptr & ~mask) | (*DB & mask);
@@ -38,7 +38,7 @@ static MDFN_HOT void ExtRAM_RW_DB(uint32 A, uint16* DB)
   *DB = *ptr;
 }
 
-static MDFN_HOT void CartID_Read_DB(uint32 A, uint16* DB)
+static MDFN_HOT void CartID_Read_DB(uint32_t A, uint16_t* DB)
 {
  if((A & ~1) == 0x04FFFFFE)
   *DB = Cart_ID;
@@ -77,13 +77,13 @@ void CART_ExtRAM_Init(CartInfo* c, bool R4MiB)
   ExtRAM_Mask = 0x27FFFE;
  }
 
- SS_SetPhysMemMap(0x02400000, 0x025FFFFF, ExtRAM + (0x000000 / sizeof(uint16)), (R4MiB ? 0x200000 : 0x080000), true);
- SS_SetPhysMemMap(0x02600000, 0x027FFFFF, ExtRAM + (0x200000 / sizeof(uint16)), (R4MiB ? 0x200000 : 0x080000), true);
+ SS_SetPhysMemMap(0x02400000, 0x025FFFFF, ExtRAM + (0x000000 / sizeof(uint16_t)), (R4MiB ? 0x200000 : 0x080000), true);
+ SS_SetPhysMemMap(0x02600000, 0x027FFFFF, ExtRAM + (0x200000 / sizeof(uint16_t)), (R4MiB ? 0x200000 : 0x080000), true);
 
  c->CS01_SetRW8W16(0x02400000, 0x027FFFFF,
-	ExtRAM_RW_DB<uint16, false>,
-	ExtRAM_RW_DB<uint8, true>,
-	ExtRAM_RW_DB<uint16, true>);
+	ExtRAM_RW_DB<uint16_t, false>,
+	ExtRAM_RW_DB<uint8_t, true>,
+	ExtRAM_RW_DB<uint16_t, true>);
 
  c->CS01_SetRW8W16(/*0x04FFFFFE*/0x04F00000, 0x04FFFFFF, CartID_Read_DB);
 

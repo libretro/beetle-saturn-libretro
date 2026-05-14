@@ -142,7 +142,7 @@
 #include <mednafen/cdrom/cdromif.h>
 
 static void CheckBufPauseResume(void);
-static void StartSeek(const uint32 cmd_target, const uint32 cur_play_end = 0x800000, const uint32 cur_play_repeat = 0, const uint32 play_end_irq_type = 0, const bool no_pickup_change = false);
+static void StartSeek(const uint32_t cmd_target, const uint32_t cur_play_end = 0x800000, const uint32_t cur_play_repeat = 0, const uint32_t play_end_irq_type = 0, const bool no_pickup_change = false);
 static void ClearPendingSec(void);
 
 enum
@@ -157,9 +157,9 @@ enum
  SECLEN__LAST = 3,
 };
 
-static uint8 GetSecLen, PutSecLen;
+static uint8_t GetSecLen, PutSecLen;
 
-static uint8 AuthDiscType;
+static uint8_t AuthDiscType;
 enum
 {
  COMMAND_GET_CDSTATUS	= 0x00,
@@ -259,23 +259,23 @@ enum
  HIRQ_MPCM = 0x1000,
  HIRQ_MPST = 0x2000
 };
-static uint16 HIRQ, HIRQ_Mask;
-static uint16 CData[4];
-static uint16 Results[4];
+static uint16_t HIRQ, HIRQ_Mask;
+static uint16_t CData[4];
+static uint16_t Results[4];
 static bool CommandPending;
-static uint16 SWResetHIRQDeferred;
+static uint16_t SWResetHIRQDeferred;
 static bool SWResetPending;
-static uint8 ResetSelPending;
+static uint8_t ResetSelPending;
 
-static uint8 CDDevConn;
-static uint8 LastBufDest;
+static uint8_t CDDevConn;
+static uint8_t LastBufDest;
 
 enum : int { NumBuffers = 0xC8 };
 static struct BufferT
 {
- uint8 Data[2352];
- uint8 Prev;
- uint8 Next;
+ uint8_t Data[2352];
+ uint8_t Prev;
+ uint8_t Next;
 } Buffers[NumBuffers];
 
 static struct FilterS
@@ -291,41 +291,41 @@ static struct FilterS
   MODE_INIT	   = 0x80
  };
 
- uint8 Mode;
- uint8 TrueConn;
- uint8 FalseConn;
+ uint8_t Mode;
+ uint8_t TrueConn;
+ uint8_t FalseConn;
  //
- uint32 FAD;
- uint32 Range;
+ uint32_t FAD;
+ uint32_t Range;
 
- uint8 Channel;
- uint8 File;
+ uint8_t Channel;
+ uint8_t File;
 
- uint8 SubMode;
- uint8 SubModeMask;
+ uint8_t SubMode;
+ uint8_t SubModeMask;
 
- uint8 CInfo;
- uint8 CInfoMask;
+ uint8_t CInfo;
+ uint8_t CInfoMask;
 } Filters[0x18];
 
 static struct
 {
- uint8 FirstBuf;
- uint8 LastBuf;
- uint8 Count;
+ uint8_t FirstBuf;
+ uint8_t LastBuf;
+ uint8_t Count;
 } Partitions[0x18];
 
-static uint8 FirstFreeBuf;
-static uint8 FreeBufferCount;
+static uint8_t FirstFreeBuf;
+static uint8_t FreeBufferCount;
 
 static struct
 {
- uint32 fad;
- uint16 spos;
- uint8 pnum;
+ uint32_t fad;
+ uint16_t spos;
+ uint8_t pnum;
 } FADSearch;
 
-static uint32 CalcedActualSize;
+static uint32_t CalcedActualSize;
 //
 //
 //
@@ -335,15 +335,15 @@ static bool TrayOpen;
 static CDIF* Cur_CDIF;
 static TOC toc;
 static sscpu_timestamp_t lastts;
-static int32 CommandPhase;
+static int32_t CommandPhase;
 //static bool CommandYield;
-static int64 CommandClockCounter;
-static uint32 CDB_ClockRatio;
+static int64_t CommandClockCounter;
+static uint32_t CDB_ClockRatio;
 
 static struct
 {
- uint8 Command;
- uint16 CD[4];
+ uint8_t Command;
+ uint16_t CD[4];
 } CTR;
 
 static struct
@@ -360,25 +360,25 @@ static struct
 
  unsigned TotalCounter;
 
- uint8 FNum;
+ uint8_t FNum;
 
- uint16 FIFO[6];
- uint8 FIFO_RP;
- uint8 FIFO_WP;
- uint8 FIFO_In;
+ uint16_t FIFO[6];
+ uint8_t FIFO_RP;
+ uint8_t FIFO_WP;
+ uint8_t FIFO_In;
 
- uint8 BufList[NumBuffers];
+ uint8_t BufList[NumBuffers];
 } DT;
 
-static uint16 StandbyTime;
-static uint8 ECCEnable;
-static uint8 RetryCount;
+static uint16_t StandbyTime;
+static uint8_t ECCEnable;
+static uint8_t RetryCount;
 
 static bool ResultsRead;
 
-static int32 SeekIndexPhase;
-static uint32 CurSector;
-static int32 DrivePhase;
+static int32_t SeekIndexPhase;
+static uint32_t CurSector;
+static int32_t DrivePhase;
 
 enum
 {
@@ -401,62 +401,62 @@ enum
 
  DRIVEPHASE_PAUSE
 };
-static int64 DriveCounter;
-static int64 PeriodicIdleCounter;
-enum : int64 { PeriodicIdleCounter_Reload = (int64)187065 << 32 };
+static int64_t DriveCounter;
+static int64_t PeriodicIdleCounter;
+enum : int64_t { PeriodicIdleCounter_Reload = (int64_t)187065 << 32 };
 
-static int32 PauseCounter;
+static int32_t PauseCounter;
 static bool PlaySectorProcessed;
-static uint8 PlayRepeatCounter;
-static uint8 CurPlayRepeat;
+static uint8_t PlayRepeatCounter;
+static uint8_t CurPlayRepeat;
 
-static uint32 CurPlayStart;
-static uint32 CurPlayEnd;
-static uint32 PlayEndIRQType;
-//static uint32 PlayEndIRQPending;
+static uint32_t CurPlayStart;
+static uint32_t CurPlayEnd;
+static uint32_t PlayEndIRQType;
+//static uint32_t PlayEndIRQPending;
 
-static uint32 PlayCmdStartPos, PlayCmdEndPos;
-static uint8 PlayCmdRepCnt;
+static uint32_t PlayCmdStartPos, PlayCmdEndPos;
+static uint8_t PlayCmdRepCnt;
 
-static int8 ScanMode;
-static uint8 ScanCounter;
+static int8_t ScanMode;
+static uint8_t ScanCounter;
 
 enum : int { CDDABuf_PrefillCount = 4 };
 enum : int { CDDABuf_MaxCount = 4 + 588 + 4 };
-static uint16 CDDABuf[CDDABuf_MaxCount][2];
-static uint32 CDDABuf_RP, CDDABuf_WP;
-static uint32 CDDABuf_Count;
+static uint16_t CDDABuf[CDDABuf_MaxCount][2];
+static uint32_t CDDABuf_RP, CDDABuf_WP;
+static uint32_t CDDABuf_Count;
 
-static uint8 SecPreBuf[2352 + 96];
+static uint8_t SecPreBuf[2352 + 96];
 static int SecPreBuf_In;
 
-static uint8 TOC_Buffer[(99 + 3) * 4];
+static uint8_t TOC_Buffer[(99 + 3) * 4];
 
 static struct
 {
- uint8 status;
- uint32 fad;
- uint32 rel_fad;
- uint8 ctrl_adr;
- uint8 idx;
- uint8 tno;
+ uint8_t status;
+ uint32_t fad;
+ uint32_t rel_fad;
+ uint8_t ctrl_adr;
+ uint8_t idx;
+ uint8_t tno;
 
  bool is_cdrom;
- uint8 repcount;
+ uint8_t repcount;
 } CurPosInfo;
 
 // Higher-level:
-static uint8 SubCodeQBuf[10];
-static uint8 SubCodeRWBuf[24];
+static uint8_t SubCodeQBuf[10];
+static uint8_t SubCodeRWBuf[24];
 
 // SubQBuf for ADR=1 only for now.
-static uint8 SubQBuf[0xC];
-static uint8 SubQBuf_Safe[0xC];
+static uint8_t SubQBuf[0xC];
+static uint8_t SubQBuf_Safe[0xC];
 static bool SubQBuf_Safe_Valid;
 
-static bool DecodeSubQ(uint8 *subpw)
+static bool DecodeSubQ(uint8_t *subpw)
 {
- uint8 tmp_q[0xC];
+ uint8_t tmp_q[0xC];
 
  memset(tmp_q, 0, 0xC);
 
@@ -520,7 +520,7 @@ static void Filter_ResetCond(const unsigned fnum)
  f.CInfoMask = 0;
 }
 
-static uint8 Buffer_Allocate(const bool zero_clear)
+static uint8_t Buffer_Allocate(const bool zero_clear)
 {
  const unsigned bfsidx = FirstFreeBuf;
  assert(bfsidx != 0xFF && FreeBufferCount > 0);
@@ -551,7 +551,7 @@ static uint8 Buffer_Allocate(const bool zero_clear)
 }
 
 // Must not alter "Data" member, as it may be used while "free"'d.
-static void Buffer_Free(const uint8 bfsidx)
+static void Buffer_Free(const uint8_t bfsidx)
 {
  assert((FirstFreeBuf == 0xFF && FreeBufferCount == 0) || (FirstFreeBuf != 0xFF && FreeBufferCount > 0));
  assert(Buffers[bfsidx].Next == 0xFF && Buffers[bfsidx].Prev == 0xFF);
@@ -640,7 +640,7 @@ static void Partition_UnlinkBuffer(unsigned pnum, unsigned bfsidx)
  Buffers[bfsidx].Next = 0xFF;
 }
 
-static void SetCDDeviceConn(const uint8 fnum)
+static void SetCDDeviceConn(const uint8_t fnum)
 {
  for(unsigned fs = 0; fs < 0x18; fs++)
   if(Filters[fs].FalseConn == fnum)
@@ -649,18 +649,18 @@ static void SetCDDeviceConn(const uint8 fnum)
  CDDevConn = fnum;
 }
 
-static void Filter_SetRange(const uint8 fnum, const uint32 fad, const uint32 range)
+static void Filter_SetRange(const uint8_t fnum, const uint32_t fad, const uint32_t range)
 {
  Filters[fnum].FAD = fad;
  Filters[fnum].Range = range;
 }
 
-static void Filter_SetTrueConn(const uint8 fnum, const uint8 tconn)
+static void Filter_SetTrueConn(const uint8_t fnum, const uint8_t tconn)
 {
  Filters[fnum].TrueConn = tconn;
 }
 
-static void Filter_DisconnectInput(const uint8 fnum)
+static void Filter_DisconnectInput(const uint8_t fnum)
 {
  if(fnum == 0xFF)
   return;
@@ -675,7 +675,7 @@ static void Filter_DisconnectInput(const uint8 fnum)
  }
 }
 
-static void Filter_SetFalseConn(const uint8 fnum, const uint8 fconn)
+static void Filter_SetFalseConn(const uint8_t fnum, const uint8_t fconn)
 {
  Filter_DisconnectInput(fconn);
  Filters[fnum].FalseConn = fconn;
@@ -699,21 +699,21 @@ static void Partition_Clear(const unsigned pnum)
 //
 static struct FileInfoS
 {
- uint8 fad_be[4];
- uint8 size_be[4];
+ uint8_t fad_be[4];
+ uint8_t size_be[4];
 
- INLINE uint32 fad(void)  const { return ((uint32)fad_be[0] << 24)  | ((uint32)fad_be[1] << 16)  | ((uint32)fad_be[2] << 8)  | (uint32)fad_be[3]; }
- INLINE uint32 size(void) const { return ((uint32)size_be[0] << 24) | ((uint32)size_be[1] << 16) | ((uint32)size_be[2] << 8) | (uint32)size_be[3]; }
+ INLINE uint32_t fad(void)  const { return ((uint32_t)fad_be[0] << 24)  | ((uint32_t)fad_be[1] << 16)  | ((uint32_t)fad_be[2] << 8)  | (uint32_t)fad_be[3]; }
+ INLINE uint32_t size(void) const { return ((uint32_t)size_be[0] << 24) | ((uint32_t)size_be[1] << 16) | ((uint32_t)size_be[2] << 8) | (uint32_t)size_be[3]; }
 
- uint8 unit_size;
- uint8 gap_size;
- uint8 fnum;
- uint8 attr;
+ uint8_t unit_size;
+ uint8_t gap_size;
+ uint8_t fnum;
+ uint8_t attr;
 } FileInfo[256];
 static_assert(sizeof(FileInfoS) == 12 && sizeof(FileInfo) == 12 * 256, "FileInfo wrong size!");
 static bool FileInfoValid;
-static uint8 FileInfoValidCount;	// 0 ... 254
-static uint32 FileInfoOffs;		// 2 ... whatever
+static uint8_t FileInfoValidCount;	// 0 ... 254
+static uint32_t FileInfoOffs;		// 2 ... whatever
 static bool FileInfoMore;
 
 enum
@@ -731,26 +731,26 @@ static bool RootDirInfoValid;
 
 static struct
 {
- uint32 Phase;
+ uint32_t Phase;
  bool Active;
  bool DoAuth;
  bool Abort;
  //
  //
- uint8 pnum;
+ uint8_t pnum;
 
- uint32 fioffs;
- uint32 fiaoffs;
+ uint32_t fioffs;
+ uint32_t fiaoffs;
 
- uint8 pbuf[2048];	// Sector buffer.
- uint32 pbuf_offs;
- uint32 pbuf_read_i;
+ uint8_t pbuf[2048];	// Sector buffer.
+ uint32_t pbuf_offs;
+ uint32_t pbuf_read_i;
 
- uint32 total_counter;	// Byte counter
- uint32 total_max;	// Byte size
+ uint32_t total_counter;	// Byte counter
+ uint32_t total_max;	// Byte size
 
- uint8 record[256];	// Temporary buffer.
- uint32 record_counter;
+ uint8_t record[256];	// Temporary buffer.
+ uint32_t record_counter;
 } FLS;
 
 static int FLS_CheckSanity(void)
@@ -790,7 +790,7 @@ enum : int { FLSPhaseBias = __COUNTER__ + 1 };
 	  FLS_WAIT_UNTIL_COND(Partitions[FLS.pnum].Count > 0);		\
 	  {								\
 	   const unsigned bfi = Partitions[FLS.pnum].FirstBuf;		\
-	   const uint8* const dptr = Buffers[bfi].Data;			\
+	   const uint8_t* const dptr = Buffers[bfi].Data;			\
 	   Partition_UnlinkBuffer(FLS.pnum, bfi);			\
 	   memcpy(FLS.pbuf, &dptr[(dptr[15] == 0x2) ? 24 : 16], 2048);	\
 	   Buffer_Free(bfi);						\
@@ -810,14 +810,14 @@ enum : int { FLSPhaseBias = __COUNTER__ + 1 };
 	 FLS.total_counter++;						\
 	}
 
-static void ReadRecord(FileInfoS* fi, const uint8* rr)
+static void ReadRecord(FileInfoS* fi, const uint8_t* rr)
 {
- const uint8 rec_len = rr[0];
- const uint8 fi_len = rr[32];
+ const uint8_t rec_len = rr[0];
+ const uint8_t fi_len = rr[32];
 
  {
   /* Read BE u32 from &rr[6], add 150, write back as BE u32. */
-  uint32 v__ = ((uint32)rr[6] << 24) | ((uint32)rr[7] << 16) | ((uint32)rr[8] << 8) | (uint32)rr[9];
+  uint32_t v__ = ((uint32_t)rr[6] << 24) | ((uint32_t)rr[7] << 16) | ((uint32_t)rr[8] << 8) | (uint32_t)rr[9];
   v__ += 150;
   fi->fad_be[0] = v__ >> 24;
   fi->fad_be[1] = v__ >> 16;
@@ -826,7 +826,7 @@ static void ReadRecord(FileInfoS* fi, const uint8* rr)
  }
  {
   /* Read BE u32 from &rr[14], copy through. */
-  uint32 v__ = ((uint32)rr[14] << 24) | ((uint32)rr[15] << 16) | ((uint32)rr[16] << 8) | (uint32)rr[17];
+  uint32_t v__ = ((uint32_t)rr[14] << 24) | ((uint32_t)rr[15] << 16) | ((uint32_t)rr[16] << 8) | (uint32_t)rr[17];
   fi->size_be[0] = v__ >> 24;
   fi->size_be[1] = v__ >> 16;
   fi->size_be[2] = v__ >> 8;
@@ -1065,7 +1065,7 @@ static int DT_CheckSanity(void)
   // same set, so we reuse it here.
   for(unsigned i = 0; i < DT.BufCount; i++)
   {
-   const uint8 e = DT.BufList[i];
+   const uint8_t e = DT.BufList[i];
    if(e < NumBuffers)
     continue;
    if(DT.Writing)
@@ -1074,8 +1074,8 @@ static int DT_CheckSanity(void)
     return -__LINE__;
   }
   //
-  const uint8 t = DT.BufList[DT.CurBufIndex];
-  uint32 mbs = 0;
+  const uint8_t t = DT.BufList[DT.CurBufIndex];
+  uint32_t mbs = 0;
 
   if(t < NumBuffers)
    mbs = sizeof(Buffers->Data);
@@ -1096,7 +1096,7 @@ static int DT_CheckSanity(void)
   if(DT.InBufCounter > (mbs / 2))
    return -__LINE__;
 
-  if(((uint64)DT.InBufOffs + DT.InBufCounter) > (mbs / 2))
+  if(((uint64_t)DT.InBufOffs + DT.InBufCounter) > (mbs / 2))
    return -__LINE__;
  }
 
@@ -1106,7 +1106,7 @@ static int DT_CheckSanity(void)
 //
 // Sector size can change in the middle of the transfer, and takes effect around sector buffer boundaries
 //
-static void DT_SetIBOffsCount(const uint8* sd)
+static void DT_SetIBOffsCount(const uint8_t* sd)
 {
  if(DT.Writing)
  {
@@ -1158,12 +1158,12 @@ static void DT_SetIBOffsCount(const uint8* sd)
 
 static void DT_ReadIntoFIFO(void)
 {
- uint16 tmp;
+ uint16_t tmp;
 
  if(MDFN_UNLIKELY(DT.BufList[DT.CurBufIndex] >= 0xF0))
  {
-  const uint8 t = DT.BufList[DT.CurBufIndex];
-  const uint8 *bp__;
+  const uint8_t t = DT.BufList[DT.CurBufIndex];
+  const uint8_t *bp__;
 
   if(t == 0xFF)
    bp__ = &TOC_Buffer[DT.InBufOffs << 1];
@@ -1172,14 +1172,14 @@ static void DT_ReadIntoFIFO(void)
   else if(t == 0xFD)
    bp__ = &SubCodeRWBuf[DT.InBufOffs << 1];
   else
-   bp__ = (uint8*)FileInfo + (DT.InBufOffs << 1);
-  /* MDFN_de16msb folded: 2 BE bytes -> host uint16. */
-  tmp = (uint16)((bp__[0] << 8) | bp__[1]);
+   bp__ = (uint8_t*)FileInfo + (DT.InBufOffs << 1);
+  /* MDFN_de16msb folded: 2 BE bytes -> host uint16_t. */
+  tmp = (uint16_t)((bp__[0] << 8) | bp__[1]);
  }
  else
  {
-  const uint8 *bp__ = &Buffers[DT.BufList[DT.CurBufIndex]].Data[DT.InBufOffs << 1];
-  tmp = (uint16)((bp__[0] << 8) | bp__[1]);
+  const uint8_t *bp__ = &Buffers[DT.BufList[DT.CurBufIndex]].Data[DT.InBufOffs << 1];
+  tmp = (uint16_t)((bp__[0] << 8) | bp__[1]);
  }
 
  DT.FIFO[DT.FIFO_WP] = tmp;
@@ -1203,7 +1203,7 @@ static void DT_ReadIntoFIFO(void)
 
 // Ratio between SH-2 clock and sound subsystem 68K clock (sound clock / 2)
 // (needs to match the algorithm precision in sound.cpp, for proper CD-DA stream synch without having to get into more complicated designs)
-void CDB_SetClockRatio(uint32 ratio)
+void CDB_SetClockRatio(uint32_t ratio)
 {
  CDB_ClockRatio = ratio;
 }
@@ -1298,7 +1298,7 @@ void CDB_SetDisc(bool tray_open, CDIF* cdif)
   {
    AuthDiscType = 0x00;
    DrivePhase = DRIVEPHASE_EJECTED0;
-   DriveCounter = (int64)1000 << 32;
+   DriveCounter = (int64_t)1000 << 32;
   }
  }
  else
@@ -1348,7 +1348,7 @@ void CDB_Reset(bool powering_up)
   //static sscpu_timestamp_t lastts;
   CommandPhase = 0;
   CommandClockCounter = 0;
-  //static uint32 CDB_ClockRatio;
+  //static uint32_t CDB_ClockRatio;
 
   memset(&CTR, 0x00, sizeof(CTR));
   memset(&DT, 0x00, sizeof(DT));
@@ -1433,7 +1433,7 @@ enum : int { CommandPhaseBias = __COUNTER__ + 1 };
 			   }
 
 #define CMD_EAT_CLOCKS(n) {									\
-			    CommandClockCounter -= (int64)(n) << 32;				\
+			    CommandClockCounter -= (int64_t)(n) << 32;				\
 			    {									\
 			     case __COUNTER__:							\
 			     if(CommandClockCounter < 0)					\
@@ -1445,7 +1445,7 @@ enum : int { CommandPhaseBias = __COUNTER__ + 1 };
 			   }
 
 
-uint8 GetDriveStatus(void)
+uint8_t GetDriveStatus(void)
 {
    return CurPosInfo.status;
 }
@@ -1456,12 +1456,12 @@ uint8 GetDriveStatus(void)
 //	Init, Open, Play, Seek, Scan
 //
 
-static uint8 MakeBaseStatus(const bool rejected = false, const uint8 hb = 0)
+static uint8_t MakeBaseStatus(const bool rejected = false, const uint8_t hb = 0)
 {
  if(rejected)
   return STATUS_REJECTED;
 
- uint8 ret = 0;
+ uint8_t ret = 0;
 
  if(TrayOpen)
   ret = STATUS_OPEN;
@@ -1473,19 +1473,19 @@ static uint8 MakeBaseStatus(const bool rejected = false, const uint8 hb = 0)
  return ret | hb;
 }
 
-static bool TestFilterCond(const unsigned fnum, const uint8* data)
+static bool TestFilterCond(const unsigned fnum, const uint8_t* data)
 {
  auto& f = Filters[fnum];
 
  if(f.Mode & FilterS::MODE_SEL_FADR)
  {
-  const uint32 fad = AMSF_to_ABA(BCD_to_U8(data[12 + 0]), BCD_to_U8(data[12 + 1]), BCD_to_U8(data[12 + 2]));
+  const uint32_t fad = AMSF_to_ABA(BCD_to_U8(data[12 + 0]), BCD_to_U8(data[12 + 1]), BCD_to_U8(data[12 + 2]));
 
   if(fad < f.FAD || fad >= (f.FAD + f.Range))
    return false;
  }
 
- uint8 file, channel, submode, cinfo;
+ uint8_t file, channel, submode, cinfo;
 
  if(data[15] == 0x2)
  {
@@ -1526,13 +1526,13 @@ static bool TestFilterCond(const unsigned fnum, const uint8* data)
  return !shinv;
 }
 
-static uint8 FilterBuf(const unsigned fnum, const unsigned bfsidx)
+static uint8_t FilterBuf(const unsigned fnum, const unsigned bfsidx)
 {
  assert(bfsidx != 0xFF);
 
  unsigned cur = fnum;
  unsigned max_iter = 0x18;
- //uint32 done = 0;
+ //uint32_t done = 0;
 
  while(cur != 0xFF && max_iter--)
  {
@@ -1557,7 +1557,7 @@ static uint8 FilterBuf(const unsigned fnum, const unsigned bfsidx)
 
 static void TranslateTOC(void)
 {
- uint8* td = TOC_Buffer;
+ uint8_t* td = TOC_Buffer;
 
  for(unsigned i = 1; i < 100; i++)
  {
@@ -1565,7 +1565,7 @@ static void TranslateTOC(void)
 
   if(t.valid)
   {
-   const uint32 fad = t.lba + 150;
+   const uint32_t fad = t.lba + 150;
 
    td[0] = (t.control << 4) | t.adr;
    td[1] = fad >> 16;
@@ -1607,7 +1607,7 @@ static void TranslateTOC(void)
  // Lead-out
  {
   const auto& t = toc.tracks[100];
-  const uint32 fad = t.lba + 150;
+  const uint32_t fad = t.lba + 150;
 
   td[0] = (t.control << 4) | t.adr;
   td[1] = fad >> 16;
@@ -1626,7 +1626,7 @@ static void TranslateTOC(void)
 //
 //
 //
-static void MakeReport(const bool rejected = false, const uint8 hb = 0)
+static void MakeReport(const bool rejected = false, const uint8_t hb = 0)
 {
  Results[0] = (MakeBaseStatus(rejected, hb) << 8) | (CurPosInfo.is_cdrom << 7) | (CurPosInfo.repcount & 0x7F);
 
@@ -1635,7 +1635,7 @@ static void MakeReport(const bool rejected = false, const uint8 hb = 0)
  Results[3] = CurPosInfo.fad;
 }
 
-static void CDStatusResults(const bool rejected = false, const uint8 hb = 0)
+static void CDStatusResults(const bool rejected = false, const uint8_t hb = 0)
 {
  MakeReport(rejected, hb);
 
@@ -1645,7 +1645,7 @@ static void CDStatusResults(const bool rejected = false, const uint8 hb = 0)
  SWResetHIRQDeferred = 0;
 }
 
-static void BasicResults(uint32 res0, uint32 res1, uint32 res2, uint32 res3)
+static void BasicResults(uint32_t res0, uint32_t res1, uint32_t res2, uint32_t res3)
 {
  Results[0] = res0;
  Results[1] = res1;
@@ -1664,26 +1664,26 @@ static void BasicResults(uint32 res0, uint32 res1, uint32 res2, uint32 res3)
 // be more conservative to reduce the probability of breaking a game due
 // to CPU timing emulation deficiencies.
 //
-enum : int32 { SeekCPIUpdateDelay = 500 };
+enum : int32_t { SeekCPIUpdateDelay = 500 };
 
 static void SeekStart1(void)
 {
  if(CurPlayStart & 0x800000)
  {
-  int32 fad_target = CurPlayStart & 0x7FFFFF;
-  int32 tt = 1;
+  int32_t fad_target = CurPlayStart & 0x7FFFFF;
+  int32_t tt = 1;
 
   if(fad_target < 150)
    fad_target = 150;
-  else if(fad_target >= (150 + (int32)toc.tracks[100].lba))
+  else if(fad_target >= (150 + (int32_t)toc.tracks[100].lba))
    fad_target = 150 + toc.tracks[100].lba;
 
-  for(int32 track = 1; track <= 100; track++)
+  for(int32_t track = 1; track <= 100; track++)
   {
    if(!toc.tracks[track].valid)
     continue;
 
-   if(fad_target < (150 + (int32)toc.tracks[track].lba))
+   if(fad_target < (150 + (int32_t)toc.tracks[track].lba))
     break;
 
    tt = track;
@@ -1697,8 +1697,8 @@ static void SeekStart1(void)
  }
  else
  {
-  int32 track_target = (CurPlayStart >> 8) & 0xFF;
-  int32 index_target = CurPlayStart & 0xFF;
+  int32_t track_target = (CurPlayStart >> 8) & 0xFF;
+  int32_t index_target = CurPlayStart & 0xFF;
 
   if(track_target > toc.last_track)
    track_target = toc.last_track;
@@ -1727,7 +1727,7 @@ static void SeekStart2(int delay_sub = 0)
 
  CDIF_HintReadSector(Cur_CDIF, CurPosInfo.fad - 150);
 
- DriveCounter = (int64)(256000 - delay_sub) << 32;
+ DriveCounter = (int64_t)(256000 - delay_sub) << 32;
  SeekIndexPhase = 0;
 }
 
@@ -1745,7 +1745,7 @@ static void ForceCompletePendingSeekStartup(void)
   SeekStart2();
 }
 
-static void StartSeek(const uint32 cmd_target, const uint32 cur_play_end, const uint32 cur_play_repeat, const uint32 play_end_irq_type, const bool no_pickup_change)
+static void StartSeek(const uint32_t cmd_target, const uint32_t cur_play_end, const uint32_t cur_play_repeat, const uint32_t play_end_irq_type, const bool no_pickup_change)
 {
  if(!Cur_CDIF)
   return;
@@ -1780,7 +1780,7 @@ static void StartSeek(const uint32 cmd_target, const uint32 cur_play_end, const 
  CurPosInfo.status = STATUS_BUSY;
  DrivePhase = no_pickup_change ? DRIVEPHASE_SEEK_START2 : DRIVEPHASE_SEEK_START1;
  PeriodicIdleCounter = PeriodicIdleCounter_Reload;
- DriveCounter = (int64)SeekCPIUpdateDelay << 32;
+ DriveCounter = (int64_t)SeekCPIUpdateDelay << 32;
 }
 
 static void StartScan(bool mode)
@@ -1805,7 +1805,7 @@ static void StartScan(bool mode)
  if(DrivePhase != DRIVEPHASE_PLAY)
  {
   DrivePhase = DRIVEPHASE_SEEK_START2;
-  DriveCounter = (int64)SeekCPIUpdateDelay << 32;
+  DriveCounter = (int64_t)SeekCPIUpdateDelay << 32;
  }
 }
 
@@ -1855,14 +1855,14 @@ static void CheckBufPauseResume(void)
    SecPreBuf_In = false;
    CurPosInfo.status = STATUS_BUSY;
    DrivePhase = DRIVEPHASE_SEEK_START2;
-   DriveCounter = (int64)SeekCPIUpdateDelay << 32;
+   DriveCounter = (int64_t)SeekCPIUpdateDelay << 32;
    PeriodicIdleCounter = PeriodicIdleCounter_Reload;
   }
  }
 }
 
 template<unsigned sample_shift = 0>
-static INLINE void BufferCDDA(const uint8* inbuf)
+static INLINE void BufferCDDA(const uint8_t* inbuf)
 {
  if(!CDDABuf_Count)
  {
@@ -1877,14 +1877,14 @@ static INLINE void BufferCDDA(const uint8* inbuf)
 
  for(int i = 0; i < 588 && CDDABuf_Count < CDDABuf_MaxCount; i++)
  {
-  CDDABuf[CDDABuf_WP][0] = (int16)(uint16)(inbuf[i * 4 + 0] | (inbuf[i * 4 + 1] << 8)) >> sample_shift;
-  CDDABuf[CDDABuf_WP][1] = (int16)(uint16)(inbuf[i * 4 + 2] | (inbuf[i * 4 + 3] << 8)) >> sample_shift;
+  CDDABuf[CDDABuf_WP][0] = (int16_t)(uint16_t)(inbuf[i * 4 + 0] | (inbuf[i * 4 + 1] << 8)) >> sample_shift;
+  CDDABuf[CDDABuf_WP][1] = (int16_t)(uint16_t)(inbuf[i * 4 + 2] | (inbuf[i * 4 + 3] << 8)) >> sample_shift;
   CDDABuf_WP = (CDDABuf_WP + 1) % CDDABuf_MaxCount;
   CDDABuf_Count++;
  }
 }
 
-static void Drive_Run(int64 clocks)
+static void Drive_Run(int64_t clocks)
 {
   DriveCounter -= clocks;
   PeriodicIdleCounter -= clocks;
@@ -1911,13 +1911,13 @@ static void Drive_Run(int64 clocks)
 	TriggerIRQ(HIRQ_DCHG);
 
 	DrivePhase = DRIVEPHASE_EJECTED1;
-	DriveCounter = (int64)4000 << 32;
+	DriveCounter = (int64_t)4000 << 32;
 	break;
 
     case DRIVEPHASE_EJECTED1:
 	TriggerIRQ(HIRQ_EFLS);
 	DrivePhase = DRIVEPHASE_EJECTED_WAITING;
-	DriveCounter = (int64)1 << 32;
+	DriveCounter = (int64_t)1 << 32;
 	break;
 
     case DRIVEPHASE_EJECTED_WAITING:
@@ -1925,10 +1925,10 @@ static void Drive_Run(int64 clocks)
 	{
          CurPosInfo.status = STATUS_BUSY;
 	 DrivePhase = DRIVEPHASE_STARTUP;
-	 DriveCounter = (int64)(1 * 44100 * 256) << 32;
+	 DriveCounter = (int64_t)(1 * 44100 * 256) << 32;
 	}
 	else
-	 DriveCounter = (int64)1000 << 32;
+	 DriveCounter = (int64_t)1000 << 32;
 	
 	break;
 
@@ -1943,7 +1943,7 @@ static void Drive_Run(int64 clocks)
 
     case DRIVEPHASE_STOPPED:
 	CurPosInfo.status = STATUS_STANDBY;
-	DriveCounter += (int64)2000 << 32;
+	DriveCounter += (int64_t)2000 << 32;
 	break;
 
     case DRIVEPHASE_SEEK_START1:
@@ -1958,8 +1958,8 @@ static void Drive_Run(int64 clocks)
 	// TODO: Motor spinup from stopped state time penalty?
 	//
 	{
-	 int32 seek_time;
-	 int32 fad_delta;
+	 int32_t seek_time;
+	 int32_t fad_delta;
 
 	 fad_delta = CurPosInfo.fad - CurSector;
 
@@ -1969,7 +1969,7 @@ static void Drive_Run(int64 clocks)
 
 	 CurPosInfo.status = STATUS_SEEK;
 	 DrivePhase = DRIVEPHASE_SEEK;
-	 DriveCounter += (int64)seek_time << 32;
+	 DriveCounter += (int64_t)seek_time << 32;
 	 CurSector = CurPosInfo.fad;
 	 SubQBuf_Safe_Valid = false;
 	}
@@ -1981,7 +1981,7 @@ static void Drive_Run(int64 clocks)
 	// Extremely crude approximation.
 	//
 	{
-	 static uint8 pwbuf[96];
+	 static uint8_t pwbuf[96];
          const bool old_safe_valid = SubQBuf_Safe_Valid;
 
 	 CDIF_ReadRawSectorPWOnly(Cur_CDIF, pwbuf, CurSector - 150, false);
@@ -1990,7 +1990,7 @@ static void Drive_Run(int64 clocks)
 	 if(!SubQBuf_Safe_Valid)
          {
 	  CurSector++;
-	  DriveCounter += (int64)((44100 * 256) / 150) << 32;
+	  DriveCounter += (int64_t)((44100 * 256) / 150) << 32;
          }
 	 else
 	 {
@@ -2012,13 +2012,13 @@ static void Drive_Run(int64 clocks)
 	    {
 	     index_ok = false;
 	     CurSector += 4;
-	     DriveCounter += (int64)((44100 * 256) / 150) << 32;
+	     DriveCounter += (int64_t)((44100 * 256) / 150) << 32;
 	    }
 	    else
 	    {
 	     index_ok = false;
 	     CurSector += 128;
-	     DriveCounter += (int64)((44100 * 256) / 150) << 32;
+	     DriveCounter += (int64_t)((44100 * 256) / 150) << 32;
 	     SeekIndexPhase = 1;
 	    }
 	   }
@@ -2028,7 +2028,7 @@ static void Drive_Run(int64 clocks)
 	    {
 	     index_ok = false;
 	     CurSector -= 124;
-	     DriveCounter += (int64)((44100 * 256) / 150) << 32;
+	     DriveCounter += (int64_t)((44100 * 256) / 150) << 32;
 	     SeekIndexPhase = 2;
 	    }
 	   }
@@ -2038,7 +2038,7 @@ static void Drive_Run(int64 clocks)
 	  {
 	   PlaySectorProcessed = false;
 	   DrivePhase = DRIVEPHASE_PLAY;
-	   DriveCounter += (int64)((44100 * 256) / ((SubQBuf_Safe[0] & 0x40) ? 150 : 75)) << 32;
+	   DriveCounter += (int64_t)((44100 * 256) / ((SubQBuf_Safe[0] & 0x40) ? 150 : 75)) << 32;
 	  }
          }
         }
@@ -2072,7 +2072,7 @@ static void Drive_Run(int64 clocks)
           {
 	   if(AuthDiscType)
 	   {
-	    const uint8 bfi = Buffer_Allocate(false);
+	    const uint8_t bfi = Buffer_Allocate(false);
 
 	    memcpy(Buffers[bfi].Data, SecPreBuf, 2352);
 
@@ -2098,9 +2098,9 @@ static void Drive_Run(int64 clocks)
 	    ScanCounter = 0;
 
 	    if(!ScanMode)
-	     CurSector += 102 + (((uint64)1773936 * CurSector + ((uint64)1 << 31)) >> 32);
+	     CurSector += 102 + (((uint64_t)1773936 * CurSector + ((uint64_t)1 << 31)) >> 32);
 	    else
-	     CurSector -= ((uint32)(CurSector) < (uint32)(104 + (((uint64)2180000 * CurSector + ((uint64)1 << 31)) >> 32)) ? (uint32)(CurSector) : (uint32)(104 + (((uint64)2180000 * CurSector + ((uint64)1 << 31)) >> 32)));
+	     CurSector -= ((uint32_t)(CurSector) < (uint32_t)(104 + (((uint64_t)2180000 * CurSector + ((uint64_t)1 << 31)) >> 32)) ? (uint32_t)(CurSector) : (uint32_t)(104 + (((uint64_t)2180000 * CurSector + ((uint64_t)1 << 31)) >> 32)));
 
 	    CDIF_HintReadSector(Cur_CDIF, CurSector - 150);
            }
@@ -2135,7 +2135,7 @@ static void Drive_Run(int64 clocks)
 	 }
 	}
 
-	DriveCounter += (int64)((44100 * 256) / ((SubQBuf_Safe[0] & 0x40) ? 150 : 75)) << 32;
+	DriveCounter += (int64_t)((44100 * 256) / ((SubQBuf_Safe[0] & 0x40) ? 150 : 75)) << 32;
 	break;
    }
   }
@@ -2176,7 +2176,7 @@ static void Drive_Run(int64 clocks)
       {
        CurPosInfo.status = STATUS_BUSY;
        DrivePhase = DRIVEPHASE_SEEK_START2;
-       DriveCounter = (int64)SeekCPIUpdateDelay << 32;
+       DriveCounter = (int64_t)SeekCPIUpdateDelay << 32;
       }
      }
      else
@@ -2255,7 +2255,7 @@ static void Drive_Run(int64 clocks)
   }
 }
 
-void CDB_GetCDDA(uint16* outbuf)
+void CDB_GetCDDA(uint16_t* outbuf)
 {
  outbuf[0] = outbuf[1] = 0;
 
@@ -2268,7 +2268,7 @@ void CDB_GetCDDA(uint16* outbuf)
   CDDABuf_Count--;
  }
 
- //static int32 counter = 0;
+ //static int32_t counter = 0;
  //outbuf[0] = (counter & 0xFF) << 6;
  //outbuf[1] = (counter & 0xFF) << 6;
  //counter++;
@@ -2290,7 +2290,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
  if(MDFN_UNLIKELY(timestamp < lastts)) { }
  else
  {
-  int64 clocks = (int64)(timestamp - lastts) * CDB_ClockRatio;
+  int64_t clocks = (int64_t)(timestamp - lastts) * CDB_ClockRatio;
   lastts = timestamp;
 
   Drive_Run(clocks);
@@ -2397,8 +2397,8 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      else
      {
       const unsigned sess = CTR.CD[0] & 0xFF;
-      uint32 fad;
-      uint8 rsw;
+      uint32_t fad;
+      uint8_t rsw;
 
       if(!sess)
       {
@@ -2513,9 +2513,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_PLAY) //		= 0x10,
     {
-     uint32 cmd_psp = ((CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
-     uint32 cmd_pep = ((CTR.CD[2] & 0xFF) << 16) | CTR.CD[3];
-     uint8 pm = CTR.CD[2] >> 8;
+     uint32_t cmd_psp = ((CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
+     uint32_t cmd_pep = ((CTR.CD[2] & 0xFF) << 16) | CTR.CD[3];
+     uint8_t pm = CTR.CD[2] >> 8;
 
      if(cmd_psp == 0xFFFFFF)
       cmd_psp = PlayCmdStartPos;
@@ -2551,7 +2551,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      CDStatusResults();
      //
      //
-     const uint32 cmd_sp = ((CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
+     const uint32_t cmd_sp = ((CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
 
      if(!cmd_sp)	// Stop
      {
@@ -2566,7 +2566,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       CurPosInfo.tno = 0xFF;
 
       DrivePhase = DRIVEPHASE_STOPPED;
-      DriveCounter = (int64)380000 << 32;
+      DriveCounter = (int64_t)380000 << 32;
      }
      else if(cmd_sp == 0xFFFFFF) // Pause
      {
@@ -2590,7 +2590,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_SCAN) //		= 0x12,
     {
-     uint8 dir = CTR.CD[0] & 0xFF;
+     uint8_t dir = CTR.CD[0] & 0xFF;
 
      if(dir >= 0x02)
       CDStatusResults(true);
@@ -2611,7 +2611,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       CDStatusResults(false, STATUS_WAIT);
      else
      {
-      uint8 type;
+      uint8_t type;
 
       type = CTR.CD[0] & 0xFF;
 
@@ -2662,7 +2662,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_AUTH_DEVICE)
     {
-     uint8 fnum;
+     uint8_t fnum;
 
      fnum = (CTR.CD[2] >> 8);
 
@@ -2748,8 +2748,8 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      {
       //CMD_EAT_CLOCKS(30);
       {
-       const uint32 fad = ((CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
-       const uint32 range = ((CTR.CD[2] & 0xFF) << 16) | CTR.CD[3];
+       const uint32_t fad = ((CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
+       const uint32_t range = ((CTR.CD[2] & 0xFF) << 16) | CTR.CD[3];
 
        Filter_SetRange(fnum, fad, range);
 
@@ -2771,8 +2771,8 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       CDStatusResults(true);
      else
      {
-      const uint32 fad = Filters[fnum].FAD;
-      const uint32 range = Filters[fnum].Range;
+      const uint32_t fad = Filters[fnum].FAD;
+      const uint32_t range = Filters[fnum].Range;
 
       BasicResults((MakeBaseStatus() << 8) | (fad >> 16),
 		   fad,
@@ -3032,10 +3032,10 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
        //
        {
-        uint32 tmp_accum = 0;
+        uint32_t tmp_accum = 0;
         for(int i = 0, bfi = Partition_GetBuffer(pnum, offs); i < numsec; i++, bfi = Buffers[bfi].Next)
 	{
-	 const uint8* const sd = Buffers[bfi].Data;
+	 const uint8_t* const sd = Buffers[bfi].Data;
 
 	 switch(GetSecLen)
 	 {
@@ -3083,9 +3083,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      else
      {
       const int bfi = ((offs == 0xFFFF) ? Partitions[pnum].LastBuf : Partition_GetBuffer(pnum, offs));
-      const uint8* sd = Buffers[bfi].Data;
-      uint32 fad;
-      uint8 file = 0, chan = 0, submode = 0, cinfo = 0;
+      const uint8_t* sd = Buffers[bfi].Data;
+      uint32_t fad;
+      uint8_t file = 0, chan = 0, submode = 0, cinfo = 0;
 
       fad = AMSF_to_ABA(BCD_to_U8(sd[12 + 0]), BCD_to_U8(sd[12 + 1]), BCD_to_U8(sd[12 + 2]));
       if(sd[12 + 3] == 0x2)
@@ -3109,7 +3109,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     {
      unsigned offs;
      unsigned pnum;
-     uint32 sfad;
+     uint32_t sfad;
 
      offs = CTR.CD[1];
      pnum = CTR.CD[2] >> 8;
@@ -3136,8 +3136,8 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       {
        if(counter >= effoffs)
        {
-        const uint8* sd = Buffers[bfi].Data;
-        const uint32 fad = AMSF_to_ABA(BCD_to_U8(sd[12 + 0]), BCD_to_U8(sd[12 + 1]), BCD_to_U8(sd[12 + 2]));
+        const uint8_t* sd = Buffers[bfi].Data;
+        const uint32_t fad = AMSF_to_ABA(BCD_to_U8(sd[12 + 0]), BCD_to_U8(sd[12 + 1]), BCD_to_U8(sd[12 + 2]));
 
         if(fad <= sfad && fad >= (FADSearch.fad + match_made))
         {
@@ -3365,7 +3365,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
        for(int i = 0, bfi = Partition_GetBuffer(src_pnum, src_offs); i < numsec; i++)
        {
-        const uint8* bufdata = Buffers[bfi].Data;
+        const uint8_t* bufdata = Buffers[bfi].Data;
         const int next_bfi = Buffers[bfi].Next;
 
         if(CTR.Command == COMMAND_MOVE_SECDATA)
@@ -3409,9 +3409,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     else if(CTR.Command == COMMAND_CHANGE_DIR) //	= 0x70,
     {
      bool reject;
-     uint8 fnum;
-     uint32 fileid;
-     uint32 fiaoffs;
+     uint8_t fnum;
+     uint32_t fileid;
+     uint32_t fiaoffs;
 
      fnum = (CTR.CD[2] >> 8);
      fileid = ((CTR.CD[2] & 0xFF) << 16) | CTR.CD[3];
@@ -3459,8 +3459,8 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_READ_DIR) //	= 0x71,
     {
-     uint8 fnum;
-     uint32 start_fileid;
+     uint8_t fnum;
+     uint32_t start_fileid;
 
      fnum = (CTR.CD[2] >> 8);
      start_fileid = ((CTR.CD[2] & 0xFF) << 16) | CTR.CD[3];
@@ -3512,7 +3512,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_FINFO) //	= 0x73,
     {
-     uint32 fileid;
+     uint32_t fileid;
      bool reject;
 
      fileid = ((CTR.CD[2] & 0xFF) << 16) | CTR.CD[3];
@@ -3538,7 +3538,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       }
       else
       {
-       const uint32 fiaoffs = (fileid < 2) ? fileid : (2 + fileid - FileInfoOffs);
+       const uint32_t fiaoffs = (fileid < 2) ? fileid : (2 + fileid - FileInfoOffs);
 
        DT.InBufOffs = 6 * fiaoffs;
        DT.InBufCounter = 6;
@@ -3572,9 +3572,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_READ_FILE) //	= 0x74,
     {
-     uint32 offset;
-     uint32 fileid;
-     uint8 fnum;
+     uint32_t offset;
+     uint32_t fileid;
+     uint8_t fnum;
 
      offset = ((CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
      fileid = ((CTR.CD[2] & 0xFF) << 16) | CTR.CD[3];
@@ -3590,9 +3590,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
       Partition_Clear(fnum);
 
-      const uint32 fiaoffs = (fileid < 2) ? fileid : (2 + fileid - FileInfoOffs);
-      uint32 start_fad = (FileInfo[fiaoffs].fad() + offset) & 0xFFFFFF;
-      uint32 sec_count = ((FileInfo[fiaoffs].size() + 2047) >> 11) - offset;	// FIXME: Check offset versus ifile size.
+      const uint32_t fiaoffs = (fileid < 2) ? fileid : (2 + fileid - FileInfoOffs);
+      uint32_t start_fad = (FileInfo[fiaoffs].fad() + offset) & 0xFFFFFF;
+      uint32_t sec_count = ((FileInfo[fiaoffs].size() + 2047) >> 11) - offset;	// FIXME: Check offset versus ifile size.
 
       SetCDDeviceConn(fnum);
       Filter_SetTrueConn(fnum, fnum);
@@ -3726,7 +3726,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     ScanMode = -1;
     ScanCounter = 0;
 
-    DriveCounter = (int64)1000 << 32;
+    DriveCounter = (int64_t)1000 << 32;
     DrivePhase = DRIVEPHASE_EJECTED_WAITING;
 
     memset(TOC_Buffer, 0xFF, sizeof(TOC_Buffer));	// TODO: confirm 0xFF(or 0x00?)
@@ -3777,7 +3777,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
  assert(DriveCounter > 0);
 
  {
-  int64 net = -CommandClockCounter;
+  int64_t net = -CommandClockCounter;
 
   if(DriveCounter < net)
    net = DriveCounter;
@@ -3795,9 +3795,9 @@ void CDB_ResetTS(void)
 }
 
 
-uint16 CDB_Read(uint32 offset)
+uint16_t CDB_Read(uint32_t offset)
 {
- uint16 ret = 0; //0xFFFF;
+ uint16_t ret = 0; //0xFFFF;
 
  switch(offset)
  {
@@ -3831,7 +3831,7 @@ uint16 CDB_Read(uint32 offset)
  return ret;
 }
 
-void CDB_Write_DBM(uint32 offset, uint16 DB, uint16 mask)
+void CDB_Write_DBM(uint32_t offset, uint16_t DB, uint16_t mask)
 {
  sscpu_timestamp_t nt = CDB_Update(SH7095_mem_timestamp);
 
@@ -3847,8 +3847,8 @@ void CDB_Write_DBM(uint32 offset, uint16 DB, uint16 mask)
 	  DT.FIFO_In++;
 
 	  {
-	   uint8 *bp__ = &Buffers[DT.BufList[DT.CurBufIndex]].Data[DT.InBufOffs << 1];
-	   uint16 v__ = DT.FIFO[DT.FIFO_RP];
+	   uint8_t *bp__ = &Buffers[DT.BufList[DT.CurBufIndex]].Data[DT.InBufOffs << 1];
+	   uint16_t v__ = DT.FIFO[DT.FIFO_RP];
 	   bp__[0] = v__ >> 8;
 	   bp__[1] = v__;
 	  }
@@ -4019,7 +4019,7 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(CurPlayStart),
   SFVAR(CurPlayEnd),
   SFVAR(PlayEndIRQType),
-  //static uint32 PlayEndIRQPending;
+  //static uint32_t PlayEndIRQPending;
 
   SFVAR(PlayCmdStartPos),
   SFVAR(PlayCmdEndPos),
@@ -4125,7 +4125,7 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
     // Very flawed, may not work.
     if(RootDirInfoValid)
     {
-     const uint32 fad = Filters[FLS.pnum % 0x18].FAD;
+     const uint32_t fad = Filters[FLS.pnum % 0x18].FAD;
 
      if(RootDirInfo.fad() != fad)
      {
@@ -4180,14 +4180,14 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   //
   // Filter connection sanitization. Each Filter's TrueConn / FalseConn
-  // is a uint8 holding a partition index in [0, 0x18) or the sentinel
+  // is a uint8_t holding a partition index in [0, 0x18) or the sentinel
   // 0xFF ("not connected"). The command processor (Set Filter
   // Connection, line ~2843) validates these values on the way in, but
-  // a save state could carry any uint8. The values feed:
+  // a save state could carry any uint8_t. The values feed:
   //
   //   - Partition_LinkBuffer(Filters[cur].TrueConn, bfsidx)
   //       in FilterBuf, which indexes Partitions[] -- so an invalid
-  //       TrueConn here is an out-of-bounds write of a uint8 to
+  //       TrueConn here is an out-of-bounds write of a uint8_t to
   //       memory adjacent to the Partitions[0x18] array.
   //
   //   - cur = Filters[cur].FalseConn; then Filters[cur].*
@@ -4218,7 +4218,7 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   // Drive state machine sanitization.
   //
-  // DrivePhase is loaded as int32 from the state file. The drive loop
+  // DrivePhase is loaded as int32_t from the state file. The drive loop
   // (Drive_Run -> switch(DrivePhase)) handles every value the
   // emulation can legitimately produce, but the switch has no default
   // case and several enum values either go unused (DRIVEPHASE_SCAN)
@@ -4256,11 +4256,11 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
     break;
   }
 
-  // GetSecLen / PutSecLen are uint8 fed straight to the DTW_OffsTab /
+  // GetSecLen / PutSecLen are uint8_t fed straight to the DTW_OffsTab /
   // DTW_CountTab 4-entry lookup arrays in DT_SetIBOffsCount (Writing
   // mode, line ~1101) and to a switch with constants 0..3 (non-Writing
   // mode). The runtime command Set Sector Length validates incoming
-  // values, but state load can carry any uint8. Any value outside
+  // values, but state load can carry any uint8_t. Any value outside
   // [SECLEN__FIRST, SECLEN__LAST] is rejected the same way the
   // command processor rejects it.
   if(GetSecLen > SECLEN__LAST)
@@ -4288,9 +4288,9 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
  }
 }
 
-uint32 CDB_GetRegister(const unsigned id, char* const special, const uint32 special_len)
+uint32_t CDB_GetRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
- uint32 ret = 0xDEADBEEF;
+ uint32_t ret = 0xDEADBEEF;
 
  switch(id)
  {
@@ -4320,7 +4320,7 @@ uint32 CDB_GetRegister(const unsigned id, char* const special, const uint32 spec
  return ret;
 }
 
-void CDB_SetRegister(const unsigned id, const uint32 value)
+void CDB_SetRegister(const unsigned id, const uint32_t value)
 {
  switch(id)
  {

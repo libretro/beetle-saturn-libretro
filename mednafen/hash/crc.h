@@ -26,7 +26,7 @@
  * crc32_zip wraps zlib's standard crc32(); crc16_ccitt is the same polynomial 0x1021
  * left-shift form Mednafen uses (no input/output reflection, no final XOR). */
 
-uint16 crc16_ccitt(uint16 initial, const void* data, size_t len);
-uint32 crc32_zip(uint32 initial, const void* data, size_t len);
+uint16_t crc16_ccitt(uint16_t initial, const void* data, size_t len);
+uint32_t crc32_zip(uint32_t initial, const void* data, size_t len);
 
 #endif

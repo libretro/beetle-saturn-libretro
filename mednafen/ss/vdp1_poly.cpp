@@ -25,7 +25,7 @@
 namespace VDP1
 {
 
-static int32 (*LineFuncTab[2][3][0x20][8 + 1])(bool* need_line_resume) =
+static int32_t (*LineFuncTab[2][3][0x20][8 + 1])(bool* need_line_resume) =
 {
  #define LINEFN_BC(die, bpp8, b, c)	\
 	DrawLine<true, false, die, bpp8, c == 0x8, (bool)(b & 0x10), (b & 0x10) && (b & 0x08), (bool)(b & 0x04), false/*b & 0x02*/, (bool)(b & 0x01), (bool)(c & 0x4), (bool)(c & 0x2), (bool)(c & 0x1)>
@@ -68,19 +68,19 @@ static int32 (*LineFuncTab[2][3][0x20][8 + 1])(bool* need_line_resume) =
 };
 
 template<bool gourauden>
-static int32 PolygonResumeBase(const uint16* cmd_data)
+static int32_t PolygonResumeBase(const uint16_t* cmd_data)
 {
- const uint16 mode = cmd_data[0x2];
+ const uint16_t mode = cmd_data[0x2];
  // Abusing the SPD bit passed to the line draw function to denote non-transparency when == 1, transparent when == 0.
- const bool SPD_Opaque = (((mode >> 3) & 0x7) < 0x6) ? ((int32)(TexFetchTab[(mode >> 3) & 0x1F](0xFFFFFFFF)) >= 0) : true;
+ const bool SPD_Opaque = (((mode >> 3) & 0x7) < 0x6) ? ((int32_t)(TexFetchTab[(mode >> 3) & 0x1F](0xFFFFFFFF)) >= 0) : true;
  auto* const fnptr = LineFuncTab[(bool)(FBCR & FBCR_DIE)][(TVMR & TVMR_8BPP) ? ((TVMR & TVMR_ROTATE) ? 2 : 1) : 0][((mode >> 6) & 0x1E) | SPD_Opaque /*(mode >> 6) & 0x1F*/][(mode & 0x8000) ? 8 : (mode & 0x7)];
  //
  // Don't merge e0 and e1 into a single array, keeping them separate is a workaround for gcc bug #113255
  //
  EdgeStepper e0 = PrimData.e[0];
  EdgeStepper e1 = PrimData.e[1];
- int32 iter = PrimData.iter;
- int32 ret = 0;
+ int32_t iter = PrimData.iter;
+ int32_t ret = 0;
  //
  //
  if(MDFN_UNLIKELY(PrimData.need_line_resume))
@@ -117,7 +117,7 @@ static int32 PolygonResumeBase(const uint16* cmd_data)
  return ret;
 }
 
-int32 RESUME_Polygon(const uint16* cmd_data)
+int32_t RESUME_Polygon(const uint16_t* cmd_data)
 {
  if(cmd_data[0x2] & 0x4) // gouraud
   return PolygonResumeBase<true>(cmd_data);
@@ -126,10 +126,10 @@ int32 RESUME_Polygon(const uint16* cmd_data)
 
 
 template<bool gourauden>
-static INLINE int32 CMD_PolygonG_T(const uint16* cmd_data)
+static INLINE int32_t CMD_PolygonG_T(const uint16_t* cmd_data)
 {
  line_vertex p[4];
- int32 ret = 0;
+ int32_t ret = 0;
  //
  //
  LineData.tex_base = 0;
@@ -144,7 +144,7 @@ static INLINE int32 CMD_PolygonG_T(const uint16* cmd_data)
 
  if(gourauden)
  {
-  const uint16* gtb = &VRAM[cmd_data[0xE] << 2];
+  const uint16_t* gtb = &VRAM[cmd_data[0xE] << 2];
 
   ret += 4;
   for(unsigned i = 0; i < 4; i++)
@@ -153,7 +153,7 @@ static INLINE int32 CMD_PolygonG_T(const uint16* cmd_data)
  //
  //
  //
- int32 dmax;
+ int32_t dmax;
 
  dmax = 		      abs(sign_x_to_s32(13, p[3].x - p[0].x));
  if((abs(sign_x_to_s32(13, p[3].y - p[0].y))) > dmax) dmax = (abs(sign_x_to_s32(13, p[3].y - p[0].y)));
@@ -169,7 +169,7 @@ static INLINE int32 CMD_PolygonG_T(const uint16* cmd_data)
  return ret;
 }
 
-int32 CMD_Polygon(const uint16* cmd_data)
+int32_t CMD_Polygon(const uint16_t* cmd_data)
 {
  if(cmd_data[0x2] & 0x4) // gouraud
   return CMD_PolygonG_T<true>(cmd_data);
