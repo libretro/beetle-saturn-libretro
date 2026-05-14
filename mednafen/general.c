@@ -17,16 +17,11 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
-
-#include <sys/types.h>
+#include <stdint.h>
 
 #include <boolean.h>
 
-#include "mednafen.h"
 #include "general.h"
-#include "state.h"
-
-#include "hash/md5.h"
 
 static bool IsAbsolutePath(const char *path)
 {

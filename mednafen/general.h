@@ -2,10 +2,11 @@
 #define _GENERAL_H
 
 #include <stddef.h>
+#include <stdint.h>
 
-extern uint32_t MDFN_RoundUpPow2(uint32_t);
-
-void GetFileBase(const char *f);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum
 {
@@ -39,4 +40,9 @@ void MDFN_GetFilePathComponents(const char *file_path,
 // Resolve rel_path against dir_path into the caller-supplied buffer.
 // Absolute rel_path values are copied through unchanged.
 void MDFN_EvalFIP(char *out, size_t out_size, const char *dir_path, const char *rel_path);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
