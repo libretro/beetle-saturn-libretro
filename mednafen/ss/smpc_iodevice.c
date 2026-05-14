@@ -1957,8 +1957,11 @@ static void IODevice_Multitap_Draw(IODevice *self_, MDFN_Surface *surface, const
 {
    IODevice_Multitap *self = (IODevice_Multitap *)self_;
    unsigned i;
+   /* devices[] starts NULL (calloc) and is populated lazily by
+      IODevice_Multitap_SetSubDevice; guard like Power() already does. */
    for(i = 0; i < 6; i++)
-      self->devices[i]->vt->Draw(self->devices[i], surface, drect, lw, ifield, gun_x_scale, gun_x_offs);
+      if(self->devices[i])
+         self->devices[i]->vt->Draw(self->devices[i], surface, drect, lw, ifield, gun_x_scale, gun_x_offs);
 }
 
 static void IODevice_Multitap_LineHook(IODevice *self_, const int32_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj)
@@ -1966,7 +1969,8 @@ static void IODevice_Multitap_LineHook(IODevice *self_, const int32_t timestamp,
    IODevice_Multitap *self = (IODevice_Multitap *)self_;
    unsigned i;
    for(i = 0; i < 6; i++)
-      self->devices[i]->vt->LineHook(self->devices[i], timestamp, out_line, div, coord_adj);
+      if(self->devices[i])
+         self->devices[i]->vt->LineHook(self->devices[i], timestamp, out_line, div, coord_adj);
 
    self->base.LastTS = timestamp;
 }
@@ -1978,7 +1982,8 @@ static void IODevice_Multitap_ResetTS(IODevice *self_)
    self->base.LastTS = 0;
 
    for(i = 0; i < 6; i++)
-      self->devices[i]->vt->ResetTS(self->devices[i]);
+      if(self->devices[i])
+         self->devices[i]->vt->ResetTS(self->devices[i]);
 }
 
 static void IODevice_Multitap_Power(IODevice *self_)
@@ -2027,7 +2032,8 @@ void IODevice_Multitap_ForceSubUpdate(IODevice *mt, const int32_t timestamp)
    IODevice_Multitap *self = (IODevice_Multitap *)mt;
    unsigned i;
    for(i = 0; i < 6; i++)
-      SUBDEV_UPDATEBUS(self->devices[i], timestamp, self->sub_state[i], 0x60);
+      if(self->devices[i])
+         SUBDEV_UPDATEBUS(self->devices[i], timestamp, self->sub_state[i], 0x60);
 
    self->base.LastTS = timestamp;
 }
@@ -2066,7 +2072,8 @@ static void IODevice_Multitap_StateAction(IODevice *self_, StateMem *sm, const u
       char snsp[32];
 
       snprintf(snsp, sizeof(snsp), "%sP%u", section_name, i);
-      self->devices[i]->vt->StateAction(self->devices[i], sm, load, data_only, snsp);
+      if(self->devices[i])
+         self->devices[i]->vt->StateAction(self->devices[i], sm, load, data_only, snsp);
    }
 }
 

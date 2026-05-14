@@ -217,6 +217,21 @@ static IODevice* VirtualPorts[12];
 static uint8_t* VirtualPortsDPtr[12];
 static uint8_t* MiscInputPtr;
 
+/* Per-port lightgun crosshair colour. The libretro option-update path
+   (check_variables) can push these in before SMPC_Init has created
+   the device objects -- in the old code PossibleDevices held by-value
+   objects so the gun always existed, but now it holds pointers that
+   are NULL until SMPC_Init's creation loop runs. Remember the colour
+   here so SMPC_SetCrosshairsColor can no-op safely when the gun does
+   not exist yet, and so SMPC_Init can (re)apply it to each freshly
+   created gun. 0xFFFFFFFF means "never set". */
+static uint32_t CrosshairsColor[12] =
+{
+   0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+   0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+   0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF
+};
+
 /* The base IODevice implementations (the empty Power/UpdateInput/etc.,
    the smpc_out-passthrough UpdateBus, the TS-rebasing ResetTS) now
    live in smpc_iodevice.c as IODevice_base_* / IODevice_base_vtable. */
@@ -288,7 +303,13 @@ void SMPC_SetCrosshairsColor(unsigned port, uint32_t color)
 {
  assert(port < 12);
 
- IODevice_Gun_SetCrosshairsColor(PossibleDevices[port].gun, color);
+ /* Remember the colour unconditionally: this can be called from the
+    libretro option path before SMPC_Init has created the gun device.
+    SMPC_Init applies CrosshairsColor[] to each gun it creates. */
+ CrosshairsColor[port] = color;
+
+ if(PossibleDevices[port].gun)
+  IODevice_Gun_SetCrosshairsColor(PossibleDevices[port].gun, color);
 }
 
 void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr)
@@ -445,6 +466,13 @@ void SMPC_Init(const uint8_t area_code_arg, const int32_t master_clock_arg, bool
   PossibleDevices[port].gun         = IODevice_Gun_Create();
   PossibleDevices[port].keyboard    = IODevice_Keyboard_Create();
   PossibleDevices[port].jpkeyboard  = IODevice_JPKeyboard_Create();
+
+  /* Re-apply any crosshair colour pushed in before this point (the
+     libretro option path runs check_variables() before SMPC_Init).
+     0xFFFFFFFF is the "never set" sentinel -- leave the gun at its
+     own default in that case. */
+  if(CrosshairsColor[port] != 0xFFFFFFFF)
+   IODevice_Gun_SetCrosshairsColor(PossibleDevices[port].gun, CrosshairsColor[port]);
  }
 
  for(unsigned sp = 0; sp < 2; sp++)
