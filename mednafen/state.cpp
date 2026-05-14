@@ -16,9 +16,9 @@
  */
 
 #include <string.h>
+#include <stdlib.h>
 
 #include <boolean.h>
-#include <map>
 
 #include "mednafen.h"
 #include "general.h"
@@ -191,17 +191,63 @@ static void SubWrite(StateMem *st, const SFORMAT *sf)
    }
 }
 
-struct compare_cstr
+/* Name -> SFORMAT* lookup table. Was a
+ * std::map<const char*, const SFORMAT*, compare_cstr>; the SFORMAT
+ * lists this is built from are small (at most a few dozen live
+ * entries per chunk), so a flat array with a linear strcmp scan is
+ * simpler and, with no per-node allocation, at least as fast and far
+ * more cache-friendly. This is purely an in-memory lookup structure
+ * built fresh in ReadStateChunk -- it has no bearing on the
+ * serialized savestate format. */
+typedef struct
 {
- bool operator()(const char *s1, const char *s2) const
+ const char    *name;
+ const SFORMAT *sf;
+} SFMapEntry;
+
+typedef struct
+{
+ SFMapEntry *entries;
+ size_t      count;
+ size_t      cap;
+} SFMap_t;
+
+static const SFORMAT *SFMap_Find(const SFMap_t *m, const char *name)
+{
+ size_t i;
+ for(i = 0; i < m->count; i++)
+  if(!strcmp(m->entries[i].name, name))
+   return m->entries[i].sf;
+ return NULL;
+}
+
+/* Insert-or-overwrite, matching std::map's operator[] = assignment. */
+static void SFMap_Set(SFMap_t *m, const char *name, const SFORMAT *sf)
+{
+ size_t i;
+ for(i = 0; i < m->count; i++)
  {
-  return(strcmp(s1, s2) < 0);
+  if(!strcmp(m->entries[i].name, name))
+  {
+   m->entries[i].sf = sf;
+   return;
+  }
  }
-};
+ if(m->count >= m->cap)
+ {
+  size_t newcap     = m->cap ? m->cap * 2 : 32;
+  SFMapEntry *np    = (SFMapEntry *)realloc(m->entries, newcap * sizeof(SFMapEntry));
+  if(!np)
+   return;
+  m->entries = np;
+  m->cap     = newcap;
+ }
+ m->entries[m->count].name = name;
+ m->entries[m->count].sf   = sf;
+ m->count++;
+}
 
-typedef std::map<const char *, const SFORMAT *, compare_cstr> SFMap_t;
-
-static void MakeSFMap(const SFORMAT *sf, SFMap_t &sfmap)
+static void MakeSFMap(const SFORMAT *sf, SFMap_t *sfmap)
 {
  while(sf->size || sf->name) // Size can sometimes be zero, so also check for the text name.  These two should both be zero only at the end of a struct.
  {
@@ -217,10 +263,10 @@ static void MakeSFMap(const SFORMAT *sf, SFMap_t &sfmap)
   {
    assert(sf->name);
 
-   if(sfmap.find(sf->name) != sfmap.end())
+   if(SFMap_Find(sfmap, sf->name))
     log_cb( RETRO_LOG_WARN, "Duplicate save state variable in internal emulator structures(CLUB THE PROGRAMMERS WITH BREADSTICKS): %s\n", sf->name);
 
-   sfmap[sf->name] = sf;
+   SFMap_Set(sfmap, sf->name, sf);
   }
 
   sf++;
@@ -229,10 +275,10 @@ static void MakeSFMap(const SFORMAT *sf, SFMap_t &sfmap)
 
 static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 {
-	SFMap_t sfmap;
+	SFMap_t sfmap = { NULL, 0, 0 };
 	int temp;
 
-	MakeSFMap(sf, sfmap);
+	MakeSFMap(sf, &sfmap);
 
 	temp = st->loc;
 
@@ -240,28 +286,35 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 	{
 		uint32_t recorded_size;	// In bytes
 		uint8_t toa[1 + 256];	// Don't change to char unless cast toa[0] to unsigned to smem_read() and other places.
-		SFMap_t::iterator sfmit;
+		const SFORMAT *tmp;
 
 		if(smem_read(st, toa, 1) != 1)
+		{
+			free(sfmap.entries);
 			return(0);
+		}
 
 		if(smem_read(st, toa + 1, toa[0]) != toa[0])
+		{
+			free(sfmap.entries);
 			return 0;
+		}
 
 		toa[1 + toa[0]] = 0;
 
 		smem_read32le(st, &recorded_size);
 
-		sfmit = sfmap.find((char *)toa + 1);
+		tmp = SFMap_Find(&sfmap, (char *)toa + 1);
 
-		if(sfmit != sfmap.end())
+		if(tmp)
 		{
-			const SFORMAT *tmp = sfmit->second;
-
 			if(recorded_size != tmp->size * (1 + tmp->repcount))
 			{
 				if(smem_seek(st, recorded_size, SEEK_CUR) < 0)
+				{
+					free(sfmap.entries);
 					return(0);
+				}
 			}
 			else
 			{
@@ -288,10 +341,14 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 		else
 		{
 			if(smem_seek(st, recorded_size, SEEK_CUR) < 0)
+			{
+				free(sfmap.entries);
 				return(0);
+			}
 		}
 	}
 
+	free(sfmap.entries);
 	return 1;
 }
 
