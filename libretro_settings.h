@@ -1,6 +1,8 @@
 #ifndef __LIBRETRO_SETTINGS_HDR__
 #define __LIBRETRO_SETTINGS_HDR__
 
+#include <stdbool.h>
+
 enum
 {
 	SETTING_GUN_CROSSHAIR_OFF,

@@ -162,8 +162,7 @@ SOURCES_CXX += \
 	$(MEDNAFEN_DIR)/mempatcher.cpp \
 	$(CORE_DIR)/disc.cpp \
 	$(CORE_DIR)/input.cpp \
-	$(CORE_DIR)/libretro.cpp \
-	$(CORE_DIR)/libretro_settings.cpp
+	$(CORE_DIR)/libretro.cpp
 
 # Deinterlacer.cpp / surface.cpp were dropped; the surface header is
 # now header-only (PSX-style, with the MDFN_PixelFormat class removed)
@@ -171,6 +170,7 @@ SOURCES_CXX += \
 # Deinterlacer.h, Deinterlacer.c}.
 SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
 		$(MEDNAFEN_DIR)/general.c \
+		$(CORE_DIR)/libretro_settings.c \
 		$(MEDNAFEN_DIR)/video/Deinterlacer.c
 
 SOURCES_CXX += \
