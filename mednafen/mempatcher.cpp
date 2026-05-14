@@ -67,9 +67,10 @@ std::vector<SUBCHEAT> SubCheats[8];
 static void RebuildSubCheats(void)
 {
  std::vector<CHEATF>::iterator chit;
+ int x;
 
  SubCheatsOn = 0;
- for(int x = 0; x < 8; x++)
+ for(x = 0; x < 8; x++)
   SubCheats[x].clear();
 
  if(!CheatsActive) return;
@@ -78,7 +79,8 @@ static void RebuildSubCheats(void)
  {
   if(chit->status && chit->type != 'R')
   {
-   for(unsigned int x = 0; x < chit->length; x++)
+   unsigned int x;
+   for(x = 0; x < chit->length; x++)
    {
     SUBCHEAT tmpsub;
     unsigned int shiftie;
@@ -125,10 +127,11 @@ void MDFNMP_Kill(void)
 void MDFNMP_AddRAM(uint32_t size, uint32_t A, uint8_t *RAM)
 {
  uint32_t AB = A / PageSize;
- 
+ unsigned int x;
+
  size /= PageSize;
 
- for(unsigned int x = 0; x < size; x++)
+ for(x = 0; x < size; x++)
  {
   RAMPtrs[AB + x] = RAM;
   if(RAM) // Don't increment the RAM pointer if we're passed a NULL pointer
@@ -148,12 +151,15 @@ void MDFNMP_InstallReadPatches(void)
  std::vector<SUBCHEAT>::iterator chit;
 
 #if 0
- for(unsigned int x = 0; x < 8; x++)
-  for(chit = SubCheats[x].begin(); chit != SubCheats[x].end(); chit++)
-  {
-   if(MDFNGameInfo->InstallReadPatch)
-    MDFNGameInfo->InstallReadPatch(chit->addr);
-  }
+ {
+  unsigned int x;
+  for(x = 0; x < 8; x++)
+   for(chit = SubCheats[x].begin(); chit != SubCheats[x].end(); chit++)
+   {
+    if(MDFNGameInfo->InstallReadPatch)
+     MDFNGameInfo->InstallReadPatch(chit->addr);
+   }
+ }
 #endif
 }
 
@@ -299,15 +305,18 @@ static bool TestConditions(const char *string)
   value_at_address = 0;
 
 #if 0
-  for(unsigned int x = 0; x < bytelen; x++)
   {
-   unsigned int shiftie;
+   unsigned int x;
+   for(x = 0; x < bytelen; x++)
+   {
+    unsigned int shiftie;
 
-   if(endian == 'B')
-    shiftie = (bytelen - 1 - x) * 8;
-   else
-    shiftie = x * 8;
-   value_at_address |= MDFNGameInfo->MemRead(v_address + x) << shiftie;
+    if(endian == 'B')
+     shiftie = (bytelen - 1 - x) * 8;
+    else
+     shiftie = x * 8;
+    value_at_address |= MDFNGameInfo->MemRead(v_address + x) << shiftie;
+   }
   }
 #endif
 
@@ -392,8 +401,9 @@ void MDFNMP_ApplyPeriodicCheats(void)
    {
       if(chit->status && chit->type == 'R')
       {
+         unsigned int x;
          if(!chit->conditions || TestConditions(chit->conditions))
-            for(unsigned int x = 0; x < chit->length; x++)
+            for(x = 0; x < chit->length; x++)
             {
                uint32_t page = ((chit->addr + x) / PageSize) % NumPages;
                if(RAMPtrs[page])
@@ -449,10 +459,11 @@ int MDFNI_GetCheat(uint32_t which, char **name, uint32_t *a, uint64_t *v, uint64
 static uint8_t CharToNibble(char thechar)
 {
  const char lut[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+ int x;
 
  thechar = toupper(thechar);
 
- for(int x = 0; x < 16; x++)
+ for(x = 0; x < 16; x++)
   if(lut[x] == thechar)
    return(x);
 
@@ -463,8 +474,12 @@ bool MDFNI_DecodeGBGG(const char *instr, uint32_t *a, uint8_t *v, uint8_t *c, ch
 {
  char str[10];
  int len;
+ int x;
+ uint32_t tmp_address;
+ uint8_t tmp_value;
+ uint8_t tmp_compare = 0;
 
- for(int x = 0; x < 9; x++)
+ for(x = 0; x < 9; x++)
  {
   while(*instr && CharToNibble(*instr) == 255)
    instr++;
@@ -477,10 +492,6 @@ bool MDFNI_DecodeGBGG(const char *instr, uint32_t *a, uint8_t *v, uint8_t *c, ch
 
  if(len != 9 && len != 6)
   return(0);
-
- uint32_t tmp_address;
- uint8_t tmp_value;
- uint8_t tmp_compare = 0;
 
  tmp_address =  (CharToNibble(str[5]) << 12) | (CharToNibble(str[2]) << 8) | (CharToNibble(str[3]) << 4) | (CharToNibble(str[4]) << 0);
  tmp_address ^= 0xF000;

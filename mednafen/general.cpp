@@ -84,11 +84,14 @@ void MDFN_GetFilePathComponents(const std::string &file_path,
  string file_name;
  size_t fn_final_dot;		            // in local var file_name
  string dir_path, file_base, file_ext; // Temporary output
+#ifdef _WIN32
+ size_t alt_final_ds;
+#endif
 
 #ifdef _WIN32
  final_ds = file_path.find_last_of('\\');
 
- size_t alt_final_ds = file_path.find_last_of('/');
+ alt_final_ds = file_path.find_last_of('/');
 
  if(final_ds == string::npos || (alt_final_ds != string::npos && alt_final_ds > final_ds))
     final_ds = alt_final_ds;
@@ -151,11 +154,12 @@ std::string MDFN_EvalFIP(const std::string &dir_path, const std::string &rel_pat
 const char * GetFNComponent(const char *str)
 {
    const char *tp1;
+#ifdef _WIN32
+   const char *tp3;
+#endif
 
 #ifdef _WIN32
    tp1 = ((char *)strrchr(str,'\\'));
-
-   const char *tp3;
 
    tp3 = ((char *)strrchr(str,'/'));
 

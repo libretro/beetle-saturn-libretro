@@ -138,6 +138,13 @@ static void SubWrite(StateMem *st, const SFORMAT *sf)
 {
    while(sf->size || sf->name)	// Size can sometimes be zero, so also check for the text name.  These two should both be zero only at the end of a struct.
    {
+      int32_t bytesize;
+      uintptr_t p;
+      uint32_t repcount;
+      size_t repstride;
+      char nameo[1 + 255];
+      int slen;
+
       if(!sf->size || !sf->data)
       {
          sf++;
@@ -152,12 +159,11 @@ static void SubWrite(StateMem *st, const SFORMAT *sf)
          continue;
       }
 
-      int32_t bytesize = sf->size;
-      uintptr_t p = (uintptr_t)sf->data;
-      uint32_t repcount = sf->repcount;
-      const size_t repstride = sf->repstride;
-      char nameo[1 + 255];
-      const int slen = strlen(sf->name);
+      bytesize = sf->size;
+      p = (uintptr_t)sf->data;
+      repcount = sf->repcount;
+      repstride = sf->repstride;
+      slen = strlen(sf->name);
 
       memcpy(&nameo[1], sf->name, slen);
       nameo[0] = slen;
@@ -170,7 +176,8 @@ static void SubWrite(StateMem *st, const SFORMAT *sf)
 		// Special case for the evil bool type, to convert bool to 1-byte elements.
 		if(!sf->type)
 		{
-			for(int32_t bool_monster = 0; bool_monster < bytesize; bool_monster++)
+			int32_t bool_monster;
+			for(bool_monster = 0; bool_monster < bytesize; bool_monster++)
 			{
 				uint8_t tmp_bool = ((bool *)p)[bool_monster];
 				smem_write(st, &tmp_bool, 1);
@@ -223,15 +230,17 @@ static void MakeSFMap(const SFORMAT *sf, SFMap_t &sfmap)
 static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 {
 	SFMap_t sfmap;
+	int temp;
 
 	MakeSFMap(sf, sfmap);
 
-	int temp = st->loc;
+	temp = st->loc;
 
 	while (st->loc < (temp + size))
 	{
 		uint32_t recorded_size;	// In bytes
 		uint8_t toa[1 + 256];	// Don't change to char unless cast toa[0] to unsigned to smem_read() and other places.
+		SFMap_t::iterator sfmit;
 
 		if(smem_read(st, toa, 1) != 1)
 			return(0);
@@ -242,8 +251,6 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 		toa[1 + toa[0]] = 0;
 
 		smem_read32le(st, &recorded_size);
-
-		SFMap_t::iterator sfmit;
 
 		sfmit = sfmap.find((char *)toa + 1);
 
@@ -258,7 +265,7 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 			}
 			else
 			{
-				const auto type            = tmp->type;
+				const uint32_t type        = tmp->type;
 				const uint32_t expected_size = tmp->size;	// In bytes
 				uintptr_t p                = (uintptr_t)tmp->data;
 				uint32_t repcount            = tmp->repcount;
@@ -270,8 +277,9 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 
 					if(!type)
 					{
+						int32_t bool_monster;
 						// Converting downwards is necessary for the case of sizeof(bool) > 1
-						for(int32_t bool_monster = expected_size - 1; bool_monster >= 0; bool_monster--)
+						for(bool_monster = expected_size - 1; bool_monster >= 0; bool_monster--)
 							((bool *)p)[bool_monster] = ((uint8_t *)p)[bool_monster];
 					}
 				} while(p += repstride, repcount--);
@@ -388,6 +396,7 @@ int MDFNSS_SaveSM(void *st_p, uint32_t ver, const void*, const void*, const void
 	StateMem *st = (StateMem*)st_p;
 	static const char *header_magic = "MDFNSVST";
 	int neowidth = 0, neoheight = 0;
+	uint32_t sizy;
 
 	// Write header.
 	memset( header, 0, sizeof(header) );
@@ -402,7 +411,7 @@ int MDFNSS_SaveSM(void *st_p, uint32_t ver, const void*, const void*, const void
 	success = LibRetro_StateAction( st, 0 /*SAVE*/);
 
 	// Circle back and fill in the file size.
-	uint32_t sizy = st->loc;
+	sizy = st->loc;
 	smem_seek(st, 16 + 4, SEEK_SET);
 	smem_write32le(st, sizy);
 

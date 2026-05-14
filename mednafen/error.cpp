@@ -25,9 +25,10 @@ extern retro_log_printf_t log_cb;
 
 MDFN_Error::MDFN_Error(int errno_code_new, const char *format, ...)
 {
+   va_list ap;
+
    errno_code = errno_code_new;
 
-   va_list ap;
    va_start(ap, format);
    error_message = new char[4096];
    vsnprintf(error_message, 4096, format, ap);
