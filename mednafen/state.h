@@ -57,7 +57,7 @@ int32_t smem_seek(StateMem *st, uint32_t offset, int whence);
 int smem_write32le(StateMem *st, uint32_t b);
 int smem_read32le(StateMem *st, uint32_t *b);
 
-int MDFNSS_SaveSM(void *st, uint32_t ver, const void*, const void*, const void*);
+int MDFNSS_SaveSM(void *st, uint32_t ver, const void *unused0, const void *unused1, const void *unused2);
 int MDFNSS_LoadSM(void *st, uint32_t ver);
 
 #ifdef __cplusplus

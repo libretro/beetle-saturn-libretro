@@ -22,6 +22,17 @@
 #ifndef __MDFN_SS_CART_STV_H
 #define __MDFN_SS_CART_STV_H
 
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
+#include <mednafen/mednafen-types.h>   /* MDFN_COLD */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct CartInfo;
 struct STVGameInfo;
 
@@ -42,10 +53,14 @@ struct STVGameInfo;
 // Returns true on success, false on I/O error (short read, missing
 // sibling file, etc.); CartInfo's resources are cleaned up on the
 // failure path before returning.
-bool CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, const STVGameInfo* sgi) MDFN_COLD;
+bool CART_STV_Init(struct CartInfo* c, const char* rom_dir, const char* main_fname, const struct STVGameInfo* sgi) MDFN_COLD;
 
 // Peek a byte from STV ROM, byte-addressed.  Used by stvio.cpp's InitEEPROM
 // to read the game's onboard ROM header for cabinet detection.
 uint8_t CART_STV_PeekROM(uint32_t A);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

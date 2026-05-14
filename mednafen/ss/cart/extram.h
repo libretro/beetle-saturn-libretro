@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* extram.h - Extended RAM(1MiB and 4MiB) cart emulation
+/* backup.h - Backup memory(512KiB) cart emulation
 **  Copyright (C) 2016-2017 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -22,6 +22,23 @@
 #ifndef __MDFN_SS_CART_EXTRAM_H
 #define __MDFN_SS_CART_EXTRAM_H
 
-void CART_ExtRAM_Init(CartInfo* c, bool R4MiB) MDFN_COLD;
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
+#include <mednafen/mednafen-types.h>   /* MDFN_COLD */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct CartInfo;
+
+void CART_ExtRAM_Init(struct CartInfo* c, bool R4MiB) MDFN_COLD;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

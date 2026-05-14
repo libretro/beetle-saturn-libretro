@@ -1,8 +1,8 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* bootrom.h - Bootable ROM cart emulation
-**  Copyright (C) 2023 Mednafen Team
+/* backup.h - Backup memory(512KiB) cart emulation
+**  Copyright (C) 2016-2017 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
 ** modify it under the terms of the GNU General Public License
@@ -22,8 +22,24 @@
 #ifndef __MDFN_SS_CART_BOOTROM_H
 #define __MDFN_SS_CART_BOOTROM_H
 
-#include <streams/file_stream.h>
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
 
-bool CART_BootROM_Init(CartInfo* c, RFILE* str) MDFN_COLD;
+#include <mednafen/mednafen-types.h>   /* MDFN_COLD */
+#include <streams/file_stream.h>   /* RFILE */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct CartInfo;
+
+bool CART_BootROM_Init(struct CartInfo* c, RFILE* str) MDFN_COLD;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

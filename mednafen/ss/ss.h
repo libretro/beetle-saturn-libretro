@@ -167,7 +167,13 @@
  // (length is in units of bytes, not 16-bit units)
  //
  // is_writeable is mostly for cheat stuff.
- void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable = false) MDFN_COLD;
+ //
+ // Declared with C linkage: the cart subsystem (cart.c and the
+ // cart/*.c device files) is C now and calls this across the C/C++
+ // boundary. The default argument is a caller-side C++ convenience
+ // and is fine on an extern "C" function; the C declarations in the
+ // cart files just pass is_writeable explicitly.
+ extern "C" void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable = false) MDFN_COLD;
 
  void SS_Reset(bool powering_up) MDFN_COLD;
 

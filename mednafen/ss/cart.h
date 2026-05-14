@@ -22,7 +22,28 @@
 #ifndef __MDFN_SS_CART_H
 #define __MDFN_SS_CART_H
 
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
+#include <mednafen/mednafen-types.h>   /* MDFN_HIDE, MDFN_COLD */
+#include <retro_inline.h>              /* INLINE */
 #include <mednafen/state.h>
+
+/* Formerly relied on being a C++-only header. Now valid as C too, so
+   cart.c and the cart/ device .c files can include it.
+   ss_event_handler is defined in ss.h, which is C++ (class SH7095,
+   default args); mirror the typedef here -- it is just a
+   function-pointer type. The CS01 and CS2M SetRW8W16 helpers, which
+   were CartInfo member functions, are now free functions taking a
+   CartInfo* (see below). */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef int32_t (*ss_event_handler)(const int32_t timestamp);
 
 struct CartInfo
 {
@@ -56,17 +77,28 @@ struct CartInfo
   void (*Write16)(uint32_t A, uint16_t* DB);  
  } CS2M_RW[0x20];
 
- void CS01_SetRW8W16(uint32_t Astart, uint32_t Aend, void (*r16)(uint32_t A, uint16_t* DB), void (*w8)(uint32_t A, uint16_t* DB) = nullptr, void (*w16)(uint32_t A, uint16_t* DB) = nullptr);
- void CS2M_SetRW8W16(uint8_t Ostart, uint8_t Oend, void (*r16)(uint32_t A, uint16_t* DB), void (*w8)(uint32_t A, uint16_t* DB) = nullptr, void (*w16)(uint32_t A, uint16_t* DB) = nullptr);
 };
 
-static INLINE void CART_CS01_Read16_DB(uint32_t A, uint16_t* DB)  { MDFN_HIDE extern CartInfo Cart; Cart.CS01_RW[(size_t)(A >> 20) - (0x02000000 >> 20)].Read16 (A, DB); }
-static INLINE void CART_CS01_Write8_DB(uint32_t A, uint16_t* DB)  { MDFN_HIDE extern CartInfo Cart; Cart.CS01_RW[(size_t)(A >> 20) - (0x02000000 >> 20)].Write8 (A, DB); }
-static INLINE void CART_CS01_Write16_DB(uint32_t A, uint16_t* DB) { MDFN_HIDE extern CartInfo Cart; Cart.CS01_RW[(size_t)(A >> 20) - (0x02000000 >> 20)].Write16(A, DB); }
+/* Were CartInfo member functions; now free functions taking the
+   CartInfo*. The w8/w16 args had C++ default values of nullptr --
+   C has no default args, so every caller now passes them explicitly
+   (NULL where the default was relied on). */
+void CartInfo_CS01_SetRW8W16(struct CartInfo *c, uint32_t Astart, uint32_t Aend,
+                             void (*r16)(uint32_t A, uint16_t* DB),
+                             void (*w8)(uint32_t A, uint16_t* DB),
+                             void (*w16)(uint32_t A, uint16_t* DB));
+void CartInfo_CS2M_SetRW8W16(struct CartInfo *c, uint8_t Ostart, uint8_t Oend,
+                             void (*r16)(uint32_t A, uint16_t* DB),
+                             void (*w8)(uint32_t A, uint16_t* DB),
+                             void (*w16)(uint32_t A, uint16_t* DB));
 
-static INLINE void CART_CS2_Read16_DB(uint32_t A, uint16_t* DB)  { MDFN_HIDE extern CartInfo Cart; Cart.CS2M_RW[(A >> 1) & 0x1F].Read16 (A, DB); }
-static INLINE void CART_CS2_Write8_DB(uint32_t A, uint16_t* DB)  { MDFN_HIDE extern CartInfo Cart; Cart.CS2M_RW[(A >> 1) & 0x1F].Write8 (A, DB); }
-static INLINE void CART_CS2_Write16_DB(uint32_t A, uint16_t* DB) { MDFN_HIDE extern CartInfo Cart; Cart.CS2M_RW[(A >> 1) & 0x1F].Write16(A, DB); }
+static INLINE void CART_CS01_Read16_DB(uint32_t A, uint16_t* DB)  { MDFN_HIDE extern struct CartInfo Cart; Cart.CS01_RW[(size_t)(A >> 20) - (0x02000000 >> 20)].Read16 (A, DB); }
+static INLINE void CART_CS01_Write8_DB(uint32_t A, uint16_t* DB)  { MDFN_HIDE extern struct CartInfo Cart; Cart.CS01_RW[(size_t)(A >> 20) - (0x02000000 >> 20)].Write8 (A, DB); }
+static INLINE void CART_CS01_Write16_DB(uint32_t A, uint16_t* DB) { MDFN_HIDE extern struct CartInfo Cart; Cart.CS01_RW[(size_t)(A >> 20) - (0x02000000 >> 20)].Write16(A, DB); }
+
+static INLINE void CART_CS2_Read16_DB(uint32_t A, uint16_t* DB)  { MDFN_HIDE extern struct CartInfo Cart; Cart.CS2M_RW[(A >> 1) & 0x1F].Read16 (A, DB); }
+static INLINE void CART_CS2_Write8_DB(uint32_t A, uint16_t* DB)  { MDFN_HIDE extern struct CartInfo Cart; Cart.CS2M_RW[(A >> 1) & 0x1F].Write8 (A, DB); }
+static INLINE void CART_CS2_Write16_DB(uint32_t A, uint16_t* DB) { MDFN_HIDE extern struct CartInfo Cart; Cart.CS2M_RW[(A >> 1) & 0x1F].Write16(A, DB); }
 
 //
 // Don't change the values for existing cart types, or a save state sanity check will break.
@@ -108,16 +140,20 @@ enum
 // All three default to nullptr; existing CART_Init(int) call sites continue
 // to compile unchanged. Non-STV cart types ignore the extra arguments.
 struct STVGameInfo;
-bool CART_Init(const int cart_type, const char* rom_dir = nullptr,
-               const char* main_fname = nullptr,
-               const STVGameInfo* sgi = nullptr) MDFN_COLD;
-static INLINE ss_event_handler CART_GetEventHandler(void) { MDFN_HIDE extern CartInfo Cart; return Cart.EventHandler; }
-static INLINE void CART_AdjustTS(const int32_t delta) { MDFN_HIDE extern CartInfo Cart; Cart.AdjustTS(delta); }
-static INLINE void CART_SetCPUClock(const int32_t master_clock, const int32_t cpu_divider) { MDFN_HIDE extern CartInfo Cart; Cart.SetCPUClock(master_clock, cpu_divider); }
-static INLINE void CART_Kill(void) { MDFN_HIDE extern CartInfo Cart; if(Cart.Kill) { Cart.Kill(); Cart.Kill = nullptr; } }
-static INLINE void CART_StateAction(StateMem* sm, const unsigned load, const bool data_only) { MDFN_HIDE extern CartInfo Cart; Cart.StateAction(sm, load, data_only); }
-static INLINE void CART_GetNVInfo(const char** ext, void** nv_ptr, bool* nv16, uint64_t* nv_size) { MDFN_HIDE extern CartInfo Cart; Cart.GetNVInfo(ext, nv_ptr, nv16, nv_size); }
-static INLINE bool CART_GetClearNVDirty(void) { MDFN_HIDE extern CartInfo Cart; return Cart.GetClearNVDirty(); }
-static INLINE void CART_Reset(bool powering_up) { MDFN_HIDE extern CartInfo Cart; Cart.Reset(powering_up); }
+bool CART_Init(const int cart_type, const char* rom_dir,
+               const char* main_fname,
+               const struct STVGameInfo* sgi) MDFN_COLD;
+static INLINE ss_event_handler CART_GetEventHandler(void) { MDFN_HIDE extern struct CartInfo Cart; return Cart.EventHandler; }
+static INLINE void CART_AdjustTS(const int32_t delta) { MDFN_HIDE extern struct CartInfo Cart; Cart.AdjustTS(delta); }
+static INLINE void CART_SetCPUClock(const int32_t master_clock, const int32_t cpu_divider) { MDFN_HIDE extern struct CartInfo Cart; Cart.SetCPUClock(master_clock, cpu_divider); }
+static INLINE void CART_Kill(void) { MDFN_HIDE extern struct CartInfo Cart; if(Cart.Kill) { Cart.Kill(); Cart.Kill = NULL; } }
+static INLINE void CART_StateAction(StateMem* sm, const unsigned load, const bool data_only) { MDFN_HIDE extern struct CartInfo Cart; Cart.StateAction(sm, load, data_only); }
+static INLINE void CART_GetNVInfo(const char** ext, void** nv_ptr, bool* nv16, uint64_t* nv_size) { MDFN_HIDE extern struct CartInfo Cart; Cart.GetNVInfo(ext, nv_ptr, nv16, nv_size); }
+static INLINE bool CART_GetClearNVDirty(void) { MDFN_HIDE extern struct CartInfo Cart; return Cart.GetClearNVDirty(); }
+static INLINE void CART_Reset(bool powering_up) { MDFN_HIDE extern struct CartInfo Cart; Cart.Reset(powering_up); }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

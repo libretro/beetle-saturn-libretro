@@ -1,8 +1,8 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* cs1ram.h - CS1 RAM(16MiB) cart emulation
-**  Copyright (C) 2017 Mednafen Team
+/* backup.h - Backup memory(512KiB) cart emulation
+**  Copyright (C) 2016-2017 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
 ** modify it under the terms of the GNU General Public License
@@ -22,6 +22,23 @@
 #ifndef __MDFN_SS_CART_CS1RAM_H
 #define __MDFN_SS_CART_CS1RAM_H
 
-void CART_CS1RAM_Init(CartInfo* c) MDFN_COLD;
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
+#include <mednafen/mednafen-types.h>   /* MDFN_COLD */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct CartInfo;
+
+void CART_CS1RAM_Init(struct CartInfo* c) MDFN_COLD;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

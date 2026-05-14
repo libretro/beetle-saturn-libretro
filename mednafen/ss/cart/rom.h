@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* rom.h - ROM cart emulation
+/* backup.h - Backup memory(512KiB) cart emulation
 **  Copyright (C) 2016-2017 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -22,8 +22,24 @@
 #ifndef __MDFN_SS_CART_ROM_H
 #define __MDFN_SS_CART_ROM_H
 
-#include <streams/file_stream.h>
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
 
-void CART_ROM_Init(CartInfo* c, RFILE* str) MDFN_COLD;
+#include <mednafen/mednafen-types.h>   /* MDFN_COLD */
+#include <streams/file_stream.h>   /* RFILE */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct CartInfo;
+
+void CART_ROM_Init(struct CartInfo* c, RFILE* str) MDFN_COLD;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
