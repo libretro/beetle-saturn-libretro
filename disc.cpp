@@ -54,9 +54,10 @@ static char  **disc_labels  = NULL;   // was disk_image_labels
 static size_t  num_discs    = 0;
 static size_t  disc_cap     = 0;
 
-// Append one disc entry. Takes ownership of nothing -- path/label are
-// copied. Returns false on allocation failure (the CDIF* is not freed
-// here; the caller still owns it on failure).
+// Append one disc entry. On success the list takes ownership of cdif
+// (freed later by disc_cleanup) and copies path/label. On failure
+// (allocation error) cdif is closed here -- "push, or it's gone" --
+// so callers can ignore the return value without leaking the CDIF.
 static bool disc_list_push(CDIF *cdif, const char *path, const char *label)
 {
 	char *path_dup;
@@ -72,7 +73,11 @@ static bool disc_list_push(CDIF *cdif, const char *path, const char *label)
 		if(np) disc_paths  = np;
 		if(nl) disc_labels = nl;
 		if(!nc || !np || !nl)
+		{
+			if(cdif)
+				CDIF_Close(cdif);
 			return false;
+		}
 		disc_cap = newcap;
 	}
 
@@ -82,6 +87,8 @@ static bool disc_list_push(CDIF *cdif, const char *path, const char *label)
 	{
 		free(path_dup);
 		free(label_dup);
+		if(cdif)
+			CDIF_Close(cdif);
 		return false;
 	}
 
@@ -830,7 +837,15 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 				extract_basename(image_label,
 					m3u.items[i],
 					sizeof(image_label));
-				disc_list_push(image, m3u.items[i], image_label);
+				// disc_list_push closes 'image' itself if it
+				// fails, so there's nothing to clean up here --
+				// just treat it as a hard load failure.
+				if (!disc_list_push(image, m3u.items[i], image_label))
+				{
+					log_cb(RETRO_LOG_ERROR, "Failed to add CD: \"%s\".\n", m3u.items[i]);
+					m3u_list_free(&m3u);
+					return false;
+				}
 			}
 			m3u_list_free(&m3u);
 		}
@@ -852,7 +867,12 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 			extract_basename(image_label,
 				content_name,
 				sizeof(image_label));
-			disc_list_push(image, content_name, image_label);
+			// disc_list_push closes 'image' itself on failure.
+			if (!disc_list_push(image, content_name, image_label))
+			{
+				log_cb(RETRO_LOG_ERROR, "Failed to add CD: \"%s\".\n", content_name);
+				return false;
+			}
 		}
 
 		/* Attempt to set initial disk index */
