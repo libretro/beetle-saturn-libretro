@@ -118,13 +118,13 @@ void IODevice_JPKeyboard::StateAction(StateMem* sm, const unsigned load, const b
 {
  SFORMAT StateRegs[] =
  {
-  SFVAR(fifo),
+  SFPTR16N(&(fifo)[0], (sizeof(fifo) / sizeof(uint16_t)), "fifo"),
   SFVAR(fifo_rdp),
   SFVAR(fifo_wrp),
   SFVAR(fifo_cnt),
 
-  SFVAR(phys),
-  SFVAR(processed),
+  SFPTR64N(&(phys)[0], (sizeof(phys) / sizeof(uint64_t)), "phys"),
+  SFPTR64N(&(processed)[0], (sizeof(processed) / sizeof(uint64_t)), "processed"),
 
   SFVAR(simbutt),
   SFVAR(simbutt_pend),
@@ -137,7 +137,7 @@ void IODevice_JPKeyboard::StateAction(StateMem* sm, const unsigned load, const b
   SFVAR(rep_dcnt_pend),
 
   SFVAR(mkbrk_pend),
-  SFVAR(buffer),
+  SFPTR8N(&(buffer)[0], (sizeof(buffer) / sizeof(uint8_t)), "buffer"),
 
   SFVAR(data_out),
   SFVAR(tl),

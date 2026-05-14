@@ -1297,10 +1297,10 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   SFVAR(PrimData.e->g.g, 0x2, sizeof(*PrimData.e), PrimData.e),
   SFVAR(PrimData.e->g.intinc, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->g.ginc, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->g.error, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->g.error_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->g.error_adj, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFPTR32N(&(PrimData.e->g.ginc)[0], (sizeof(PrimData.e->g.ginc) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.ginc"),
+  SFPTR32N(&(PrimData.e->g.error)[0], (sizeof(PrimData.e->g.error) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.error"),
+  SFPTR32N(&(PrimData.e->g.error_inc)[0], (sizeof(PrimData.e->g.error_inc) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.error_inc"),
+  SFPTR32N(&(PrimData.e->g.error_adj)[0], (sizeof(PrimData.e->g.error_adj) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.error_adj"),
 
   SFVAR(PrimData.big_t.t),
   SFVAR(PrimData.big_t.tinc),
@@ -1328,10 +1328,10 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   SFVAR(LineInnerData.g.g),
   SFVAR(LineInnerData.g.intinc),
-  SFVAR(LineInnerData.g.ginc),
-  SFVAR(LineInnerData.g.error),
-  SFVAR(LineInnerData.g.error_inc),
-  SFVAR(LineInnerData.g.error_adj),
+  SFPTR32N(&(LineInnerData.g.ginc)[0], (sizeof(LineInnerData.g.ginc) / sizeof(int32_t)), "LineInnerData.g.ginc"),
+  SFPTR32N(&(LineInnerData.g.error)[0], (sizeof(LineInnerData.g.error) / sizeof(int32_t)), "LineInnerData.g.error"),
+  SFPTR32N(&(LineInnerData.g.error_inc)[0], (sizeof(LineInnerData.g.error_inc) / sizeof(int32_t)), "LineInnerData.g.error_inc"),
+  SFPTR32N(&(LineInnerData.g.error_adj)[0], (sizeof(LineInnerData.g.error_adj) / sizeof(int32_t)), "LineInnerData.g.error_adj"),
 
   SFVARN(LineInnerData.xy_inc[0], "LineInnerData.x_inc"),
   SFVARN(LineInnerData.xy_inc[1], "LineInnerData.y_inc"),
@@ -1352,7 +1352,7 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(LineData.color),
   SFVAR(LineData.ec_count),
   //uint32_t (MDFN_FASTCALL *tffn)(uint32_t);
-  SFVAR(LineData.CLUT),
+  SFPTR16N(&(LineData.CLUT)[0], (sizeof(LineData.CLUT) / sizeof(uint16_t)), "LineData.CLUT"),
   SFVAR(LineData.cb_or),
   SFVAR(LineData.tex_base),
   //
@@ -1363,9 +1363,9 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
  SFORMAT StateRegs[] =
  {
-  SFVAR(VRAM),
-  SFVARN(FB, "&FB[0][0]"),
-  SFVARN(MeshFB, "&MeshFB[0][0]"),
+  SFPTR16N(&(VRAM)[0], (sizeof(VRAM) / sizeof(uint16_t)), "VRAM"),
+  SFPTR16N(&(FB)[0][0], (sizeof(FB) / sizeof(uint16_t)), "&FB[0][0]"),
+  SFPTR16N(&(MeshFB)[0][0], (sizeof(MeshFB) / sizeof(uint16_t)), "&MeshFB[0][0]"),
   SFVAR(FBDrawWhich),
 
   SFVAR(FBManualPending),

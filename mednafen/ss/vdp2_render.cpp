@@ -4285,18 +4285,18 @@ void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_onl
 
   SFVAR(MosaicVCount),
 
-  SFVAR(VCLast),
+  SFPTR32N(&(VCLast)[0], (sizeof(VCLast) / sizeof(uint32_t)), "VCLast"),
 
-  SFVAR(YCoordAccum),
-  SFVAR(MosEff_YCoordAccum),
+  SFPTR32N(&(YCoordAccum)[0], (sizeof(YCoordAccum) / sizeof(uint32_t)), "YCoordAccum"),
+  SFPTR32N(&(MosEff_YCoordAccum)[0], (sizeof(MosEff_YCoordAccum) / sizeof(uint32_t)), "MosEff_YCoordAccum"),
 
-  SFVAR(CurXScrollIF),
-  SFVAR(CurYScrollIF),
-  SFVAR(CurXCoordInc),
-  SFVAR(CurLSA),
+  SFPTR32N(&(CurXScrollIF)[0], (sizeof(CurXScrollIF) / sizeof(uint32_t)), "CurXScrollIF"),
+  SFPTR32N(&(CurYScrollIF)[0], (sizeof(CurYScrollIF) / sizeof(uint32_t)), "CurYScrollIF"),
+  SFPTR16N(&(CurXCoordInc)[0], (sizeof(CurXCoordInc) / sizeof(uint16_t)), "CurXCoordInc"),
+  SFPTR32N(&(CurLSA)[0], (sizeof(CurLSA) / sizeof(uint32_t)), "CurLSA"),
 
-  SFVAR(NBG23_YCounter),
-  SFVAR(MosEff_NBG23_YCounter),
+  SFPTR16N(&(NBG23_YCounter)[0], (sizeof(NBG23_YCounter) / sizeof(uint16_t)), "NBG23_YCounter"),
+  SFPTR16N(&(MosEff_NBG23_YCounter)[0], (sizeof(MosEff_NBG23_YCounter) / sizeof(uint16_t)), "MosEff_NBG23_YCounter"),
 
   SFVAR(CurBackTabAddr),
   SFVAR(CurBackColor),

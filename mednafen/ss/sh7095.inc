@@ -3218,17 +3218,17 @@ void SH7095::StateAction(StateMem* sm, const unsigned load, const bool data_only
 {
  SFORMAT StateRegs[] =
  {
-  SFVAR(R),
+  SFPTR32N(&(R)[0], (sizeof(R) / sizeof(uint32_t)), "R"),
   SFVAR(PC),
-  SFVAR(CtrlRegs),
+  SFPTR32N(&(CtrlRegs)[0], (sizeof(CtrlRegs) / sizeof(uint32_t)), "CtrlRegs"),
 
   SFVAR(timestamp),
   SFVAR(MA_until),
   SFVAR(MM_until),
   SFVAR(write_finish_timestamp),
-  SFVAR(WB_until),
+  SFPTR32N(&(WB_until)[0], (sizeof(WB_until) / sizeof(sscpu_timestamp_t)), "WB_until"),
   SFVAR(UCRead_IF_Kludge),
-  SFVAR(SysRegs),
+  SFPTR32N(&(SysRegs)[0], (sizeof(SysRegs) / sizeof(uint32_t)), "SysRegs"),
 
   SFVAR(EPending),
   SFVAR(Pipe_ID),
@@ -3237,7 +3237,7 @@ void SH7095::StateAction(StateMem* sm, const unsigned load, const bool data_only
   SFVAR(IBuffer),
 
   SFPTR32(Cache->Tag, 4, 64, sizeof(*Cache), Cache),
-  SFVARN(Cache_LRU, "Cache->LRU"),
+  SFPTR8N(&(Cache_LRU)[0], (sizeof(Cache_LRU) / sizeof(uint8_t)), "Cache->LRU"),
   // Cast because it's stored as native-endian 32-bit.  SFPTR32N (explicit
   // name) rather than SFPTR32 (auto #x name): the typedef rename changed the
   // cast spelling from (uint32*) to (uint32_t*), and SFPTR32 would stringize
@@ -3283,7 +3283,7 @@ void SH7095::StateAction(StateMem* sm, const unsigned load, const bool data_only
   SFVAR(FRT.FTI),
   SFVAR(FRT.FTCI),
   SFVAR(FRT.FRC),
-  SFVAR(FRT.OCR),
+  SFPTR16N(&(FRT.OCR)[0], (sizeof(FRT.OCR) / sizeof(uint16_t)), "FRT.OCR"),
   SFVAR(FRT.FICR),
   SFVAR(FRT.TIER),
   SFVAR(FRT.FTCSR),

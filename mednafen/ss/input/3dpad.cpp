@@ -78,10 +78,10 @@ void IODevice_3DPad::StateAction(StateMem* sm, const unsigned load, const bool d
   SFVAR(dbuttons),
   SFVAR(mode),
 
-  SFVAR(thumb),
-  SFVAR(shoulder),
+  SFPTR8N(&(thumb)[0], (sizeof(thumb) / sizeof(uint8_t)), "thumb"),
+  SFPTR8N(&(shoulder)[0], (sizeof(shoulder) / sizeof(uint8_t)), "shoulder"),
 
-  SFVAR(buffer),
+  SFPTR8N(&(buffer)[0], (sizeof(buffer) / sizeof(uint8_t)), "buffer"),
   SFVAR(data_out),
   SFVAR(tl),
 

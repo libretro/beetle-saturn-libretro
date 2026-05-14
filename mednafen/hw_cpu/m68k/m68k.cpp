@@ -79,7 +79,7 @@ void M68K::StateAction(StateMem* sm, const unsigned load, const bool data_only, 
 {
  SFORMAT StateRegs[] =
  {
-  SFVAR(DA),
+  SFPTR32N(&(DA)[0], (sizeof(DA) / sizeof(uint32_t)), "DA"),
   SFVAR(PC),
   SFVAR(SRHB),
   SFVAR(IPL),

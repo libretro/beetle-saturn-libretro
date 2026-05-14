@@ -3920,8 +3920,8 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   SFVAR(HIRQ),
   SFVAR(HIRQ_Mask),
-  SFVAR(CData),
-  SFVAR(Results),
+  SFPTR16N(&(CData)[0], (sizeof(CData) / sizeof(uint16_t)), "CData"),
+  SFPTR16N(&(Results)[0], (sizeof(Results) / sizeof(uint16_t)), "Results"),
 
   SFVAR(CommandPending),
   SFVAR(SWResetHIRQDeferred),
@@ -3933,7 +3933,7 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   //
   //
-  SFVAR(Buffers->Data, NumBuffers, sizeof(*Buffers), Buffers),
+  SFPTR8N(&(Buffers->Data)[0], (sizeof(Buffers->Data) / sizeof(uint8_t)), NumBuffers, sizeof(*Buffers), Buffers, "Buffers->Data"),
   SFVAR(Buffers->Prev, NumBuffers, sizeof(*Buffers), Buffers),
   SFVAR(Buffers->Next, NumBuffers, sizeof(*Buffers), Buffers),
   //
@@ -3974,7 +3974,7 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(CommandClockCounter),
 
   SFVAR(CTR.Command),
-  SFVAR(CTR.CD),
+  SFPTR16N(&(CTR.CD)[0], (sizeof(CTR.CD) / sizeof(uint16_t)), "CTR.CD"),
 
   SFVAR(DT.Active),
   SFVAR(DT.Writing),
@@ -3990,12 +3990,12 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   SFVAR(DT.FNum),
 
-  SFVAR(DT.FIFO),
+  SFPTR16N(&(DT.FIFO)[0], (sizeof(DT.FIFO) / sizeof(uint16_t)), "DT.FIFO"),
   SFVAR(DT.FIFO_RP),
   SFVAR(DT.FIFO_WP),
   SFVAR(DT.FIFO_In),
 
-  SFVAR(DT.BufList),
+  SFPTR8N(&(DT.BufList)[0], (sizeof(DT.BufList) / sizeof(uint8_t)), "DT.BufList"),
 
   SFVAR(StandbyTime),
   SFVAR(ECCEnable),
@@ -4028,15 +4028,15 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(ScanMode),
   SFVAR(ScanCounter),
 
-  SFVARN(CDDABuf, "&CDDABuf[0][0]"),
+  SFPTR16N(&(CDDABuf)[0][0], (sizeof(CDDABuf) / sizeof(uint16_t)), "&CDDABuf[0][0]"),
   SFVAR(CDDABuf_RP),
   SFVAR(CDDABuf_WP),
   SFVAR(CDDABuf_Count),
 
-  SFVAR(SecPreBuf),
+  SFPTR8N(&(SecPreBuf)[0], (sizeof(SecPreBuf) / sizeof(uint8_t)), "SecPreBuf"),
   SFVAR(SecPreBuf_In),
 
-  SFVAR(TOC_Buffer),
+  SFPTR8N(&(TOC_Buffer)[0], (sizeof(TOC_Buffer) / sizeof(uint8_t)), "TOC_Buffer"),
 
   SFVAR(CurPosInfo.status),
   SFVAR(CurPosInfo.fad),
@@ -4048,16 +4048,16 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(CurPosInfo.is_cdrom),
   SFVAR(CurPosInfo.repcount),
 
-  SFVAR(SubCodeQBuf),
-  SFVAR(SubCodeRWBuf),
+  SFPTR8N(&(SubCodeQBuf)[0], (sizeof(SubCodeQBuf) / sizeof(uint8_t)), "SubCodeQBuf"),
+  SFPTR8N(&(SubCodeRWBuf)[0], (sizeof(SubCodeRWBuf) / sizeof(uint8_t)), "SubCodeRWBuf"),
 
-  SFVAR(SubQBuf),
-  SFVAR(SubQBuf_Safe),
+  SFPTR8N(&(SubQBuf)[0], (sizeof(SubQBuf) / sizeof(uint8_t)), "SubQBuf"),
+  SFPTR8N(&(SubQBuf_Safe)[0], (sizeof(SubQBuf_Safe) / sizeof(uint8_t)), "SubQBuf_Safe"),
   SFVAR(SubQBuf_Safe_Valid),
 
   #define SFFIS(vs, tc)						\
-	SFVAR((vs).fad_be, tc, sizeof(vs), &vs),		\
-	SFVAR((vs).size_be, tc, sizeof(vs), &vs),		\
+	SFPTR8N(&((vs).fad_be)[0], (sizeof((vs).fad_be) / sizeof(uint8_t)), tc, sizeof(vs), &vs, "(vs).fad_be"),		\
+	SFPTR8N(&((vs).size_be)[0], (sizeof((vs).size_be) / sizeof(uint8_t)), tc, sizeof(vs), &vs, "(vs).size_be"),		\
 	SFVAR((vs).unit_size, tc, sizeof(vs), &vs),		\
 	SFVAR((vs).gap_size, tc, sizeof(vs), &vs),		\
 	SFVAR((vs).fnum, tc, sizeof(vs), &vs),			\
@@ -4080,12 +4080,12 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(FLS.pnum),
   SFVAR(FLS.fioffs),
   SFVAR(FLS.fiaoffs),
-  SFVAR(FLS.pbuf),
+  SFPTR8N(&(FLS.pbuf)[0], (sizeof(FLS.pbuf) / sizeof(uint8_t)), "FLS.pbuf"),
   SFVAR(FLS.pbuf_offs),
   SFVAR(FLS.pbuf_read_i),
   SFVAR(FLS.total_counter),
   SFVAR(FLS.total_max),
-  SFVAR(FLS.record),
+  SFPTR8N(&(FLS.record)[0], (sizeof(FLS.record) / sizeof(uint8_t)), "FLS.record"),
   SFVAR(FLS.record_counter),
 
   SFEND

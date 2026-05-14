@@ -70,7 +70,7 @@ void IODevice_Wheel::StateAction(StateMem* sm, const unsigned load, const bool d
   SFVAR(dbuttons),
   SFVAR(wheel),
 
-  SFVAR(buffer),
+  SFPTR8N(&(buffer)[0], (sizeof(buffer) / sizeof(uint8_t)), "buffer"),
   SFVAR(data_out),
   SFVAR(tl),
 

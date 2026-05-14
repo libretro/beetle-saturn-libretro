@@ -241,7 +241,7 @@ void IODevice_Gun::StateAction(StateMem* sm, const unsigned load, const bool dat
   SFVAR(osshot_counter),
   SFVAR(prev_ossb),
 
-  SFVAR(nom_coord),
+  SFPTR32N(&(nom_coord)[0], (sizeof(nom_coord) / sizeof(int32_t)), "nom_coord"),
 
   SFEND
  };

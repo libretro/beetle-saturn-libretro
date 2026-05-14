@@ -434,8 +434,8 @@ void STVIO_StateAction(StateMem* sm, const unsigned load, const bool data_only)
  SFORMAT StateRegs[] =
  {
   SFVAR(DataDir),
-  SFVAR(DataOut),
-  SFVAR(DataIn),
+  SFPTR8N(&(DataOut)[0], (sizeof(DataOut) / sizeof(uint8_t)), "DataOut"),
+  SFPTR8N(&(DataIn)[0], (sizeof(DataIn) / sizeof(uint8_t)), "DataIn"),
   SFVAR(CoinPending),
   SFVAR(CoinActiveCounter),
   //

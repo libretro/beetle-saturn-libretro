@@ -540,12 +540,12 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
  {
   SFVAR(RTC.ClockAccum),
   SFVAR(RTC.Valid),
-  SFVAR(RTC.raw),
+  SFPTR8N(&(RTC.raw)[0], (sizeof(RTC.raw) / sizeof(uint8_t)), "RTC.raw"),
 
-  SFVAR(SaveMem),
+  SFPTR8N(&(SaveMem)[0], (sizeof(SaveMem) / sizeof(uint8_t)), "SaveMem"),
 
-  SFVAR(IREG),
-  SFVAR(OREG),
+  SFPTR8N(&(IREG)[0], (sizeof(IREG) / sizeof(uint8_t)), "IREG"),
+  SFPTR8N(&(OREG)[0], (sizeof(OREG) / sizeof(uint8_t)), "OREG"),
   SFVAR(SR),
   SFVAR(SF),
 
@@ -580,7 +580,7 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(JRS.OptEatTime),
   SFVAR(JRS.OptReadTime),
 
-  SFVAR(JRS.Mode),
+  SFPTR8N(&(JRS.Mode)[0], (sizeof(JRS.Mode) / sizeof(uint8_t)), "JRS.Mode"),
   SFVAR(JRS.TimeOptEn),
   SFVAR(JRS.NextContBit),
 
@@ -593,22 +593,22 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   SFVAR(JRS.OWP),
 
-  SFVAR(JRS.work),
+  SFPTR8N(&(JRS.work)[0], (sizeof(JRS.work) / sizeof(uint8_t)), "JRS.work"),
 
   SFVAR(JRS.TapCounter),
   SFVAR(JRS.TapCount),
   SFVAR(JRS.ReadCounter),
   SFVAR(JRS.ReadCount),
-  SFVAR(JRS.ReadBuffer),
+  SFPTR8N(&(JRS.ReadBuffer)[0], (sizeof(JRS.ReadBuffer) / sizeof(uint8_t)), "JRS.ReadBuffer"),
   SFVAR(JRS.WriteCounter),
   SFVAR(JRS.PDCounter),
 
-  SFVARN(DataOut, "&DataOut[0][0]"),
-  SFVARN(DataDir, "&DataDir[0][0]"),
-  SFVAR(DirectModeEn),
-  SFVAR(ExLatchEn),
+  SFPTR8N(&(DataOut)[0][0], (sizeof(DataOut) / sizeof(uint8_t)), "&DataOut[0][0]"),
+  SFPTR8N(&(DataDir)[0][0], (sizeof(DataDir) / sizeof(uint8_t)), "&DataDir[0][0]"),
+  SFPTRBN(&(DirectModeEn)[0], (sizeof(DirectModeEn) / sizeof(bool)), "DirectModeEn"),
+  SFPTRBN(&(ExLatchEn)[0], (sizeof(ExLatchEn) / sizeof(bool)), "ExLatchEn"),
 
-  SFVAR(IOBusState),
+  SFPTR8N(&(IOBusState)[0], (sizeof(IOBusState) / sizeof(uint8_t)), "IOBusState"),
 
   SFVAR(vb),
   SFVAR(vsync),

@@ -233,7 +233,7 @@ void AK93C45::StateAction(StateMem* sm, const unsigned load, const bool data_onl
 {
  SFORMAT StateRegs[] =
  {
-  SFVAR(mem),
+  SFPTR16N(&(mem)[0], (sizeof(mem) / sizeof(uint16_t)), "mem"),
   SFVAR(write_enable),
   SFVAR(addr),
   SFVAR(data_buffer),

@@ -2067,7 +2067,7 @@ static MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const b
   SFVAR(DSP.AC.T),
   SFVAR(DSP.P.T),
 
-  SFVAR(DSP.CT),
+  SFPTR8N(&(DSP.CT)[0], (sizeof(DSP.CT) / sizeof(uint8_t)), "DSP.CT"),
 
   SFVAR(DSP.RX),
   SFVAR(DSP.RY),
@@ -2075,11 +2075,11 @@ static MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const b
   SFVAR(DSP.RAO),
   SFVAR(DSP.WAO),
 
-  SFVARN(DSP.DataRAM, "&DSP.DataRAM[0][0]"),
+  SFPTR32N(&(DSP.DataRAM)[0][0], (sizeof(DSP.DataRAM) / sizeof(uint32_t)), "&DSP.DataRAM[0][0]"),
 
-  SFVAR(DSP_ProgRAM),
+  SFPTR32N(&(DSP_ProgRAM)[0], (sizeof(DSP_ProgRAM) / sizeof(uint32_t)), "DSP_ProgRAM"),
 
-  SFVAR(DSP.PRAMDMABuf),
+  SFPTR32N(&(DSP.PRAMDMABuf)[0], (sizeof(DSP.PRAMDMABuf) / sizeof(uint32_t)), "DSP.PRAMDMABuf"),
   SFVAR(DSP.PRAMDMABufCount),
 
   SFVAR(DMALevel->StartReadAddr, 3, sizeof(*DMALevel), DMALevel),
@@ -2101,9 +2101,9 @@ static MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const b
   SFVAR(DMALevel->CurWriteAddr, 3, sizeof(*DMALevel), DMALevel),
   SFVAR(DMALevel->CurByteCount, 3, sizeof(*DMALevel), DMALevel),
   SFVAR(DMALevel->Buffer, 3, sizeof(*DMALevel), DMALevel),
-  SFVAR(DMALevel_WATable),
-  SFVAR(DMALevel_ReadFunc),
-  SFVAR(DMALevel_TableReadFunc),
+  SFPTR32N(&(DMALevel_WATable)[0], (sizeof(DMALevel_WATable) / sizeof(uint32_t)), "DMALevel_WATable"),
+  SFPTR8N(&(DMALevel_ReadFunc)[0], (sizeof(DMALevel_ReadFunc) / sizeof(uint8_t)), "DMALevel_ReadFunc"),
+  SFPTR8N(&(DMALevel_TableReadFunc)[0], (sizeof(DMALevel_TableReadFunc) / sizeof(uint8_t)), "DMALevel_TableReadFunc"),
   SFVAR(DMALevel->CurTableAddr, 3, sizeof(*DMALevel), DMALevel),
   SFVAR(DMALevel->FinalTransfer, 3, sizeof(*DMALevel), DMALevel),
 

@@ -80,9 +80,9 @@ void IODevice_Mission::StateAction(StateMem* sm, const unsigned load, const bool
   SFVAR(afcounter),
   SFVAR(afphase),
 
-  SFVARN(axes, "&axes[0][0]"),
+  SFPTR8N(&(axes)[0][0], (sizeof(axes) / sizeof(uint8_t)), "&axes[0][0]"),
 
-  SFVAR(buffer),
+  SFPTR8N(&(buffer)[0], (sizeof(buffer) / sizeof(uint8_t)), "buffer"),
   SFVAR(data_out),
   SFVAR(tl),
 

@@ -1305,7 +1305,7 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
  {
   SFVAR(lastts),
 
-  SFVAR(RawRegs),
+  SFPTR16N(&(RawRegs)[0], (sizeof(RawRegs) / sizeof(uint16_t)), "RawRegs"),
   SFVAR(DisplayOn),
   SFVAR(BorderMode),
   SFVAR(ExLatchEnable),
@@ -1323,15 +1323,15 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(CRAM_Mode),
 
   SFVAR(BGON),
-  SFVARN(VCPRegs, "&VCPRegs[0][0]"),
-  SFVAR(VRAMPenalty),
+  SFPTR8N(&(VCPRegs)[0][0], (sizeof(VCPRegs) / sizeof(uint8_t)), "&VCPRegs[0][0]"),
+  SFPTR32N(&(VRAMPenalty)[0], (sizeof(VRAMPenalty) / sizeof(uint32_t)), "VRAMPenalty"),
 
   SFVAR(RPTA),
-  SFVAR(RPRCTL),
-  SFVAR(KTAOF),
+  SFPTR8N(&(RPRCTL)[0], (sizeof(RPRCTL) / sizeof(uint8_t)), "RPRCTL"),
+  SFPTR8N(&(KTAOF)[0], (sizeof(KTAOF) / sizeof(uint8_t)), "KTAOF"),
 
-  SFVAR(VRAM),
-  SFVAR(CRAM),
+  SFPTR16N(&(VRAM)[0], (sizeof(VRAM) / sizeof(uint16_t)), "VRAM"),
+  SFPTR16N(&(CRAM)[0], (sizeof(CRAM) / sizeof(uint16_t)), "CRAM"),
 
   SFVAR(RotParams->Xst, 2, sizeof(*RotParams), RotParams),
   SFVAR(RotParams->Yst, 2, sizeof(*RotParams), RotParams),
@@ -1340,7 +1340,7 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(RotParams->DYst, 2, sizeof(*RotParams), RotParams),
   SFVAR(RotParams->DX, 2, sizeof(*RotParams), RotParams),
   SFVAR(RotParams->DY, 2, sizeof(*RotParams), RotParams),
-  SFVAR(RotParams->RotMatrix, 2, sizeof(*RotParams), RotParams),
+  SFPTR32N(&(RotParams->RotMatrix)[0], (sizeof(RotParams->RotMatrix) / sizeof(int32_t)), 2, sizeof(*RotParams), RotParams, "RotParams->RotMatrix"),
   SFVAR(RotParams->Px, 2, sizeof(*RotParams), RotParams),
   SFVAR(RotParams->Py, 2, sizeof(*RotParams), RotParams),
   SFVAR(RotParams->Pz, 2, sizeof(*RotParams), RotParams),

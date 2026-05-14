@@ -1807,7 +1807,7 @@ void SS_SCSP::StateAction(StateMem* sm, const unsigned load, const bool data_onl
 {
  SFORMAT StateRegs[] =
  {
-  SFVARN(SlotRegs, "SlotRegs"),
+  SFPTR16N(&(SlotRegs)[0][0], (sizeof(SlotRegs) / sizeof(uint16_t)), "SlotRegs"),
 
   SFVAR(Slots->PhaseWhacker, 32, sizeof(*Slots), Slots),
   SFVAR(Slots->CurrentAddr, 32, sizeof(*Slots), Slots),
@@ -1819,10 +1819,10 @@ void SS_SCSP::StateAction(StateMem* sm, const unsigned load, const bool data_onl
   SFVAR(Slots->LFOCounter, 32, sizeof(*Slots), Slots),
   SFVAR(Slots->LFOTimeCounter, 32, sizeof(*Slots), Slots),
 
-  SFVAR(EXTS),
+  SFPTR16N(&(EXTS)[0], (sizeof(EXTS) / sizeof(uint16_t)), "EXTS"),
 
-  SFVAR(SoundStack),
-  SFVAR(SoundStackDelayer),
+  SFPTR16N(&(SoundStack)[0], (sizeof(SoundStack) / sizeof(uint16_t)), "SoundStack"),
+  SFPTR16N(&(SoundStackDelayer)[0], (sizeof(SoundStackDelayer) / sizeof(uint16_t)), "SoundStackDelayer"),
 
   SFVAR(MasterVolume),
   SFVAR(MVOL),
@@ -1836,11 +1836,11 @@ void SS_SCSP::StateAction(StateMem* sm, const unsigned load, const bool data_onl
   SFVAR(LFSR),
   SFVAR(GlobalCounter),
 
-  SFVAR(MIDI.InputFIFO),
+  SFPTR8N(&(MIDI.InputFIFO)[0], (sizeof(MIDI.InputFIFO) / sizeof(uint8_t)), "MIDI.InputFIFO"),
   SFVAR(MIDI.InputRP),
   SFVAR(MIDI.InputWP),
   SFVAR(MIDI.InputCount),
-  SFVAR(MIDI.OutputFIFO),
+  SFPTR8N(&(MIDI.OutputFIFO)[0], (sizeof(MIDI.OutputFIFO) / sizeof(uint8_t)), "MIDI.OutputFIFO"),
   SFVAR(MIDI.OutputRP),
   SFVAR(MIDI.OutputWP),
   SFVAR(MIDI.OutputCount),
@@ -1855,7 +1855,7 @@ void SS_SCSP::StateAction(StateMem* sm, const unsigned load, const bool data_onl
   SFVAR(MCIEB),
   SFVAR(MCIPD),
 
-  SFVAR(SCILV),
+  SFPTR8N(&(SCILV)[0], (sizeof(SCILV) / sizeof(uint8_t)), "SCILV"),
 
   SFVAR(Timers->Control, 3, sizeof(*Timers), Timers),
   SFVAR(Timers->Counter, 3, sizeof(*Timers), Timers),
@@ -1872,13 +1872,13 @@ void SS_SCSP::StateAction(StateMem* sm, const unsigned load, const bool data_onl
   SFVAR(RBP),
   SFVAR(RBL),
 
-  SFVAR(DSP.MPROG),
-  SFVAR(DSP.TEMP),
-  SFVAR(DSP.MEMS),
-  SFVAR(DSP.COEF),
-  SFVAR(DSP.MADRS),
-  SFVAR(DSP.MIXS),
-  SFVAR(DSP.EFREG),
+  SFPTR64N(&(DSP.MPROG)[0], (sizeof(DSP.MPROG) / sizeof(uint64_t)), "DSP.MPROG"),
+  SFPTR32N(&(DSP.TEMP)[0], (sizeof(DSP.TEMP) / sizeof(uint32_t)), "DSP.TEMP"),
+  SFPTR32N(&(DSP.MEMS)[0], (sizeof(DSP.MEMS) / sizeof(uint32_t)), "DSP.MEMS"),
+  SFPTR16N(&(DSP.COEF)[0], (sizeof(DSP.COEF) / sizeof(uint16_t)), "DSP.COEF"),
+  SFPTR16N(&(DSP.MADRS)[0], (sizeof(DSP.MADRS) / sizeof(uint16_t)), "DSP.MADRS"),
+  SFPTR32N(&(DSP.MIXS)[0], (sizeof(DSP.MIXS) / sizeof(uint32_t)), "DSP.MIXS"),
+  SFPTR16N(&(DSP.EFREG)[0], (sizeof(DSP.EFREG) / sizeof(uint16_t)), "DSP.EFREG"),
 
   SFVAR(DSP.INPUTS),
 
