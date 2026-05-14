@@ -17,8 +17,6 @@
 
 #include <string.h>
 
-#include <string>
-
 #include "mednafen.h"
 #include "settings.h"
 #include <compat/msvc.h>
@@ -59,13 +57,13 @@ bool MDFN_GetSettingB(const char *name)
    return 0;
 }
 
-std::string MDFN_GetSettingS(const char *name)
+const char *MDFN_GetSettingS(const char *name)
 {
    if (!strcmp("ss.cart.kof95_path", name))
-      return std::string("mpr-18811-mx.ic1");
+      return "mpr-18811-mx.ic1";
    if (!strcmp("ss.cart.ultraman_path", name))
-      return std::string("mpr-19367-mx.ic1");
+      return "mpr-19367-mx.ic1";
    if (!strcmp("ss.cart.satar4mp_path", name))
-      return std::string("satar4mp.bin");
-   return 0;
+      return "satar4mp.bin";
+   return NULL;
 }

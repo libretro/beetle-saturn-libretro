@@ -246,11 +246,10 @@ static bool disk_replace_image_index(unsigned index, const struct retro_game_inf
 		image_label[0] = '\0';
 
 		CDIF *image  = CDIF_Open(info->path, cdimagecache);
-		// CDIF_Open can either throw or return NULL on failure. The
-		// throw is handled by the caller via the outer try/catch;
-		// NULL was previously assigned without a check, leaving a
-		// NULL in CDInterfaces[] that would crash the later
-		// ReadTOC() loop. Also: the prior CDIF was leaked here on
+		// CDIF_Open returns NULL on failure. NULL was previously
+		// assigned without a check, leaving a NULL in
+		// CDInterfaces[] that would crash the later ReadTOC()
+		// loop. Also: the prior CDIF was leaked here on
 		// every swap (the old pointer was overwritten without
 		// deletion); now we delete it before reassignment.
 		if (image == NULL)
@@ -680,92 +679,83 @@ void disc_select( unsigned disc_num )
 
 bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_t* fd_id, char* sgid, char* sgname, char* sgarea, bool image_memcache )
 {
+	uint8_t LayoutMD5[ 16 ];
+	size_t content_name_len;
+
 	disc_cleanup();
 
 	if ( !content_name )
 		return false;
 
-	uint8_t LayoutMD5[ 16 ];
-
 	log_cb( RETRO_LOG_INFO, "Loading \"%s\"\n", content_name );
 
-	try
+	content_name_len = strlen( content_name );
+	if ( content_name_len > 4 )
 	{
-		size_t content_name_len = strlen( content_name );
-		if ( content_name_len > 4 )
+		const char* content_ext = content_name + content_name_len - 4;
+		if ( !strcasecmp( content_ext, ".m3u" ) )
 		{
-			const char* content_ext = content_name + content_name_len - 4;
-			if ( !strcasecmp( content_ext, ".m3u" ) )
+			// multiple discs
+			unsigned i;
+			ReadM3U(disk_image_paths, content_name);
+			for(i = 0; i < disk_image_paths.size(); i++)
 			{
-				// multiple discs
-				unsigned i;
-				ReadM3U(disk_image_paths, content_name);
-				for(i = 0; i < disk_image_paths.size(); i++)
-				{
-					char image_label[4096];
-					image_label[0] = '\0';
-					log_cb(RETRO_LOG_INFO, "Adding CD: \"%s\".\n", disk_image_paths[i].c_str());
-
-					CDIF *image = CDIF_Open(disk_image_paths[i].c_str(), image_memcache);
-					// CDIF_Open is documented to throw on failure but
-					// historically has also returned NULL in some
-					// build configurations. Treat NULL as a hard
-					// load failure rather than pushing a NULL onto
-					// CDInterfaces (which the ReadTOC() loop below
-					// would dereference).
-					if (image == NULL)
-					{
-						log_cb(RETRO_LOG_ERROR, "Failed to open CD: \"%s\".\n", disk_image_paths[i].c_str());
-						return false;
-					}
-					CDInterfaces.push_back(image);
-
-					extract_basename(image_label,
-						disk_image_paths[i].c_str(),
-						sizeof(image_label));
-					disk_image_labels.push_back(image_label);
-				}
-			}
-			else
-			{
-				// single disc
 				char image_label[4096];
-
 				image_label[0] = '\0';
+				log_cb(RETRO_LOG_INFO, "Adding CD: \"%s\".\n", disk_image_paths[i].c_str());
 
-				disk_image_paths.push_back(content_name);
-				CDIF *image  = CDIF_Open(content_name, image_memcache);
+				CDIF *image = CDIF_Open(disk_image_paths[i].c_str(), image_memcache);
+				// CDIF_Open returns NULL on failure. Treat NULL as a hard
+				// load failure rather than pushing a NULL onto
+				// CDInterfaces (which the ReadTOC() loop below
+				// would dereference).
 				if (image == NULL)
 				{
-					log_cb(RETRO_LOG_ERROR, "Failed to open CD: \"%s\".\n", content_name);
+					log_cb(RETRO_LOG_ERROR, "Failed to open CD: \"%s\".\n", disk_image_paths[i].c_str());
 					return false;
 				}
 				CDInterfaces.push_back(image);
 
 				extract_basename(image_label,
-					content_name,
+					disk_image_paths[i].c_str(),
 					sizeof(image_label));
 				disk_image_labels.push_back(image_label);
 			}
-
-			/* Attempt to set initial disk index */
-			if ((g_initial_disc > 0) &&
-				(g_initial_disc 
-				 < CDInterfaces.size()))
-				if (g_initial_disc 
-				< disk_image_paths.size())
-					if (string_is_equal(
-					disk_image_paths[
-					g_initial_disc].c_str(),
-					g_initial_disc_path.c_str()))
-						g_current_disc =
-							g_initial_disc;
 		}
-	}
-	catch( std::exception &e )
-	{
-		log_cb(RETRO_LOG_ERROR, "Loading failed.\n");
-		return false;
+		else
+		{
+			// single disc
+			char image_label[4096];
+
+			image_label[0] = '\0';
+
+			disk_image_paths.push_back(content_name);
+			CDIF *image  = CDIF_Open(content_name, image_memcache);
+			if (image == NULL)
+			{
+				log_cb(RETRO_LOG_ERROR, "Failed to open CD: \"%s\".\n", content_name);
+				return false;
+			}
+			CDInterfaces.push_back(image);
+
+			extract_basename(image_label,
+				content_name,
+				sizeof(image_label));
+			disk_image_labels.push_back(image_label);
+		}
+
+		/* Attempt to set initial disk index */
+		if ((g_initial_disc > 0) &&
+			(g_initial_disc 
+			 < CDInterfaces.size()))
+			if (g_initial_disc 
+			< disk_image_paths.size())
+				if (string_is_equal(
+				disk_image_paths[
+				g_initial_disc].c_str(),
+				g_initial_disc_path.c_str()))
+					g_current_disc =
+						g_initial_disc;
 	}
 
 	// Print out a track list for all discs.

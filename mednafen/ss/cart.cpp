@@ -158,16 +158,19 @@ bool CART_Init(const int cart_type, const char* rom_dir, const char* main_fname,
   case CART_ULTRAMAN:
    {
       char fpath[4096];
-      const std::string path_cxx = MDFN_GetSettingS((cart_type == CART_KOF95) ? "ss.cart.kof95_path" : "ss.cart.ultraman_path");
-      const char *path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
-      RFILE      *fp   = filestream_open(path,
-            RETRO_VFS_FILE_ACCESS_READ,
-            RETRO_VFS_FILE_ACCESS_HINT_NONE);
-
-      if (fp)
+      const char *path_cxx = MDFN_GetSettingS((cart_type == CART_KOF95) ? "ss.cart.kof95_path" : "ss.cart.ultraman_path");
+      if (path_cxx)
       {
-         CART_ROM_Init(&Cart, fp);
-         filestream_close(fp);
+         const char *path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, path_cxx);
+         RFILE      *fp   = filestream_open(path,
+               RETRO_VFS_FILE_ACCESS_READ,
+               RETRO_VFS_FILE_ACCESS_HINT_NONE);
+
+         if (fp)
+         {
+            CART_ROM_Init(&Cart, fp);
+            filestream_close(fp);
+         }
       }
    }
 	break;
@@ -175,16 +178,19 @@ bool CART_Init(const int cart_type, const char* rom_dir, const char* main_fname,
   case CART_AR4MP:
    {
       char fpath[4096];
-      const std::string path_cxx = MDFN_GetSettingS("ss.cart.satar4mp_path");
-      const char *path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
-      RFILE      *fp   = filestream_open(path,
-            RETRO_VFS_FILE_ACCESS_READ,
-            RETRO_VFS_FILE_ACCESS_HINT_NONE);
-
-      if (fp)
+      const char *path_cxx = MDFN_GetSettingS("ss.cart.satar4mp_path");
+      if (path_cxx)
       {
-         CART_AR4MP_Init(&Cart, fp);
-         filestream_close(fp);
+         const char *path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, path_cxx);
+         RFILE      *fp   = filestream_open(path,
+               RETRO_VFS_FILE_ACCESS_READ,
+               RETRO_VFS_FILE_ACCESS_HINT_NONE);
+
+         if (fp)
+         {
+            CART_AR4MP_Init(&Cart, fp);
+            filestream_close(fp);
+         }
       }
    }
 	break;
@@ -196,18 +202,21 @@ bool CART_Init(const int cart_type, const char* rom_dir, const char* main_fname,
   case CART_BOOTROM:
    {
         char fpath[4096];
-        const std::string path_cxx = MDFN_GetSettingS("ss.cart.bootrom_path");
-        const char *path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, path_cxx.c_str());
-        RFILE      *fp   = filestream_open(path,
-              RETRO_VFS_FILE_ACCESS_READ,
-              RETRO_VFS_FILE_ACCESS_HINT_NONE);
-
-        if (fp)
+        const char *path_cxx = MDFN_GetSettingS("ss.cart.bootrom_path");
+        if (path_cxx)
         {
-           bool ok = CART_BootROM_Init(&Cart, fp);
-           filestream_close(fp);
-           if (!ok)
-              return false;
+           const char *path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, path_cxx);
+           RFILE      *fp   = filestream_open(path,
+                 RETRO_VFS_FILE_ACCESS_READ,
+                 RETRO_VFS_FILE_ACCESS_HINT_NONE);
+
+           if (fp)
+           {
+              bool ok = CART_BootROM_Init(&Cart, fp);
+              filestream_close(fp);
+              if (!ok)
+                 return false;
+           }
         }
     }
         break;

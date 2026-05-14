@@ -11,6 +11,8 @@
 #include <ctype.h>
 #include <time.h>
 
+#include <string>
+
 #include "mednafen/mednafen-types.h"
 #include "mednafen/mednafen.h"
 #include "mednafen/settings.h"
