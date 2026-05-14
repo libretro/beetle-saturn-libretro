@@ -16,10 +16,9 @@
  */
 #include <string.h>
 #include <stdarg.h>
+#include <stdio.h>
 
 #include <sys/types.h>
-
-#include <string>
 
 #include <boolean.h>
 
@@ -28,8 +27,6 @@
 #include "state.h"
 
 #include "hash/md5.h"
-
-using namespace std;
 
 static bool IsAbsolutePath(const char *path)
 {
@@ -52,103 +49,102 @@ static bool IsAbsolutePath(const char *path)
  return(false);
 }
 
-bool MDFN_IsFIROPSafe(const std::string &path)
+/* Split file_path into directory / base name / extension.
+ * Each of the three output buffers may be NULL to skip that component.
+ * The caller owns the buffers; out_size applies to whichever buffers are
+ * non-NULL. */
+void MDFN_GetFilePathComponents(const char *file_path,
+      char *dir_path_out, char *file_base_out,
+      char *file_ext_out, size_t out_size)
 {
- // We could make this more OS-specific, but it shouldn't hurt to try to weed out usage of characters that are path
- // separators in one OS but not in another, and we'd also run more of a risk of missing a special path separator case
- // in some OS.
-
- if(!MDFN_GetSettingB("filesys.untrusted_fip_check"))
-  return(true);
-
- if(path.find('\0') != string::npos)
-  return(false);
-
- if(path.find(':') != string::npos)
-  return(false);
-
- if(path.find('\\') != string::npos)
-  return(false);
-
- if(path.find('/') != string::npos)
-  return(false);
-
- return(true);
-}
-
-void MDFN_GetFilePathComponents(const std::string &file_path, 
-      std::string *dir_path_out, std::string *file_base_out, 
-      std::string *file_ext_out)
-{
- size_t final_ds;		                  // in file_path
- string file_name;
- size_t fn_final_dot;		            // in local var file_name
- string dir_path, file_base, file_ext; // Temporary output
-#ifdef _WIN32
- size_t alt_final_ds;
-#endif
+   const char *final_ds;
+   const char *fn;            /* points into file_path, the base name */
+   const char *fn_final_dot;
 
 #ifdef _WIN32
- final_ds = file_path.find_last_of('\\');
-
- alt_final_ds = file_path.find_last_of('/');
-
- if(final_ds == string::npos || (alt_final_ds != string::npos && alt_final_ds > final_ds))
-    final_ds = alt_final_ds;
+   {
+      const char *bs = strrchr(file_path, '\\');
+      const char *fs = strrchr(file_path, '/');
+      final_ds = (bs > fs) ? bs : fs;
+   }
 #else
- final_ds = file_path.find_last_of('/');
+   final_ds = strrchr(file_path, '/');
 #endif
 
- if(final_ds == string::npos)
- {
-  dir_path = string(".");
-  file_name = file_path;
- }
- else
- {
-  dir_path = file_path.substr(0, final_ds);
-  file_name = file_path.substr(final_ds + 1);
- }
-
- fn_final_dot = file_name.find_last_of('.');
-
- if(fn_final_dot != string::npos)
- {
-  file_base = file_name.substr(0, fn_final_dot);
-  file_ext = file_name.substr(fn_final_dot);
- }
- else
- {
-  file_base = file_name;
-  file_ext = string("");
- }
-
- if(dir_path_out)
-  *dir_path_out = dir_path;
-
- if(file_base_out)
-  *file_base_out = file_base;
-
- if(file_ext_out)
-  *file_ext_out = file_ext;
-}
-
-std::string MDFN_EvalFIP(const std::string &dir_path, const std::string &rel_path, bool skip_safety_check)
-{
-   char slash;
-#ifdef _WIN32
-   slash = '\\';
-#else
-   slash = '/';
-#endif
-
-   if(!skip_safety_check && !MDFN_IsFIROPSafe(rel_path))
-      throw MDFN_Error(0, _("Referenced path \"%s\" is potentially unsafe.  See \"filesys.untrusted_fip_check\" setting.\n"), rel_path.c_str());
-
-   if(IsAbsolutePath(rel_path.c_str()))
-      return(rel_path);
+   if(!final_ds)
+   {
+      if(dir_path_out && out_size)
+      {
+         dir_path_out[0] = '.';
+         dir_path_out[1] = '\0';
+      }
+      fn = file_path;
+   }
    else
-      return(dir_path + slash + rel_path);
+   {
+      if(dir_path_out && out_size)
+      {
+         size_t dl = (size_t)(final_ds - file_path);
+         if(dl >= out_size)
+            dl = out_size - 1;
+         memcpy(dir_path_out, file_path, dl);
+         dir_path_out[dl] = '\0';
+      }
+      fn = final_ds + 1;
+   }
+
+   fn_final_dot = strrchr(fn, '.');
+
+   if(fn_final_dot)
+   {
+      if(file_base_out && out_size)
+      {
+         size_t bl = (size_t)(fn_final_dot - fn);
+         if(bl >= out_size)
+            bl = out_size - 1;
+         memcpy(file_base_out, fn, bl);
+         file_base_out[bl] = '\0';
+      }
+      if(file_ext_out && out_size)
+      {
+         strncpy(file_ext_out, fn_final_dot, out_size - 1);
+         file_ext_out[out_size - 1] = '\0';
+      }
+   }
+   else
+   {
+      if(file_base_out && out_size)
+      {
+         strncpy(file_base_out, fn, out_size - 1);
+         file_base_out[out_size - 1] = '\0';
+      }
+      if(file_ext_out && out_size)
+         file_ext_out[0] = '\0';
+   }
+}
+
+/* Resolve rel_path against dir_path, writing the result into the
+ * caller-supplied buffer (out, out_size). Absolute rel_path values are
+ * copied through unchanged; relative ones are joined with the platform
+ * path separator. */
+void MDFN_EvalFIP(char *out, size_t out_size, const char *dir_path, const char *rel_path)
+{
+#ifdef _WIN32
+   const char slash = '\\';
+#else
+   const char slash = '/';
+#endif
+
+   if(!out_size)
+      return;
+
+   if(IsAbsolutePath(rel_path))
+   {
+      strncpy(out, rel_path, out_size - 1);
+      out[out_size - 1] = '\0';
+   }
+   else
+      snprintf(out, out_size, "%s%c%s", dir_path, slash, rel_path);
 }
 
 const char * GetFNComponent(const char *str)
@@ -174,62 +170,3 @@ const char * GetFNComponent(const char *str)
    else
       return (str);
 }
-
-// Remove whitespace from beginning of string
-void MDFN_ltrim(std::string &string)
-{
- size_t len = string.length();
- size_t di, si;
- bool InWhitespace = true;
-
- di = si = 0;
-
- while(si < len)
- {
-  if(InWhitespace && (string[si] == ' ' || string[si] == '\r' || string[si] == '\n' || string[si] == '\t' || string[si] == 0x0b))
-  {
-
-  }
-  else
-  {
-   InWhitespace = false;
-   string[di] = string[si];
-   di++;
-  }
-  si++;
- }
-
- string.resize(di);
-}
-
-// Remove whitespace from end of string
-void MDFN_rtrim(std::string &string)
-{
- size_t len = string.length();
-
- if(len)
- {
-  size_t x = len;
-  size_t new_len = len;
-
-  do
-  {
-   x--;
-
-   if(!(string[x] == ' ' || string[x] == '\r' || string[x] == '\n' || string[x] == '\t' || string[x] == 0x0b))
-    break;
- 
-   new_len--;
-  } while(x);
-
-  string.resize(new_len);
- }
-}
-
-
-void MDFN_trim(std::string &string)
-{
- MDFN_rtrim(string);
- MDFN_ltrim(string);
-}
-

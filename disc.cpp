@@ -3,6 +3,9 @@
 #include <string/stdstring.h>
 #include <streams/file_stream.h>
 
+#include <string>
+#include <vector>
+
 #include "mednafen/mednafen-types.h"
 #include "mednafen/git.h"
 #include "mednafen/general.h"
@@ -115,16 +118,17 @@ void extract_directory(char *buf, const char *path, size_t size)
 
 static void ReadM3U( std::vector<std::string> &file_list, std::string path, unsigned depth = 0 )
 {
-	std::string dir_path;
+	char dir_path[4096];
 	char linebuf[ 2048 ];
 	RFILE *fp = rfopen(path.c_str(), "rb");
 	if (!fp)
 		return;
 
-	MDFN_GetFilePathComponents(path, &dir_path);
+	MDFN_GetFilePathComponents(path.c_str(), dir_path, NULL, NULL, sizeof(dir_path));
 
 	while(rfgets(linebuf, sizeof(linebuf), fp) != NULL)
 	{
+		char efp_buf[4096];
 		std::string efp;
 
 		if(linebuf[0] == '#')
@@ -133,7 +137,8 @@ static void ReadM3U( std::vector<std::string> &file_list, std::string path, unsi
 		if(linebuf[0] == 0)
 			continue;
 
-		efp = MDFN_EvalFIP(dir_path, std::string(linebuf));
+		MDFN_EvalFIP(efp_buf, sizeof(efp_buf), dir_path, linebuf);
+		efp = efp_buf;
 		if(efp.size() >= 4 && efp.substr(efp.size() - 4) == ".m3u")
 		{
 			if(efp == path)
