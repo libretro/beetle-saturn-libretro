@@ -65,43 +65,6 @@
 
 #endif
 
-
-typedef struct
-{
- union
- {
-  struct
-  {
-   #ifdef MSB_FIRST
-   uint8_t   High;
-   uint8_t   Low;
-   #else
-   uint8_t   Low;
-   uint8_t   High;
-   #endif
-  } Union8;
-  uint16_t Val16;
- };
-} Uuint16;
-
-typedef struct
-{
- union
- {
-  struct
-  {
-   #ifdef MSB_FIRST
-   Uuint16   High;
-   Uuint16   Low;
-   #else
-   Uuint16   Low;
-   Uuint16   High;
-   #endif
-  } Union16;
-  uint32_t  Val32;
- };
-} Uuint32;
-
 // Compiler hint macros previously expanded to nothing. The codebase
 // already tags 41 functions with MDFN_HOT and 164 with MDFN_COLD --
 // activating the underlying attributes is a free codegen improvement
