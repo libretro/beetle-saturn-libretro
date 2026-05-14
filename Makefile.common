@@ -156,8 +156,9 @@ endif
 SOURCES_C += $(CDROM_DIR)/CDAccess_CHD.c
 endif
 
+SOURCES_C += $(MEDNAFEN_DIR)/state.c
+
 SOURCES_CXX += \
-	$(MEDNAFEN_DIR)/state.cpp \
 	$(CORE_DIR)/disc.cpp \
 	$(CORE_DIR)/input.cpp \
 	$(CORE_DIR)/libretro.cpp

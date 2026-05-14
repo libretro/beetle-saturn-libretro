@@ -1464,7 +1464,7 @@ INLINE bool EventsPacker::Restore(const unsigned state_version)
  return true;
 }
 
-MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load)
+extern "C" MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load)
 {
    {
       sha256_digest sr_dig = BIOS_SHA256;

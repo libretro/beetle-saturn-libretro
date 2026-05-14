@@ -15,15 +15,20 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include <boolean.h>
+#include <libretro.h>
 
-#include "mednafen.h"
 #include "general.h"
 #include "state.h"
-#include <compat/msvc.h>
+
+/* Provided by libretro.cpp. Declared here directly rather than via
+   git.h, which is a C++ header; state.cpp is plain C. */
+extern retro_log_printf_t log_cb;
 
 #define RLSB MDFNSTATE_RLSB	//0x80000000
 
