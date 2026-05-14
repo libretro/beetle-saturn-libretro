@@ -17,9 +17,7 @@
 
 #include <string.h>
 
-#include "mednafen.h"
 #include "settings.h"
-#include <compat/msvc.h>
 #include "libretro_settings.h"
 
 extern char retro_base_directory[4096];
@@ -48,7 +46,7 @@ bool MDFN_GetSettingB(const char *name)
 {
    /* LIBRETRO */
    if (!strcmp("ss.smpc.autortc", name))
-      return int(setting_smpc_autortc);
+      return (int)(setting_smpc_autortc);
    if (!strcmp("ss.bios_sanity", name))
       return true;
    /* FILESYS */

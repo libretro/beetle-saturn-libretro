@@ -157,7 +157,6 @@ SOURCES_C += $(CDROM_DIR)/CDAccess_CHD.c
 endif
 
 SOURCES_CXX += \
-	$(MEDNAFEN_DIR)/settings.cpp \
 	$(MEDNAFEN_DIR)/state.cpp \
 	$(MEDNAFEN_DIR)/mempatcher.cpp \
 	$(CORE_DIR)/disc.cpp \
@@ -170,6 +169,7 @@ SOURCES_CXX += \
 # Deinterlacer.h, Deinterlacer.c}.
 SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
 		$(MEDNAFEN_DIR)/general.c \
+		$(MEDNAFEN_DIR)/settings.c \
 		$(CORE_DIR)/libretro_settings.c \
 		$(MEDNAFEN_DIR)/video/Deinterlacer.c
 
