@@ -988,7 +988,8 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    MDFNMP_RegSearchable(0x00200000, WORKRAM_BANK_SIZE_BYTES);
    MDFNMP_RegSearchable(0x06000000, WORKRAM_BANK_SIZE_BYTES);
 
-   CART_Init(cart_type, rom_dir, main_fname, sgi);
+   if(!CART_Init(cart_type, rom_dir, main_fname, sgi))
+      return false;
    ActiveCartType = cart_type;
 
    //

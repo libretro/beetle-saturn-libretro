@@ -125,7 +125,7 @@ void CartInfo::CS2M_SetRW8W16(uint8_t Ostart, uint8_t Oend, void (*r16)(uint32_t
 }
 
 
-void CART_Init(const int cart_type, const char* rom_dir, const char* main_fname, const STVGameInfo* sgi)
+bool CART_Init(const int cart_type, const char* rom_dir, const char* main_fname, const STVGameInfo* sgi)
 {
  Cart.CS01_SetRW8W16(0x02000000, 0x04FFFFFF, DummyRead<uint16_t>, DummyWrite<uint8_t>, DummyWrite<uint16_t>);
  Cart.CS2M_SetRW8W16(0x00, 0x3F, DummyRead<uint16_t>, DummyWrite<uint8_t>, DummyWrite<uint16_t>);
@@ -204,8 +204,10 @@ void CART_Init(const int cart_type, const char* rom_dir, const char* main_fname,
 
         if (fp)
         {
-           CART_BootROM_Init(&Cart, fp);
+           bool ok = CART_BootROM_Init(&Cart, fp);
            filestream_close(fp);
+           if (!ok)
+              return false;
         }
     }
         break;
@@ -218,7 +220,10 @@ void CART_Init(const int cart_type, const char* rom_dir, const char* main_fname,
    // and fall through to the dummy default if anything's missing rather
    // than crash on a null deref inside CART_STV_Init.
    if(rom_dir && main_fname && sgi)
-      CART_STV_Init(&Cart, rom_dir, main_fname, sgi);
+   {
+      if(!CART_STV_Init(&Cart, rom_dir, main_fname, sgi))
+         return false;
+   }
    break;
 
 //  case CART_NLMODEM:
@@ -231,5 +236,7 @@ void CART_Init(const int cart_type, const char* rom_dir, const char* main_fname,
 
  for(auto& m : Cart.CS2M_RW)
   assert(m.Read16 != nullptr && m.Write8 != nullptr && m.Write16 != nullptr);
+
+ return true;
 }
 

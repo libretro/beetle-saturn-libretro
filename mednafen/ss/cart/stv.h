@@ -39,9 +39,10 @@ struct STVGameInfo;
 //               skip re-opening it when it equals rom_layout[i].fname).
 // `sgi`:        STVGameInfo entry returned by DB_LookupSTV.
 //
-// Throws on I/O errors (short read, missing sibling file, etc.); CartInfo's
-// resources are cleaned up by the throw path.
-void CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, const STVGameInfo* sgi) MDFN_COLD;
+// Returns true on success, false on I/O error (short read, missing
+// sibling file, etc.); CartInfo's resources are cleaned up on the
+// failure path before returning.
+bool CART_STV_Init(CartInfo* c, const char* rom_dir, const char* main_fname, const STVGameInfo* sgi) MDFN_COLD;
 
 // Peek a byte from STV ROM, byte-addressed.  Used by stvio.cpp's InitEEPROM
 // to read the game's onboard ROM header for cabinet detection.

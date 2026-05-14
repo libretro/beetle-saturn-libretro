@@ -24,6 +24,6 @@
 
 #include <streams/file_stream.h>
 
-void CART_BootROM_Init(CartInfo* c, RFILE* str) MDFN_COLD;
+bool CART_BootROM_Init(CartInfo* c, RFILE* str) MDFN_COLD;
 
 #endif

@@ -108,7 +108,7 @@ enum
 // All three default to nullptr; existing CART_Init(int) call sites continue
 // to compile unchanged. Non-STV cart types ignore the extra arguments.
 struct STVGameInfo;
-void CART_Init(const int cart_type, const char* rom_dir = nullptr,
+bool CART_Init(const int cart_type, const char* rom_dir = nullptr,
                const char* main_fname = nullptr,
                const STVGameInfo* sgi = nullptr) MDFN_COLD;
 static INLINE ss_event_handler CART_GetEventHandler(void) { MDFN_HIDE extern CartInfo Cart; return Cart.EventHandler; }

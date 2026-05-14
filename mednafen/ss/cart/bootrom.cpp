@@ -54,72 +54,71 @@ static MDFN_COLD void Kill(void)
  }
 }
 
-void CART_BootROM_Init(CartInfo* c, RFILE* str)
+bool CART_BootROM_Init(CartInfo* c, RFILE* str)
 {
- try
+ const uint64_t ss = filestream_get_size(str);
+ const uint64_t min_size = 1;
+ const uint64_t max_size = 0x3000000;
+ uint32_t ROM_Size;
+ sha256_hasher h;
+ sha256_digest dig;
+ unsigned i;
+
+ if(ss < min_size)
  {
-  const uint64_t ss = filestream_get_size(str);
-  const uint64_t min_size = 1;
-  const uint64_t max_size = 0x3000000;
+  log_cb(RETRO_LOG_ERROR, "Bootable Saturn cart ROM image is smaller than the minimum of %llu bytes.\n", (unsigned long long)min_size);
+  return false;
+ }
 
-  if(ss < min_size)
-   throw MDFN_Error(0, _("Bootable Saturn cart ROM image is smaller than the minimum of %llu bytes."), (unsigned long long)min_size);
+ if(ss > max_size)
+ {
+  log_cb(RETRO_LOG_ERROR, "Bootable Saturn cart ROM image is larger than the maximum of %llu bytes.\n", (unsigned long long)max_size);
+  return false;
+ }
+ //
+ //
+ if(ss > 0x2000000)
+  ROM_Size = 0x2000000 + round_up_pow2((ss - 0x2000000 + 0xFFFF) &~ 0xFFFF);
+ else
+  ROM_Size = round_up_pow2((ss + 0xFFFF) &~ 0xFFFF);
 
-  if(ss > max_size)
-  throw MDFN_Error(0, _("Bootable Saturn cart ROM image is larger than the maximum of %llu bytes."), (unsigned long long)max_size);
-  //
-  //
-  uint32_t ROM_Size;
+ assert(ROM_Size >= ss);
+ //
+ //
+ ROM = new uint16_t[ROM_Size / sizeof(uint16_t)];
+ memset(ROM, 0x00, ROM_Size);
+ filestream_read(str, ROM, ss);
+ h.process(ROM, ss);
+ dig = h.digest();
+ memcpy(MDFNGameInfo->MD5, dig.data(), 16);
 
-  if(ss > 0x2000000)
-   ROM_Size = 0x2000000 + round_up_pow2((ss - 0x2000000 + 0xFFFF) &~ 0xFFFF);
-  else
-   ROM_Size = round_up_pow2((ss + 0xFFFF) &~ 0xFFFF);
-
-  assert(ROM_Size >= ss);
-  //
-  //
-  sha256_hasher h;
-  sha256_digest dig;
-
-  ROM = new uint16_t[ROM_Size / sizeof(uint16_t)];
-  memset(ROM, 0x00, ROM_Size);
-  filestream_read(str, ROM, ss);
-  h.process(ROM, ss);
-  dig = h.digest();
-  memcpy(MDFNGameInfo->MD5, dig.data(), 16);
-
-  for(unsigned i = 0; i < ROM_Size / sizeof(uint16_t); i++)
-  {
-   /* MDFN_de16msb<true> folded: BE-on-disk to host-endian. */
+ for(i = 0; i < ROM_Size / sizeof(uint16_t); i++)
+ {
+  /* MDFN_de16msb<true> folded: BE-on-disk to host-endian. */
 #ifndef MSB_FIRST
-   ROM[i] = (uint16_t)((ROM[i] << 8) | (ROM[i] >> 8));
+  ROM[i] = (uint16_t)((ROM[i] << 8) | (ROM[i] >> 8));
 #endif
-  }
-
-  SS_SetPhysMemMap (0x02000000, 0x03FFFFFF, ROM, ((uint32_t)(0x02000000) < (uint32_t)(ROM_Size) ? (uint32_t)(0x02000000) : (uint32_t)(ROM_Size)), false);
-  c->CS01_SetRW8W16(0x02000000, 0x03FFFFFF, CS0_ROM_Read);
-
-  c->Kill = Kill;
-
-  ROM_Mask[0] = (round_up_pow2(ROM_Size) - 1) & 0x01FFFFFE;
-
-  if(ROM_Size > 0x2000000)
-  {
-   ROM_Mask[1] = (round_up_pow2(ROM_Size - 0x2000000) - 1) & 0x00FFFFFE;
-
-   SS_SetPhysMemMap (0x04000000, 0x04FFFFFF, ROM + (0x02000000 / sizeof(uint16_t)), ROM_Size - 0x02000000, false);
-   c->CS01_SetRW8W16(0x04000000, 0x04FFFFFF, CS1_ROM_Read);
-  }
-  else
-  {
-   CART_Backup_Init(c);
-   assert(c->Kill == Kill);
-  }
  }
- catch(...)
+
+ SS_SetPhysMemMap (0x02000000, 0x03FFFFFF, ROM, ((uint32_t)(0x02000000) < (uint32_t)(ROM_Size) ? (uint32_t)(0x02000000) : (uint32_t)(ROM_Size)), false);
+ c->CS01_SetRW8W16(0x02000000, 0x03FFFFFF, CS0_ROM_Read);
+
+ c->Kill = Kill;
+
+ ROM_Mask[0] = (round_up_pow2(ROM_Size) - 1) & 0x01FFFFFE;
+
+ if(ROM_Size > 0x2000000)
  {
-  Kill();
-  throw;
+  ROM_Mask[1] = (round_up_pow2(ROM_Size - 0x2000000) - 1) & 0x00FFFFFE;
+
+  SS_SetPhysMemMap (0x04000000, 0x04FFFFFF, ROM + (0x02000000 / sizeof(uint16_t)), ROM_Size - 0x02000000, false);
+  c->CS01_SetRW8W16(0x04000000, 0x04FFFFFF, CS1_ROM_Read);
  }
+ else
+ {
+  CART_Backup_Init(c);
+  assert(c->Kill == Kill);
+ }
+
+ return true;
 }
