@@ -22,76 +22,89 @@
 #ifndef __MDFN_SS_AK93C45_H
 #define __MDFN_SS_AK93C45_H
 
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+#include <assert.h>
+
+#include <mednafen/mednafen-types.h>   /* MDFN_COLD */
+#include <retro_inline.h>              /* INLINE */
 #include <mednafen/state.h>
 
+/* The AK93C45 serial EEPROM (used by the ST-V cart hardware).
+   Converted from a C++ class to a C struct + free functions; it had
+   no inheritance, no virtual methods, and no templates, so the
+   conversion is mechanical. The sole consumer is stvio.cpp (still
+   C++), which holds one by-value instance and now calls the free
+   functions as AK93C45_Method(&eep, ...). */
 
-class AK93C45
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+enum
 {
- public:
+   AK93C45_PHASE_IDLE = 0,
+   AK93C45_PHASE_WAIT_START,
+   AK93C45_PHASE_OPCODE,
 
- AK93C45(void) MDFN_COLD; //int32_t timestamp_rate);
- ~AK93C45(void) MDFN_COLD;
+   AK93C45_PHASE_ADDR,
+   AK93C45_PHASE_DATA,
 
- void Init(void) MDFN_COLD;
-
- void Power(void) MDFN_COLD;
-
- void ResetTS(void);
- void SetTSFreq(const int32_t rate);
-
- bool UpdateBus(int32_t timestamp, bool cs, bool sk, bool di);
-
- void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
- //
- //
- //
- INLINE uint16_t PeekMem(unsigned a)
- {
-  assert(a < 0x40);
-
-  return mem[a];
- }
-
- INLINE void PokeMem(unsigned a, uint16_t v)
- {
-  assert(a < 0x40);
-
-  mem[a] = v;
- }
-
- uint16_t mem[0x40];
-
- private:
- bool write_enable;
-
- uint16_t addr;
- uint16_t data_buffer;
- uint8_t counter;
- uint8_t opcode;
-
- bool dout;
-
- //const int32_t ts_rate;
- bool prev_cs, prev_sk;
-
- enum
- {
-  PHASE_IDLE = 0,
-  PHASE_WAIT_START,
-  PHASE_OPCODE,
-
-  PHASE_ADDR,
-  PHASE_DATA,
-
-  PHASE_WRITE_PENDING,
-  PHASE_WRITING 
- };
- uint32_t phase;
-
- int64_t write_finish_counter;
-
- int32_t tsratio;
- int32_t lastts;
+   AK93C45_PHASE_WRITE_PENDING,
+   AK93C45_PHASE_WRITING
 };
+
+typedef struct
+{
+   uint16_t mem[0x40];
+
+   bool     write_enable;
+
+   uint16_t addr;
+   uint16_t data_buffer;
+   uint8_t  counter;
+   uint8_t  opcode;
+
+   bool     dout;
+
+   bool     prev_cs, prev_sk;
+
+   uint32_t phase;
+
+   int64_t  write_finish_counter;
+
+   int32_t  tsratio;
+   int32_t  lastts;
+} AK93C45;
+
+void AK93C45_Init(AK93C45 *self) MDFN_COLD;
+void AK93C45_Power(AK93C45 *self) MDFN_COLD;
+
+void AK93C45_ResetTS(AK93C45 *self);
+void AK93C45_SetTSFreq(AK93C45 *self, const int32_t rate);
+
+bool AK93C45_UpdateBus(AK93C45 *self, int32_t timestamp, bool cs, bool sk, bool di);
+
+void AK93C45_StateAction(AK93C45 *self, StateMem *sm, const unsigned load, const bool data_only, const char *sname) MDFN_COLD;
+
+static INLINE uint16_t AK93C45_PeekMem(AK93C45 *self, unsigned a)
+{
+   assert(a < 0x40);
+
+   return self->mem[a];
+}
+
+static INLINE void AK93C45_PokeMem(AK93C45 *self, unsigned a, uint16_t v)
+{
+   assert(a < 0x40);
+
+   self->mem[a] = v;
+}
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

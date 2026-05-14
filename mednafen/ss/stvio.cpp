@@ -191,7 +191,7 @@ void STVIO_Reset(bool powering_up)
 {
  if(powering_up)
  {
-  eep.Power();
+  AK93C45_Power(&eep);
   gun->vt->Power(gun);
  }
  //
@@ -337,7 +337,7 @@ static void InitEEPROM(const STVGameInfo* sgi)
  for(unsigned addr = 0; addr < 0x40; addr++)
  {
   const uint8_t *bp__ = tmp + (addr << 1);
-  eep.PokeMem(addr, (uint16_t)((bp__[0] << 8) | bp__[1]));
+  AK93C45_PokeMem(&eep, addr, (uint16_t)((bp__[0] << 8) | bp__[1]));
  }
 }
 
@@ -345,7 +345,7 @@ void STVIO_Init(const STVGameInfo* sgi)
 {
  ControlScheme = sgi->control;
 
- eep.Init();
+ AK93C45_Init(&eep);
 
  IODevice_Free(gun);
  gun = IODevice_Gun_Create();
@@ -365,7 +365,7 @@ void STVIO_LoadNV(cdstream* s)
  for(unsigned addr = 0; addr < 0x40; addr++)
  {
   const uint8_t *bp__ = tmp + (addr << 1);
-  eep.PokeMem(addr, (uint16_t)((bp__[0] << 8) | bp__[1]));
+  AK93C45_PokeMem(&eep, addr, (uint16_t)((bp__[0] << 8) | bp__[1]));
  }
 }
 
@@ -376,7 +376,7 @@ void STVIO_SaveNV(cdstream* s)
  for(unsigned addr = 0; addr < 0x40; addr++)
  {
   uint8_t *bp__ = tmp + (addr << 1);
-  uint16_t v__ = eep.PeekMem(addr);
+  uint16_t v__ = AK93C45_PeekMem(&eep, addr);
   bp__[0] = v__ >> 8;
   bp__[1] = v__;
  }
@@ -453,7 +453,7 @@ void STVIO_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
  MDFNSS_StateAction(sm, load, data_only, StateRegs, "STV_IO", false);
 
- eep.StateAction(sm, load, data_only, "STV_EEPROM");
+ AK93C45_StateAction(&eep, sm, load, data_only, "STV_EEPROM");
 }
 
 
@@ -476,14 +476,14 @@ static void IODevice_STVSMPC_SetTSFreq(IODevice *self_, const int32_t rate)
 {
    IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
    if(!self->sport)
-      eep.SetTSFreq(rate);
+      AK93C45_SetTSFreq(&eep, rate);
 }
 
 static void IODevice_STVSMPC_ResetTS(IODevice *self_)
 {
    IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
    if(!self->sport)
-      eep.ResetTS();
+      AK93C45_ResetTS(&eep);
 }
 
 static void IODevice_STVSMPC_TransformInput(IODevice *self_, uint8_t *data, float gun_x_scale, float gun_x_offs)
@@ -510,7 +510,7 @@ static uint8_t IODevice_STVSMPC_UpdateBus(IODevice *self_, const sscpu_timestamp
    {
       const uint8_t cur_ectrl = smpc_out & 0x1C;
 
-      eep.UpdateBus(timestamp, (bool)(cur_ectrl & 0x04), (bool)(cur_ectrl & 0x08), (bool)(cur_ectrl & 0x10));
+      AK93C45_UpdateBus(&eep, timestamp, (bool)(cur_ectrl & 0x04), (bool)(cur_ectrl & 0x08), (bool)(cur_ectrl & 0x10));
 
       prev_ectrl = cur_ectrl;
 
@@ -520,7 +520,7 @@ static uint8_t IODevice_STVSMPC_UpdateBus(IODevice *self_, const sscpu_timestamp
    {
       const uint8_t cur_sctrl = smpc_out & 0x18;
 
-      tmp = (tmp &~ 1) | eep.UpdateBus(timestamp, (bool)(prev_ectrl & 0x04), (bool)(prev_ectrl & 0x08), (bool)(prev_ectrl & 0x10));
+      tmp = (tmp &~ 1) | AK93C45_UpdateBus(&eep, timestamp, (bool)(prev_ectrl & 0x04), (bool)(prev_ectrl & 0x08), (bool)(prev_ectrl & 0x10));
 
       if(prev_sctrl != cur_sctrl)	// Be careful with prev_sctrl init value if changing this code.
       {
