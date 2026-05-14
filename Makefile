@@ -435,6 +435,14 @@ FLAGS += $(INCFLAGS)
 
 FLAGS += $(ENDIANNESS_DEFINES) $(WARNINGS) $(CORE_DEFINE) -DSTDC_HEADERS -D__STDC_LIMIT_MACROS -D__LIBRETRO__ -D_LOW_ACCURACY_ $(EXTRA_INCLUDES) $(SOUND_DEFINE) -D__STDC_CONSTANT_MACROS
 
+# The codebase type-puns hardware memory through a handful of raw
+# (uint16_t*) casts (SH-2 instruction prefetch, cart ROM read paths).
+# WARNINGS already carries -Wno-strict-aliasing, but that only hides
+# the diagnostic - at -O2 the optimizer still does type-based alias
+# analysis unless -fno-strict-aliasing is also set.  Pair the two so
+# the optimizer assumption matches the silenced warning.
+FLAGS += -fno-strict-aliasing
+
 CXXFLAGS += $(FLAGS)
 CFLAGS   += $(FLAGS)
 

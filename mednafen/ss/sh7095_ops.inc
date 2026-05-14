@@ -1962,7 +1962,7 @@ switch(Pipe_ID >> 24)
 	//
 	if(MDFN_UNLIKELY(TPP(PEX_PSEUDO_EXTHALT)))
 	{
-	 Pipe_ID = (Pipe_ID & 0x00FFFFFF) | (0xFE << 24);
+	 Pipe_ID = (Pipe_ID & 0x00FFFFFF) | (0xFEU << 24);
 	 goto SkipPCInc;
 	}
 	else if(MDFN_UNLIKELY(TPP(PEX_POWERON) || TPP(PEX_RESET)))
@@ -1977,7 +1977,7 @@ switch(Pipe_ID >> 24)
 	}
 	else if(MDFN_UNLIKELY(TPP(PEX_PSEUDO_DMABURST)))
 	{
-	 Pipe_ID = (Pipe_ID & 0x00FFFFFF) | (0xFE << 24);
+	 Pipe_ID = (Pipe_ID & 0x00FFFFFF) | (0xFEU << 24);
 	 goto SkipPCInc;
 	}
 	else if(MDFN_UNLIKELY(TPP(PEX_CPUADDR)))
