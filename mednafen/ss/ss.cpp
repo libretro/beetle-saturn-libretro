@@ -1100,9 +1100,9 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          SMPC_SetInput(sp, "extern", (uint8_t*)STVIO_GetSMPCDevice(sp));
    }
 
-   try { LoadRTC();       } catch(MDFN_Error& e) { if(e.GetErrno() != ENOENT) throw; }
-   try { LoadBackupRAM(); } catch(MDFN_Error& e) { if(e.GetErrno() != ENOENT) throw; }
-   try { LoadCartNV();    } catch(MDFN_Error& e) { if(e.GetErrno() != ENOENT) throw; }
+   LoadRTC();
+   LoadBackupRAM();
+   LoadCartNV();
 
    BackupBackupRAM();
    BackupCartNV();
@@ -1311,30 +1311,14 @@ static MDFN_COLD void SaveCartNV(void)
 //
 bool SS_FlushBackupRAM(void)
 {
- try
- {
-  SaveBackupRAM();
-  return true;
- }
- catch(std::exception& e)
- {
-  log_cb(RETRO_LOG_ERROR, "SS_FlushBackupRAM failed: %s\n", e.what());
-  return false;
- }
+ SaveBackupRAM();
+ return true;
 }
 
 bool SS_FlushCartNV(void)
 {
- try
- {
-  SaveCartNV();
-  return true;
- }
- catch(std::exception& e)
- {
-  log_cb(RETRO_LOG_ERROR, "SS_FlushCartNV failed: %s\n", e.what());
-  return false;
- }
+ SaveCartNV();
+ return true;
 }
 
 static MDFN_COLD void SaveRTC(void)
