@@ -3505,22 +3505,26 @@ void SH7095::PostStateLoad(const unsigned state_version, const bool recorded_nee
    BSC.last_mem_time = SH7095_mem_timestamp - 100;
   }
 
-  clamp(&timestamp, -1000000, 1000000);
-  clamp(&FRT.lastts, -1000000, 1000000);
-  clamp(&DMA_Timestamp, -1000000, 1000000);
-  clamp(&DMA_SGEndTimestamp, -1000000, 1000000);
+  /* clamp() folded: each was clamp(&x, -1000000, 1000000) on an
+   * int32_t (sscpu_timestamp_t). Folded as a single ternary-assignment
+   * statement -- no if-statements -- so the unbraced for-loop body
+   * below cannot dangle. */
+  timestamp = (timestamp < -1000000) ? -1000000 : (timestamp > 1000000) ? 1000000 : timestamp;
+  FRT.lastts = (FRT.lastts < -1000000) ? -1000000 : (FRT.lastts > 1000000) ? 1000000 : FRT.lastts;
+  DMA_Timestamp = (DMA_Timestamp < -1000000) ? -1000000 : (DMA_Timestamp > 1000000) ? 1000000 : DMA_Timestamp;
+  DMA_SGEndTimestamp = (DMA_SGEndTimestamp < -1000000) ? -1000000 : (DMA_SGEndTimestamp > 1000000) ? 1000000 : DMA_SGEndTimestamp;
 
-  clamp(&MA_until, -1000000, 1000000);
-  clamp(&MM_until, -1000000, 1000000);
+  MA_until = (MA_until < -1000000) ? -1000000 : (MA_until > 1000000) ? 1000000 : MA_until;
+  MM_until = (MM_until < -1000000) ? -1000000 : (MM_until > 1000000) ? 1000000 : MM_until;
 
   for(unsigned i = 0; i < 16; i++)
-   clamp(&WB_until[i], -1000000, 1000000);
+   WB_until[i] = (WB_until[i] < -1000000) ? -1000000 : (WB_until[i] > 1000000) ? 1000000 : WB_until[i];
 
-  clamp(&write_finish_timestamp, -1000000, 1000000);
-  clamp(&divide_finish_timestamp, -1000000, 1000000);
+  write_finish_timestamp = (write_finish_timestamp < -1000000) ? -1000000 : (write_finish_timestamp > 1000000) ? 1000000 : write_finish_timestamp;
+  divide_finish_timestamp = (divide_finish_timestamp < -1000000) ? -1000000 : (divide_finish_timestamp > 1000000) ? 1000000 : divide_finish_timestamp;
 
-  clamp(&BSC.sdram_finish_time, -1000000, 1000000);
-  clamp(&BSC.last_mem_time, -1000000, 1000000);
+  BSC.sdram_finish_time = (BSC.sdram_finish_time < -1000000) ? -1000000 : (BSC.sdram_finish_time > 1000000) ? 1000000 : BSC.sdram_finish_time;
+  BSC.last_mem_time = (BSC.last_mem_time < -1000000) ? -1000000 : (BSC.last_mem_time > 1000000) ? 1000000 : BSC.last_mem_time;
  }
  //
  //

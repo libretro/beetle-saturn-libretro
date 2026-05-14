@@ -208,26 +208,16 @@ static INLINE unsigned MDFN_tzcount16(uint16_t v) { return !v ? 16 : MDFN_tzcoun
 static INLINE unsigned MDFN_tzcount32(uint32_t v) { return !v ? 32 : MDFN_tzcount32_0UD(v); }
 static INLINE unsigned MDFN_tzcount64(uint64_t v) { return !v ? 64 : MDFN_tzcount64_0UD(v); }
 
-static INLINE unsigned MDFN_log2(uint32_t v) { return 31 ^ MDFN_lzcount32_0UD(v | 1); }
+// 0-undefined-input log2. Single 64-bit form; 32-bit callers promote
+// cleanly. (Was a set of C++ overloads; only round_up_pow2 ever called
+// it, always with values that fit the unsigned path.)
 static INLINE unsigned MDFN_log2(uint64_t v) { return 63 ^ MDFN_lzcount64_0UD(v | 1); }
-
-static INLINE unsigned MDFN_log2(int32_t v) { return MDFN_log2((uint32_t)v); }
-static INLINE unsigned MDFN_log2(int64_t v) { return MDFN_log2((uint64_t)v); }
 
 // Rounds up to the nearest power of 2(treats input as unsigned to a degree, but be aware of integer promotion rules).
 // Returns 0 on overflow.
-static INLINE uint64_t round_up_pow2(uint32_t v) { uint64_t tmp = (uint64_t)1 << MDFN_log2(v); return tmp << (tmp < v); }
+// Single 64-bit form; the only caller (cart/bootrom.cpp) passes
+// uint32_t / uint64_t values, which promote without surprise.
 static INLINE uint64_t round_up_pow2(uint64_t v) { uint64_t tmp = (uint64_t)1 << MDFN_log2(v); return tmp << (tmp < v); }
-
-static INLINE uint64_t round_up_pow2(int32_t v) { return round_up_pow2((uint32_t)v); }
-static INLINE uint64_t round_up_pow2(int64_t v) { return round_up_pow2((uint64_t)v); }
-
-// Rounds to the nearest power of 2(treats input as unsigned to a degree, but be aware of integer promotion rules).
-static INLINE uint64_t round_nearest_pow2(uint32_t v, bool round_half_up = true) { uint64_t tmp = (uint64_t)1 << MDFN_log2(v); return tmp << (v && (((v - tmp) << 1) >= (tmp + !round_half_up))); }
-static INLINE uint64_t round_nearest_pow2(uint64_t v, bool round_half_up = true) { uint64_t tmp = (uint64_t)1 << MDFN_log2(v); return tmp << (v && (((v - tmp) << 1) >= (tmp + !round_half_up))); }
-
-static INLINE uint64_t round_nearest_pow2(int32_t v, bool round_half_up = true) { return round_nearest_pow2((uint32_t)v, round_half_up); }
-static INLINE uint64_t round_nearest_pow2(int64_t v, bool round_half_up = true) { return round_nearest_pow2((uint64_t)v, round_half_up); }
 
 // Some compilers' optimizers and some platforms might fubar the generated code from these macros,
 // so some tests are run in...tests.cpp
@@ -259,14 +249,6 @@ static INLINE int32_t clamp_to_u16(int32_t i)
   i = (((~i) >> 31) & 0xFFFF);
 
  return(i);
-}
-
-template<typename T, typename U, typename V> static INLINE void clamp(T *val, U minimum, V maximum)
-{
- if(*val < minimum)
-  *val = minimum;
- if(*val > maximum)
-  *val = maximum;
 }
 
 #endif
