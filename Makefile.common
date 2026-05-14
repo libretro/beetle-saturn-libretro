@@ -94,7 +94,7 @@ SOURCES_CXX += \
 	       $(CORE_EMU_DIR)/cart/ar4mp.cpp
 
 # CRC helpers used by the ST-V port (game DB fingerprinting + EEPROM seed).
-SOURCES_CXX += $(MEDNAFEN_DIR)/hash/crc.cpp
+SOURCES_C += $(MEDNAFEN_DIR)/hash/crc.c
 
 SOURCES_CXX += $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k.cpp
 

@@ -22,11 +22,22 @@
 #ifndef __MDFN_HASH_CRC_H
 #define __MDFN_HASH_CRC_H
 
+#include <stdint.h>
+#include <stddef.h>
+
 /* Minimal subset of upstream Mednafen's hash/crc.h sufficient for the ST-V port.
  * crc32_zip wraps zlib's standard crc32(); crc16_ccitt is the same polynomial 0x1021
  * left-shift form Mednafen uses (no input/output reflection, no final XOR). */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uint16_t crc16_ccitt(uint16_t initial, const void* data, size_t len);
 uint32_t crc32_zip(uint32_t initial, const void* data, size_t len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
