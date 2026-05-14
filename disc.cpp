@@ -3,8 +3,7 @@
 #include <string/stdstring.h>
 #include <streams/file_stream.h>
 
-#include <string>
-#include <vector>
+#include <stdlib.h>
 
 #include "mednafen/mednafen-types.h"
 #include "mednafen/git.h"
@@ -31,7 +30,7 @@ extern bool cdimagecache;
 static bool g_eject_state;
 
 // Was previously `static int g_current_disc;` which created a sign-compare
-// warning at the < CDInterfaces.size() check and required an `(int)` cast
+// warning at the < num_discs check and required an `(int)` cast
 // where a derived index was assigned. The value is never negative -- every
 // assignment is from a non-negative source (0, an unsigned index, or the
 // frontend's image index, all u32 in practice) -- so unsigned is the type
@@ -39,12 +38,59 @@ static bool g_eject_state;
 static unsigned g_current_disc;
 
 static unsigned g_initial_disc;
-static std::string g_initial_disc_path;
+// Was std::string. Fixed buffer: every assignment is a frontend-supplied
+// path, which is already bounded everywhere else in this file at 4096.
+static char g_initial_disc_path[4096];
 
-static std::vector<CDIF *> CDInterfaces;
+// The disc list. Was three std::vectors -- std::vector<CDIF*> plus two
+// std::vector<std::string> -- always pushed, cleared and indexed
+// together with identical length. They are now three parallel C arrays
+// behind a shared count/capacity, grown with realloc-doubling. The
+// path/label entries are heap-duplicated C strings owned by this module
+// (freed in disc_cleanup / overwritten in place by disk_replace_image_index).
+static CDIF  **disc_cdif    = NULL;   // was CDInterfaces
+static char  **disc_paths   = NULL;   // was disk_image_paths
+static char  **disc_labels  = NULL;   // was disk_image_labels
+static size_t  num_discs    = 0;
+static size_t  disc_cap     = 0;
 
-static std::vector<std::string> disk_image_paths;
-static std::vector<std::string> disk_image_labels;
+// Append one disc entry. Takes ownership of nothing -- path/label are
+// copied. Returns false on allocation failure (the CDIF* is not freed
+// here; the caller still owns it on failure).
+static bool disc_list_push(CDIF *cdif, const char *path, const char *label)
+{
+	char *path_dup;
+	char *label_dup;
+
+	if(num_discs >= disc_cap)
+	{
+		size_t newcap   = disc_cap ? disc_cap * 2 : 8;
+		CDIF  **nc      = (CDIF  **)realloc(disc_cdif,   newcap * sizeof(CDIF *));
+		char  **np      = (char  **)realloc(disc_paths,  newcap * sizeof(char *));
+		char  **nl      = (char  **)realloc(disc_labels, newcap * sizeof(char *));
+		if(nc) disc_cdif   = nc;
+		if(np) disc_paths  = np;
+		if(nl) disc_labels = nl;
+		if(!nc || !np || !nl)
+			return false;
+		disc_cap = newcap;
+	}
+
+	path_dup  = strdup(path  ? path  : "");
+	label_dup = strdup(label ? label : "");
+	if(!path_dup || !label_dup)
+	{
+		free(path_dup);
+		free(label_dup);
+		return false;
+	}
+
+	disc_cdif[num_discs]   = cdif;
+	disc_paths[num_discs]  = path_dup;
+	disc_labels[num_discs] = label_dup;
+	num_discs++;
+	return true;
+}
 
 //
 // Remember to rebuild region database in db.cpp if changing the order of
@@ -116,20 +162,60 @@ void extract_directory(char *buf, const char *path, size_t size)
 }
 
 
-static void ReadM3U( std::vector<std::string> &file_list, std::string path, unsigned depth = 0 )
+// Growable list of plain C strings; the M3U reader's output. Was
+// std::vector<std::string>. The path entries are heap-duplicated and
+// owned by the list; m3u_list_free releases them.
+typedef struct
+{
+	char  **items;
+	size_t  count;
+	size_t  cap;
+} m3u_list;
+
+static bool m3u_list_push(m3u_list *l, const char *s)
+{
+	char *dup;
+	if(l->count >= l->cap)
+	{
+		size_t newcap = l->cap ? l->cap * 2 : 8;
+		char **ni     = (char **)realloc(l->items, newcap * sizeof(char *));
+		if(!ni)
+			return false;
+		l->items = ni;
+		l->cap   = newcap;
+	}
+	dup = strdup(s);
+	if(!dup)
+		return false;
+	l->items[l->count++] = dup;
+	return true;
+}
+
+static void m3u_list_free(m3u_list *l)
+{
+	size_t i;
+	for(i = 0; i < l->count; i++)
+		free(l->items[i]);
+	free(l->items);
+	l->items = NULL;
+	l->count = 0;
+	l->cap   = 0;
+}
+
+static void ReadM3U( m3u_list *file_list, const char *path, unsigned depth )
 {
 	char dir_path[4096];
 	char linebuf[ 2048 ];
-	RFILE *fp = rfopen(path.c_str(), "rb");
+	RFILE *fp = rfopen(path, "rb");
 	if (!fp)
 		return;
 
-	MDFN_GetFilePathComponents(path.c_str(), dir_path, NULL, NULL, sizeof(dir_path));
+	MDFN_GetFilePathComponents(path, dir_path, NULL, NULL, sizeof(dir_path));
 
 	while(rfgets(linebuf, sizeof(linebuf), fp) != NULL)
 	{
 		char efp_buf[4096];
-		std::string efp;
+		size_t efp_len;
 
 		if(linebuf[0] == '#')
 			continue;
@@ -138,12 +224,12 @@ static void ReadM3U( std::vector<std::string> &file_list, std::string path, unsi
 			continue;
 
 		MDFN_EvalFIP(efp_buf, sizeof(efp_buf), dir_path, linebuf);
-		efp = efp_buf;
-		if(efp.size() >= 4 && efp.substr(efp.size() - 4) == ".m3u")
+		efp_len = strlen(efp_buf);
+		if(efp_len >= 4 && !strcmp(efp_buf + efp_len - 4, ".m3u"))
 		{
-			if(efp == path)
+			if(!strcmp(efp_buf, path))
 			{
-				log_cb(RETRO_LOG_ERROR, "M3U at \"%s\" references self.\n", efp.c_str());
+				log_cb(RETRO_LOG_ERROR, "M3U at \"%s\" references self.\n", efp_buf);
 				goto end;
 			}
 
@@ -159,11 +245,11 @@ static void ReadM3U( std::vector<std::string> &file_list, std::string path, unsi
 			// call always received the same value, making the
 			// depth==99 guard above unreachable and allowing
 			// stack-blowing recursion via crafted m3u chains.
-			ReadM3U(file_list, efp, depth + 1);
+			ReadM3U(file_list, efp_buf, depth + 1);
 		}
 		else
 		{
-			file_list.push_back(efp);
+			m3u_list_push(file_list, efp_buf);
 		}
 	}
 
@@ -203,8 +289,8 @@ static bool disk_set_eject_state( bool ejected )
 		else
 		{
 			// close the tray - with a disc inside
-			if ( g_current_disc < CDInterfaces.size() ) {
-				CDB_SetDisc( false, CDInterfaces[g_current_disc] );
+			if ( g_current_disc < num_discs ) {
+				CDB_SetDisc( false, disc_cdif[g_current_disc] );
 			} else {
 				CDB_SetDisc( false, NULL );
 			}
@@ -224,7 +310,7 @@ static bool disk_set_image_index(unsigned index)
 	// only listen if the tray is open
 	if ( g_eject_state == true )
 	{
-		if ( index < CDInterfaces.size() ) {
+		if ( index < num_discs ) {
 			g_current_disc = index;
 			return true;
 		}
@@ -235,40 +321,56 @@ static bool disk_set_image_index(unsigned index)
 
 static unsigned disk_get_num_images(void)
 {
-	return CDInterfaces.size();
+	return num_discs;
 }
 
 static bool disk_replace_image_index(unsigned index, const struct retro_game_info *info)
 {
 	// index is unsigned; the previous check `index < 0` was dead code.
-	if (index >= CDInterfaces.size())
+	if (index >= num_discs)
 		return false;
 
 	if (info != NULL)
 	{
 		char image_label[512];
+		char *path_dup;
+		char *label_dup;
 
 		image_label[0] = '\0';
 
 		CDIF *image  = CDIF_Open(info->path, cdimagecache);
 		// CDIF_Open returns NULL on failure. NULL was previously
 		// assigned without a check, leaving a NULL in
-		// CDInterfaces[] that would crash the later ReadTOC()
+		// disc_cdif[] that would crash the later ReadTOC()
 		// loop. Also: the prior CDIF was leaked here on
 		// every swap (the old pointer was overwritten without
 		// deletion); now we delete it before reassignment.
 		if (image == NULL)
 			return false;
 
-		CDIF_Close(CDInterfaces[index]);
-		CDInterfaces[index] = image;
-
 		extract_basename(image_label,
 			info->path,
 			sizeof(image_label));
 
-		disk_image_paths[index] = info->path;
-		disk_image_labels[index] = image_label;
+		// Duplicate the new path/label before touching anything,
+		// so a strdup failure leaves the slot untouched.
+		path_dup  = strdup(info->path);
+		label_dup = strdup(image_label);
+		if(!path_dup || !label_dup)
+		{
+			free(path_dup);
+			free(label_dup);
+			CDIF_Close(image);
+			return false;
+		}
+
+		CDIF_Close(disc_cdif[index]);
+		disc_cdif[index] = image;
+
+		free(disc_paths[index]);
+		free(disc_labels[index]);
+		disc_paths[index]  = path_dup;
+		disc_labels[index] = label_dup;
 		return true;
 	}
 	return false;
@@ -276,10 +378,7 @@ static bool disk_replace_image_index(unsigned index, const struct retro_game_inf
 
 static bool disk_add_image_index(void)
 {
-	CDInterfaces.push_back(NULL);
-	disk_image_paths.push_back("");
-	disk_image_labels.push_back("");
-	return true;
+	return disc_list_push(NULL, "", "");
 }
 
 static bool disk_set_initial_image(unsigned index, const char *path)
@@ -288,7 +387,7 @@ static bool disk_set_initial_image(unsigned index, const char *path)
 		return false;
 
 	g_initial_disc      = index;
-	g_initial_disc_path = path;
+	strlcpy(g_initial_disc_path, path, sizeof(g_initial_disc_path));
 
 	return true;
 }
@@ -298,12 +397,11 @@ static bool disk_get_image_path(unsigned index, char *path, size_t len)
 	if (len < 1)
 		return false;
 
-	if ((index < CDInterfaces.size()) &&
-		 (index < disk_image_paths.size()))
+	if (index < num_discs)
 	{
-		if (!string_is_empty(disk_image_paths[index].c_str()))
+		if (!string_is_empty(disc_paths[index]))
 		{
-			strlcpy(path, disk_image_paths[index].c_str(), len);
+			strlcpy(path, disc_paths[index], len);
 			return true;
 		}
 	}
@@ -316,12 +414,11 @@ static bool disk_get_image_label(unsigned index, char *label, size_t len)
 	if (len < 1)
 		return false;
 
-	if ((index < CDInterfaces.size()) &&
-		 (index < disk_image_labels.size()))
+	if (index < num_discs)
 	{
-		if (!string_is_empty(disk_image_labels[index].c_str()))
+		if (!string_is_empty(disc_labels[index]))
 		{
-			strlcpy(label, disk_image_labels[index].c_str(), len);
+			strlcpy(label, disc_labels[index], len);
 			return true;
 		}
 	}
@@ -375,7 +472,7 @@ void disc_init( retro_environment_t environ_cb )
 	g_eject_state = false;
 
 	g_initial_disc = 0;
-	g_initial_disc_path.clear();
+	g_initial_disc_path[0] = '\0';
 
 	// register vtable with environment
 	if (environ_cb(RETRO_ENVIRONMENT_GET_DISK_CONTROL_INTERFACE_VERSION, &dci_version) && (dci_version >= 1))
@@ -454,13 +551,13 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 	uint8_t buf[2048];
 	size_t x;
 
-	log_cb(RETRO_LOG_INFO, "Calculating game ID (%d discs)\n", CDInterfaces.size() );
+	log_cb(RETRO_LOG_INFO, "Calculating game ID (%d discs)\n", num_discs );
 
 	mctx.starts();
 
-	for(x = 0; x < CDInterfaces.size(); x++)
+	for(x = 0; x < num_discs; x++)
 	{
-		CDIF *c = CDInterfaces[x];
+		CDIF *c = disc_cdif[x];
 		TOC toc;
 		unsigned i;
 
@@ -523,31 +620,38 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 
 void disc_cleanup(void)
 {
-	unsigned i;
-	for(i = 0; i < CDInterfaces.size(); i++) {
-		CDIF_Close(CDInterfaces[i]);
+	size_t i;
+	for(i = 0; i < num_discs; i++) {
+		CDIF_Close(disc_cdif[i]);
+		free(disc_paths[i]);
+		free(disc_labels[i]);
 	}
-	CDInterfaces.clear();
-
-	disk_image_paths.clear();
-	disk_image_labels.clear();
+	free(disc_cdif);
+	free(disc_paths);
+	free(disc_labels);
+	disc_cdif   = NULL;
+	disc_paths  = NULL;
+	disc_labels = NULL;
+	num_discs   = 0;
+	disc_cap    = 0;
 
 	g_current_disc = 0;
 }
 
 bool DetectRegion( unsigned* region )
 {
-	// std::vector replaces a raw `new uint8_t[]` here so that a throw
-	// from ReadSector() / IsSaturnDisc() can't leak the 32 KiB buffer.
-	std::vector<uint8_t> buf(2048 * 16);
+	// 32 KiB scratch buffer. Was a std::vector<uint8_t> (and before
+	// that a raw new[]) for throw-safety; with exceptions gone from
+	// the tree a plain stack array is simpler and allocation-free.
+	uint8_t buf[2048 * 16];
 	uint64_t possible_regions = 0;
 	size_t ci;
 	size_t rsi;
 	const size_t region_strings_count = sizeof(region_strings) / sizeof(region_strings[0]);
 
-	for(ci = 0; ci < CDInterfaces.size(); ci++)
+	for(ci = 0; ci < num_discs; ci++)
 	{
-		CDIF* c = CDInterfaces[ci];
+		CDIF* c = disc_cdif[ci];
 		unsigned i;
 
 		if(CDIF_ReadSector(c, &buf[0], 0, 16) != 0x1)
@@ -589,12 +693,12 @@ bool DiscSanityChecks(void)
 	size_t i;
 
 	// For each disc
-	for( i = 0; i < CDInterfaces.size(); i++ )
+	for( i = 0; i < num_discs; i++ )
 	{
 		TOC toc;
 		int32_t track;
 
-		CDIF_ReadTOC(CDInterfaces[i], &toc);
+		CDIF_ReadTOC(disc_cdif[i], &toc);
 
 		// For each track
 		for( track = 1; track <= 99; track++)
@@ -619,11 +723,11 @@ bool DiscSanityChecks(void)
 				uint8_t pwbuf[96];
 				uint8_t qbuf[12];
 
-				if(!CDIF_ReadRawSectorPWOnly(CDInterfaces[i], pwbuf, lba, false))
+				if(!CDIF_ReadRawSectorPWOnly(disc_cdif[i], pwbuf, lba, false))
 				{
 					log_cb(RETRO_LOG_ERROR,
 						"Testing Disc %zu of %zu: Error reading sector at LBA %d.\n",
-							i + 1, CDInterfaces.size(), lba );
+							i + 1, num_discs, lba );
 					return false;
 				}
 
@@ -646,7 +750,7 @@ bool DiscSanityChecks(void)
 					{
 						log_cb(RETRO_LOG_ERROR,
 							"Testing Disc %zu of %zu: Time mismatch at LBA=%d(%02x:%02x:%02x); Q subchannel: %02x:%02x:%02x\n",
-								i + 1, CDInterfaces.size(),
+								i + 1, num_discs,
 								lba,
 								lm, ls, lf,
 								qm, qs, qf);
@@ -660,7 +764,7 @@ bool DiscSanityChecks(void)
 			{
 				log_cb(RETRO_LOG_ERROR,
 					  "Testing Disc %zu of %zu: No valid Q subchannel ADR_CURPOS data present at LBA %d-%d?!\n",
-					  	i + 1, CDInterfaces.size(),
+					  	i + 1, num_discs,
 					  	start_lba, end_lba );
 				return false;
 			}
@@ -676,9 +780,9 @@ bool DiscSanityChecks(void)
 
 void disc_select( unsigned disc_num )
 {
-	if ( disc_num < CDInterfaces.size() ) {
+	if ( disc_num < num_discs ) {
 		g_current_disc = disc_num;
-		CDB_SetDisc( false, CDInterfaces[ g_current_disc ] );
+		CDB_SetDisc( false, disc_cdif[ g_current_disc ] );
 	}
 }
 
@@ -701,64 +805,62 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 		if ( !strcasecmp( content_ext, ".m3u" ) )
 		{
 			// multiple discs
-			unsigned i;
-			ReadM3U(disk_image_paths, content_name);
-			for(i = 0; i < disk_image_paths.size(); i++)
+			m3u_list m3u = { NULL, 0, 0 };
+			size_t i;
+			ReadM3U(&m3u, content_name, 0);
+			for(i = 0; i < m3u.count; i++)
 			{
 				char image_label[4096];
+				CDIF *image;
 				image_label[0] = '\0';
-				log_cb(RETRO_LOG_INFO, "Adding CD: \"%s\".\n", disk_image_paths[i].c_str());
+				log_cb(RETRO_LOG_INFO, "Adding CD: \"%s\".\n", m3u.items[i]);
 
-				CDIF *image = CDIF_Open(disk_image_paths[i].c_str(), image_memcache);
+				image = CDIF_Open(m3u.items[i], image_memcache);
 				// CDIF_Open returns NULL on failure. Treat NULL as a hard
 				// load failure rather than pushing a NULL onto
-				// CDInterfaces (which the ReadTOC() loop below
+				// disc_cdif (which the ReadTOC() loop below
 				// would dereference).
 				if (image == NULL)
 				{
-					log_cb(RETRO_LOG_ERROR, "Failed to open CD: \"%s\".\n", disk_image_paths[i].c_str());
+					log_cb(RETRO_LOG_ERROR, "Failed to open CD: \"%s\".\n", m3u.items[i]);
+					m3u_list_free(&m3u);
 					return false;
 				}
-				CDInterfaces.push_back(image);
 
 				extract_basename(image_label,
-					disk_image_paths[i].c_str(),
+					m3u.items[i],
 					sizeof(image_label));
-				disk_image_labels.push_back(image_label);
+				disc_list_push(image, m3u.items[i], image_label);
 			}
+			m3u_list_free(&m3u);
 		}
 		else
 		{
 			// single disc
 			char image_label[4096];
+			CDIF *image;
 
 			image_label[0] = '\0';
 
-			disk_image_paths.push_back(content_name);
-			CDIF *image  = CDIF_Open(content_name, image_memcache);
+			image = CDIF_Open(content_name, image_memcache);
 			if (image == NULL)
 			{
 				log_cb(RETRO_LOG_ERROR, "Failed to open CD: \"%s\".\n", content_name);
 				return false;
 			}
-			CDInterfaces.push_back(image);
 
 			extract_basename(image_label,
 				content_name,
 				sizeof(image_label));
-			disk_image_labels.push_back(image_label);
+			disc_list_push(image, content_name, image_label);
 		}
 
 		/* Attempt to set initial disk index */
 		if ((g_initial_disc > 0) &&
-			(g_initial_disc 
-			 < CDInterfaces.size()))
-			if (g_initial_disc 
-			< disk_image_paths.size())
-				if (string_is_equal(
-				disk_image_paths[
-				g_initial_disc].c_str(),
-				g_initial_disc_path.c_str()))
+			(g_initial_disc < num_discs))
+			if (string_is_equal(
+				disc_paths[g_initial_disc],
+				g_initial_disc_path))
 					g_current_disc =
 						g_initial_disc;
 	}
@@ -766,11 +868,11 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 	// Print out a track list for all discs.
 	{
 		unsigned i;
-		for(i = 0; i < CDInterfaces.size(); i++)
+		for(i = 0; i < num_discs; i++)
 		{
 			TOC toc;
 			int32_t track;
-			CDIF_ReadTOC(CDInterfaces[i], &toc);
+			CDIF_ReadTOC(disc_cdif[i], &toc);
 			log_cb(RETRO_LOG_DEBUG, "Disc %d\n", i + 1);
 			for(track = toc.first_track; track <= toc.last_track; track++) {
 				log_cb(RETRO_LOG_DEBUG, "- Track %2d, LBA: %6d  %s\n", track, toc.tracks[track].lba, (toc.tracks[track].control & 0x4) ? "DATA" : "AUDIO");
@@ -787,12 +889,12 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 		unsigned i;
 		layout_md5.starts();
 
-		for( i = 0; i < CDInterfaces.size(); i++ )
+		for( i = 0; i < num_discs; i++ )
 		{
 			TOC toc;
 			uint32_t track;
 
-			CDIF_ReadTOC(CDInterfaces[i], &toc);
+			CDIF_ReadTOC(disc_cdif[i], &toc);
 
 			layout_md5.update_u32_as_lsb(toc.first_track);
 			layout_md5.update_u32_as_lsb(toc.last_track);
