@@ -11,8 +11,6 @@
 #include <ctype.h>
 #include <time.h>
 
-#include <string>
-
 #include "mednafen/mednafen-types.h"
 #include "mednafen/mednafen.h"
 #include "mednafen/settings.h"
@@ -708,9 +706,8 @@ static bool MDFNI_LoadGame(const char *name)
             dir_buf[--dirlen] = '\0';
 
          const char* base = path_basename(name);
-         const std::string fname_str = base ? base : "";
 
-         const STVGameInfo* sgi = DB_LookupSTV(fname_str, &stvfs);
+         const STVGameInfo* sgi = DB_LookupSTV(base ? base : "", &stvfs);
 
          cdstream_close(&stvfs);
 

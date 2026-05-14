@@ -1649,7 +1649,7 @@ static const STVGameInfo STVGI[] =
  },
 };
 
-const STVGameInfo* DB_LookupSTV(const std::string& fname, cdstream* s)
+const STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s)
 {
  uint8_t tmp[0x80];
  uint32_t dr;
@@ -1668,8 +1668,7 @@ const STVGameInfo* DB_LookupSTV(const std::string& fname, cdstream* s)
  {
   auto const& rle = e.rom_layout[0];
 
-  // strcasecmp takes const char*; fname is std::string -- pass .c_str().
-  if(!strcasecmp(fname.c_str(), rle.fname))
+  if(!strcasecmp(fname, rle.fname))
   {
    if(!rle.head_crc32 || head_crc32 == rle.head_crc32)
     return &e;

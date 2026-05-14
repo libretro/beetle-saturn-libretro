@@ -101,7 +101,7 @@ struct STVGameInfo
  STVROMLayout rom_layout[16];
 };
 
-const STVGameInfo* DB_LookupSTV(const std::string& fname, cdstream* s);
+const STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s);
 
 void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8_t* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode);
 uint32_t DB_LookupHH(const char* sgid, const uint8_t* fd_id);
