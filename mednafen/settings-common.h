@@ -2,6 +2,7 @@
 #define _MDFN_SETTINGS_COMMON_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum
 {

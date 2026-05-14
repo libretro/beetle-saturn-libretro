@@ -17,7 +17,8 @@
 
 #include <string.h>
 #include <ctype.h>
-#include <vector>
+#include <stdio.h>
+#include <stdlib.h>
 
 #ifdef _WIN32
 #include <compat/msvc.h>
@@ -26,10 +27,8 @@
 #include <boolean.h>
 #include <libretro.h>
 
-#include "mednafen.h"
-
-#include "general.h"
-#include "hash/md5.h"
+#include "settings.h"
+#include "settings-common.h"
 #include "mempatcher.h"
 
 
@@ -55,28 +54,38 @@ typedef struct __CHEATF
            int status;
 } CHEATF;
 
-static std::vector<CHEATF> cheats;
+/* cheats: was std::vector<CHEATF>. Plain grow-on-append array; CHEATF
+ * is POD so realloc-based growth is fine. */
+static CHEATF  *cheats       = NULL;
+static size_t   cheats_count = 0;
+static size_t   cheats_cap   = 0;
+
 static int savecheats;
 static uint32_t resultsbytelen = 1;
 static bool resultsbigendian = 0;
 static bool CheatsActive = true;
 
-bool SubCheatsOn = 0;
-std::vector<SUBCHEAT> SubCheats[8];
+/* SubCheats[8]: was std::vector<SUBCHEAT>[8]. Eight independent
+ * grow-on-append arrays; SUBCHEAT is POD. */
+static bool      SubCheatsOn         = 0;
+static SUBCHEAT *SubCheats[8]        = { NULL };
+static size_t    SubCheats_count[8]  = { 0 };
+static size_t    SubCheats_cap[8]    = { 0 };
 
 static void RebuildSubCheats(void)
 {
- std::vector<CHEATF>::iterator chit;
+ size_t ci;
  int x;
 
  SubCheatsOn = 0;
  for(x = 0; x < 8; x++)
-  SubCheats[x].clear();
+  SubCheats_count[x] = 0;
 
  if(!CheatsActive) return;
 
- for(chit = cheats.begin(); chit != cheats.end(); chit++)
+ for(ci = 0; ci < cheats_count; ci++)
  {
+  CHEATF *chit = &cheats[ci];
   if(chit->status && chit->type != 'R')
   {
    unsigned int x;
@@ -84,19 +93,31 @@ static void RebuildSubCheats(void)
    {
     SUBCHEAT tmpsub;
     unsigned int shiftie;
+    unsigned int bucket;
 
     if(chit->bigendian)
      shiftie = (chit->length - 1 - x) * 8;
     else
      shiftie = x * 8;
-    
+
     tmpsub.addr = chit->addr + x;
     tmpsub.value = (chit->val >> shiftie) & 0xFF;
     if(chit->type == 'C')
      tmpsub.compare = (chit->compare >> shiftie) & 0xFF;
     else
      tmpsub.compare = -1;
-    SubCheats[(chit->addr + x) & 0x7].push_back(tmpsub);
+
+    bucket = (chit->addr + x) & 0x7;
+    if(SubCheats_count[bucket] >= SubCheats_cap[bucket])
+    {
+     size_t newcap = SubCheats_cap[bucket] ? SubCheats_cap[bucket] * 2 : 8;
+     SUBCHEAT *np  = (SUBCHEAT *)realloc(SubCheats[bucket], newcap * sizeof(SUBCHEAT));
+     if(!np)
+      return;
+     SubCheats[bucket]     = np;
+     SubCheats_cap[bucket] = newcap;
+    }
+    SubCheats[bucket][SubCheats_count[bucket]++] = tmpsub;
     SubCheatsOn = 1;
    }
   }
@@ -148,14 +169,14 @@ void MDFNMP_InstallReadPatches(void)
 {
  if(!CheatsActive) return;
 
- std::vector<SUBCHEAT>::iterator chit;
-
 #if 0
  {
   unsigned int x;
+  size_t ci;
   for(x = 0; x < 8; x++)
-   for(chit = SubCheats[x].begin(); chit != SubCheats[x].end(); chit++)
+   for(ci = 0; ci < SubCheats_count[x]; ci++)
    {
+    SUBCHEAT *chit = &SubCheats[x][ci];
     if(MDFNGameInfo->InstallReadPatch)
      MDFNGameInfo->InstallReadPatch(chit->addr);
    }
@@ -188,7 +209,16 @@ static int AddCheatEntry(char *name, char *conditions, uint32_t addr, uint64_t v
  temp.bigendian = bigendian;
  temp.type=type;
 
- cheats.push_back(temp);
+ if(cheats_count >= cheats_cap)
+ {
+  size_t newcap = cheats_cap ? cheats_cap * 2 : 8;
+  CHEATF *np    = (CHEATF *)realloc(cheats, newcap * sizeof(CHEATF));
+  if(!np)
+   return(0);
+  cheats     = np;
+  cheats_cap = newcap;
+ }
+ cheats[cheats_count++] = temp;
  return(1);
 }
 
@@ -199,15 +229,15 @@ void MDFN_LoadGameCheats(void)
 
 void MDFN_FlushGameCheats(void)
 {
-   std::vector<CHEATF>::iterator chit;
+   size_t ci;
 
-   for(chit = cheats.begin(); chit != cheats.end(); chit++)
+   for(ci = 0; ci < cheats_count; ci++)
    {
-      free(chit->name);
-      if(chit->conditions)
-         free(chit->conditions);
+      free(cheats[ci].name);
+      if(cheats[ci].conditions)
+         free(cheats[ci].conditions);
    }
-   cheats.clear();
+   cheats_count = 0;
 
    RebuildSubCheats();
 }
@@ -237,7 +267,11 @@ int MDFNI_AddCheat(const char *name, uint32_t addr, uint64_t val, uint64_t compa
 int MDFNI_DelCheat(uint32_t which)
 {
  free(cheats[which].name);
- cheats.erase(cheats.begin() + which);
+ /* erase element 'which': shift the tail down one slot. */
+ if((size_t)which + 1 < cheats_count)
+  memmove(&cheats[which], &cheats[which + 1],
+          (cheats_count - which - 1) * sizeof(CHEATF));
+ cheats_count--;
 
  savecheats=1;
 
@@ -392,13 +426,14 @@ static bool TestConditions(const char *string)
 
 void MDFNMP_ApplyPeriodicCheats(void)
 {
-   std::vector<CHEATF>::iterator chit;
+   size_t ci;
 
    if(!CheatsActive)
       return;
 
-   for(chit = cheats.begin(); chit != cheats.end(); chit++)
+   for(ci = 0; ci < cheats_count; ci++)
    {
+      CHEATF *chit = &cheats[ci];
       if(chit->status && chit->type == 'R')
       {
          unsigned int x;
@@ -425,10 +460,11 @@ void MDFNMP_ApplyPeriodicCheats(void)
 
 void MDFNI_ListCheats(int (*callb)(char *name, uint32_t a, uint64_t v, uint64_t compare, int s, char type, unsigned int length, bool bigendian, void *data), void *data)
 {
- std::vector<CHEATF>::iterator chit;
+ size_t ci;
 
- for(chit = cheats.begin(); chit != cheats.end(); chit++)
+ for(ci = 0; ci < cheats_count; ci++)
  {
+  CHEATF *chit = &cheats[ci];
   if(!callb(chit->name, chit->addr, chit->val, chit->compare, chit->status, chit->type, chit->length, chit->bigendian, data)) break;
  }
 }

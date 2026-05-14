@@ -24,9 +24,6 @@ extern MDFNGI *MDFNGameInfo;
 
 void MDFN_DispMessage(const char *format, ...);
 
-void MDFN_LoadGameCheats(void);
-void MDFN_FlushGameCheats(void);
-
 #include "mednafen-driver.h"
 
 
