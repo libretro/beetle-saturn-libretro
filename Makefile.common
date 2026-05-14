@@ -157,7 +157,6 @@ SOURCES_C += $(CDROM_DIR)/CDAccess_CHD.c
 endif
 
 SOURCES_CXX += \
-	$(MEDNAFEN_DIR)/error.cpp \
 	$(MEDNAFEN_DIR)/settings.cpp \
 	$(MEDNAFEN_DIR)/general.cpp \
 	$(MEDNAFEN_DIR)/state.cpp \

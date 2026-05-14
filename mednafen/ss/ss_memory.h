@@ -22,8 +22,6 @@
 #ifndef __MDFN_SS_MEMORY_H
 #define __MDFN_SS_MEMORY_H
 
-#include "../error.h"
-
 
 #include <new>
 #include <stdlib.h>

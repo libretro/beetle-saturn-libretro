@@ -2,6 +2,7 @@
 #define __MDFN_TYPES
 
 #include <assert.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -125,7 +126,6 @@
 
 #ifdef __cplusplus
 template<typename T> typename std::remove_all_extents<T>::type* MDAP(T* v) { return (typename std::remove_all_extents<T>::type*)v; }
-#include "error.h"
 #endif
 
 #endif
