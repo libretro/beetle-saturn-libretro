@@ -560,7 +560,7 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 
 	log_cb(RETRO_LOG_INFO, "Calculating game ID (%d discs)\n", num_discs );
 
-	mctx.starts();
+	mdfn_md5_starts(&mctx);
 
 	for(x = 0; x < num_discs; x++)
 	{
@@ -570,18 +570,18 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 
 		CDIF_ReadTOC(c, &toc);
 
-		mctx.update_u32_as_lsb(toc.first_track);
-		mctx.update_u32_as_lsb(toc.last_track);
-		mctx.update_u32_as_lsb(toc.disc_type);
+		mdfn_md5_update_u32_as_lsb(&mctx, toc.first_track);
+		mdfn_md5_update_u32_as_lsb(&mctx, toc.last_track);
+		mdfn_md5_update_u32_as_lsb(&mctx, toc.disc_type);
 
 		for(i = 1; i <= 100; i++)
 		{
 			const TOC_Track* t = &toc.tracks[i];
 
-			mctx.update_u32_as_lsb(t->adr);
-			mctx.update_u32_as_lsb(t->control);
-			mctx.update_u32_as_lsb(t->lba);
-			mctx.update_u32_as_lsb(t->valid);
+			mdfn_md5_update_u32_as_lsb(&mctx, t->adr);
+			mdfn_md5_update_u32_as_lsb(&mctx, t->control);
+			mdfn_md5_update_u32_as_lsb(&mctx, t->lba);
+			mdfn_md5_update_u32_as_lsb(&mctx, t->valid);
 		}
 
 		for(i = 0; i < 512; i++)
@@ -611,18 +611,18 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 					}
 				}
 
-				mctx.update(&buf[0], 2048);
+				mdfn_md5_update(&mctx, &buf[0], 2048);
 			}
 		}
 
 		if(x == 0)
 		{
 			md5_context fd_mctx = mctx;
-			fd_mctx.finish(fd_id_out16);
+			mdfn_md5_finish(&fd_mctx, fd_id_out16);
 		}
 	}
 
-	mctx.finish(id_out16);
+	mdfn_md5_finish(&mctx, id_out16);
 }
 
 void disc_cleanup(void)
@@ -907,7 +907,7 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 	{
 		md5_context layout_md5;
 		unsigned i;
-		layout_md5.starts();
+		mdfn_md5_starts(&layout_md5);
 
 		for( i = 0; i < num_discs; i++ )
 		{
@@ -916,18 +916,18 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 
 			CDIF_ReadTOC(disc_cdif[i], &toc);
 
-			layout_md5.update_u32_as_lsb(toc.first_track);
-			layout_md5.update_u32_as_lsb(toc.last_track);
-			layout_md5.update_u32_as_lsb(toc.tracks[100].lba);
+			mdfn_md5_update_u32_as_lsb(&layout_md5, toc.first_track);
+			mdfn_md5_update_u32_as_lsb(&layout_md5, toc.last_track);
+			mdfn_md5_update_u32_as_lsb(&layout_md5, toc.tracks[100].lba);
 
 			for(track = toc.first_track; track <= toc.last_track; track++)
 			{
-				layout_md5.update_u32_as_lsb(toc.tracks[track].lba);
-				layout_md5.update_u32_as_lsb(toc.tracks[track].control & 0x4);
+				mdfn_md5_update_u32_as_lsb(&layout_md5, toc.tracks[track].lba);
+				mdfn_md5_update_u32_as_lsb(&layout_md5, toc.tracks[track].control & 0x4);
 			}
 		}
 
-		layout_md5.finish(LayoutMD5);
+		mdfn_md5_finish(&layout_md5, LayoutMD5);
 	}
 	log_cb(RETRO_LOG_DEBUG, "Done calculating layout MD5.\n");
 	// TODO: include module name in hash

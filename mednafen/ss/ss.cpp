@@ -28,7 +28,6 @@
 #include "../cdrom/cdromif.h"
 #include "../cdstream.h"
 #include "../hash/sha256.h"
-#include "../hash/md5.h"
 #include "ss.h"
 
 #include "../../disc.h"

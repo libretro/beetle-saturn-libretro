@@ -3,10 +3,12 @@
  * by Christophe Devine <devine@cr0.net>;
  * this program is licensed under the GPL.
  */
-/* Converted to C++ for use in Mednafen */
+/* Converted to C++ for use in Mednafen, then back to plain C: the
+ * md5_context class became a struct + md5_* free functions, and the
+ * unused std::string asciistr() helper was dropped. */
 
-#include "../mednafen-types.h"
 #include <string.h>
+
 #include "md5.h"
 
 #define GET_UINT32(n,b,i)                       \
@@ -25,28 +27,17 @@
     (b)[(i) + 3] = (uint8_t) ( (n) >> 24 );       \
 }
 
-md5_context::md5_context(void)
+void mdfn_md5_starts(md5_context *ctx)
 {
-
-
+    ctx->total[0] = 0;
+    ctx->total[1] = 0;
+    ctx->state[0] = 0x67452301;
+    ctx->state[1] = 0xEFCDAB89;
+    ctx->state[2] = 0x98BADCFE;
+    ctx->state[3] = 0x10325476;
 }
 
-md5_context::~md5_context(void)
-{
-
-}
-
-void md5_context::starts(void)
-{
-    total[0] = 0;
-    total[1] = 0;
-    state[0] = 0x67452301;
-    state[1] = 0xEFCDAB89;
-    state[2] = 0x98BADCFE;
-    state[3] = 0x10325476;
-}
-
-void md5_context::process(const uint8_t data[64])
+static void mdfn_md5_process(md5_context *ctx, const uint8_t data[64])
 {
     uint32_t A, B, C, D, X[16];
 
@@ -74,10 +65,10 @@ void md5_context::process(const uint8_t data[64])
     a += F(b,c,d) + X[k] + t; a = S(a,s) + b;           \
 }
 
-    A = state[0];
-    B = state[1];
-    C = state[2];
-    D = state[3];
+    A = ctx->state[0];
+    B = ctx->state[1];
+    C = ctx->state[2];
+    D = ctx->state[3];
 
 #define F(x,y,z) (z ^ (x & (y ^ z)))
 
@@ -163,31 +154,31 @@ void md5_context::process(const uint8_t data[64])
 
 #undef F
 
-    state[0] += A;
-    state[1] += B;
-    state[2] += C;
-    state[3] += D;
+    ctx->state[0] += A;
+    ctx->state[1] += B;
+    ctx->state[2] += C;
+    ctx->state[3] += D;
 }
 
-void md5_context::update(const uint8_t *input, uint32_t length )
+void mdfn_md5_update(md5_context *ctx, const uint8_t *input, uint32_t length )
 {
     uint32_t left, fill;
 
     if( ! length ) return;
 
-    left = ( total[0] >> 3 ) & 0x3F;
+    left = ( ctx->total[0] >> 3 ) & 0x3F;
     fill = 64 - left;
 
-    total[0] += length <<  3;
-    total[1] += length >> 29;
+    ctx->total[0] += length <<  3;
+    ctx->total[1] += length >> 29;
 
-    total[0] &= 0xFFFFFFFF;
-    total[1] += total[0] < ( length << 3 );
+    ctx->total[0] &= 0xFFFFFFFF;
+    ctx->total[1] += ctx->total[0] < ( length << 3 );
 
     if( left && length >= fill )
     {
-        memcpy( (void *) (buffer + left), (void *) input, fill );
-        process(buffer );
+        memcpy( (void *) (ctx->buffer + left), (void *) input, fill );
+        mdfn_md5_process(ctx, ctx->buffer );
         length -= fill;
         input  += fill;
         left = 0;
@@ -195,14 +186,14 @@ void md5_context::update(const uint8_t *input, uint32_t length )
 
     while( length >= 64 )
     {
-        process(input );
+        mdfn_md5_process(ctx, input );
         length -= 64;
         input  += 64;
     }
 
     if( length )
     {
-        memcpy( (void *) (buffer + left), (void *) input, length );
+        memcpy( (void *) (ctx->buffer + left), (void *) input, length );
     }
 }
 
@@ -214,47 +205,22 @@ static const uint8_t md5_padding[64] =
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-void md5_context::finish(uint8_t digest[16] )
+void mdfn_md5_finish(md5_context *ctx, uint8_t digest[16] )
 {
     uint32_t last, padn;
     uint8_t msglen[8];
 
-    PUT_UINT32( total[0], msglen, 0 );
-    PUT_UINT32( total[1], msglen, 4 );
+    PUT_UINT32( ctx->total[0], msglen, 0 );
+    PUT_UINT32( ctx->total[1], msglen, 4 );
 
-    last = ( total[0] >> 3 ) & 0x3F;
+    last = ( ctx->total[0] >> 3 ) & 0x3F;
     padn = ( last < 56 ) ? ( 56 - last ) : ( 120 - last );
 
-    update( md5_padding, padn );
-    update( msglen, 8 );
+    mdfn_md5_update( ctx, md5_padding, padn );
+    mdfn_md5_update( ctx, msglen, 8 );
 
-    PUT_UINT32( state[0], digest,  0 );
-    PUT_UINT32( state[1], digest,  4 );
-    PUT_UINT32( state[2], digest,  8 );
-    PUT_UINT32( state[3], digest, 12 );
-}
-
-
-/* Uses a static buffer, so beware of how it's used. */
-//static 
-std::string md5_context::asciistr(const uint8_t digest[16], bool borked_order)
-{
- static char str[33];
- static char trans[16]={'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
- int x;
-
- for(x=0;x<16;x++)
- {
-  if(borked_order)
-  {
-   str[x*2]=trans[digest[x]&0x0F];
-   str[x*2+1]=trans[digest[x]>>4];
-  }
-  else
-  {
-   str[x*2+1]=trans[digest[x]&0x0F];
-   str[x*2]=trans[digest[x]>>4];
-  }
- }
- return(std::string(str));
+    PUT_UINT32( ctx->state[0], digest,  0 );
+    PUT_UINT32( ctx->state[1], digest,  4 );
+    PUT_UINT32( ctx->state[2], digest,  8 );
+    PUT_UINT32( ctx->state[3], digest, 12 );
 }
