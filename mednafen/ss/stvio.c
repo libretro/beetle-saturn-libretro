@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* stvio.cpp - ST-V I/O Emulation
+/* stvio.c - ST-V I/O Emulation
 **  Copyright (C) 2022 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -19,19 +19,33 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "ss.h"
-#include <mednafen/mednafen.h>
-#include <mednafen/hash/crc.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+
+#include <mednafen/mednafen-types.h>   /* MDFN_HOT, MDFN_COLD, MDFN_HIDE */
+#include <mednafen/hash/crc.h>         /* crc16_ccitt */
+
 #include "ak93c45.h"
 
 #include "stvio.h"
-#include "smpc.h"
-#include "sound.h"
-
 #include "smpc_iodevice.h"
 
-#include "cart.h"
 #include "cart/stv.h"
+
+/* stvio.c follows the vdp1.c / C-converted-module convention: skip
+ * the C++-only umbrella headers (ss.h, sound.h, smpc.h, mednafen.h --
+ * which carry `class`, default args, std::, and other C-incompatible
+ * constructs) and forward-declare the few external symbols we need
+ * with plain C linkage.  Cross-TU types stay int32_t (the underlying
+ * spelling of sscpu_timestamp_t in ss.h). */
+extern void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr);
+extern void SOUND_Reset68K(void);
+extern void SOUND_ResetSCSP(void);
+extern void SOUND_Set68KActive(bool active);
 
 static unsigned ControlScheme;
 
@@ -61,10 +75,10 @@ void STVIO_SetInput(unsigned port, const char* type, uint8_t* ptr)
   if(ControlScheme == STV_CONTROL_HAMMER)
   {
    if(port != 0 || strcmp(type, "gun"))
-    ptr = nullptr;
+    ptr = NULL;
   }
   else if(port < 2 && strcmp(type, "gamepad"))
-   ptr = nullptr;
+   ptr = NULL;
  }
 
  DPtr[port] = ptr;
@@ -240,7 +254,7 @@ void STVIO_Reset(bool powering_up)
 
  0x1E, 8 byte: Game-specific settings?  Copied from 0xF48 in cart ROM space?
 */
-static void InitEEPROM(const STVGameInfo* sgi)
+static void InitEEPROM(const struct STVGameInfo* sgi)
 {
  /* 4 KiB scratch buffer, lifetime entirely within this function --
   * was a std::unique_ptr<uint8_t[]> purely for RAII over new[]. A
@@ -341,7 +355,7 @@ static void InitEEPROM(const STVGameInfo* sgi)
  }
 }
 
-void STVIO_Init(const STVGameInfo* sgi)
+void STVIO_Init(const struct STVGameInfo* sgi)
 {
  ControlScheme = sgi->control;
 
@@ -354,6 +368,21 @@ void STVIO_Init(const STVGameInfo* sgi)
  //
  prev_sctrl = 0xFF;	// Don't change
  prev_ectrl = 0x1C;
+}
+
+void STVIO_Kill(void)
+{
+ /* gun is heap-allocated in STVIO_Init via IODevice_Gun_Create.
+  * Pre-conversion this had no Kill function, so gun was only ever
+  * released by the next STVIO_Init's preceding IODevice_Free(gun) --
+  * which left the buffer leaked on the final game close (no next
+  * Init) and across any non-STV game load that followed an STV one.
+  *
+  * IODevice_Free is NULL-safe, so this is also safe to call from
+  * ss.cpp's Cleanup() for non-STV games where STVIO_Init never ran
+  * (gun is still NULL). */
+ IODevice_Free(gun);
+ gun = NULL;
 }
 
 void STVIO_LoadNV(cdstream* s)
@@ -384,7 +413,7 @@ void STVIO_SaveNV(cdstream* s)
  cdstream_write(s, tmp, sizeof(tmp));
 }
 
-void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8_t A, uint8_t V)
+void STVIO_WriteIOGA(const int32_t timestamp, uint8_t A, uint8_t V)
 {
  //printf("[IOGA] Write: %02x %02x\n", A, V);
 
@@ -405,7 +434,7 @@ void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8_t A, uint8_t V)
  //	Port F output, Port E input: 0xDF
 }
 
-uint8_t STVIO_ReadIOGA(const sscpu_timestamp_t timestamp, uint8_t A)
+uint8_t STVIO_ReadIOGA(const int32_t timestamp, uint8_t A)
 {
  uint8_t ret = 0xFF;
 
@@ -501,7 +530,7 @@ static void IODevice_STVSMPC_Draw(IODevice *self_, MDFN_Surface *surface, const 
       gun->vt->Draw(gun, surface, drect, lw, ifield, gun_x_scale, gun_x_offs);
 }
 
-static uint8_t IODevice_STVSMPC_UpdateBus(IODevice *self_, const sscpu_timestamp_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
+static uint8_t IODevice_STVSMPC_UpdateBus(IODevice *self_, const int32_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
 {
    IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
    uint8_t tmp = 0x7F;

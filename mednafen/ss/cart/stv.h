@@ -55,7 +55,7 @@ struct STVGameInfo;
 // failure path before returning.
 bool CART_STV_Init(struct CartInfo* c, const char* rom_dir, const char* main_fname, const struct STVGameInfo* sgi) MDFN_COLD;
 
-// Peek a byte from STV ROM, byte-addressed.  Used by stvio.cpp's InitEEPROM
+// Peek a byte from STV ROM, byte-addressed.  Used by stvio.c's InitEEPROM
 // to read the game's onboard ROM header for cabinet detection.
 uint8_t CART_STV_PeekROM(uint32_t A);
 

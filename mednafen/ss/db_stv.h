@@ -31,9 +31,9 @@
    can be included from plain C. db.h itself is C++ (it pulls in
    <string>, <vector>, git.h), but STVROMLayout / STVGameInfo and the
    STV_* enums are pure POD and several C files now need them --
-   cart.c, cart/stv.c, and (still C++ for now) stvio.cpp. db.h
-   #includes this header in place of its former inline copy, so the
-   C++ side sees the identical definitions. */
+   cart.c, cart/stv.c, and stvio.c. db.h #includes this header in
+   place of its former inline copy, so the C++ side sees the
+   identical definitions. */
 
 #ifdef __cplusplus
 extern "C" {

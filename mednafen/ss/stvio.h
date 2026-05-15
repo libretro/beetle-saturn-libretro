@@ -22,30 +22,53 @@
 #ifndef __MDFN_SS_STVIO_H
 #define __MDFN_SS_STVIO_H
 
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
 #include <mednafen/state.h>
 
 #include "../cdstream.h"
 
 #include "smpc_iodevice.h"
-#include "db.h"
+/* stvio only needs STVGameInfo and STV_* enums; both live in
+ * db_stv.h which is pure C (stdint+stdbool).  db.h would pull in
+ * <string>/<vector> for DB_GetHHDescriptions/DB_GetInternalDB which
+ * stvio doesn't use -- include the narrower header instead so this
+ * header stays includable from stvio.c. */
+#include "db_stv.h"
 
-void STVIO_Init(const STVGameInfo* sgi) MDFN_COLD;
-void STVIO_Reset(bool powering_up) MDFN_COLD;
-void STVIO_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void STVIO_LoadNV(cdstream* s) MDFN_COLD;
-void STVIO_SaveNV(cdstream* s) MDFN_COLD;
+/* Timestamps spelled as int32_t (which is what sscpu_timestamp_t
+ * typedefs to in ss.h) rather than sscpu_timestamp_t directly --
+ * keeps this header self-contained and matches the C-ABI convention
+ * the converted modules (vdp1.c, smpc_iodevice.h) already use. */
+void    STVIO_Init(const struct STVGameInfo* sgi) MDFN_COLD;
+void    STVIO_Kill(void) MDFN_COLD;
+void    STVIO_Reset(bool powering_up) MDFN_COLD;
+void    STVIO_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
-void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8_t A, uint8_t V) MDFN_HOT;
-uint8_t STVIO_ReadIOGA(const sscpu_timestamp_t timestamp, uint8_t A) MDFN_HOT;
+void    STVIO_LoadNV(cdstream* s) MDFN_COLD;
+void    STVIO_SaveNV(cdstream* s) MDFN_COLD;
 
-void STVIO_TransformInput(void);
-void STVIO_UpdateInput(int32_t elapsed_time);
-void STVIO_SetInput(unsigned port, const char* type, uint8_t* ptr) MDFN_COLD;
-void STVIO_SetCrosshairsColor(unsigned port, uint32_t color) MDFN_COLD;
+void    STVIO_WriteIOGA(const int32_t timestamp, uint8_t A, uint8_t V) MDFN_HOT;
+uint8_t STVIO_ReadIOGA(const int32_t timestamp, uint8_t A) MDFN_HOT;
 
-void STVIO_InsertCoin(void);
+void    STVIO_TransformInput(void);
+void    STVIO_UpdateInput(int32_t elapsed_time);
+void    STVIO_SetInput(unsigned port, const char* type, uint8_t* ptr) MDFN_COLD;
+void    STVIO_SetCrosshairsColor(unsigned port, uint32_t color) MDFN_COLD;
+
+void    STVIO_InsertCoin(void);
 
 IODevice* STVIO_GetSMPCDevice(bool sport) MDFN_COLD;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

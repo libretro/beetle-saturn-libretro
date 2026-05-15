@@ -909,6 +909,7 @@ static MDFN_COLD void Cleanup(void)
  VDP2::Kill();
  SOUND_Kill();
  CDB_Kill();
+ STVIO_Kill();
 
  disc_cleanup();
 }

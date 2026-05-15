@@ -66,8 +66,7 @@ SOURCES_CXX += \
 	$(CORE_EMU_DIR)/scu_dsp_misc.cpp \
 	$(CORE_EMU_DIR)/vdp2.cpp \
 	$(CORE_EMU_DIR)/vdp2_render.cpp \
-	$(CORE_EMU_DIR)/smpc.cpp \
-	$(CORE_EMU_DIR)/stvio.cpp
+	$(CORE_EMU_DIR)/smpc.cpp
 
 # The cartridge subsystem, converted from C++ to C. CartInfo was
 # already a plain struct of function pointers (C-style polymorphism),
@@ -88,6 +87,8 @@ SOURCES_C += \
 	$(CORE_EMU_DIR)/vdp1_poly.c
 
 SOURCES_C += $(CORE_EMU_DIR)/ak93c45.c
+
+SOURCES_C += $(CORE_EMU_DIR)/stvio.c
 
 SOURCES_C += \
 	     $(CORE_EMU_DIR)/cart.c \
