@@ -1335,87 +1335,94 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {
  bool tmp_abs_dy_gt_abs_dx = false;
 
+ /* On-disk savestate keys deliberately use the short, unqualified names
+    (VRAM, PrimData.*, LineData.*, ...) so that states written before the
+    C-conversion of VDP1 load with the same keys. vdp1_common.h defines
+    short-name aliases for every VDP1_-prefixed extern; the # operator
+    captures argument tokens before macro expansion, so SFVAR(VRAM)
+    stringifies to "VRAM" while the expression (VRAM) expands to
+    (VDP1_VRAM). */
  SFORMAT Prim_StateRegs[] =
  {
-  SFVAR(VDP1_PrimData.e->d_error, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->d_error_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->d_error_adj, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->d_error_cmp, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(PrimData.e->d_error, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->d_error_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->d_error_adj, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->d_error_cmp, 0x2, sizeof(*PrimData.e), PrimData.e),
 
-  SFVAR(VDP1_PrimData.e->x, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->x_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->x_error, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->x_error_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->x_error_adj, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->x_error_cmp, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(PrimData.e->x, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->x_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->x_error, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->x_error_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->x_error_adj, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->x_error_cmp, 0x2, sizeof(*PrimData.e), PrimData.e),
 
-  SFVAR(VDP1_PrimData.e->y, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->y_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->y_error, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->y_error_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->y_error_adj, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->y_error_cmp, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(PrimData.e->y, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->y_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->y_error, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->y_error_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->y_error_adj, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->y_error_cmp, 0x2, sizeof(*PrimData.e), PrimData.e),
 
-  SFVAR(VDP1_PrimData.e->g.g, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFVAR(VDP1_PrimData.e->g.intinc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
-  SFPTR32N(&(VDP1_PrimData.e->g.ginc)[0], (sizeof(VDP1_PrimData.e->g.ginc) / sizeof(int32_t)), 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e, "VDP1_PrimData.e->g.ginc"),
-  SFPTR32N(&(VDP1_PrimData.e->g.error)[0], (sizeof(VDP1_PrimData.e->g.error) / sizeof(int32_t)), 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e, "VDP1_PrimData.e->g.error"),
-  SFPTR32N(&(VDP1_PrimData.e->g.error_inc)[0], (sizeof(VDP1_PrimData.e->g.error_inc) / sizeof(int32_t)), 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e, "VDP1_PrimData.e->g.error_inc"),
-  SFPTR32N(&(VDP1_PrimData.e->g.error_adj)[0], (sizeof(VDP1_PrimData.e->g.error_adj) / sizeof(int32_t)), 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e, "VDP1_PrimData.e->g.error_adj"),
+  SFVAR(PrimData.e->g.g, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(PrimData.e->g.intinc, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFPTR32N(&(PrimData.e->g.ginc)[0], (sizeof(PrimData.e->g.ginc) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.ginc"),
+  SFPTR32N(&(PrimData.e->g.error)[0], (sizeof(PrimData.e->g.error) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.error"),
+  SFPTR32N(&(PrimData.e->g.error_inc)[0], (sizeof(PrimData.e->g.error_inc) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.error_inc"),
+  SFPTR32N(&(PrimData.e->g.error_adj)[0], (sizeof(PrimData.e->g.error_adj) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.error_adj"),
 
-  SFVAR(VDP1_PrimData.big_t.t),
-  SFVAR(VDP1_PrimData.big_t.tinc),
-  SFVAR(VDP1_PrimData.big_t.error),
-  SFVAR(VDP1_PrimData.big_t.error_inc),
-  SFVAR(VDP1_PrimData.big_t.error_adj),
+  SFVAR(PrimData.big_t.t),
+  SFVAR(PrimData.big_t.tinc),
+  SFVAR(PrimData.big_t.error),
+  SFVAR(PrimData.big_t.error_inc),
+  SFVAR(PrimData.big_t.error_adj),
 
-  SFVAR(VDP1_PrimData.iter),
-  SFVAR(VDP1_PrimData.tex_base),
-  SFVAR(VDP1_PrimData.need_line_resume),
+  SFVAR(PrimData.iter),
+  SFVAR(PrimData.tex_base),
+  SFVAR(PrimData.need_line_resume),
   //
   //
   //
-  SFVAR(VDP1_LineInnerData.xy),
-  SFVAR(VDP1_LineInnerData.error),
-  SFVAR(VDP1_LineInnerData.drawn_ac),
+  SFVAR(LineInnerData.xy),
+  SFVAR(LineInnerData.error),
+  SFVAR(LineInnerData.drawn_ac),
 
-  SFVAR(VDP1_LineInnerData.texel),
+  SFVAR(LineInnerData.texel),
 
-  SFVAR(VDP1_LineInnerData.t.t),
-  SFVAR(VDP1_LineInnerData.t.tinc),
-  SFVAR(VDP1_LineInnerData.t.error),
-  SFVAR(VDP1_LineInnerData.t.error_inc),
-  SFVAR(VDP1_LineInnerData.t.error_adj),
+  SFVAR(LineInnerData.t.t),
+  SFVAR(LineInnerData.t.tinc),
+  SFVAR(LineInnerData.t.error),
+  SFVAR(LineInnerData.t.error_inc),
+  SFVAR(LineInnerData.t.error_adj),
 
-  SFVAR(VDP1_LineInnerData.g.g),
-  SFVAR(VDP1_LineInnerData.g.intinc),
-  SFPTR32N(&(VDP1_LineInnerData.g.ginc)[0], (sizeof(VDP1_LineInnerData.g.ginc) / sizeof(int32_t)), "VDP1_LineInnerData.g.ginc"),
-  SFPTR32N(&(VDP1_LineInnerData.g.error)[0], (sizeof(VDP1_LineInnerData.g.error) / sizeof(int32_t)), "VDP1_LineInnerData.g.error"),
-  SFPTR32N(&(VDP1_LineInnerData.g.error_inc)[0], (sizeof(VDP1_LineInnerData.g.error_inc) / sizeof(int32_t)), "VDP1_LineInnerData.g.error_inc"),
-  SFPTR32N(&(VDP1_LineInnerData.g.error_adj)[0], (sizeof(VDP1_LineInnerData.g.error_adj) / sizeof(int32_t)), "VDP1_LineInnerData.g.error_adj"),
+  SFVAR(LineInnerData.g.g),
+  SFVAR(LineInnerData.g.intinc),
+  SFPTR32N(&(LineInnerData.g.ginc)[0], (sizeof(LineInnerData.g.ginc) / sizeof(int32_t)), "LineInnerData.g.ginc"),
+  SFPTR32N(&(LineInnerData.g.error)[0], (sizeof(LineInnerData.g.error) / sizeof(int32_t)), "LineInnerData.g.error"),
+  SFPTR32N(&(LineInnerData.g.error_inc)[0], (sizeof(LineInnerData.g.error_inc) / sizeof(int32_t)), "LineInnerData.g.error_inc"),
+  SFPTR32N(&(LineInnerData.g.error_adj)[0], (sizeof(LineInnerData.g.error_adj) / sizeof(int32_t)), "LineInnerData.g.error_adj"),
 
-  SFVARN(VDP1_LineInnerData.xy_inc[0], "VDP1_LineInnerData.x_inc"),
-  SFVARN(VDP1_LineInnerData.xy_inc[1], "VDP1_LineInnerData.y_inc"),
-  SFVAR(VDP1_LineInnerData.aa_xy_inc),
-  SFVAR(VDP1_LineInnerData.term_xy),
+  SFVARN(LineInnerData.xy_inc[0], "LineInnerData.x_inc"),
+  SFVARN(LineInnerData.xy_inc[1], "LineInnerData.y_inc"),
+  SFVAR(LineInnerData.aa_xy_inc),
+  SFVAR(LineInnerData.term_xy),
 
-  SFVAR(VDP1_LineInnerData.error_cmp),
-  SFVAR(VDP1_LineInnerData.error_inc),
-  SFVAR(VDP1_LineInnerData.error_adj),
+  SFVAR(LineInnerData.error_cmp),
+  SFVAR(LineInnerData.error_inc),
+  SFVAR(LineInnerData.error_adj),
 
-  SFVAR(VDP1_LineInnerData.color),
+  SFVAR(LineInnerData.color),
 
-  SFVARN(tmp_abs_dy_gt_abs_dx, "VDP1_LineInnerData.abs_dy_gt_abs_dx"),
+  SFVARN(tmp_abs_dy_gt_abs_dx, "LineInnerData.abs_dy_gt_abs_dx"),
   //
   //
   //
-  SFVAR(VDP1_LineData.p->t, 0x2, sizeof(*VDP1_LineData.p), VDP1_LineData.p),
-  SFVAR(VDP1_LineData.color),
-  SFVAR(VDP1_LineData.ec_count),
+  SFVAR(LineData.p->t, 0x2, sizeof(*LineData.p), LineData.p),
+  SFVAR(LineData.color),
+  SFVAR(LineData.ec_count),
   //uint32_t (MDFN_FASTCALL *tffn)(uint32_t);
-  SFPTR16N(&(VDP1_LineData.CLUT)[0], (sizeof(VDP1_LineData.CLUT) / sizeof(uint16_t)), "VDP1_LineData.CLUT"),
-  SFVAR(VDP1_LineData.cb_or),
-  SFVAR(VDP1_LineData.tex_base),
+  SFPTR16N(&(LineData.CLUT)[0], (sizeof(LineData.CLUT) / sizeof(uint16_t)), "LineData.CLUT"),
+  SFVAR(LineData.cb_or),
+  SFVAR(LineData.tex_base),
   //
   //
   //
@@ -1424,9 +1431,9 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
  SFORMAT StateRegs[] =
  {
-  SFPTR16N(&(VDP1_VRAM)[0], (sizeof(VDP1_VRAM) / sizeof(uint16_t)), "VDP1_VRAM"),
-  SFPTR16N(&(FB)[0][0], (sizeof(FB) / sizeof(uint16_t)), "&VDP1_FB[0][0]"),
-  SFPTR16N(&(VDP1_MeshFB)[0][0], (sizeof(VDP1_MeshFB) / sizeof(uint16_t)), "&VDP1_MeshFB[0][0]"),
+  SFPTR16N(&(VRAM)[0], (sizeof(VRAM) / sizeof(uint16_t)), "VRAM"),
+  SFPTR16N(&(FB)[0][0], (sizeof(FB) / sizeof(uint16_t)), "&FB[0][0]"),
+  SFPTR16N(&(MeshFB)[0][0], (sizeof(MeshFB) / sizeof(uint16_t)), "&MeshFB[0][0]"),
   SFVAR(FBDrawWhich),
 
   SFVAR(FBManualPending),
@@ -1435,14 +1442,14 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(FBVBEraseActive),
   SFVAR(FBVBEraseLastTS),
 
-  SFVAR(VDP1_SysClipX),
-  SFVAR(VDP1_SysClipY),
-  SFVAR(VDP1_UserClipX0),
-  SFVAR(VDP1_UserClipY0),
-  SFVAR(VDP1_UserClipX1),
-  SFVAR(VDP1_UserClipY1),
-  SFVAR(VDP1_LocalX),
-  SFVAR(VDP1_LocalY),
+  SFVAR(SysClipX),
+  SFVAR(SysClipY),
+  SFVAR(UserClipX0),
+  SFVAR(UserClipY0),
+  SFVAR(UserClipX1),
+  SFVAR(UserClipY1),
+  SFVAR(LocalX),
+  SFVAR(LocalY),
 
   SFVAR(CurCommandAddr),
   SFVAR(RetCommandAddr),
@@ -1467,8 +1474,8 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   SFVAR(EraseYCounter),
 
-  SFVAR(VDP1_TVMR),
-  SFVAR(VDP1_FBCR),
+  SFVAR(TVMR),
+  SFVAR(FBCR),
   SFVAR(PTMR),
   SFVAR(EDSR),
 
@@ -1478,7 +1485,7 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(CycleCounter),
   SFVAR(CommandPhase),
   SFVAR(CommandData),
-  SFVAR(VDP1_DTACounter),
+  SFVAR(DTACounter),
 
   SFVAR(vbcdpending),
 

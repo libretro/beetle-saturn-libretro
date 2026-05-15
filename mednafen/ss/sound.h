@@ -45,9 +45,9 @@ void SOUND_Init(void) MDFN_COLD;
 void SOUND_Reset(bool powering_up) MDFN_COLD;
 void SOUND_Kill(void) MDFN_COLD;
 
-void SOUND_Set68KActive(bool active);
-void SOUND_Reset68K(void);
-void SOUND_ResetSCSP(void);
+extern "C" void SOUND_Set68KActive(bool active);
+extern "C" void SOUND_Reset68K(void);
+extern "C" void SOUND_ResetSCSP(void);
 
 void SOUND_SetClockRatio(uint32_t ratio); // Ratio between SH-2 clock and 68K clock (sound clock / 2)
 /* int32_t in place of sscpu_timestamp_t (which typedefs to int32_t
