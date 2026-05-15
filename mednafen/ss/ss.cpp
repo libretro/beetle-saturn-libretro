@@ -491,7 +491,7 @@ static void SetFastMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_
  }
 }
 
-static MDFN_COLD void InitFastMemMap(void)
+static MDFN_COLD bool InitFastMemMap(void)
 {
  for(unsigned i = 0; i < sizeof(fmap_dummy) / sizeof(fmap_dummy[0]); i++)
  {
@@ -499,12 +499,20 @@ static MDFN_COLD void InitFastMemMap(void)
  }
 
  FMIsWriteable_reset();
- MDFNMP_Init(1ULL << SH7095_EXT_MAP_GRAN_BITS, (1ULL << 27) / (1ULL << SH7095_EXT_MAP_GRAN_BITS));
+ /* MDFNMP_Init returns false on RAMPtrs calloc failure; the rest of
+  * InitFastMemMap and InitCommon downstream (MDFNMP_RegSearchable,
+  * MDFNMP_AddRAM, the cheat search machinery) assume RAMPtrs is a
+  * live array, so a NULL there would crash on the first patch /
+  * cheat install.  Propagate the failure instead. */
+ if(!MDFNMP_Init(1ULL << SH7095_EXT_MAP_GRAN_BITS, (1ULL << 27) / (1ULL << SH7095_EXT_MAP_GRAN_BITS)))
+  return false;
 
  for(uint64_t A = 0; A < 1ULL << 32; A += (1U << SH7095_EXT_MAP_GRAN_BITS))
  {
   SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS] = (uintptr_t)fmap_dummy - A;
  }
+
+ return true;
 }
 
 void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable)
@@ -1006,7 +1014,8 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       BackupRAM[i] = BRAM_Init_Data[i & 0x0F];
 
    // Call InitFastMemMap() before functions like SOUND_Init()
-   InitFastMemMap();
+   if(!InitFastMemMap())
+      return false;
    SS_SetPhysMemMap(0x00000000, 0x000FFFFF, BIOSROM, sizeof(BIOSROM));
    SS_SetPhysMemMap(0x00200000, 0x003FFFFF, WorkRAML, WORKRAM_BANK_SIZE_BYTES, true);
    SS_SetPhysMemMap(0x06000000, 0x07FFFFFF, WorkRAMH, WORKRAM_BANK_SIZE_BYTES, true);

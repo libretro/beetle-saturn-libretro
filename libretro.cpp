@@ -771,7 +771,8 @@ static bool MDFNI_LoadGame(const char *name)
       cart_type = setting_cart;
 
    // Initialise with safe parameters
-   InitCommon(cpucache_emumode, horrible_hacks, cart_type, region);
+   if (!InitCommon(cpucache_emumode, horrible_hacks, cart_type, region))
+      return false;
 
    MDFN_LoadGameCheats();
    MDFNMP_InstallReadPatches();
