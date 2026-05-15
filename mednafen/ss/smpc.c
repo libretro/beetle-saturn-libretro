@@ -34,27 +34,22 @@
 #include "smpc_iodevice.h"
 #include "sound.h"
 #include "vdp1.h"
+#include "vdp2.h"			/* VDP2_* declarations including the
+					   static INLINE VDP2_SetExtLatch -- if
+					   this isn't included, VDP2_SetExtLatch
+					   doesn't get inlined and there is no
+					   external symbol to link against
+					   (the ss/vdp2: convert from C++ to C
+					   commit collapsed the extern "C"
+					   proxy in vdp2.cpp into the header
+					   INLINE form). */
 #include "cdb.h"
 #include "scu.h"
 
-/* This TU was formerly C++ and reached VDP2's namespace (vdp2.h)
- * and the SH7095 class (sh7095.h) directly.  After the C conversion
- * both are unreachable -- vdp2.h has a `namespace VDP2 { ... }` wrap
- * and sh7095.h exposes a class.  The calls now go via the matching
- * extern "C" proxies in vdp2.cpp and ss.cpp; local forward decls
- * here cover them.  Same pattern as vdp1.c's VDP2_Update decl.
- *
- *   vdp2.cpp:  VDP2_GetGunXTranslation / VDP2_Reset / VDP2_Update /
- *              VDP2_SetExtLatch
- *   ss.cpp:    SH7095_SetActive(cpu_index, active)
- *              SH7095_SetNMI(cpu_index, level)
- *
- * sscpu_timestamp_t comes from ss.h (which is included above). */
-extern void VDP2_GetGunXTranslation(bool clock28m, float* scale, float* offs);
-extern void VDP2_Reset(bool powering_up);
-extern int32_t VDP2_Update(int32_t timestamp);
-extern void VDP2_SetExtLatch(int32_t event_timestamp, bool status);
-
+/* SH7095 is still a C++ class in sh7095.h, so smpc.c reaches the two
+ * methods it needs (SetActive / SetNMI) via the matching extern "C"
+ * proxies in ss.cpp (which is where the CPU[2] global lives).  Local
+ * forward decls here cover them. */
 extern void SH7095_SetActive(int cpu, bool active);
 extern void SH7095_SetNMI(int cpu, bool level);
 
