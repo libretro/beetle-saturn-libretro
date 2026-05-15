@@ -271,7 +271,7 @@ static uint8_t ResetSelPending;
 static uint8_t CDDevConn;
 static uint8_t LastBufDest;
 
-enum : int { NumBuffers = 0xC8 };
+enum { NumBuffers = 0xC8 };
 static struct BufferT
 {
  uint8_t Data[2352];
@@ -411,7 +411,11 @@ enum
 };
 static int64_t DriveCounter;
 static int64_t PeriodicIdleCounter;
-enum : int64_t { PeriodicIdleCounter_Reload = (int64_t)187065 << 32 };
+/* PeriodicIdleCounter_Reload was a typed enum (C++ syntax); the
+ * value (187065 << 32) overflows a plain int so plain `enum { }` won't
+ * hold it.  #define preserves the constant-expression character it
+ * had before, which the four assignment sites still need. */
+#define PeriodicIdleCounter_Reload ((int64_t)187065 << 32)
 
 static int32_t PauseCounter;
 static bool PlaySectorProcessed;
@@ -429,8 +433,8 @@ static uint8_t PlayCmdRepCnt;
 static int8_t ScanMode;
 static uint8_t ScanCounter;
 
-enum : int { CDDABuf_PrefillCount = 4 };
-enum : int { CDDABuf_MaxCount = 4 + 588 + 4 };
+enum { CDDABuf_PrefillCount = 4 };
+enum { CDDABuf_MaxCount = 4 + 588 + 4 };
 static uint16_t CDDABuf[CDDABuf_MaxCount][2];
 static uint32_t CDDABuf_RP, CDDABuf_WP;
 static uint32_t CDDABuf_Count;
@@ -787,7 +791,7 @@ static int FLS_CheckSanity(void)
  return true;
 }
 
-enum : int { FLSPhaseBias = __COUNTER__ + 1 };
+enum { FLSPhaseBias = __COUNTER__ + 1 };
 
 #define FLS_PROLOGUE	 switch(FLS.Phase + FLSPhaseBias) { for(;;) {
 #define FLS_EPILOGUE  }	} FLSGetOut:;
@@ -1441,7 +1445,7 @@ static INLINE void TriggerIRQ(unsigned bs)
  RecalcIRQOut();
 }
 
-enum : int { CommandPhaseBias = __COUNTER__ + 1 };
+enum { CommandPhaseBias = __COUNTER__ + 1 };
 
 #define CMD_YIELD	   {							\
 			    CommandPhase = __COUNTER__ - CommandPhaseBias + 1;	\
@@ -1685,7 +1689,7 @@ static void BasicResults(uint32_t res0, uint32_t res1, uint32_t res2, uint32_t r
 // be more conservative to reduce the probability of breaking a game due
 // to CPU timing emulation deficiencies.
 //
-enum : int32_t { SeekCPIUpdateDelay = 500 };
+enum { SeekCPIUpdateDelay = 500 };
 
 static void SeekStart1(void)
 {

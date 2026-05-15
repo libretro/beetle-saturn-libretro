@@ -1111,7 +1111,7 @@ static void RTC_IncTime(void)
   RTC.second = RTC_BCDInc(RTC.second);
 }
 
-enum : int { SubPhaseBias = __COUNTER__ + 1 };
+enum { SubPhaseBias = __COUNTER__ + 1 };
 sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 {
  int64_t clocks;
