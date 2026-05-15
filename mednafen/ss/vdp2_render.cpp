@@ -33,9 +33,39 @@
 #include <retro_timers.h>
 #include <rthreads/rthreads.h>
 #include <rthreads/rsemaphore.h>
-#include <array>
+#include <string.h>
+#ifdef __cplusplus
 #include <atomic>
-#include <algorithm>
+#endif
+
+/* Language-neutral atomic bridge.  vdp2_render is being converted
+ * from C++ to C in phases (this file is still .cpp during phase 2;
+ * phase 4 renames to .c).  std::atomic<>.load/.store and C11
+ * atomic_load_explicit/atomic_store_explicit produce identical
+ * machine code for trivially-aligned scalar types -- both map to a
+ * raw mov + appropriate memory barrier per the acquire/release
+ * semantics requested.  The macros below expose a single spelling
+ * that works in both languages so the SPSC queue body doesn't need
+ * to be touched in phase 4.
+ *
+ * NOTE on C++ <-> C11 atomics interop: the C++ standard does not
+ * guarantee that <stdatomic.h> works in C++ TUs (it's a separate
+ * header from <atomic>), but the implementation choice here keeps
+ * each language in its own native API -- the SAME source line picks
+ * the C++ path under __cplusplus and the C11 path otherwise.  No
+ * header crosses the boundary. */
+#ifdef __cplusplus
+ typedef std::atomic<uint_least32_t> vdp2_atomic_u32;
+ #define VDP2_ATOMIC_INIT(a, v)        ((a).store((v), std::memory_order_relaxed))
+ #define VDP2_ATOMIC_LOAD_ACQ(a)       ((a).load(std::memory_order_acquire))
+ #define VDP2_ATOMIC_STORE_REL(a, v)   ((a).store((v), std::memory_order_release))
+#else
+ #include <stdatomic.h>
+ typedef _Atomic uint_least32_t vdp2_atomic_u32;
+ #define VDP2_ATOMIC_INIT(a, v)        atomic_store_explicit(&(a), (v), memory_order_relaxed)
+ #define VDP2_ATOMIC_LOAD_ACQ(a)       atomic_load_explicit(&(a), memory_order_acquire)
+ #define VDP2_ATOMIC_STORE_REL(a, v)   atomic_store_explicit(&(a), (v), memory_order_release)
+#endif
 
 // Improved-mesh-transparency runtime flag, owned by VDP1. Read on
 // MixIt's per-pixel hot path to gate the winprio-capture store, and
@@ -203,7 +233,7 @@ enum
  WINLAYER_CC = 7,
 };
 
-static std::array<unsigned, 5> WinPieces;
+static unsigned WinPieces[5];
 //
 static uint8_t SpriteCCCond;
 static uint8_t SpriteCCNum;
@@ -1295,7 +1325,7 @@ static void GetWinRotAB(void)
 {
  unsigned x = 0;
 
- for(unsigned piece = 0; piece < WinPieces.size(); piece++)
+ for(unsigned piece = 0; piece < 5; piece++)
  {
   bool xmet[2];
 
@@ -1325,7 +1355,7 @@ static void ApplyWin(const unsigned wlayer, uint64_t* buf)
 {
  unsigned x = 0;
 
- for(unsigned piece = 0; piece < WinPieces.size(); piece++)
+ for(unsigned piece = 0; piece < 5; piece++)
  {
   bool xmet[2];
 
@@ -3282,10 +3312,27 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
    WinPieces[3] = Window[1].CurXEnd + 1;
    WinPieces[4] = w;
 
-   for(unsigned piece = 0; piece < WinPieces.size(); piece++)
+   for(unsigned piece = 0; piece < 5; piece++)
     WinPieces[piece] = ((unsigned)(w) < (unsigned)(WinPieces[piece]) ? (unsigned)(w) : (unsigned)(WinPieces[piece]));	// Almost forgot to do this...
 
-   std::sort(WinPieces.begin(), WinPieces.end());
+   /* 5-element ascending insertion sort.  std::sort on a known-tiny
+    * array is overkill; insertion sort has fewer comparisons at n=5
+    * and inlines cleanly without function call overhead.  Replaces
+    * the prior std::sort(WinPieces.begin(), WinPieces.end()). */
+   {
+    unsigned i;
+    for(i = 1; i < 5; i++)
+    {
+     const unsigned k = WinPieces[i];
+     int j = (int)i - 1;
+     while(j >= 0 && WinPieces[j] > k)
+     {
+      WinPieces[j + 1] = WinPieces[j];
+      j--;
+     }
+     WinPieces[j + 1] = k;
+    }
+   }
   }
 
   //
@@ -3740,7 +3787,8 @@ struct WQ_Entry
  uint32_t Arg32;
 };
 
-static std::array<WQ_Entry, 0x80000> WQ;
+#define WQ_SIZE 0x80000u
+static struct WQ_Entry WQ[WQ_SIZE];
 
 // Payload ring for COMMAND_WRITE16_BURST (DSP-DMA streaming a contiguous run of
 // 16-bit writes into the VDP2 register/RAM window). Single-producer (emulator
@@ -3752,7 +3800,7 @@ static std::array<WQ_Entry, 0x80000> WQ;
 // occupancy check below never realistically blocks (one max burst is 512 words).
 static constexpr uint32_t BurstBufSize = 1u << 20;
 static constexpr uint32_t BurstBufMask = BurstBufSize - 1;
-static std::array<uint16_t, BurstBufSize> BurstBuf;
+static uint16_t BurstBuf[BurstBufSize];
 // SPSC queue state. Each atomic is written by exactly one thread (release-store)
 // and read by the other (acquire-load); live queue depth is recovered by
 // subtraction, avoiding the cross-thread RMW that bounced the cache line.
@@ -3764,11 +3812,11 @@ static std::array<uint16_t, BurstBufSize> BurstBuf;
 // DrawPushCount (producer-written) mirrors Prod.DrawPushLocal so the consumer
 // can tell when it has finished every DRAW_LINE the producer queued and wake
 // EndFrame's drain wait.
-alignas(64) static std::atomic_uint_least32_t WQ_PushCount;     // producer-written
-alignas(64) static std::atomic_uint_least32_t WQ_PopCount;      // consumer-written
-alignas(64) static std::atomic_uint_least32_t DrawFinishCount;  // consumer-written
-alignas(64) static std::atomic_uint_least32_t DrawPushCount;    // producer-written
-alignas(64) static std::atomic_uint_least32_t BurstPopCount;    // consumer-written; cumulative uint16_t words drained from BurstBuf
+alignas(64) static vdp2_atomic_u32 WQ_PushCount;     // producer-written
+alignas(64) static vdp2_atomic_u32 WQ_PopCount;      // consumer-written
+alignas(64) static vdp2_atomic_u32 DrawFinishCount;  // consumer-written
+alignas(64) static vdp2_atomic_u32 DrawPushCount;    // producer-written
+alignas(64) static vdp2_atomic_u32 BurstPopCount;    // consumer-written; cumulative uint16_t words drained from BurstBuf
 struct alignas(64) ProducerState
 {
  size_t WritePos;
@@ -3818,10 +3866,10 @@ static INLINE void WWQ(uint16_t command, uint32_t arg32, uint16_t arg16)
  // tick by default, which would have wedged the producer for almost a
  // whole frame each time the queue filled. retro_sleep(0) yields to the
  // scheduler without that minimum dwell.
- while(MDFN_UNLIKELY(Prod.PushLocal - Prod.WQ_PopCached == WQ.size()))
+ while(MDFN_UNLIKELY(Prod.PushLocal - Prod.WQ_PopCached == WQ_SIZE))
  {
-  Prod.WQ_PopCached = WQ_PopCount.load(std::memory_order_acquire);
-  if(Prod.PushLocal - Prod.WQ_PopCached == WQ.size())
+  Prod.WQ_PopCached = VDP2_ATOMIC_LOAD_ACQ(WQ_PopCount);
+  if(Prod.PushLocal - Prod.WQ_PopCached == WQ_SIZE)
    retro_sleep(0);
  }
 
@@ -3831,8 +3879,8 @@ static INLINE void WWQ(uint16_t command, uint32_t arg32, uint16_t arg16)
  wqe->Arg16 = arg16;
  wqe->Arg32 = arg32;
 
- Prod.WritePos = (Prod.WritePos + 1) % WQ.size();
- WQ_PushCount.store(++Prod.PushLocal, std::memory_order_release);
+ Prod.WritePos = (Prod.WritePos + 1) % WQ_SIZE;
+ VDP2_ATOMIC_STORE_REL(WQ_PushCount, ++Prod.PushLocal);
 }
 
 static void/*int*/ RThreadEntry(void* data)
@@ -3841,7 +3889,7 @@ static void/*int*/ RThreadEntry(void* data)
 
  while(MDFN_LIKELY(Running))
  {
-  while(MDFN_UNLIKELY(WQ_PushCount.load(std::memory_order_acquire) == Cons.PopLocal))
+  while(MDFN_UNLIKELY(VDP2_ATOMIC_LOAD_ACQ(WQ_PushCount) == Cons.PopLocal))
   {
    if(!DoBusyWait)
     ssem_wait(WakeupSem);
@@ -3890,7 +3938,7 @@ static void/*int*/ RThreadEntry(void* data)
 	  a += stride;
 	 }
 	 Cons.BurstReadPos += n16;
-	 BurstPopCount.store(Cons.BurstReadPos, std::memory_order_release);
+	 VDP2_ATOMIC_STORE_REL(BurstPopCount, Cons.BurstReadPos);
 	}
 	break;
 
@@ -3906,8 +3954,8 @@ static void/*int*/ RThreadEntry(void* data)
 	// slock_lock / unlock pair around scond_signal closes the
 	// missed-wakeup race between EndFrame's recheck and its scond_wait;
 	// scond_signal with no waiter is a harmless no-op.
-	DrawFinishCount.store(++Cons.DrawFinishLocal, std::memory_order_release);
-	if (Cons.DrawFinishLocal == DrawPushCount.load(std::memory_order_acquire))
+	VDP2_ATOMIC_STORE_REL(DrawFinishCount, ++Cons.DrawFinishLocal);
+	if (Cons.DrawFinishLocal == VDP2_ATOMIC_LOAD_ACQ(DrawPushCount))
 	{
 	   slock_lock(DrainLock);
 	   scond_signal(DrainCond);
@@ -3938,8 +3986,8 @@ static void/*int*/ RThreadEntry(void* data)
   //
   //
   //
-  Cons.ReadPos = (Cons.ReadPos + 1) % WQ.size();
-  WQ_PopCount.store(++Cons.PopLocal, std::memory_order_release);
+  Cons.ReadPos = (Cons.ReadPos + 1) % WQ_SIZE;
+  VDP2_ATOMIC_STORE_REL(WQ_PopCount, ++Cons.PopLocal);
  }
 
  // return 0; // Libretro fix
@@ -3961,11 +4009,11 @@ void VDP2REND_Init(const bool IsPAL, const uint64_t affinity)
  //
  Prod = {};
  Cons = {};
- WQ_PushCount.store(0, std::memory_order_release);
- WQ_PopCount.store(0, std::memory_order_release);
- DrawFinishCount.store(0, std::memory_order_release);
- DrawPushCount.store(0, std::memory_order_release);
- BurstPopCount.store(0, std::memory_order_release);
+ VDP2_ATOMIC_STORE_REL(WQ_PushCount, 0);
+ VDP2_ATOMIC_STORE_REL(WQ_PopCount, 0);
+ VDP2_ATOMIC_STORE_REL(DrawFinishCount, 0);
+ VDP2_ATOMIC_STORE_REL(DrawPushCount, 0);
+ VDP2_ATOMIC_STORE_REL(BurstPopCount, 0);
  WakeupSem = ssem_new(0);
  DrainLock = slock_new();
  DrainCond = scond_new();
@@ -4110,11 +4158,11 @@ void VDP2REND_EndFrame(void)
  // The initial WakeupSem signal is still needed: it kicks the
  // consumer out of any ssem_wait it might be in on an empty
  // command queue, so progress on DrawFinishCount can resume.
- if (MDFN_UNLIKELY(DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal))
+ if (MDFN_UNLIKELY(VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount) != Prod.DrawPushLocal))
  {
   ssem_signal(WakeupSem);
   slock_lock(DrainLock);
-  while (DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal)
+  while (VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount) != Prod.DrawPushLocal)
    scond_wait(DrainCond, DrainLock);
   slock_unlock(DrainLock);
  }
@@ -4158,9 +4206,9 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool 
   if(espec->InterlaceOn)
    out_line = (out_line << 1) | espec->InterlaceField;
 
-  const uint32_t wdcq = Prod.DrawPushLocal - DrawFinishCount.load(std::memory_order_acquire);
+  const uint32_t wdcq = Prod.DrawPushLocal - VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount);
   ++Prod.DrawPushLocal;
-  DrawPushCount.store(Prod.DrawPushLocal, std::memory_order_release);
+  VDP2_ATOMIC_STORE_REL(DrawPushCount, Prod.DrawPushLocal);
   WWQ(COMMAND_DRAW_LINE, ((uint16_t)vdp2_line << 16) | out_line, field);
   //
   //
@@ -4233,7 +4281,7 @@ void VDP2REND_SetDeinterlaceOff(bool off)
 
 void VDP2REND_Write8_DB(uint32_t A, uint16_t DB)
 {
- //if(DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal)
+ //if(VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount) != Prod.DrawPushLocal)
   WWQ(COMMAND_WRITE8, A, DB);
  //else
  // MemW<uint8_t>(A, DB);
@@ -4241,7 +4289,7 @@ void VDP2REND_Write8_DB(uint32_t A, uint16_t DB)
 
 void VDP2REND_Write16_DB(uint32_t A, uint16_t DB)
 {
- //if(DrawFinishCount.load(std::memory_order_acquire) != Prod.DrawPushLocal)
+ //if(VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount) != Prod.DrawPushLocal)
   WWQ(COMMAND_WRITE16, A, DB);
  //else
  // MemW<uint16_t>(A, DB);
@@ -4256,7 +4304,7 @@ void VDP2REND_WriteBurst16_DB(uint32_t base, uint32_t n16, uint32_t add_mode, co
  // consumer hasn't drained enough yet (mirrors WWQ's queue-full handling).
  while(MDFN_UNLIKELY((Prod.BurstWritePos - Prod.BurstPopCached) > (BurstBufSize - n16)))
  {
-  Prod.BurstPopCached = BurstPopCount.load(std::memory_order_acquire);
+  Prod.BurstPopCached = VDP2_ATOMIC_LOAD_ACQ(BurstPopCount);
   if((Prod.BurstWritePos - Prod.BurstPopCached) > (BurstBufSize - n16))
    retro_sleep(1);
  }
@@ -4282,7 +4330,7 @@ void VDP2REND_WriteBurst16_DB(uint32_t base, uint32_t n16, uint32_t add_mode, co
 
 void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16_t* rr, uint16_t* cr, uint16_t* vr)
 {
- while(MDFN_UNLIKELY(WQ_PopCount.load(std::memory_order_acquire) != Prod.PushLocal))
+ while(MDFN_UNLIKELY(VDP2_ATOMIC_LOAD_ACQ(WQ_PopCount) != Prod.PushLocal))
  {
   ssem_signal(WakeupSem);
   retro_sleep(1);
