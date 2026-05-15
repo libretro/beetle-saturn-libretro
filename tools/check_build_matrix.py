@@ -128,12 +128,56 @@ CXX_IN_C_PATTERNS = [
      "typedef-char-array trick: typedef char NAME[1-2*!cond];)"),
     (re.compile(r'^[ \t]*class[ \t]+[A-Za-z_]\w*[ \t]*[{:]', re.MULTILINE),
      "C++ class"),
+    (re.compile(r'(?<![A-Za-z0-9_])extern[ \t]+"C"[ \t]*\{?'),
+     "C++ `extern \"C\"` (C files don't need it; remove or guard with #ifdef __cplusplus)"),
+    (re.compile(r'(?<![A-Za-z0-9_])alignas[ \t]*\('),
+     "C++ alignas -- C wants `_Alignas` (C11)"),
     (re.compile(r'#[ \t]*include[ \t]*<(atomic|algorithm|array|vector|string|memory'
                 r'|iostream|cstdint|cstdio|cstring|cstdlib|chrono|thread'
                 r'|mutex|condition_variable|functional|tuple|map|set'
                 r'|unordered_map|unordered_set|list|deque)>'),
      "C++ STL header"),
 ]
+
+# Function-definition unnamed-parameter detection.  C requires names on
+# function-definition parameters (only declarations may omit them);
+# C++ allows omitting names in either.  Two definitions slipped through
+# libretro.c -> .c with unnamed params and broke the standard Linux
+# build.  This catches them in the gate.
+#
+# We match `<rtype> <name>(<params>) {` and tokenize <params> to flag
+# any param that has no identifier (e.g. `unsigned`, `const char *`,
+# `size_t`, plain pointer-to-struct with no name).
+TYPE_KEYWORDS = {
+    'unsigned', 'signed', 'int', 'bool', 'void', 'char', 'short',
+    'long', 'float', 'double', 'size_t', 'ssize_t', 'ptrdiff_t',
+}
+FN_DEF_RX = re.compile(
+    r'^(?P<rtype>[\w *]+?)\s+'
+    r'(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*'
+    r'\((?P<params>[^()]*)\)\s*'
+    r'(?:\n[ \t]*)?\{',
+    re.MULTILINE
+)
+def _param_is_unnamed(p):
+    """Return True if param string `p` lacks an identifier name."""
+    p = p.strip()
+    if not p or p == 'void' or p == '...':
+        return False
+    # Pointer-to-anything with nothing after: `const char *`, `struct X *`
+    if p.endswith('*'):
+        return True
+    # Tokenize: drop pointer chars + brackets, look at last word
+    toks = re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*|\*+', p)
+    if not toks:
+        return False
+    last = toks[-1]
+    if last in TYPE_KEYWORDS:
+        return True
+    # Typedef-like (_t suffix) without trailing identifier
+    if re.match(r'.*_t$', last) and len(toks) == 1:
+        return True
+    return False
 
 def strip_comments(src):
     """Replace /* block */ and // line comments with same-length
@@ -158,17 +202,28 @@ def cxx_pattern_check(f):
     with open(f, "r", encoding="utf-8", errors="replace") as fh:
         raw = fh.read()
     cleaned = strip_comments(raw)
-    # Map cleaned-offset back to original line number via cumulative
-    # line counts in the raw text -- crude but sufficient: match in
-    # cleaned, then find which raw line the match-start offset falls in.
+    raw_lines = raw.split("\n")
     fails = []
     for rx, msg in CXX_IN_C_PATTERNS:
         for m in rx.finditer(cleaned):
             line_no = cleaned.count("\n", 0, m.start()) + 1
-            # Reconstruct the offending raw line for context.
-            raw_lines = raw.split("\n")
             raw_line = raw_lines[line_no - 1] if line_no <= len(raw_lines) else ""
             fails.append((line_no, msg, raw_line.strip()))
+    # Unnamed-parameter detection: function definitions only.
+    for m in FN_DEF_RX.finditer(cleaned):
+        params = m.group('params').strip()
+        if not params:
+            continue
+        parts = [p.strip() for p in params.split(',')]
+        if any(_param_is_unnamed(p) for p in parts):
+            line_no = cleaned.count("\n", 0, m.start()) + 1
+            raw_line = raw_lines[line_no - 1] if line_no <= len(raw_lines) else ""
+            fails.append((
+                line_no,
+                "C function definition with unnamed parameter (C requires "
+                "names on definitions; only declarations may omit them)",
+                raw_line.strip()
+            ))
     return fails or None
 
 def main():
