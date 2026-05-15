@@ -2,6 +2,13 @@
 #include "libretro.h"
 #include "libretro_settings.h"
 #include "mednafen/mednafen-types.h"
+#include "mednafen/git.h"   /* log_cb -- input.cpp uses this directly
+                               (input_update logs the throttle-latch
+                               state changes); previously got it
+                               transitively via smpc.h.  Include
+                               directly so the dependency doesn't
+                               break when intermediate headers shrink
+                               their own include surface. */
 #include "mednafen/ss/ss.h"
 #include "mednafen/ss/smpc.h"
 #include "mednafen/state.h"

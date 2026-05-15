@@ -165,6 +165,8 @@ void IODevice_Ctor(IODevice *self_)
 IODevice *IODevice_None_Create(void)
 {
    IODevice *d = (IODevice *)calloc(1, sizeof(IODevice));
+   if (!d)
+      return NULL;
    IODevice_Ctor(d);
    return d;
 }
@@ -251,6 +253,8 @@ static const IODevice_VTable IODevice_Gamepad_vtable =
 IODevice *IODevice_Gamepad_Create(void)
 {
    IODevice_Gamepad *self = (IODevice_Gamepad *)calloc(1, sizeof(IODevice_Gamepad));
+   if (!self)
+      return NULL;
    IODevice_Ctor(&self->base);
    self->base.vt = &IODevice_Gamepad_vtable;
    self->buttons = 0xCFFF;
@@ -438,6 +442,8 @@ static const IODevice_VTable IODevice_3DPad_vtable =
 IODevice *IODevice_3DPad_Create(void)
 {
    IODevice_3DPad *self = (IODevice_3DPad *)calloc(1, sizeof(IODevice_3DPad));
+   if (!self)
+      return NULL;
    IODevice_Ctor(&self->base);
    self->base.vt   = &IODevice_3DPad_vtable;
    self->dbuttons  = 0;
@@ -613,6 +619,8 @@ static const IODevice_VTable IODevice_Mouse_vtable =
 IODevice *IODevice_Mouse_Create(void)
 {
    IODevice_Mouse *self = (IODevice_Mouse *)calloc(1, sizeof(IODevice_Mouse));
+   if (!self)
+      return NULL;
    IODevice_Ctor(&self->base);
    self->base.vt = &IODevice_Mouse_vtable;
    self->buttons = 0;
@@ -766,6 +774,8 @@ static const IODevice_VTable IODevice_Wheel_vtable =
 IODevice *IODevice_Wheel_Create(void)
 {
    IODevice_Wheel *self = (IODevice_Wheel *)calloc(1, sizeof(IODevice_Wheel));
+   if (!self)
+      return NULL;
    IODevice_Ctor(&self->base);
    self->base.vt  = &IODevice_Wheel_vtable;
    self->dbuttons = 0;
@@ -980,6 +990,8 @@ static const IODevice_VTable IODevice_Mission_vtable =
 IODevice *IODevice_Mission_Create(bool dual)
 {
    IODevice_Mission *self = (IODevice_Mission *)calloc(1, sizeof(IODevice_Mission));
+   if (!self)
+      return NULL;
    IODevice_Ctor(&self->base);
    self->base.vt     = &IODevice_Mission_vtable;
    self->dbuttons    = 0;
@@ -1297,6 +1309,8 @@ static const IODevice_VTable IODevice_Gun_vtable =
 IODevice *IODevice_Gun_Create(void)
 {
    IODevice_Gun *self = (IODevice_Gun *)calloc(1, sizeof(IODevice_Gun));
+   if (!self)
+      return NULL;
    IODevice_Ctor(&self->base);
    self->base.vt            = &IODevice_Gun_vtable;
    self->state              = 0x4C;
@@ -1609,6 +1623,8 @@ static const IODevice_VTable IODevice_Keyboard_vtable =
 IODevice *IODevice_Keyboard_Create(void)
 {
    IODevice_Keyboard *self = (IODevice_Keyboard *)calloc(1, sizeof(IODevice_Keyboard));
+   if (!self)
+      return NULL;
    IODevice_Ctor(&self->base);
    self->base.vt = &IODevice_Keyboard_vtable;
    /* phys{0,0,0,0} -- calloc already zeroed everything. */
@@ -1907,6 +1923,8 @@ static const IODevice_VTable IODevice_JPKeyboard_vtable =
 IODevice *IODevice_JPKeyboard_Create(void)
 {
    IODevice_JPKeyboard *self = (IODevice_JPKeyboard *)calloc(1, sizeof(IODevice_JPKeyboard));
+   if (!self)
+      return NULL;
    IODevice_Ctor(&self->base);
    self->base.vt = &IODevice_JPKeyboard_vtable;
    /* phys{0,0,0,0} -- calloc already zeroed everything. */
@@ -2238,6 +2256,8 @@ static const IODevice_VTable IODevice_Multitap_vtable =
 IODevice *IODevice_Multitap_Create(void)
 {
    IODevice_Multitap *self = (IODevice_Multitap *)calloc(1, sizeof(IODevice_Multitap));
+   if (!self)
+      return NULL;
    IODevice_Ctor(&self->base);
    self->base.vt = &IODevice_Multitap_vtable;
    return &self->base;

@@ -130,9 +130,22 @@ bool MDFNMP_Init(uint32_t ps, uint32_t numpages)
  NumPages = numpages;
 
  RAMPtrs = (uint8_t **)calloc(numpages, sizeof(uint8_t *));
+ if (!RAMPtrs)
+ {
+  /* Pre-conversion C++ used `new uint8_t*[]` which threw
+   * std::bad_alloc on OOM; the conversion to calloc dropped
+   * the check.  The allocation is small (~tens of pointers
+   * in practice), so failure is unlikely on any realistic
+   * target, but the bool return is now meaningful for any
+   * future caller-side propagation.  The current caller
+   * (ss.cpp's InitFastMemMap, which is void-returning) does
+   * not yet check this; if RAMPtrs is NULL, the subsequent
+   * MDFNMP_AddRAM calls will NULL-deref. */
+  return false;
+ }
 
  CheatsActive = MDFN_GetSettingB("cheats");
- return(1);
+ return true;
 }
 
 void MDFNMP_Kill(void)

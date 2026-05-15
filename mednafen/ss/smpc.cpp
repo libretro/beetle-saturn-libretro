@@ -316,7 +316,7 @@ void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr)
 {
  assert(port < 13);
 
- if(port == 12) 
+ if(port == 12)
  {
   MiscInputPtr = ptr;
   return;
@@ -438,10 +438,10 @@ void SMPC_Init(const uint8_t area_code_arg, const int32_t master_clock_arg, bool
  vsync = false;
  lastts = 0;
 
- /* (Re)create the input devices. SMPC_Init runs on every game load
-    and there is no SMPC_Kill, so free any from a previous load first;
-    IODevice_Free is NULL-safe, so the first call (zeroed statics) is
-    fine. The devices are owned here; IOPorts/VirtualPorts/SPorts hold
+ /* (Re)create the input devices.  SMPC_Init runs on every game load,
+    so free any from a previous load first; IODevice_Free is NULL-safe,
+    so the first call (zeroed statics, or a prior SMPC_Kill) is fine.
+    The devices are owned here; IOPorts/VirtualPorts/SPorts hold
     borrowed pointers into these arrays and must not free them. */
  for(unsigned port = 0; port < 12; port++)
  {
@@ -482,7 +482,7 @@ void SMPC_Init(const uint8_t area_code_arg, const int32_t master_clock_arg, bool
  }
 
  for(unsigned sp = 0; sp < 2; sp++)
- { 
+ {
   SPorts[sp]  = nullptr;
   IOPorts[sp] = nullptr; /* beetle/libretro: added to fix crash when two multi-taps are used */
  }
@@ -494,6 +494,47 @@ void SMPC_Init(const uint8_t area_code_arg, const int32_t master_clock_arg, bool
  }
 
  SMPC_SetRTC(NULL, 0);
+}
+
+void SMPC_Kill(void)
+{
+ /* Release the heap-allocated IODevice pool.  Pre-conversion these
+    were by-value members of static PossibleDevices, released at
+    static destructor time.  Post-conversion they are pointers from
+    IODevice_*_Create() and were leaked on the final game close --
+    SMPC_Init's IODevice_Free preamble only released them when there
+    was a *next* game load to run it.
+
+    IODevice_Free is NULL-safe, so this is also safe to call when
+    SMPC_Init never ran (zeroed statics).
+
+    SPorts/IOPorts/VirtualPorts hold borrowed pointers into the just-
+    freed slots, so NULL them out so a subsequent SMPC_Init starts
+    from a clean slate.  VirtualPortsDPtr and MiscInputPtr are
+    caller-supplied (from SMPC_SetInput / the misc-port path) and
+    are not owned here -- leave them alone. */
+ for(unsigned port = 0; port < 12; port++)
+ {
+  IODevice_Free(PossibleDevices[port].none);
+  IODevice_Free(PossibleDevices[port].gamepad);
+  IODevice_Free(PossibleDevices[port].threedpad);
+  IODevice_Free(PossibleDevices[port].mouse);
+  IODevice_Free(PossibleDevices[port].wheel);
+  IODevice_Free(PossibleDevices[port].mission);
+  IODevice_Free(PossibleDevices[port].dualmission);
+  IODevice_Free(PossibleDevices[port].gun);
+  IODevice_Free(PossibleDevices[port].keyboard);
+  IODevice_Free(PossibleDevices[port].jpkeyboard);
+ }
+ memset(PossibleDevices, 0, sizeof(PossibleDevices));
+
+ for(unsigned sp = 0; sp < 2; sp++)
+  IODevice_Free(PossibleMultitaps[sp]);
+ memset(PossibleMultitaps, 0, sizeof(PossibleMultitaps));
+
+ memset(SPorts,       0, sizeof(SPorts));
+ memset(IOPorts,      0, sizeof(IOPorts));
+ memset(VirtualPorts, 0, sizeof(VirtualPorts));
 }
 
 static void TurnSoundCPUOn(void)
@@ -903,7 +944,7 @@ uint8_t SMPC_Read(const sscpu_timestamp_t timestamp, uint8_t A)
   case 0x30:
 	ret = SR;
 	break;
- 
+
   case 0x31:
 	ret &= ~0x01;
 	ret |= SF;
@@ -1018,8 +1059,8 @@ static void RTC_IncTime(void)
     else
      RTC.wday_mon += 0x10;
 
-    //					
-    static const uint8_t mdtab[0x10] = { 
+    //
+    static const uint8_t mdtab[0x10] = {
     //         Jan,  Feb,  Mar,  Apr,   May, June, July,  Aug, Sept, Oct,  Nov,  Dec
 	0x10, 0x31, 0x28, 0x31, 0x30, 0x31, 0x30, 0x31, 0x31, 0x30, 0x31, 0x30, 0x31, 0xC1, 0xF5, 0xFF
     };
@@ -1109,7 +1150,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
      if(ResetButtonCount >= 0)
      {
       ResetButtonCount++;
- 
+
       if(ResetButtonCount >= 3)
       {
        ResetButtonCount = 3;
@@ -1129,7 +1170,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 
     //
     // Do RTC increment here
-    // 
+    //
     while(MDFN_UNLIKELY(RTC.ClockAccum >= (4000000ULL << 32)))
     {
      RTC_IncTime();
@@ -1184,7 +1225,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
       SlaveSH2Pending = -1;
       SS_RequestEHLExit();
      }
- 
+
      if(SoundCPUOn)
       TurnSoundCPUOff();
 
@@ -1224,9 +1265,9 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 
       OREG[0x8] = 0; // TODO FIXME: Cartridge code?
       OREG[0x9] = AreaCode;
-      OREG[0xA] = 0x24 | 
+      OREG[0xA] = 0x24 |
 		 ((CurrentClockDivisor == CLOCK_DIVISOR_28M) << 6) |
-		 (SlaveSH2On << 4) | 
+		 (SlaveSH2On << 4) |
 		 (true << 3) | 	// TODO?: Master NMI
 		 (true << 1) |	// TODO?: sysres
 		 (SoundCPUOn << 0);	// sndres

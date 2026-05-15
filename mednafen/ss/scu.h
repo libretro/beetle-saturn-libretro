@@ -26,28 +26,31 @@
    modules). Single source of truth -- see that header. */
 #include "ss_c_abi.h"
 
+#include <stdint.h>
+/* C++ has 'bool' built in; C inclusion (vdp1.c already does, and
+ * future C-converted modules will) needs the stdbool keyword macros. */
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+/* MDFN_COLD attribute macro.  C++ TUs got it transitively via ss.h /
+ * mednafen.h; C consumers need it directly. */
+#include "../mednafen-types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void SCU_Reset(bool powering_up) MDFN_COLD;
 
-/* extern "C": called from vdp1.c (converted to C). */
-#ifdef __cplusplus
-extern "C" {
-#endif
 void SCU_SetInt(unsigned which, bool active);
-#ifdef __cplusplus
-}
-#endif
 int32_t SCU_SetHBVB(int32_t pclocks, bool hblank_in, bool vblank_in);
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 bool SCU_CheckVDP1HaltKludge(void);
-#ifdef __cplusplus
-}
-#endif
 
-sscpu_timestamp_t SCU_UpdateDMA(sscpu_timestamp_t timestamp);
-sscpu_timestamp_t SCU_UpdateDSP(sscpu_timestamp_t timestamp);
+/* int32_t in place of sscpu_timestamp_t (typedef'd to int32_t in
+ * ss.h) -- keeps the header self-contained for C consumers and
+ * matches the C-ABI convention used by vdp1.c / sound.h / smpc.h. */
+int32_t SCU_UpdateDMA(int32_t timestamp);
+int32_t SCU_UpdateDSP(int32_t timestamp);
 
 enum
 {
@@ -93,5 +96,9 @@ enum
 
 uint32_t SCU_GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
 void SCU_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

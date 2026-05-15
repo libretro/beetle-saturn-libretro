@@ -4038,6 +4038,13 @@ void VDP2REND_Kill(void)
  {
   WWQ(COMMAND_EXIT);
   sthread_join(RThread);
+  /* sthread_join frees the handle (libretro-common's rthreads.c
+     does `free(thread)` at the end of sthread_join), so RThread
+     points to released memory after this point. NULL it to match
+     the post-free pattern used for WakeupSem / DrainCond /
+     DrainLock below, so a re-entry of Kill (or any future code
+     that NULL-checks RThread) sees a clean state. */
+  RThread = NULL;
  }
 
  if(WakeupSem != NULL)

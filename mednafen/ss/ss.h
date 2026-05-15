@@ -26,6 +26,11 @@
 #include "../math_ops.h"
 #include <stdint.h>
 #include <stdarg.h>
+/* C inclusion (for future C-converted SS modules) needs the stdbool
+ * keyword macros; C++ has `bool` built in. */
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
 
 /* SS_EVENT_*, HORRIBLEHACK_*, event_list_entry: shared verbatim with the
    C-converted modules (vdp1.c, ...). Single source of truth -- see header. */
@@ -102,9 +107,15 @@
 
  typedef int32_t sscpu_timestamp_t;
 
+#ifdef __cplusplus
+ /* SH7095 is a C++ class; C consumers of this header can't see the
+  * type but also have no use for it (the CPU[] array is accessed only
+  * from smpc.cpp and ss.cpp internals).  Guard so the header parses
+  * as C. */
  class SH7095;
 
  MDFN_HIDE extern SH7095 CPU[2];	// for smpc.cpp
+#endif
 
  MDFN_HIDE extern int32_t SH7095_mem_timestamp;
 
@@ -125,10 +136,18 @@
 
  /* SS_EVENT_DISABLED_TS lives in ss_c_abi.h (shared with C modules). */
 
- /* extern "C": called from vdp1.c (converted to C). event_list_entry
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+ /* C linkage: called from vdp1.c (converted to C). event_list_entry
     is a plain { sscpu_timestamp_t event_time; } POD; vdp1.c mirrors
     the layout. */
- extern "C" void SS_SetEventNT(event_list_entry* e, const sscpu_timestamp_t next_timestamp);
+ void SS_SetEventNT(event_list_entry* e, const sscpu_timestamp_t next_timestamp);
+
+#ifdef __cplusplus
+}
+#endif
 
  // Call from init code, or power/reset code, as appropriate.
  // (length is in units of bytes, not 16-bit units)
@@ -137,10 +156,14 @@
  //
  // Declared with C linkage: the cart subsystem (cart.c and the
  // cart/*.c device files) is C now and calls this across the C/C++
- // boundary. The default argument is a caller-side C++ convenience
- // and is fine on an extern "C" function; the C declarations in the
- // cart files just pass is_writeable explicitly.
- extern "C" void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable = false) MDFN_COLD;
+ // boundary.  C++ callers get the convenience default argument;
+ // C callers must pass is_writeable explicitly (default args are
+ // C++-only syntax, so the declaration is split).
+#ifdef __cplusplus
+extern "C" void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable = false) MDFN_COLD;
+#else
+void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable) MDFN_COLD;
+#endif
 
  void SS_Reset(bool powering_up) MDFN_COLD;
 

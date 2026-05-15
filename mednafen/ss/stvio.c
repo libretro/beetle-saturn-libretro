@@ -36,16 +36,19 @@
 
 #include "cart/stv.h"
 
-/* stvio.c follows the vdp1.c / C-converted-module convention: skip
- * the C++-only umbrella headers (ss.h, sound.h, smpc.h, mednafen.h --
- * which carry `class`, default args, std::, and other C-incompatible
- * constructs) and forward-declare the few external symbols we need
- * with plain C linkage.  Cross-TU types stay int32_t (the underlying
- * spelling of sscpu_timestamp_t in ss.h). */
-extern void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr);
-extern void SOUND_Reset68K(void);
-extern void SOUND_ResetSCSP(void);
-extern void SOUND_Set68KActive(bool active);
+/* sound.h (SOUND_Reset68K, SOUND_ResetSCSP, SOUND_Set68KActive)
+ * and smpc.h (SMPC_SetInput) became C-includable in their own
+ * commits (sound: 72933f7, smpc: 13b748f), so include them
+ * directly instead of forward-declaring each symbol inline.
+ *
+ * ss.h and mednafen.h (which scaffold the whole module set in C++
+ * builds) are still not pulled in -- they're either C-incompatible
+ * via git.h's std:: usage or carry more declarations than this TU
+ * needs.  This matches the principle established in the original
+ * vdp1.c conversion: include only the headers whose interface this
+ * TU actually consumes. */
+#include "sound.h"
+#include "smpc.h"
 
 static unsigned ControlScheme;
 

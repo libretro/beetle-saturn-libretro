@@ -23,8 +23,21 @@
 #define __MDFN_SS_SOUND_H
 
 #include <mednafen/state.h>
+/* MDFN_COLD / MDFN_HOT attribute macros.  Existing C++ TUs got
+ * these transitively (via ss.h / mednafen.h); for C consumers
+ * include them explicitly so this header is self-contained. */
+#include <mednafen/mednafen-types.h>
 
 #include <stdint.h>
+/* C++ has 'bool' built in; C inclusion (future C-converted modules)
+ * needs the stdbool keyword macros. */
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 extern int16_t IBuffer[1024][2];
 
@@ -37,7 +50,10 @@ void SOUND_Reset68K(void);
 void SOUND_ResetSCSP(void);
 
 void SOUND_SetClockRatio(uint32_t ratio); // Ratio between SH-2 clock and 68K clock (sound clock / 2)
-sscpu_timestamp_t SOUND_Update(sscpu_timestamp_t timestamp);
+/* int32_t in place of sscpu_timestamp_t (which typedefs to int32_t
+ * in ss.h) -- keeps this header self-contained for C consumers and
+ * matches the C-ABI convention used by vdp1.c and smpc_iodevice.h. */
+int32_t SOUND_Update(int32_t timestamp);
 void SOUND_AdjustTS(const int32_t delta);
 void SOUND_StateAction(StateMem *sm, const unsigned load, const bool data_only);
 
@@ -52,5 +68,9 @@ uint32_t SOUND_GetSCSPRegister(const unsigned id, char* const special, const uin
 void SOUND_SetSCSPRegister(const unsigned id, const uint32_t value) MDFN_COLD;
 uint32_t SOUND_GetM68KRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
 void SOUND_SetM68KRegister(const unsigned id, const uint32_t value) MDFN_COLD;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

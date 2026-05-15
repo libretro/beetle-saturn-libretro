@@ -23,8 +23,22 @@
 #define __MDFN_SS_CDB_H
 
 #include <mednafen/state.h>
+/* MDFN_COLD / MDFN_HOT.  Existing C++ TUs got these transitively
+ * via ss.h / mednafen.h; for C consumers include them directly. */
+#include <mednafen/mednafen-types.h>
+
+#include <stdint.h>
+/* C++ has 'bool' built in; C inclusion needs the stdbool keyword
+ * macros. */
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
 
 #include "../cdrom/cdromif.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 
 void CDB_Init(void) MDFN_COLD;
@@ -38,7 +52,11 @@ uint16_t CDB_Read(uint32_t offset) MDFN_HOT;
 
 void CDB_Reset(bool powering_up) MDFN_COLD;
 
-sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp);
+/* int32_t in place of sscpu_timestamp_t (typedef'd to int32_t in
+ * ss.h) -- keeps the header self-contained for C consumers and
+ * matches the C-ABI convention used by vdp1.c / sound.h / smpc.h /
+ * scu.h. */
+int32_t CDB_Update(int32_t timestamp);
 void CDB_ResetTS(void);
 
 void CDB_GetCDDA(uint16_t* outbuf);	// writes to outbuf[0] and outbuf[1]
@@ -66,6 +84,10 @@ enum
 
 uint32_t CDB_GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
 void CDB_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
+
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif
