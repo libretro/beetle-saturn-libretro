@@ -48,10 +48,23 @@ enum
 
 void SCU_Reset(bool powering_up) MDFN_COLD;
 
+/* extern "C": called from vdp1.c (converted to C). */
+#ifdef __cplusplus
+extern "C" {
+#endif
 void SCU_SetInt(unsigned which, bool active);
+#ifdef __cplusplus
+}
+#endif
 int32_t SCU_SetHBVB(int32_t pclocks, bool hblank_in, bool vblank_in);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 bool SCU_CheckVDP1HaltKludge(void);
+#ifdef __cplusplus
+}
+#endif
 
 sscpu_timestamp_t SCU_UpdateDMA(sscpu_timestamp_t timestamp);
 sscpu_timestamp_t SCU_UpdateDSP(sscpu_timestamp_t timestamp);

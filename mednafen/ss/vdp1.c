@@ -30,7 +30,7 @@
 
 // TODO: Check to see what registers are reset on reset.
 
-// TODO: SS_SetPhysMemMap(0x05C80000, 0x05CFFFFF, FB[FBDrawWhich], sizeof(FB[0]));
+// TODO: SS_SetPhysMemMap(0x05C80000, 0x05CFFFFF, VDP1_FB[FBDrawWhich], sizeof(VDP1_FB[0]));
 //  (...but goes weird in 8bpp rotated mode...)
 
 // TODO: Test 1x1 line, polyline, sprite, and polygon.
@@ -38,36 +38,63 @@
 // TODO: Framebuffer swap/auto drawing start happens a bit too early, should happen near
 //       end of hblank instead of the beginning.
 
-#include "ss.h"
-#include "../mednafen.h"
-#include "scu.h"
+/* ss.h removed — symbols localized below */
+/* mednafen.h removed */
+/* scu.h removed — SCU symbols localized below */
+#include <string.h>
 #include "vdp1.h"
-#include "vdp2.h"
+/* vdp2.h removed */
 #include "vdp1_common.h"
 
-enum : int { VDP1_UpdateTimingGran = 263 };
-enum : int { VDP1_IdleTimingGran = 1019 };
+/* Localized externs from ss.h, scu.h, vdp2.h — these stay C++
+   but expose C linkage for the symbols we need. */
+extern uint32_t ss_horrible_hacks;
+/* Values must match the HORRIBLEHACK_* enum in ss.h byte-for-byte. */
+#define HORRIBLEHACK_VDP1VRAM5000FIX    (1U << 2)
+#define HORRIBLEHACK_VDP1RWDRAWSLOWDOWN (1U << 3)
+#define HORRIBLEHACK_VDP1INSTANT        (1U << 4)
 
-namespace VDP1
-{
+/* Mirror event_list_entry from ss.h — just { int32_t event_time; } */
+typedef struct { int32_t event_time; } event_list_entry;
+extern event_list_entry events[];
+extern void SS_SetEventNT(event_list_entry* e, const int32_t next_timestamp);
+enum { SS_EVENT_VDP1 = 7 }; /* from ss.h enum */
+enum { SS_EVENT_VDP2 = 8 };
+extern void SS_SetEventNT(event_list_entry* e, const int32_t next_timestamp);
+extern void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable);
 
-uint8_t spr_w_shift_tab[8];
-uint8_t gouraud_lut[0x40];
-line_data LineData;
-line_inner_data LineInnerData;
-prim_data PrimData;
+extern void SCU_SetInt(unsigned which, bool active);
+enum { SCU_INT_VDP1 = 4 }; /* from scu.h enum */
+extern bool SCU_CheckVDP1HaltKludge(void);
 
-int32_t SysClipX, SysClipY;
-int32_t UserClipX0, UserClipY0, UserClipX1, UserClipY1;
+extern int32_t VDP2_Update(int32_t timestamp);
+extern int32_t SH7095_mem_timestamp;
 
-int32_t LocalX, LocalY;
+static INLINE int32_t sign_x_to_s32(unsigned n, uint32_t x) { return ((int32_t)(x << (32 - n))) >> (32 - n); }
 
-uint8_t TVMR;
-uint8_t FBCR;
+
+enum { VDP1_UpdateTimingGran = 263 };
+enum { VDP1_IdleTimingGran = 1019 };
+
+/* namespace VDP1 removed */
+
+uint8_t VDP1_spr_w_shift_tab[8];
+uint8_t VDP1_gouraud_lut[0x40];
+line_data VDP1_LineData;
+line_inner_data VDP1_LineInnerData;
+prim_data VDP1_PrimData;
+
+int32_t VDP1_SysClipX, VDP1_SysClipY;
+int32_t VDP1_UserClipX0, VDP1_UserClipY0, VDP1_UserClipX1, VDP1_UserClipY1;
+
+int32_t VDP1_LocalX, VDP1_LocalY;
+
+uint8_t VDP1_TVMR;
+uint8_t VDP1_FBCR;
 static uint8_t PTMR;
 static uint8_t EDSR;
 
-uint16_t* FBDrawWhichPtr;
+uint16_t* VDP1_FBDrawWhichPtr;
 static bool FBDrawWhich;
 
 static bool DrawingActive;
@@ -79,7 +106,7 @@ static sscpu_timestamp_t lastts;
 static int32_t CycleCounter;
 static int32_t CommandPhase;
 static uint16_t CommandData[0x10];
-uint32_t DTACounter;
+uint32_t VDP1_DTACounter;
 
 static bool vb_status, hb_status;
 static bool vbcdpending;
@@ -112,52 +139,52 @@ static uint32_t EraseYCounter;
 
 static uint32_t InstantDrawSanityLimit; // ss_horrible_hacks
 
-uint16_t VRAM[0x40000];
-uint16_t FB[2][0x20000];
+uint16_t VDP1_VRAM[0x40000];
+uint16_t VDP1_FB[2][0x20000];
 
-// Side-buffer for "improved mesh transparency" mode. When MeshImproved
+// Side-buffer for "improved mesh transparency" mode. When VDP1_MeshImproved
 // is true, VDP1 mesh-bit primitives write their colour here (with MSB
 // set as the "mesh pixel present" marker) instead of the main FB.
-// Non-mesh primitives in improved mode clear MeshFB at their pixel
+// Non-mesh primitives in improved mode clear VDP1_MeshFB at their pixel
 // position so opaque writes properly cover earlier mesh content.
-// VDP2's MixIt path reads this via VDP1::GetLine and 50%-blends the
+// VDP2's MixIt path reads this via VDP1_GetLine and 50%-blends the
 // mesh pixel over the final composited surface, matching Kronos's
 // "outMeshSurface" side-buffer + late composite mechanism.
 //
-// Double-buffered in lockstep with FB; MeshFBDrawWhichPtr tracks
-// MeshFB[FBDrawWhich]. Erased in the same loops that erase FB so the
+// Double-buffered in lockstep with FB; VDP1_MeshFBDrawWhichPtr tracks
+// VDP1_MeshFB[FBDrawWhich]. Erased in the same loops that erase FB so the
 // per-frame clear matches the game's intent for the main framebuffer.
-uint16_t MeshFB[2][0x20000];
-uint16_t* MeshFBDrawWhichPtr;
+uint16_t VDP1_MeshFB[2][0x20000];
+uint16_t* VDP1_MeshFBDrawWhichPtr;
 
 // Module-level toggle for the "improved mesh transparency" mode.
 // Read by PlotPixel in vdp1_common.h when its MeshEn template
 // arg is true. Default false = hardware-accurate stipple.
-bool MeshImproved = false;
+bool VDP1_MeshImproved = false;
 
-void SetMeshImproved(bool improved)
+void VDP1_SetMeshImproved(bool improved)
 {
- MeshImproved = improved;
+ VDP1_MeshImproved = improved;
 }
 
-void Init(void)
+void VDP1_Init(void)
 {
  vbcdpending = false;
 
  for(int i = 0; i < 0x40; i++)
  {
-  gouraud_lut[i] = ((int)(31) < (int)(((int)(0) > (int)(i - 16) ? (int)(0) : (int)(i - 16))) ? (int)(31) : (int)(((int)(0) > (int)(i - 16) ? (int)(0) : (int)(i - 16))));
+  VDP1_gouraud_lut[i] = ((int)(31) < (int)(((int)(0) > (int)(i - 16) ? (int)(0) : (int)(i - 16))) ? (int)(31) : (int)(((int)(0) > (int)(i - 16) ? (int)(0) : (int)(i - 16))));
  }
 
  for(int i = 0; i < 8; i++)
  {
-  spr_w_shift_tab[i] = (7 - i) / 3;
+  VDP1_spr_w_shift_tab[i] = (7 - i) / 3;
  }
 
 
  //
  //
- SS_SetPhysMemMap(0x05C00000, 0x05C7FFFF, VRAM, sizeof(VRAM), true);
+ SS_SetPhysMemMap(0x05C00000, 0x05C7FFFF, VDP1_VRAM, sizeof(VDP1_VRAM), true);
 
  vb_status = false;
  hb_status = false;
@@ -166,12 +193,12 @@ void Init(void)
  LastRWTS = 0;
 }
 
-void Kill(void)
+void VDP1_Kill(void)
 {
 
 }
 
-void Reset(bool powering_up)
+void VDP1_Reset(bool powering_up)
 {
  if(powering_up)
  {
@@ -186,16 +213,16 @@ void Reset(bool powering_up)
    else
     val = 0xAAAA;
 
-   VRAM[i] = val;
+   VDP1_VRAM[i] = val;
   }
 
   for(unsigned fb = 0; fb < 2; fb++)
    for(unsigned i = 0; i < 0x20000; i++)
-    FB[fb][i] = 0xFFFF;
+    VDP1_FB[fb][i] = 0xFFFF;
 
-  memset(&LineData, 0, sizeof(LineData));
-  memset(&LineInnerData, 0, sizeof(LineInnerData));
-  memset(&PrimData, 0, sizeof(PrimData));
+  memset(&VDP1_LineData, 0, sizeof(VDP1_LineData));
+  memset(&VDP1_LineInnerData, 0, sizeof(VDP1_LineInnerData));
+  memset(&VDP1_PrimData, 0, sizeof(VDP1_PrimData));
 
   //
   // Registers with somewhat undefined state on power-on:
@@ -204,23 +231,23 @@ void Reset(bool powering_up)
   EWLR = 0;
   EWRR = 0;
 
-  UserClipX0 = 0;
-  UserClipY0 = 0;
-  UserClipX1 = 0;
-  UserClipY1 = 0;
+  VDP1_UserClipX0 = 0;
+  VDP1_UserClipY0 = 0;
+  VDP1_UserClipX1 = 0;
+  VDP1_UserClipY1 = 0;
 
-  SysClipX = 0;
-  SysClipY = 0;
+  VDP1_SysClipX = 0;
+  VDP1_SysClipY = 0;
  
-  LocalX = 0;
-  LocalY = 0;
+  VDP1_LocalX = 0;
+  VDP1_LocalY = 0;
  }
 
  FBDrawWhich = 0;
- FBDrawWhichPtr = FB[FBDrawWhich];
- MeshFBDrawWhichPtr = MeshFB[FBDrawWhich];
- memset(MeshFB, 0, sizeof(MeshFB));
- //SS_SetPhysMemMap(0x05C80000, 0x05CFFFFF, FB[FBDrawWhich], sizeof(FB[0]), true);
+ VDP1_FBDrawWhichPtr = VDP1_FB[FBDrawWhich];
+ VDP1_MeshFBDrawWhichPtr = VDP1_MeshFB[FBDrawWhich];
+ memset(VDP1_MeshFB, 0, sizeof(VDP1_MeshFB));
+ //SS_SetPhysMemMap(0x05C80000, 0x05CFFFFF, VDP1_FB[FBDrawWhich], sizeof(VDP1_FB[0]), true);
 
  FBManualPending = false;
  FBVBErasePending = false;
@@ -235,12 +262,12 @@ void Reset(bool powering_up)
  CommandPhase = 0;
  memset(CommandData, 0, sizeof(CommandData));
  InstantDrawSanityLimit = 0;
- DTACounter = 0;
+ VDP1_DTACounter = 0;
 
  //
  // Begin registers/variables confirmed to be initialized on reset.
- TVMR = 0;
- FBCR = 0;
+ VDP1_TVMR = 0;
+ VDP1_FBCR = 0;
  PTMR = 0;
  EDSR = 0;
  // End confirmed.
@@ -252,35 +279,34 @@ void Reset(bool powering_up)
 
 static int32_t CMD_SetUserClip(const uint16_t* cmd_data)
 {
- UserClipX0 = cmd_data[0x6] & 0x1FFF;
- UserClipY0 = cmd_data[0x7] & 0x1FFF;
+ VDP1_UserClipX0 = cmd_data[0x6] & 0x1FFF;
+ VDP1_UserClipY0 = cmd_data[0x7] & 0x1FFF;
 
- UserClipX1 = cmd_data[0xA] & 0x1FFF;
- UserClipY1 = cmd_data[0xB] & 0x1FFF;
+ VDP1_UserClipX1 = cmd_data[0xA] & 0x1FFF;
+ VDP1_UserClipY1 = cmd_data[0xB] & 0x1FFF;
 
  return 0;
 }
 
 int32_t CMD_SetSystemClip(const uint16_t* cmd_data)
 {
- SysClipX = cmd_data[0xA] & 0x1FFF;
- SysClipY = cmd_data[0xB] & 0x1FFF;
+ VDP1_SysClipX = cmd_data[0xA] & 0x1FFF;
+ VDP1_SysClipY = cmd_data[0xB] & 0x1FFF;
 
  return 0;
 }
 
 int32_t CMD_SetLocalCoord(const uint16_t* cmd_data)
 {
- LocalX = sign_x_to_s32(11, cmd_data[0x6] & 0x7FF);
- LocalY = sign_x_to_s32(11, cmd_data[0x7] & 0x7FF);
+ VDP1_LocalX = sign_x_to_s32(11, cmd_data[0x6] & 0x7FF);
+ VDP1_LocalY = sign_x_to_s32(11, cmd_data[0x7] & 0x7FF);
 
  return 0;
 }
 
-template<unsigned ECDSPDMode>
-static uint32_t MDFN_FASTCALL TexFetch(uint32_t x)
+static INLINE uint32_t TexFetch_impl(const unsigned ECDSPDMode, uint32_t x)
 {
- const uint32_t base = LineData.tex_base;
+ const uint32_t base = VDP1_LineData.tex_base;
  const bool ECD = ECDSPDMode & 0x10;
  const bool SPD = ECDSPDMode & 0x08;
  const unsigned ColorMode = ECDSPDMode & 0x07;
@@ -291,72 +317,72 @@ static uint32_t MDFN_FASTCALL TexFetch(uint32_t x)
  switch(ColorMode)
  {
   case 0:	// 16 colors, color bank
-	rtd = (VRAM[(base + (x >> 2)) & 0x3FFFF] >> (((x & 0x3) ^ 0x3) << 2)) & 0xF;
+	rtd = (VDP1_VRAM[(base + (x >> 2)) & 0x3FFFF] >> (((x & 0x3) ^ 0x3) << 2)) & 0xF;
 
 	if(!ECD && rtd == 0xF)
 	{
-	 LineData.ec_count--;	
+	 VDP1_LineData.ec_count--;	
 	 return -1;
 	}
-	ret_or = LineData.cb_or;
+	ret_or = VDP1_LineData.cb_or;
 	
 	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
 	return rtd | ret_or;
 
   case 1:	// 16 colors, LUT
-	rtd = (VRAM[(base + (x >> 2)) & 0x3FFFF] >> (((x & 0x3) ^ 0x3) << 2)) & 0xF;
+	rtd = (VDP1_VRAM[(base + (x >> 2)) & 0x3FFFF] >> (((x & 0x3) ^ 0x3) << 2)) & 0xF;
 
 	if(!ECD && rtd == 0xF)
 	{
-	 LineData.ec_count--;
+	 VDP1_LineData.ec_count--;
 	 return -1;
 	}
 
 	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
-	return LineData.CLUT[rtd] | ret_or;
+	return VDP1_LineData.CLUT[rtd] | ret_or;
 
   case 2:	// 64 colors, color bank
-	rtd = (VRAM[(base + (x >> 1)) & 0x3FFFF] >> (((x & 0x1) ^ 0x1) << 3)) & 0xFF;
+	rtd = (VDP1_VRAM[(base + (x >> 1)) & 0x3FFFF] >> (((x & 0x1) ^ 0x1) << 3)) & 0xFF;
 
 	if(!ECD && rtd == 0xFF)
 	{
-	 LineData.ec_count--;
+	 VDP1_LineData.ec_count--;
 	 return -1;
 	}
 
-	ret_or = LineData.cb_or;
+	ret_or = VDP1_LineData.cb_or;
 
 	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
 	return (rtd & 0x3F) | ret_or;
 
   case 3:	// 128 colors, color bank
-	rtd = (VRAM[(base + (x >> 1)) & 0x3FFFF] >> (((x & 0x1) ^ 0x1) << 3)) & 0xFF;
+	rtd = (VDP1_VRAM[(base + (x >> 1)) & 0x3FFFF] >> (((x & 0x1) ^ 0x1) << 3)) & 0xFF;
 
 	if(!ECD && rtd == 0xFF)
 	{
-	 LineData.ec_count--;
+	 VDP1_LineData.ec_count--;
 	 return -1;
 	}
 
-	ret_or = LineData.cb_or;
+	ret_or = VDP1_LineData.cb_or;
 
 	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
 	return (rtd & 0x7F) | ret_or;
 
   case 4:	// 256 colors, color bank
-	rtd = (VRAM[(base + (x >> 1)) & 0x3FFFF] >> (((x & 0x1) ^ 0x1) << 3)) & 0xFF;
+	rtd = (VDP1_VRAM[(base + (x >> 1)) & 0x3FFFF] >> (((x & 0x1) ^ 0x1) << 3)) & 0xFF;
 
 	if(!ECD && rtd == 0xFF)
 	{
-	 LineData.ec_count--;
+	 VDP1_LineData.ec_count--;
 	 return -1;
 	}
 
-	ret_or = LineData.cb_or;
+	ret_or = VDP1_LineData.cb_or;
 
 	if(!SPD) ret_or |= (int32_t)(rtd - 1) >> 31;
 
@@ -366,13 +392,13 @@ static uint32_t MDFN_FASTCALL TexFetch(uint32_t x)
   case 6:
   case 7:
 	if(ColorMode >= 6)
-	 rtd = VRAM[0];
+	 rtd = VDP1_VRAM[0];
 	else
-	 rtd = VRAM[(base + x) & 0x3FFFF];
+	 rtd = VDP1_VRAM[(base + x) & 0x3FFFF];
 
 	if(!ECD && (rtd & 0xC000) == 0x4000)
 	{
-	 LineData.ec_count--;
+	 VDP1_LineData.ec_count--;
 	 return -1;
 	}
 
@@ -380,12 +406,48 @@ static uint32_t MDFN_FASTCALL TexFetch(uint32_t x)
 
 	return rtd | ret_or;
  }
+
+ return 0; /* unreachable: ColorMode is always 0-7 */
 }
 
 
-MDFN_HIDE extern uint32_t (MDFN_FASTCALL *const TexFetchTab[0x20])(uint32_t x) =
+ static uint32_t MDFN_FASTCALL TexFetch_0x00(uint32_t x) { return TexFetch_impl(0x00, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x01(uint32_t x) { return TexFetch_impl(0x01, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x02(uint32_t x) { return TexFetch_impl(0x02, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x03(uint32_t x) { return TexFetch_impl(0x03, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x04(uint32_t x) { return TexFetch_impl(0x04, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x05(uint32_t x) { return TexFetch_impl(0x05, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x06(uint32_t x) { return TexFetch_impl(0x06, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x07(uint32_t x) { return TexFetch_impl(0x07, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x08(uint32_t x) { return TexFetch_impl(0x08, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x09(uint32_t x) { return TexFetch_impl(0x09, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x0A(uint32_t x) { return TexFetch_impl(0x0A, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x0B(uint32_t x) { return TexFetch_impl(0x0B, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x0C(uint32_t x) { return TexFetch_impl(0x0C, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x0D(uint32_t x) { return TexFetch_impl(0x0D, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x0E(uint32_t x) { return TexFetch_impl(0x0E, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x0F(uint32_t x) { return TexFetch_impl(0x0F, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x10(uint32_t x) { return TexFetch_impl(0x10, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x11(uint32_t x) { return TexFetch_impl(0x11, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x12(uint32_t x) { return TexFetch_impl(0x12, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x13(uint32_t x) { return TexFetch_impl(0x13, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x14(uint32_t x) { return TexFetch_impl(0x14, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x15(uint32_t x) { return TexFetch_impl(0x15, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x16(uint32_t x) { return TexFetch_impl(0x16, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x17(uint32_t x) { return TexFetch_impl(0x17, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x18(uint32_t x) { return TexFetch_impl(0x18, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x19(uint32_t x) { return TexFetch_impl(0x19, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x1A(uint32_t x) { return TexFetch_impl(0x1A, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x1B(uint32_t x) { return TexFetch_impl(0x1B, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x1C(uint32_t x) { return TexFetch_impl(0x1C, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x1D(uint32_t x) { return TexFetch_impl(0x1D, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x1E(uint32_t x) { return TexFetch_impl(0x1E, x); }
+ static uint32_t MDFN_FASTCALL TexFetch_0x1F(uint32_t x) { return TexFetch_impl(0x1F, x); }
+
+uint32_t (MDFN_FASTCALL *const VDP1_TexFetchTab[0x20])(uint32_t x) =
 {
- #define TF(a) (TexFetch<a>)
+  #define TF(a) (TexFetch_##a)
+
 
  TF(0x00), TF(0x01), TF(0x02), TF(0x03),
  TF(0x04), TF(0x05), TF(0x06), TF(0x07),
@@ -402,7 +464,7 @@ MDFN_HIDE extern uint32_t (MDFN_FASTCALL *const TexFetchTab[0x20])(uint32_t x) =
  #undef TF
 };
 
-bool SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textured, const uint16_t mode)
+bool VDP1_SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textured, const uint16_t mode)
 {
  const bool HSS = (mode & 0x1000);
  const bool PCD = (mode & 0x800);
@@ -411,9 +473,9 @@ bool SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textu
  //const bool ECD = (mode & 0x80);
  //const bool SPD = (mode & 0x40);
  const bool GouraudEn = (mode & 0x8004) == 0x4;
- line_vertex p0 = LineData.p[0];
- line_vertex p1 = LineData.p[1];
- line_inner_data& lid = LineInnerData;
+ line_vertex p0 = VDP1_LineData.p[0];
+ line_vertex p1 = VDP1_LineData.p[1];
+ line_inner_data* const lidp = &VDP1_LineInnerData;
  bool clipped = false;
 
  p0.x &= 0x1FFF;
@@ -430,17 +492,17 @@ bool SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textu
   if(UserClipEn && !UserClipMode)
   {
    // Ignore system clipping WRT pre-clip for UserClipEn == 1 && UserClipMode == 0
-   clipped |= (((UserClipX1 - p0.x) & (UserClipX1 - p1.x)) | ((p0.x - UserClipX0) & (p1.x - UserClipX0))) & 0x1000;
-   clipped |= (((UserClipY1 - p0.y) & (UserClipY1 - p1.y)) | ((p0.y - UserClipY0) & (p1.y - UserClipY0))) & 0x1000;
+   clipped |= (((VDP1_UserClipX1 - p0.x) & (VDP1_UserClipX1 - p1.x)) | ((p0.x - VDP1_UserClipX0) & (p1.x - VDP1_UserClipX0))) & 0x1000;
+   clipped |= (((VDP1_UserClipY1 - p0.y) & (VDP1_UserClipY1 - p1.y)) | ((p0.y - VDP1_UserClipY0) & (p1.y - VDP1_UserClipY0))) & 0x1000;
 
-   swapped = (p0.y == p1.y) & ((p0.x < UserClipX0) | (p0.x > UserClipX1));
+   swapped = (p0.y == p1.y) & ((p0.x < VDP1_UserClipX0) | (p0.x > VDP1_UserClipX1));
   }
   else
   {
-   clipped |= (((SysClipX - p0.x) & (SysClipX - p1.x)) | (p0.x & p1.x)) & 0x1000;
-   clipped |= (((SysClipY - p0.y) & (SysClipY - p1.y)) | (p0.y & p1.y)) & 0x1000;
+   clipped |= (((VDP1_SysClipX - p0.x) & (VDP1_SysClipX - p1.x)) | (p0.x & p1.x)) & 0x1000;
+   clipped |= (((VDP1_SysClipY - p0.y) & (VDP1_SysClipY - p1.y)) | (p0.y & p1.y)) & 0x1000;
 
-   swapped = (p0.y == p1.y) & (p0.x > SysClipX);
+   swapped = (p0.y == p1.y) & (p0.x > VDP1_SysClipX);
   }
   //
   // VDP1 reduces the line into a point to clip it, and it can be seen in the framebuffer under
@@ -473,27 +535,27 @@ bool SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textu
  const int32_t lid_x_inc = (x_inc & 0x7FF) <<  0;
  const int32_t lid_y_inc = (y_inc & 0x7FF) << 16;
 
- lid.xy = (p0.x & 0x7FF) + ((p0.y & 0x7FF) << 16);
- lid.term_xy = (p1.x & 0x7FF) + ((p1.y & 0x7FF) << 16);
- lid.drawn_ac = true;	// Drawn all-clipped
- lid.color = LineData.color;
+ lidp->xy = (p0.x & 0x7FF) + ((p0.y & 0x7FF) << 16);
+ lidp->term_xy = (p1.x & 0x7FF) + ((p1.y & 0x7FF) << 16);
+ lidp->drawn_ac = true;	// Drawn all-clipped
+ lidp->color = VDP1_LineData.color;
 
  if(GouraudEn)
-  lid.g.Setup(max_adx_ady + 1, p0.g, p1.g);
+  Gourauder_Setup(&lidp->g, max_adx_ady + 1, p0.g, p1.g);
 
  if(Textured)
  {
-  LineData.ec_count = 2;	// Call before tffn()
+  VDP1_LineData.ec_count = 2;	// Call before tffn()
 
   if(MDFN_UNLIKELY(max_adx_ady < abs(p1.t - p0.t) && HSS))
   {
-   LineData.ec_count = 0x7FFFFFFF;
-   lid.t.Setup(max_adx_ady + 1, p0.t >> 1, p1.t >> 1, 2, (bool)(FBCR & FBCR_EOS));
+   VDP1_LineData.ec_count = 0x7FFFFFFF;
+   VileTex_Setup(&lidp->t, max_adx_ady + 1, p0.t >> 1, p1.t >> 1, 2, (bool)(VDP1_FBCR & VDP1_FBCR_EOS));
   }
   else
-   lid.t.Setup(max_adx_ady + 1, p0.t, p1.t);
+   VileTex_Setup(&lidp->t, max_adx_ady + 1, p0.t, p1.t, 1, 0);
 
-  lid.texel = LineData.tffn(lid.t.Current());
+  lidp->texel = VDP1_LineData.tffn(VileTex_Current(&lidp->t));
  }
 
  {
@@ -526,102 +588,102 @@ bool SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textu
     aa_y_inc =  (y_inc >> 31);
    }
   }
-  lid.aa_xy_inc = (aa_x_inc & 0x7FF) + ((aa_y_inc & 0x7FF) << 16);
+  lidp->aa_xy_inc = (aa_x_inc & 0x7FF) + ((aa_y_inc & 0x7FF) << 16);
  }
 
  // x, y, x_inc, y_inc, aa_x_inc, aa_y_inc, term_x, term_y, error, error_inc, error_adj, t, g, color
  if(abs_dy > abs_dx)
  {
-  lid.error_inc =  (2 * abs_dx);
-  lid.error_adj = -(2 * abs_dy);
-  lid.error = (abs_dy - (2 * abs_dy)) - 1;
-  lid.error_cmp = 0;
+  lidp->error_inc =  (2 * abs_dx);
+  lidp->error_adj = -(2 * abs_dy);
+  lidp->error = (abs_dy - (2 * abs_dy)) - 1;
+  lidp->error_cmp = 0;
 
   if(dy < 0 && !AA)
-   lid.error_cmp--;
+   lidp->error_cmp--;
 
-  lid.error -= lid.error_inc;
-  lid.xy = (lid.xy + (0x8000000 - lid_y_inc)) & 0x07FF07FF;
-  lid.xy_inc[0] = lid_y_inc;
-  lid.xy_inc[1] = lid_x_inc;
+  lidp->error -= lidp->error_inc;
+  lidp->xy = (lidp->xy + (0x8000000 - lid_y_inc)) & 0x07FF07FF;
+  lidp->xy_inc[0] = lid_y_inc;
+  lidp->xy_inc[1] = lid_x_inc;
  }
  else
  {
-  lid.error_inc =  (2 * abs_dy);
-  lid.error_adj = -(2 * abs_dx);
-  lid.error = (abs_dx - (2 * abs_dx)) - 1;
-  lid.error_cmp = 0;
+  lidp->error_inc =  (2 * abs_dy);
+  lidp->error_adj = -(2 * abs_dx);
+  lidp->error = (abs_dx - (2 * abs_dx)) - 1;
+  lidp->error_cmp = 0;
 
   if(dx < 0 && !AA)
-   lid.error_cmp--;
+   lidp->error_cmp--;
 
-  lid.error -= lid.error_inc;
-  lid.xy = (lid.xy + (0x800 - lid_x_inc)) & 0x07FF07FF;
-  lid.xy_inc[0] = lid_x_inc;
-  lid.xy_inc[1] = lid_y_inc;
+  lidp->error -= lidp->error_inc;
+  lidp->xy = (lidp->xy + (0x800 - lid_x_inc)) & 0x07FF07FF;
+  lidp->xy_inc[0] = lid_x_inc;
+  lidp->xy_inc[1] = lid_y_inc;
  }
  if(AA)
  {
-  lid.error++;
-  lid.error_cmp++;
+  lidp->error++;
+  lidp->error_cmp++;
  }
 
  //
- lid.error_inc <<= 32 - 13;
- lid.error_adj <<= 32 - 13;
- lid.error <<= 32 - 13;
- lid.error_cmp = (uint32_t)lid.error_cmp << (32 - 13);
+ lidp->error_inc <<= 32 - 13;
+ lidp->error_adj <<= 32 - 13;
+ lidp->error <<= 32 - 13;
+ lidp->error_cmp = (uint32_t)lidp->error_cmp << (32 - 13);
 
  return clipped;
 }
 
-void EdgeStepper::Setup(const bool gourauden, const line_vertex& p0, const line_vertex& p1, const int32_t dmax)
+void EdgeStepper_Setup(EdgeStepper *self, const bool gourauden, const line_vertex *p0, const line_vertex *p1, const int32_t dmax)
 {
-  int32_t dx = sign_x_to_s32(13, p1.x - p0.x);
-  int32_t dy = sign_x_to_s32(13, p1.y - p0.y);
+  int32_t dx = sign_x_to_s32(13, p1->x - p0->x);
+  int32_t dy = sign_x_to_s32(13, p1->y - p0->y);
   int32_t abs_dx = abs(dx);
   int32_t abs_dy = abs(dy);
   int32_t max_adxdy = ((int32_t)(abs_dx) > (int32_t)(abs_dy) ? (int32_t)(abs_dx) : (int32_t)(abs_dy));
 
-  x = p0.x;
-  x_inc = (dx >= 0) ? 1 : -1;
-  x_error_inc =  (2 * abs_dx);
-  x_error_adj = -(2 * max_adxdy);
-  x_error = (max_adxdy - (2 * max_adxdy)) - 1;
-  x_error_cmp = (dy < 0) ? -1 : 0;
+  self->x = p0->x;
+  self->x_inc = (dx >= 0) ? 1 : -1;
+  self->x_error_inc =  (2 * abs_dx);
+  self->x_error_adj = -(2 * max_adxdy);
+  self->x_error = (max_adxdy - (2 * max_adxdy)) - 1;
+  self->x_error_cmp = (dy < 0) ? -1 : 0;
 
-  y = p0.y;
-  y_inc = (dy >= 0) ? 1 : -1;
-  y_error_inc =  (2 * abs_dy);
-  y_error_adj = -(2 * max_adxdy);
-  y_error = (max_adxdy - (2 * max_adxdy)) - 1;
-  y_error_cmp = (dx < 0) ? -1 : 0;
+  self->y = p0->y;
+  self->y_inc = (dy >= 0) ? 1 : -1;
+  self->y_error_inc =  (2 * abs_dy);
+  self->y_error_adj = -(2 * max_adxdy);
+  self->y_error = (max_adxdy - (2 * max_adxdy)) - 1;
+  self->y_error_cmp = (dx < 0) ? -1 : 0;
 
-  d_error = dmax - (2 * dmax) - 1;
-  d_error_inc =  (2 * max_adxdy);
-  d_error_adj = -(2 * dmax);
-  d_error_cmp = (((abs_dy > abs_dx) ? dy : dx) < 0) ? -1 : 0;
+  self->d_error = dmax - (2 * dmax) - 1;
+  self->d_error_inc =  (2 * max_adxdy);
+  self->d_error_adj = -(2 * dmax);
+  self->d_error_cmp = (((abs_dy > abs_dx) ? dy : dx) < 0) ? -1 : 0;
   //
-  x_error <<= (32 - 13);
-  x_error_inc <<= (32 - 13);
-  x_error_adj <<= (32 - 13);
-  x_error_cmp = (uint32_t)x_error_cmp << (32 - 13);
+  self->x_error <<= (32 - 13);
+  self->x_error_inc <<= (32 - 13);
+  self->x_error_adj <<= (32 - 13);
+  self->x_error_cmp = (uint32_t)self->x_error_cmp << (32 - 13);
 
-  y_error <<= (32 - 13);
-  y_error_inc <<= (32 - 13);
-  y_error_adj <<= (32 - 13);
-  y_error_cmp = (uint32_t)y_error_cmp << (32 - 13);
+  self->y_error <<= (32 - 13);
+  self->y_error_inc <<= (32 - 13);
+  self->y_error_adj <<= (32 - 13);
+  self->y_error_cmp = (uint32_t)self->y_error_cmp << (32 - 13);
 
-  d_error <<= (32 - 13);
-  d_error_inc <<= (32 - 13);
-  d_error_adj <<= (32 - 13);
-  d_error_cmp = (uint32_t)d_error_cmp << (32 - 13);
+  self->d_error <<= (32 - 13);
+  self->d_error_inc <<= (32 - 13);
+  self->d_error_adj <<= (32 - 13);
+  self->d_error_cmp = (uint32_t)self->d_error_cmp << (32 - 13);
   //
   if(gourauden)
-   g.Setup(max_adxdy + 1, p0.g, p1.g);
+   Gourauder_Setup(&self->g, max_adxdy + 1, p0->g, p1->g);
 }
 
-enum : int { CommandPhaseBias = __COUNTER__ + 1 };
+enum { CommandPhaseBias = __COUNTER__ + 1 };
 #define VDP1_EAT_CLOCKS(n)									\
 		{										\
 		 CycleCounter -= (n);								\
@@ -647,7 +709,7 @@ static INLINE void DoDrawing(void)
    VDP1_EAT_CLOCKS(0);
 
    // Fetch command data
-   memcpy(CommandData, &VRAM[CurCommandAddr], sizeof(CommandData));
+   memcpy(CommandData, &VDP1_VRAM[CurCommandAddr], sizeof(CommandData));
 
    VDP1_EAT_CLOCKS(16);
 
@@ -663,10 +725,10 @@ static INLINE void DoDrawing(void)
      static int32_t (*const command_table[0xC])(const uint16_t* cmd_data) =
      {
       /* 0x0 */         /* 0x1 */           /* 0x2 */            /* 0x3 */
-      CMD_NormalSprite, CMD_ScaledSprite,   CMD_DistortedSprite, CMD_DistortedSprite,
+      VDP1_CMD_NormalSprite, VDP1_CMD_ScaledSprite,   VDP1_CMD_DistortedSprite, VDP1_CMD_DistortedSprite,
 
       /* 0x4 */         /* 0x5 (polyline) *//* 0x6 */            /* 0x7 (polyline) */
-      CMD_Polygon,      CMD_Line,	    CMD_Line,            CMD_Line,
+      VDP1_CMD_Polygon,      VDP1_CMD_Line,	    VDP1_CMD_Line,            VDP1_CMD_Line,
 
       /* 0x8*/          /* 0x9 */           /* 0xA */            /* 0xB */
       CMD_SetUserClip,  CMD_SetSystemClip,  CMD_SetLocalCoord,   CMD_SetUserClip
@@ -675,10 +737,10 @@ static INLINE void DoDrawing(void)
      static int32_t (*const resume_table[0x8])(const uint16_t* cmd_data) =
      {
       /* 0x0 */         /* 0x1 */         /* 0x2 */            /* 0x3 */
-      RESUME_Sprite, RESUME_Sprite, RESUME_Sprite, RESUME_Sprite,
+      VDP1_RESUME_Sprite, VDP1_RESUME_Sprite, VDP1_RESUME_Sprite, VDP1_RESUME_Sprite,
 
       /* 0x4 */    /* 0x5 */     /* 0x6 */ /* 0x7 */
-      RESUME_Polygon, RESUME_Line, RESUME_Line, RESUME_Line,
+      VDP1_RESUME_Polygon, VDP1_RESUME_Line, VDP1_RESUME_Line, VDP1_RESUME_Line,
      };
 
      VDP1_EAT_CLOCKS(command_table[CommandData[0] & 0xF](CommandData));
@@ -745,7 +807,7 @@ static INLINE void DoDrawing(void)
   InstantDrawSanityLimit = CycleCounter;
 }
 
-sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
+sscpu_timestamp_t VDP1_Update(sscpu_timestamp_t timestamp)
 {
  if(MDFN_UNLIKELY(timestamp < lastts))
  {
@@ -788,7 +850,7 @@ static void StartDrawing(void)
  CycleCounter = VDP1_UpdateTimingGran;
 }
 
-void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, const bool new_vb_status)
+void VDP1_SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, const bool new_vb_status)
 {
  const bool old_hb_status = hb_status;
  const bool old_vb_status = vb_status;
@@ -805,7 +867,7 @@ void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, 
    //
    // v-blank erase
    //
-   if((TVMR & TVMR_VBE) || FBVBErasePending)
+   if((VDP1_TVMR & VDP1_TVMR_VBE) || FBVBErasePending)
    {
 
     FBVBErasePending = false;
@@ -832,8 +894,8 @@ void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, 
      uint16_t* mfbyptr;
      uint32_t x = EraseParams.x_start;
 
-     fbyptr = &FB[!FBDrawWhich][(y & 0xFF) << 9];
-     mfbyptr = &MeshFB[!FBDrawWhich][(y & 0xFF) << 9];
+     fbyptr = &VDP1_FB[!FBDrawWhich][(y & 0xFF) << 9];
+     mfbyptr = &VDP1_MeshFB[!FBDrawWhich][(y & 0xFF) << 9];
      if(EraseParams.rot8)
      {
       fbyptr += (y & 0x100);
@@ -868,32 +930,32 @@ void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, 
    //
    //
    //
-   if(!(FBCR & FBCR_FCM) || (FBManualPending && (FBCR & FBCR_FCT)))	// Swap framebuffers
+   if(!(VDP1_FBCR & VDP1_FBCR_FCM) || (FBManualPending && (VDP1_FBCR & VDP1_FBCR_FCT)))	// Swap framebuffers
    {
-    if((ss_horrible_hacks & HORRIBLEHACK_VDP1VRAM5000FIX) && DrawingActive && VRAM[0] == 0x5000 && VRAM[1] == 0x0000)
-     VRAM[0] = 0x8000;
+    if((ss_horrible_hacks & HORRIBLEHACK_VDP1VRAM5000FIX) && DrawingActive && VDP1_VRAM[0] == 0x5000 && VDP1_VRAM[1] == 0x0000)
+     VDP1_VRAM[0] = 0x8000;
 
     if(DrawingActive)
      DrawingActive = false;
 
     FBDrawWhich = !FBDrawWhich;
-    FBDrawWhichPtr = FB[FBDrawWhich];
-    MeshFBDrawWhichPtr = MeshFB[FBDrawWhich];
+    VDP1_FBDrawWhichPtr = VDP1_FB[FBDrawWhich];
+    VDP1_MeshFBDrawWhichPtr = VDP1_MeshFB[FBDrawWhich];
 
-    // Unconditionally clear the new draw side of MeshFB. Game-driven erase
-    // (VBErase, per-scanline GetLine erase) is gated on the game's FBCR/
+    // Unconditionally clear the new draw side of VDP1_MeshFB. Game-driven erase
+    // (VBErase, per-scanline GetLine erase) is gated on the game's VDP1_FBCR/
     // EraseParams settings, which won't fire if the game uses manual buffer
     // management. Mesh data is transient by nature - we always want a fresh
     // slate per frame, regardless of the game's main-FB persistence choices.
-    if(MeshImproved)
-     memset(MeshFBDrawWhichPtr, 0, sizeof(MeshFB[0]));
+    if(VDP1_MeshImproved)
+     memset(VDP1_MeshFBDrawWhichPtr, 0, sizeof(VDP1_MeshFB[0]));
 
     // On fb swap, copy CEF to BEF, clear CEF, and copy COPR to LOPR.
     EDSR = EDSR >> 1;
     LOPR = CurCommandAddr >> 2;
 
     //
-    EraseParams.rot8 = (TVMR & (TVMR_8BPP | TVMR_ROTATE)) == (TVMR_8BPP | TVMR_ROTATE);
+    EraseParams.rot8 = (VDP1_TVMR & (VDP1_TVMR_8BPP | VDP1_TVMR_ROTATE)) == (VDP1_TVMR_8BPP | VDP1_TVMR_ROTATE);
     EraseParams.fb_x_mask = EraseParams.rot8 ? 0xFF : 0x1FF;
 
     EraseParams.y_start = EWLR & 0x1FF;
@@ -908,14 +970,14 @@ void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, 
     if(PTMR & 0x2)	// Start drawing(but only if we swapped the frame)
     {
      StartDrawing();
-     SS_SetEventNT(&events[SS_EVENT_VDP1], Update(event_timestamp));
+     SS_SetEventNT(&events[SS_EVENT_VDP1], VDP1_Update(event_timestamp));
     }
    }
 
    EraseYCounter = ~0U;
-   if(!(FBCR & FBCR_FCM) || (FBManualPending && !(FBCR & FBCR_FCT)) || FBLastErasePending)
+   if(!(VDP1_FBCR & VDP1_FBCR_FCM) || (FBManualPending && !(VDP1_FBCR & VDP1_FBCR_FCT)) || FBLastErasePending)
    {
-    if(TVMR & TVMR_ROTATE)
+    if(VDP1_TVMR & VDP1_TVMR_ROTATE)
      FBVBErasePending = true;
     else
      EraseYCounter = EraseParams.y_start;
@@ -928,18 +990,18 @@ void SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, 
  vbcdpending |= old_vb_status ^ vb_status;
 }
 
-bool GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w, uint32_t rot_x, uint32_t rot_y, uint32_t rot_xinc, uint32_t rot_yinc)
+bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w, uint32_t rot_x, uint32_t rot_y, uint32_t rot_xinc, uint32_t rot_yinc)
 {
  bool ret = false;
  //
  //
  //
- if(TVMR & TVMR_ROTATE)
+ if(VDP1_TVMR & VDP1_TVMR_ROTATE)
  {
-  const uint16_t* fbptr = FB[!FBDrawWhich];
-  const uint16_t* mfbptr = MeshFB[!FBDrawWhich];
+  const uint16_t* fbptr = VDP1_FB[!FBDrawWhich];
+  const uint16_t* mfbptr = VDP1_MeshFB[!FBDrawWhich];
 
-  if(TVMR & TVMR_8BPP)
+  if(VDP1_TVMR & VDP1_TVMR_8BPP)
   {
    for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
    {
@@ -965,7 +1027,7 @@ bool GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w, uint
 
      buf[i] = 0xFF00 | tmp;
      // 8bpp paletted mode doesn't use mesh-improved (PlotPixel
-     // gates improved mesh on the 16bpp path only), so MeshFB
+     // gates improved mesh on the 16bpp path only), so VDP1_MeshFB
      // is guaranteed clear in 8bpp mode -- but read it anyway
      // in case mode bits changed mid-frame.
      const uint16_t* mfbyptr = mfbptr + ((fb_y & 0xFF) << 9);
@@ -1006,10 +1068,10 @@ bool GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w, uint
  }
  else
  {
-  const uint16_t* fbyptr = &FB[!FBDrawWhich][(line & 0xFF) << 9];
-  const uint16_t* mfbyptr = &MeshFB[!FBDrawWhich][(line & 0xFF) << 9];
+  const uint16_t* fbyptr = &VDP1_FB[!FBDrawWhich][(line & 0xFF) << 9];
+  const uint16_t* mfbyptr = &VDP1_MeshFB[!FBDrawWhich][(line & 0xFF) << 9];
 
-  if(TVMR & TVMR_8BPP)
+  if(VDP1_TVMR & VDP1_TVMR_8BPP)
    ret = true;
 
   // Plain contiguous copy of w uint16_t framebuffer cells into the
@@ -1032,8 +1094,8 @@ bool GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w, uint
   uint16_t* mfbyptr;
   uint32_t x = EraseParams.x_start;
 
-  fbyptr = &FB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
-  mfbyptr = &MeshFB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
+  fbyptr = &VDP1_FB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
+  mfbyptr = &VDP1_MeshFB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
   if(EraseParams.rot8)
   {
    fbyptr += (EraseYCounter & 0x100);
@@ -1056,7 +1118,7 @@ bool GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w, uint
  return ret;
 }
 
-void AdjustTS(const int32_t delta)
+void VDP1_AdjustTS(const int32_t delta)
 {
  lastts += delta;
  if(FBVBEraseActive)
@@ -1067,36 +1129,36 @@ void AdjustTS(const int32_t delta)
 
 static INLINE void WriteReg(const unsigned which, const uint16_t value)
 {
- SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2::Update(SH7095_mem_timestamp));
- sscpu_timestamp_t nt = Update(SH7095_mem_timestamp);
+ SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2_Update(SH7095_mem_timestamp));
+ sscpu_timestamp_t nt = VDP1_Update(SH7095_mem_timestamp);
 
  switch(which)
  {
   default:
 	break;
 
-  case 0x0:	// TVMR
-	TVMR = value & 0xF;
+  case 0x0:	// VDP1_TVMR
+	VDP1_TVMR = value & 0xF;
 	break;
 
-  case 0x1:	// FBCR
+  case 0x1:	// VDP1_FBCR
 	{
 	 // Backport of Kronos commit f692be7 (FCare, Nov 2024).  FCM=0 puts
 	 // VDP1 in one-cycle mode (auto-erase every frame); FCM=1 is manual
-	 // mode (erase only on explicit FBCR.FCT/FCM=1 writes).  When the
+	 // mode (erase only on explicit VDP1_FBCR.FCT/FCM=1 writes).  When the
 	 // game flips FCM 0->1 mid-frame, the frame currently in flight was
 	 // rendered under one-cycle semantics and should still get its
 	 // trailing auto-erase before the buffer goes "manual".  Without
 	 // this, stale framebuffer content from that last one-cycle frame
 	 // leaks into the first manual frame.  Cited symptom: Return Fire.
-	 // VBE in TVMR is the explicit v-blank-erase path; if VBE is set
+	 // VBE in VDP1_TVMR is the explicit v-blank-erase path; if VBE is set
 	 // the erase is already coming, so suppress the catch-up.
-	 const bool old_fcm = (FBCR  & FBCR_FCM) != 0;
-	 const bool new_fcm = (value & FBCR_FCM) != 0;
-	 if(!old_fcm && new_fcm && !(TVMR & TVMR_VBE))
+	 const bool old_fcm = (VDP1_FBCR  & VDP1_FBCR_FCM) != 0;
+	 const bool new_fcm = (value & VDP1_FBCR_FCM) != 0;
+	 if(!old_fcm && new_fcm && !(VDP1_TVMR & VDP1_TVMR_VBE))
 	  FBLastErasePending = true;
 	}
-	FBCR = value & 0x1F;
+	VDP1_FBCR = value & 0x1F;
 	FBManualPending |= value & 0x2;
 	break;
 
@@ -1153,7 +1215,7 @@ static INLINE uint16_t ReadReg(const unsigned which)
 	return CurCommandAddr >> 2;
 
   case 0xB:	// MODR
-	return (0x1 << 12) | ((PTMR & 0x2) << 7) | ((FBCR & 0x1E) << 3) | (TVMR << 0);
+	return (0x1 << 12) | ((PTMR & 0x2) << 7) | ((VDP1_FBCR & 0x1E) << 3) | (VDP1_TVMR << 0);
  }
 
  return 0;
@@ -1165,7 +1227,7 @@ static INLINE uint16_t ReadReg(const unsigned which)
 // and the game could subsequently hang waiting for drawing to complete.  With this in mind, only selectively enable it for games that are known
 // to benefit, via the horrible hacks mechanism.
 //
-MDFN_FASTCALL void Write_CheckDrawSlowdown(uint32_t A, sscpu_timestamp_t time_thing)
+MDFN_FASTCALL void VDP1_Write_CheckDrawSlowdown(uint32_t A, sscpu_timestamp_t time_thing)
 {
  if(DrawingActive && time_thing > LastRWTS && (ss_horrible_hacks & HORRIBLEHACK_VDP1RWDRAWSLOWDOWN))
  {
@@ -1177,7 +1239,7 @@ MDFN_FASTCALL void Write_CheckDrawSlowdown(uint32_t A, sscpu_timestamp_t time_th
  }
 }
 
-MDFN_FASTCALL void Read_CheckDrawSlowdown(uint32_t A, sscpu_timestamp_t time_thing)
+MDFN_FASTCALL void VDP1_Read_CheckDrawSlowdown(uint32_t A, sscpu_timestamp_t time_thing)
 {
  if(!(A & 0x100000) && time_thing > LastRWTS && DrawingActive && (ss_horrible_hacks & HORRIBLEHACK_VDP1RWDRAWSLOWDOWN))
  {
@@ -1189,18 +1251,18 @@ MDFN_FASTCALL void Read_CheckDrawSlowdown(uint32_t A, sscpu_timestamp_t time_thi
  }
 }
 
-MDFN_FASTCALL void Write8_DB(uint32_t A, uint16_t DB)
+MDFN_FASTCALL void VDP1_Write8_DB(uint32_t A, uint16_t DB)
 {
  A &= 0x1FFFFF;
 
  if(A < 0x80000)
  {
-  /* ne16_wbo_be<uint8_t>(VRAM, A, val) folded. */
+  /* ne16_wbo_be<uint8_t>(VDP1_VRAM, A, val) folded. */
   const uint8_t val_ = DB >> (((A & 1) ^ 1) << 3);
 #ifdef MSB_FIRST
-  ((uint8_t*)VRAM)[A] = val_;
+  ((uint8_t*)VDP1_VRAM)[A] = val_;
 #else
-  ((uint8_t*)VRAM)[A ^ 1] = val_;
+  ((uint8_t*)VDP1_VRAM)[A ^ 1] = val_;
 #endif
   return;
  }
@@ -1209,16 +1271,16 @@ MDFN_FASTCALL void Write8_DB(uint32_t A, uint16_t DB)
  {
   uint32_t FBA = A;
 
-  if((TVMR & (TVMR_8BPP | TVMR_ROTATE)) == (TVMR_8BPP | TVMR_ROTATE))
+  if((VDP1_TVMR & (VDP1_TVMR_8BPP | VDP1_TVMR_ROTATE)) == (VDP1_TVMR_8BPP | VDP1_TVMR_ROTATE))
    FBA = (FBA & 0x1FF) | ((FBA << 1) & 0x3FC00) | ((FBA >> 8) & 0x200);
 
-  /* ne16_wbo_be<uint8_t>(FB[..], offs, val) folded. */
+  /* ne16_wbo_be<uint8_t>(VDP1_FB[..], offs, val) folded. */
   const uint32_t fbo_ = FBA & 0x3FFFF;
   const uint8_t val_ = DB >> (((A & 1) ^ 1) << 3);
 #ifdef MSB_FIRST
-  ((uint8_t*)FB[FBDrawWhich])[fbo_] = val_;
+  ((uint8_t*)VDP1_FB[FBDrawWhich])[fbo_] = val_;
 #else
-  ((uint8_t*)FB[FBDrawWhich])[fbo_ ^ 1] = val_;
+  ((uint8_t*)VDP1_FB[FBDrawWhich])[fbo_ ^ 1] = val_;
 #endif
   return;
  }
@@ -1226,13 +1288,13 @@ MDFN_FASTCALL void Write8_DB(uint32_t A, uint16_t DB)
  WriteReg((A - 0x100000) >> 1, DB);
 }
 
-MDFN_FASTCALL void Write16_DB(uint32_t A, uint16_t DB)
+MDFN_FASTCALL void VDP1_Write16_DB(uint32_t A, uint16_t DB)
 {
  A &= 0x1FFFFE;
 
  if(A < 0x80000)
  {
-  VRAM[A >> 1] = DB;
+  VDP1_VRAM[A >> 1] = DB;
   return;
  }
 
@@ -1240,121 +1302,121 @@ MDFN_FASTCALL void Write16_DB(uint32_t A, uint16_t DB)
  {
   uint32_t FBA = A;
 
-  if((TVMR & (TVMR_8BPP | TVMR_ROTATE)) == (TVMR_8BPP | TVMR_ROTATE))
+  if((VDP1_TVMR & (VDP1_TVMR_8BPP | VDP1_TVMR_ROTATE)) == (VDP1_TVMR_8BPP | VDP1_TVMR_ROTATE))
    FBA = (FBA & 0x1FF) | ((FBA << 1) & 0x3FC00) | ((FBA >> 8) & 0x200);
 
-  FB[FBDrawWhich][(FBA >> 1) & 0x1FFFF] = DB;
+  VDP1_FB[FBDrawWhich][(FBA >> 1) & 0x1FFFF] = DB;
   return;
  }
 
  WriteReg((A - 0x100000) >> 1, DB);
 }
 
-MDFN_FASTCALL uint16_t Read16_DB(uint32_t A)
+MDFN_FASTCALL uint16_t VDP1_Read16_DB(uint32_t A)
 {
  A &= 0x1FFFFE;
 
  if(A < 0x080000)
-  return VRAM[A >> 1];
+  return VDP1_VRAM[A >> 1];
 
  if(A < 0x100000)
  {
   uint32_t FBA = A;
 
-  if((TVMR & (TVMR_8BPP | TVMR_ROTATE)) == (TVMR_8BPP | TVMR_ROTATE))
+  if((VDP1_TVMR & (VDP1_TVMR_8BPP | VDP1_TVMR_ROTATE)) == (VDP1_TVMR_8BPP | VDP1_TVMR_ROTATE))
    FBA = (FBA & 0x1FF) | ((FBA << 1) & 0x3FC00) | ((FBA >> 8) & 0x200);
 
-  return FB[FBDrawWhich][(FBA >> 1) & 0x1FFFF];
+  return VDP1_FB[FBDrawWhich][(FBA >> 1) & 0x1FFFF];
  }
 
  return ReadReg((A - 0x100000) >> 1);
 }
 
-void StateAction(StateMem* sm, const unsigned load, const bool data_only)
+void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {
  bool tmp_abs_dy_gt_abs_dx = false;
 
  SFORMAT Prim_StateRegs[] =
  {
-  SFVAR(PrimData.e->d_error, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->d_error_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->d_error_adj, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->d_error_cmp, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(VDP1_PrimData.e->d_error, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->d_error_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->d_error_adj, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->d_error_cmp, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
 
-  SFVAR(PrimData.e->x, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->x_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->x_error, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->x_error_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->x_error_adj, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->x_error_cmp, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(VDP1_PrimData.e->x, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->x_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->x_error, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->x_error_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->x_error_adj, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->x_error_cmp, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
 
-  SFVAR(PrimData.e->y, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->y_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->y_error, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->y_error_inc, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->y_error_adj, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->y_error_cmp, 0x2, sizeof(*PrimData.e), PrimData.e),
+  SFVAR(VDP1_PrimData.e->y, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->y_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->y_error, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->y_error_inc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->y_error_adj, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->y_error_cmp, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
 
-  SFVAR(PrimData.e->g.g, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFVAR(PrimData.e->g.intinc, 0x2, sizeof(*PrimData.e), PrimData.e),
-  SFPTR32N(&(PrimData.e->g.ginc)[0], (sizeof(PrimData.e->g.ginc) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.ginc"),
-  SFPTR32N(&(PrimData.e->g.error)[0], (sizeof(PrimData.e->g.error) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.error"),
-  SFPTR32N(&(PrimData.e->g.error_inc)[0], (sizeof(PrimData.e->g.error_inc) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.error_inc"),
-  SFPTR32N(&(PrimData.e->g.error_adj)[0], (sizeof(PrimData.e->g.error_adj) / sizeof(int32_t)), 0x2, sizeof(*PrimData.e), PrimData.e, "PrimData.e->g.error_adj"),
+  SFVAR(VDP1_PrimData.e->g.g, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFVAR(VDP1_PrimData.e->g.intinc, 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e),
+  SFPTR32N(&(VDP1_PrimData.e->g.ginc)[0], (sizeof(VDP1_PrimData.e->g.ginc) / sizeof(int32_t)), 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e, "VDP1_PrimData.e->g.ginc"),
+  SFPTR32N(&(VDP1_PrimData.e->g.error)[0], (sizeof(VDP1_PrimData.e->g.error) / sizeof(int32_t)), 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e, "VDP1_PrimData.e->g.error"),
+  SFPTR32N(&(VDP1_PrimData.e->g.error_inc)[0], (sizeof(VDP1_PrimData.e->g.error_inc) / sizeof(int32_t)), 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e, "VDP1_PrimData.e->g.error_inc"),
+  SFPTR32N(&(VDP1_PrimData.e->g.error_adj)[0], (sizeof(VDP1_PrimData.e->g.error_adj) / sizeof(int32_t)), 0x2, sizeof(*VDP1_PrimData.e), VDP1_PrimData.e, "VDP1_PrimData.e->g.error_adj"),
 
-  SFVAR(PrimData.big_t.t),
-  SFVAR(PrimData.big_t.tinc),
-  SFVAR(PrimData.big_t.error),
-  SFVAR(PrimData.big_t.error_inc),
-  SFVAR(PrimData.big_t.error_adj),
+  SFVAR(VDP1_PrimData.big_t.t),
+  SFVAR(VDP1_PrimData.big_t.tinc),
+  SFVAR(VDP1_PrimData.big_t.error),
+  SFVAR(VDP1_PrimData.big_t.error_inc),
+  SFVAR(VDP1_PrimData.big_t.error_adj),
 
-  SFVAR(PrimData.iter),
-  SFVAR(PrimData.tex_base),
-  SFVAR(PrimData.need_line_resume),
+  SFVAR(VDP1_PrimData.iter),
+  SFVAR(VDP1_PrimData.tex_base),
+  SFVAR(VDP1_PrimData.need_line_resume),
   //
   //
   //
-  SFVAR(LineInnerData.xy),
-  SFVAR(LineInnerData.error),
-  SFVAR(LineInnerData.drawn_ac),
+  SFVAR(VDP1_LineInnerData.xy),
+  SFVAR(VDP1_LineInnerData.error),
+  SFVAR(VDP1_LineInnerData.drawn_ac),
 
-  SFVAR(LineInnerData.texel),
+  SFVAR(VDP1_LineInnerData.texel),
 
-  SFVAR(LineInnerData.t.t),
-  SFVAR(LineInnerData.t.tinc),
-  SFVAR(LineInnerData.t.error),
-  SFVAR(LineInnerData.t.error_inc),
-  SFVAR(LineInnerData.t.error_adj),
+  SFVAR(VDP1_LineInnerData.t.t),
+  SFVAR(VDP1_LineInnerData.t.tinc),
+  SFVAR(VDP1_LineInnerData.t.error),
+  SFVAR(VDP1_LineInnerData.t.error_inc),
+  SFVAR(VDP1_LineInnerData.t.error_adj),
 
-  SFVAR(LineInnerData.g.g),
-  SFVAR(LineInnerData.g.intinc),
-  SFPTR32N(&(LineInnerData.g.ginc)[0], (sizeof(LineInnerData.g.ginc) / sizeof(int32_t)), "LineInnerData.g.ginc"),
-  SFPTR32N(&(LineInnerData.g.error)[0], (sizeof(LineInnerData.g.error) / sizeof(int32_t)), "LineInnerData.g.error"),
-  SFPTR32N(&(LineInnerData.g.error_inc)[0], (sizeof(LineInnerData.g.error_inc) / sizeof(int32_t)), "LineInnerData.g.error_inc"),
-  SFPTR32N(&(LineInnerData.g.error_adj)[0], (sizeof(LineInnerData.g.error_adj) / sizeof(int32_t)), "LineInnerData.g.error_adj"),
+  SFVAR(VDP1_LineInnerData.g.g),
+  SFVAR(VDP1_LineInnerData.g.intinc),
+  SFPTR32N(&(VDP1_LineInnerData.g.ginc)[0], (sizeof(VDP1_LineInnerData.g.ginc) / sizeof(int32_t)), "VDP1_LineInnerData.g.ginc"),
+  SFPTR32N(&(VDP1_LineInnerData.g.error)[0], (sizeof(VDP1_LineInnerData.g.error) / sizeof(int32_t)), "VDP1_LineInnerData.g.error"),
+  SFPTR32N(&(VDP1_LineInnerData.g.error_inc)[0], (sizeof(VDP1_LineInnerData.g.error_inc) / sizeof(int32_t)), "VDP1_LineInnerData.g.error_inc"),
+  SFPTR32N(&(VDP1_LineInnerData.g.error_adj)[0], (sizeof(VDP1_LineInnerData.g.error_adj) / sizeof(int32_t)), "VDP1_LineInnerData.g.error_adj"),
 
-  SFVARN(LineInnerData.xy_inc[0], "LineInnerData.x_inc"),
-  SFVARN(LineInnerData.xy_inc[1], "LineInnerData.y_inc"),
-  SFVAR(LineInnerData.aa_xy_inc),
-  SFVAR(LineInnerData.term_xy),
+  SFVARN(VDP1_LineInnerData.xy_inc[0], "VDP1_LineInnerData.x_inc"),
+  SFVARN(VDP1_LineInnerData.xy_inc[1], "VDP1_LineInnerData.y_inc"),
+  SFVAR(VDP1_LineInnerData.aa_xy_inc),
+  SFVAR(VDP1_LineInnerData.term_xy),
 
-  SFVAR(LineInnerData.error_cmp),
-  SFVAR(LineInnerData.error_inc),
-  SFVAR(LineInnerData.error_adj),
+  SFVAR(VDP1_LineInnerData.error_cmp),
+  SFVAR(VDP1_LineInnerData.error_inc),
+  SFVAR(VDP1_LineInnerData.error_adj),
 
-  SFVAR(LineInnerData.color),
+  SFVAR(VDP1_LineInnerData.color),
 
-  SFVARN(tmp_abs_dy_gt_abs_dx, "LineInnerData.abs_dy_gt_abs_dx"),
+  SFVARN(tmp_abs_dy_gt_abs_dx, "VDP1_LineInnerData.abs_dy_gt_abs_dx"),
   //
   //
   //
-  SFVAR(LineData.p->t, 0x2, sizeof(*LineData.p), LineData.p),
-  SFVAR(LineData.color),
-  SFVAR(LineData.ec_count),
+  SFVAR(VDP1_LineData.p->t, 0x2, sizeof(*VDP1_LineData.p), VDP1_LineData.p),
+  SFVAR(VDP1_LineData.color),
+  SFVAR(VDP1_LineData.ec_count),
   //uint32_t (MDFN_FASTCALL *tffn)(uint32_t);
-  SFPTR16N(&(LineData.CLUT)[0], (sizeof(LineData.CLUT) / sizeof(uint16_t)), "LineData.CLUT"),
-  SFVAR(LineData.cb_or),
-  SFVAR(LineData.tex_base),
+  SFPTR16N(&(VDP1_LineData.CLUT)[0], (sizeof(VDP1_LineData.CLUT) / sizeof(uint16_t)), "VDP1_LineData.CLUT"),
+  SFVAR(VDP1_LineData.cb_or),
+  SFVAR(VDP1_LineData.tex_base),
   //
   //
   //
@@ -1363,9 +1425,9 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
  SFORMAT StateRegs[] =
  {
-  SFPTR16N(&(VRAM)[0], (sizeof(VRAM) / sizeof(uint16_t)), "VRAM"),
-  SFPTR16N(&(FB)[0][0], (sizeof(FB) / sizeof(uint16_t)), "&FB[0][0]"),
-  SFPTR16N(&(MeshFB)[0][0], (sizeof(MeshFB) / sizeof(uint16_t)), "&MeshFB[0][0]"),
+  SFPTR16N(&(VDP1_VRAM)[0], (sizeof(VDP1_VRAM) / sizeof(uint16_t)), "VDP1_VRAM"),
+  SFPTR16N(&(FB)[0][0], (sizeof(FB) / sizeof(uint16_t)), "&VDP1_FB[0][0]"),
+  SFPTR16N(&(VDP1_MeshFB)[0][0], (sizeof(VDP1_MeshFB) / sizeof(uint16_t)), "&VDP1_MeshFB[0][0]"),
   SFVAR(FBDrawWhich),
 
   SFVAR(FBManualPending),
@@ -1375,14 +1437,14 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(FBVBEraseActive),
   SFVAR(FBVBEraseLastTS),
 
-  SFVAR(SysClipX),
-  SFVAR(SysClipY),
-  SFVAR(UserClipX0),
-  SFVAR(UserClipY0),
-  SFVAR(UserClipX1),
-  SFVAR(UserClipY1),
-  SFVAR(LocalX),
-  SFVAR(LocalY),
+  SFVAR(VDP1_SysClipX),
+  SFVAR(VDP1_SysClipY),
+  SFVAR(VDP1_UserClipX0),
+  SFVAR(VDP1_UserClipY0),
+  SFVAR(VDP1_UserClipX1),
+  SFVAR(VDP1_UserClipY1),
+  SFVAR(VDP1_LocalX),
+  SFVAR(VDP1_LocalY),
 
   SFVAR(CurCommandAddr),
   SFVAR(RetCommandAddr),
@@ -1407,8 +1469,8 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   SFVAR(EraseYCounter),
 
-  SFVAR(TVMR),
-  SFVAR(FBCR),
+  SFVAR(VDP1_TVMR),
+  SFVAR(VDP1_FBCR),
   SFVAR(PTMR),
   SFVAR(EDSR),
 
@@ -1418,7 +1480,7 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(CycleCounter),
   SFVAR(CommandPhase),
   SFVAR(CommandData),
-  SFVAR(DTACounter),
+  SFVAR(VDP1_DTACounter),
 
   SFVAR(vbcdpending),
 
@@ -1435,8 +1497,8 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
  if(load)
  {
-  // The drawing loop fetches 16 uint16s from VRAM[CurCommandAddr]
-  // via memcpy (search for "Fetch command data"). VRAM has 0x40000
+  // The drawing loop fetches 16 uint16s from VDP1_VRAM[CurCommandAddr]
+  // via memcpy (search for "Fetch command data"). VDP1_VRAM has 0x40000
   // entries, so the largest in-bounds index for a 16-element read
   // is 0x3FFF0. The previous mask of 0x3FFFF let a hostile save
   // state push CurCommandAddr into [0x3FFF1, 0x3FFFF], producing a
@@ -1451,7 +1513,7 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   if(RetCommandAddr >= 0)
    RetCommandAddr &= 0x3FFF0;
 
-  DTACounter &= 0xFF;
+  VDP1_DTACounter &= 0xFF;
 
   EraseParams.fb_x_mask = EraseParams.rot8 ? 0xFF : 0x1FF;
 
@@ -1461,8 +1523,8 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   EraseParams.y_end &= 0x1FF;
   EraseParams.x_bound &= 0x7F << 3;
   //
-  FBDrawWhichPtr = FB[FBDrawWhich];
-  MeshFBDrawWhichPtr = MeshFB[FBDrawWhich];
+  VDP1_FBDrawWhichPtr = VDP1_FB[FBDrawWhich];
+  VDP1_MeshFBDrawWhichPtr = VDP1_MeshFB[FBDrawWhich];
 
   if(load < 0x00102500)
   {
@@ -1473,68 +1535,68 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
   {
    /* std::swap(xy_inc[0], xy_inc[1]) folded; braced because this is
     * an unbraced if body. */
-   int32_t tmp_xy = LineInnerData.xy_inc[0];
-   LineInnerData.xy_inc[0] = LineInnerData.xy_inc[1];
-   LineInnerData.xy_inc[1] = tmp_xy;
+   int32_t tmp_xy = VDP1_LineInnerData.xy_inc[0];
+   VDP1_LineInnerData.xy_inc[0] = VDP1_LineInnerData.xy_inc[1];
+   VDP1_LineInnerData.xy_inc[1] = tmp_xy;
   }
  }
 }
 
-uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len)
+uint32_t VDP1_GetRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
  uint32_t ret = 0xDEADBEEF;
 
  switch(id)
  {
-  case GSREG_SYSCLIPX:
-	ret = SysClipX;
+  case VDP1_GSREG_SYSCLIPX:
+	ret = VDP1_SysClipX;
 	break;
 
-  case GSREG_SYSCLIPY:
-	ret = SysClipY;
+  case VDP1_GSREG_SYSCLIPY:
+	ret = VDP1_SysClipY;
 	break;
 
-  case GSREG_USERCLIPX0:
-	ret = UserClipX0;
+  case VDP1_GSREG_USERCLIPX0:
+	ret = VDP1_UserClipX0;
 	break;
 
-  case GSREG_USERCLIPY0:
-	ret = UserClipY0;
+  case VDP1_GSREG_USERCLIPY0:
+	ret = VDP1_UserClipY0;
 	break;
 
-  case GSREG_USERCLIPX1:
-	ret = UserClipX1;
+  case VDP1_GSREG_USERCLIPX1:
+	ret = VDP1_UserClipX1;
 	break;
 
-  case GSREG_USERCLIPY1:
-	ret = UserClipY1;
+  case VDP1_GSREG_USERCLIPY1:
+	ret = VDP1_UserClipY1;
 	break;
 
-  case GSREG_LOCALX:
-	ret = LocalX;
+  case VDP1_GSREG_LOCALX:
+	ret = VDP1_LocalX;
 	break;
 
-  case GSREG_LOCALY:
-	ret = LocalY;
+  case VDP1_GSREG_LOCALY:
+	ret = VDP1_LocalY;
  	break;
 
-  case GSREG_TVMR:
-	ret = TVMR;
+  case VDP1_GSREG_TVMR:
+	ret = VDP1_TVMR;
 	break;
 
-  case GSREG_FBCR:
-	ret = FBCR;
+  case VDP1_GSREG_FBCR:
+	ret = VDP1_FBCR;
 	break;
 
-  case GSREG_EWDR:
+  case VDP1_GSREG_EWDR:
 	ret = EWDR;
 	break;
 
-  case GSREG_EWLR:
+  case VDP1_GSREG_EWLR:
 	ret = EWLR;
 	break;
 
-  case GSREG_EWRR:
+  case VDP1_GSREG_EWRR:
 	ret = EWRR;
 	break;
  }
@@ -1542,65 +1604,65 @@ uint32_t GetRegister(const unsigned id, char* const special, const uint32_t spec
  return ret;
 }
 
-void SetRegister(const unsigned id, const uint32_t value)
+void VDP1_SetRegister(const unsigned id, const uint32_t value)
 {
  // TODO
  switch(id)
  {
-  case GSREG_SYSCLIPX:
-	SysClipX = value & 0x1FFF;
+  case VDP1_GSREG_SYSCLIPX:
+	VDP1_SysClipX = value & 0x1FFF;
 	break;
 
-  case GSREG_SYSCLIPY:
-	SysClipY = value & 0x1FFF;
+  case VDP1_GSREG_SYSCLIPY:
+	VDP1_SysClipY = value & 0x1FFF;
 	break;
 
-  case GSREG_USERCLIPX0:
-	UserClipX0 = value & 0x1FFF;
+  case VDP1_GSREG_USERCLIPX0:
+	VDP1_UserClipX0 = value & 0x1FFF;
 	break;
 
-  case GSREG_USERCLIPY0:
-	UserClipY0 = value & 0x1FFF;
+  case VDP1_GSREG_USERCLIPY0:
+	VDP1_UserClipY0 = value & 0x1FFF;
 	break;
 
-  case GSREG_USERCLIPX1:
-	UserClipX1 = value & 0x1FFF;
+  case VDP1_GSREG_USERCLIPX1:
+	VDP1_UserClipX1 = value & 0x1FFF;
 	break;
 
-  case GSREG_USERCLIPY1:
-	UserClipY1 = value & 0x1FFF;
+  case VDP1_GSREG_USERCLIPY1:
+	VDP1_UserClipY1 = value & 0x1FFF;
 	break;
 
 /*
-  case GSREG_LOCALX:
-	ret = LocalX;
+  case VDP1_GSREG_LOCALX:
+	ret = VDP1_LocalX;
 	break;
 
-  case GSREG_LOCALY:
-	ret = LocalY;
+  case VDP1_GSREG_LOCALY:
+	ret = VDP1_LocalY;
  	break;
 
-  case GSREG_TVMR:
-	ret = TVMR;
+  case VDP1_GSREG_TVMR:
+	ret = VDP1_TVMR;
 	break;
 
-  case GSREG_FBCR:
-	ret = FBCR;
+  case VDP1_GSREG_FBCR:
+	ret = VDP1_FBCR;
 	break;
 
-  case GSREG_EWDR:
+  case VDP1_GSREG_EWDR:
 	ret = EWDR;
 	break;
 
-  case GSREG_EWLR:
+  case VDP1_GSREG_EWLR:
 	ret = EWLR;
 	break;
 
-  case GSREG_EWRR:
+  case VDP1_GSREG_EWRR:
 	ret = EWRR;
 	break;
 */
  }
 }
 
-}
+/* end namespace VDP1 */

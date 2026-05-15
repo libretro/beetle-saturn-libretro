@@ -44,7 +44,8 @@
 // VDP2 translation unit. Set on the emulator main thread; flips only
 // in response to the libretro option-update path, so a relaxed load
 // is sufficient.
-namespace VDP1 { MDFN_HIDE extern bool MeshImproved; }
+/* VDP1 is now C; MeshImproved is a plain extern with C linkage. */
+extern "C" { MDFN_HIDE extern bool VDP1_MeshImproved; }
 
 //uint8_t vdp2rend_prepad_bss
 
@@ -2877,7 +2878,7 @@ static void T_MixIt(uint32_t* target, const unsigned vdp2_line, const unsigned w
   // update path so the branch is ~100% predictable across a frame,
   // and gating keeps MixIt's default-off cost identical to before
   // this feature existed.
-  if(VDP1::MeshImproved)
+  if(VDP1_MeshImproved)
    LIB[vdp2_line].vdp1_winprio[i] = (pix >> PIX_PRIO_SHIFT) & 0x7;
   target[i] = MIXIT_TO_SURFACE(pix >> PIX_RGB_SHIFT);
  }
@@ -3624,7 +3625,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
    // border-fill loops above, so they pass through unchanged.
 
    // Late composite for the improved-mesh-transparency option. Reads
-   // the per-scanline mesh side-buffer that VDP1::GetLine populated
+   // the per-scanline mesh side-buffer that VDP1_GetLine populated
    // from MeshFB; blends mesh pixels at 50% on top of the freshly-
    // composited surface row, gated on the mesh's would-be sprite
    // priority vs the winning layer's priority recorded by MixIt.
@@ -3632,7 +3633,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
    // this scan and the priority-store in MixIt; MeshFB is also
    // zeroed unconditionally by VBErase, so flipping the option on
    // mid-session can't bleed stale data through.
-   if(VDP1::MeshImproved)
+   if(VDP1_MeshImproved)
     ApplyMeshOverlay(target + tvxo, LIB[vdp2_line].vdp1_mesh_line, LIB[vdp2_line].vdp1_winprio, w, (HRes & 0x2) >> 1);
   }
   //

@@ -1189,7 +1189,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
       TurnSoundCPUOff();
 
      SOUND_Reset(false);
-     VDP1::Reset(false);
+     VDP1_Reset(false);
      VDP2::Reset(false);
      SCU_Reset(false);
 

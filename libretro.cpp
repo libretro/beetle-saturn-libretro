@@ -494,11 +494,11 @@ static void check_variables(bool startup)
    var.key = "beetle_saturn_mesh_transparency";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
-      // Forwarded to VDP1::SetMeshImproved which sets a module-level
+      // Forwarded to VDP1_SetMeshImproved which sets a module-level
       // bool. PlotPixel reads it inside its MeshEn=true template
       // path. Called from the same thread that runs SH-2 / VDP1
       // rasterisation, so no synchronisation needed.
-      VDP1::SetMeshImproved(strcmp(var.value, "enabled") == 0);
+      VDP1_SetMeshImproved(strcmp(var.value, "enabled") == 0);
    }
 
    var.key = "beetle_saturn_analog_stick_deadzone";

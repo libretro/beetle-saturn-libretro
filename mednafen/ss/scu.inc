@@ -839,23 +839,23 @@ static INLINE void BBusRW_DB(uint32_t A, uint16_t* DB, int32_t* time_thing, int3
   if(IsWrite)
   {
    if(time_thing != NULL)
-    VDP1::Write_CheckDrawSlowdown(A, *time_thing);
+    VDP1_Write_CheckDrawSlowdown(A, *time_thing);
    else if(sh2_dma_time_thing != NULL)
-    VDP1::Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
+    VDP1_Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
 
    if(sizeof(T) == 1)
-    VDP1::Write8_DB(A, *DB);
+    VDP1_Write8_DB(A, *DB);
    else
-    VDP1::Write16_DB(A, *DB);
+    VDP1_Write16_DB(A, *DB);
   }
   else
   {
    if(time_thing != NULL)
-    VDP1::Read_CheckDrawSlowdown(A, *time_thing);
+    VDP1_Read_CheckDrawSlowdown(A, *time_thing);
    else if(sh2_dma_time_thing != NULL)
-    VDP1::Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
+    VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
 
-   *DB = VDP1::Read16_DB(A);
+   *DB = VDP1_Read16_DB(A);
   }
 
   return;

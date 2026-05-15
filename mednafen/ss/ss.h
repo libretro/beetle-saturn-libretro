@@ -161,7 +161,10 @@
 
  enum : sscpu_timestamp_t { SS_EVENT_DISABLED_TS = 0x7FFFFFFF };
 
- void SS_SetEventNT(event_list_entry* e, const sscpu_timestamp_t next_timestamp);
+ /* extern "C": called from vdp1.c (converted to C). event_list_entry
+    is a plain { sscpu_timestamp_t event_time; } POD; vdp1.c mirrors
+    the layout. */
+ extern "C" void SS_SetEventNT(event_list_entry* e, const sscpu_timestamp_t next_timestamp);
 
  // Call from init code, or power/reset code, as appropriate.
  // (length is in units of bytes, not 16-bit units)

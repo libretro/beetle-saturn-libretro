@@ -52,7 +52,7 @@ struct VDP2Rend_LIB
  bool vdp1_hires8;
  bool win_ymet[2];
  uint16_t vdp1_line[352];
- // Mesh side-buffer scanline staged here by VDP1::GetLine when the
+ // Mesh side-buffer scanline staged here by VDP1_GetLine when the
  // improved-mesh-transparency option is on. Per-pixel: raw VDP1 texel
  // (CRAM offset / colour-bank-OR / priority-CC bits for paletted types
  // 0-4, or RGB555 for direct-colour types 5-7); 0 = no mesh. The

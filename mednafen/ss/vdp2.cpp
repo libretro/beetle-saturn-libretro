@@ -549,7 +549,7 @@ static INLINE int32_t AddHCounter(const sscpu_timestamp_t event_timestamp, int32
       }
      }
     }
-    lib->vdp1_hires8 = VDP1::GetLine(VCounter, lib->vdp1_line, lib->vdp1_mesh_line, (HRes & 1) ? 352 : 320, (int32_t)RotParams[0].XstAccum >> 1, (int32_t)RotParams[0].YstAccum >> 1, (int32_t)RotParams[0].DX >> 1, (int32_t)RotParams[0].DY >> 1); // Always call, has side effects.
+    lib->vdp1_hires8 = VDP1_GetLine(VCounter, lib->vdp1_line, lib->vdp1_mesh_line, (HRes & 1) ? 352 : 320, (int32_t)RotParams[0].XstAccum >> 1, (int32_t)RotParams[0].YstAccum >> 1, (int32_t)RotParams[0].DX >> 1, (int32_t)RotParams[0].DY >> 1); // Always call, has side effects.
     VDP2REND_DrawLine(InternalVB ? -1 : VCounter, CRTLineCounter, !Odd);
     CRTLineCounter++;
    }
@@ -582,7 +582,7 @@ sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
  //
  int32_t tmp;
  int32_t ne = AddHCounter(timestamp, clocks);
- VDP1::SetHBVB(timestamp, HPhase > HPHASE_ACTIVE, Out_VB);
+ VDP1_SetHBVB(timestamp, HPhase > HPHASE_ACTIVE, Out_VB);
  tmp = SCU_SetHBVB(clocks, HPhase > HPHASE_ACTIVE, Out_VB);
  if(tmp < ne)
   ne = tmp;
@@ -1466,4 +1466,12 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
  VDP2REND_StateAction(sm, load, data_only, RawRegs, CRAM, VRAM);
 }
 
+}
+
+/* C-linkage wrapper: vdp1.c (converted to C) schedules a VDP2 update
+   via this. VDP2 itself is still C++; this thin shim bridges the
+   C/C++ boundary until VDP2 is converted. */
+extern "C" sscpu_timestamp_t VDP2_Update(sscpu_timestamp_t timestamp)
+{
+ return VDP2::Update(timestamp);
 }

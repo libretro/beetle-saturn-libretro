@@ -593,7 +593,7 @@ static MDFN_COLD void InitEvents(void)
 
  event_handlers[SS_EVENT_SMPC] = SMPC_Update;
 
- event_handlers[SS_EVENT_VDP1] = VDP1::Update;
+ event_handlers[SS_EVENT_VDP1] = VDP1_Update;
  event_handlers[SS_EVENT_VDP2] = VDP2::Update;
 
  event_handlers[SS_EVENT_CDB] = CDB_Update;
@@ -774,7 +774,7 @@ void SS_Reset(bool powering_up)
 
  SMPC_Reset(powering_up);
 
- VDP1::Reset(powering_up);
+ VDP1_Reset(powering_up);
  VDP2::Reset(powering_up);
 
  CDB_Reset(powering_up);
@@ -853,7 +853,7 @@ void Emulate(EmulateSpecStruct* espec_arg)
 
  CDB_ResetTS();
  SOUND_AdjustTS(-end_ts);
- VDP1::AdjustTS(-end_ts);
+ VDP1_AdjustTS(-end_ts);
  VDP2::AdjustTS(-end_ts);
  SMPC_ResetTS();
  SCU_AdjustTS(-end_ts);
@@ -905,7 +905,7 @@ static MDFN_COLD void Cleanup(void)
 {
  CART_Kill();
 
- VDP1::Kill();
+ VDP1_Kill();
  VDP2::Kill();
  SOUND_Kill();
  CDB_Kill();
@@ -1105,7 +1105,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
 
    SCU_Init();
    SMPC_Init(smpc_area, MasterClock, is_stv);
-   VDP1::Init();
+   VDP1_Init();
    VDP2::Init(PAL,vdp2_affinity);
    VDP2::SetGetVideoParams(&EmulatedSS, true, sls, sle, true, DoHBlend);
    CDB_Init();
@@ -1532,7 +1532,7 @@ extern "C" MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load
  SMPC_StateAction(sm, load, false);
 
  CDB_StateAction(sm, load, false);
- VDP1::StateAction(sm, load, false);
+ VDP1_StateAction(sm, load, false);
  VDP2::StateAction(sm, load, false);
 
  SOUND_StateAction(sm, load, false);
