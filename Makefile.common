@@ -55,7 +55,8 @@ ifeq ($(NEED_TREMOR), 1)
 endif
 
 SOURCES_C += $(CORE_EMU_DIR)/ss.c \
-             $(CORE_EMU_DIR)/scsp_dsp_jit.c
+             $(CORE_EMU_DIR)/scsp_dsp_jit.c \
+             $(CORE_EMU_DIR)/jitdump.c
 
 # sound.c covers the whole Saturn sound subsystem in a single TU:
 # the SOUND_* public ABI, the SOUND_Update 32.32 fixed-point cycle

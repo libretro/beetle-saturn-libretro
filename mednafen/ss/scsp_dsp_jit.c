@@ -48,6 +48,7 @@
 #include "scsp.h"
 #include "scsp_dsp_jit.h"
 #include "a64emit.h"
+#include "jitdump.h"
 
 void (*SCSP_DSP_JIT_Entry)(struct SS_SCSP*) = NULL;
 
@@ -714,8 +715,15 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
  a64_pool_flush(g_cg);
 
  void* const end_addr = a64_codegen_wptr(g_cg);
- a64_codegen_invalidate(g_cg, entry_addr,
-                        (size_t)((char*)end_addr - (char*)entry_addr));
+ const size_t code_bytes = (size_t)((char*)end_addr - (char*)entry_addr);
+ a64_codegen_invalidate(g_cg, entry_addr, code_bytes);
+
+ /* Publish to perf jitdump.  perf inject --jit will resolve samples
+  * landing anywhere in [entry_addr, end_addr) to this symbol.  The
+  * code_index counter in the shared writer disambiguates successive
+  * MPROG_Dirty recompiles that reuse the same address. */
+ SS_JitDump_Open();
+ SS_JitDump_Emit("scsp_mprog", entry_addr, code_bytes);
 
  SCSP_DSP_JIT_Entry = (void(*)(struct SS_SCSP*))entry_addr;
 }
