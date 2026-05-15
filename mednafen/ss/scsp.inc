@@ -1374,7 +1374,19 @@ INLINE void SS_SCSP::RunDSP(void)
   }
 
   const int32_t INPUTS = sign_x_to_s32(24, DSP.INPUTS);
-  const uint16_t Y_SEL_Inputs[4] = { DSP.FRC_REG, DSP.COEF[s.CRA], (uint16_t)((DSP.Y_REG >> 11) & 0x1FFF), (uint16_t)((DSP.Y_REG >> 4) & 0x0FFF) };
+  //
+  // Y multiplicand selector.  YSEL is a 2-bit field; expressing it as a
+  // runtime-indexed local array makes the compiler materialize a 4-entry
+  // stack table and read back through `ldrh [sp, idx, lsl #1]` with a
+  // variable index — a store-to-load forwarding stall, the single hottest
+  // line in RunDSP.  A csel chain keeps the four candidates in registers.
+  const uint16_t y_frc   = DSP.FRC_REG;
+  const uint16_t y_coef  = DSP.COEF[s.CRA];
+  const uint16_t y_yhi   = (DSP.Y_REG >> 11) & 0x1FFF;
+  const uint16_t y_ylo   = (DSP.Y_REG >>  4) & 0x0FFF;
+  const uint16_t y_lopr  = (s.YSEL & 1) ? y_coef : y_frc;
+  const uint16_t y_hipr  = (s.YSEL & 1) ? y_ylo  : y_yhi;
+  const uint16_t y_input = (s.YSEL & 2) ? y_hipr : y_lopr;
   //
   //
   //
@@ -1401,20 +1413,19 @@ INLINE void SS_SCSP::RunDSP(void)
   //
   if(f & DSPF_FRCL)
   {
-   const unsigned F_SEL_Inputs[2] = { (unsigned)(ShifterOutput >> 11), (unsigned)(ShifterOutput & 0xFFF) };
-
-   DSP.FRC_REG = F_SEL_Inputs[shft0 & shft1];
+   // F_SEL: shft0&shft1 picks low-12 vs high-13 bits of ShifterOutput.
+   DSP.FRC_REG = (shft0 & shft1) ? (unsigned)(ShifterOutput & 0xFFF)
+                                 : (unsigned)(ShifterOutput >> 11);
   }
   //
   //
   {
    const int32_t TEMP = sign_x_to_s32(24, DSP.TEMP[TEMPReadAddr]);
-   const uint32_t SGA_Inputs[2] = { (uint32_t)TEMP, DSP.SFT_REG };
-   const int32_t X_SEL_Inputs[2] = { TEMP, INPUTS };
-   const uint32_t Product = ((int64_t)sign_x_to_s32(13, Y_SEL_Inputs[s.YSEL]) * X_SEL_Inputs[(f >> 16) & 1]) >> 12;
-   uint32_t SGAOutput;
-
-   SGAOutput = SGA_Inputs[(f >> 3) & 1];
+   // X_SEL: DSPF_XSEL picks INPUTS over TEMP for the multiplier's X side.
+   const int32_t x_input = (f & DSPF_XSEL) ? INPUTS : TEMP;
+   const uint32_t Product = ((int64_t)sign_x_to_s32(13, y_input) * x_input) >> 12;
+   // SGA: DSPF_BSEL picks SFT_REG over TEMP for the SGA add input.
+   uint32_t SGAOutput = (f & DSPF_BSEL) ? DSP.SFT_REG : (uint32_t)TEMP;
 
    if(f & DSPF_NEGB)
     SGAOutput = -SGAOutput;
@@ -1485,9 +1496,10 @@ INLINE void SS_SCSP::RunDSP(void)
   //
   if(f & DSPF_ADRL)
   {
-   const uint16_t A_SEL_Inputs[2] = { /*INPUTS is sign-extended above */ (uint16_t)((INPUTS >> 16) & 0xFFF), (uint16_t)(ShifterOutput >> 12) };
-
-   DSP.ADRS_REG = A_SEL_Inputs[shft0 & shft1];
+   // A_SEL: shft0&shft1 picks ShifterOutput>>12 vs INPUTS>>16. INPUTS is
+   // sign-extended above; both branches truncate to 12 bits.
+   DSP.ADRS_REG = (shft0 & shft1) ? (uint16_t)(ShifterOutput >> 12)
+                                  : (uint16_t)((INPUTS >> 16) & 0xFFF);
   }
  }
 

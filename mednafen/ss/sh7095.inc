@@ -2167,9 +2167,15 @@ INLINE void SH7095::Cache_AssocPurge(const uint32_t A)
  cent->Tag[3] |= (ATM == cent->Tag[3]);
 }
 
+#if defined(__SSE2__)
+#include <emmintrin.h>
+#elif defined(__aarch64__)
+#include <arm_neon.h>
+#endif
+
 INLINE int SH7095::Cache_FindWay(CacheEntry* const cent, const uint32_t ATM)
 {
-#if defined(HAVE_SSE2_INTRINSICS)
+#if defined(__SSE2__)
  __m128i atm = _mm_set1_epi32(ATM);
  __m128i v1234 = _mm_setr_epi32(1, 2, 3, 4);
  __m128i tmp;
@@ -2180,6 +2186,14 @@ INLINE int SH7095::Cache_FindWay(CacheEntry* const cent, const uint32_t ATM)
  tmp = _mm_max_epi16(tmp, _mm_shuffle_epi32(tmp, (1 << 0) | (0 << 2)));
 
  return _mm_cvtsi128_si32(tmp) - 1;
+#elif defined(__aarch64__)
+ // 4-way tag match in 5 NEON ops, replacing 4 dependent csels via cmov_eq_thing.
+ // vmaxvq_u32 does horizontal max across the 128-bit register in one instruction.
+ const uint32x4_t atm   = vdupq_n_u32(ATM);
+ const uint32x4_t v1234 = { 1u, 2u, 3u, 4u };
+ const uint32x4_t tags  = vld1q_u32(cent->Tag);
+ const uint32x4_t hits  = vandq_u32(vceqq_u32(tags, atm), v1234);
+ return (int)vmaxvq_u32(hits) - 1;
 #else
  int way_match = -1;
 
