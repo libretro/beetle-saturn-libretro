@@ -164,6 +164,20 @@ bool CART_STV_Init(struct CartInfo *c, const char *rom_dir, const char *main_fna
    ECChip = sgi->ec_chip;
 
    ROM = (uint16_t*)calloc(0x3000000 / sizeof(uint16_t), sizeof(uint16_t));
+   if (!ROM)
+   {
+      /* Pre-conversion C++ used `new uint16_t[]` which threw on OOM;
+       * the conversion to calloc dropped the check.  Kill() at the
+       * fail label NULL-checks ROM, so this path is safe.  ECChip is
+       * a file-static that's reassigned on every CART_Init attempt
+       * (above this in the function), so leaving the now-failed
+       * value there has no observable effect: the cart's read/write
+       * handlers are still the CART_Init-installed Dummies. */
+      log_cb(RETRO_LOG_ERROR,
+            "ST-V: out of memory allocating cart ROM buffer (%u bytes).\n",
+            0x3000000u);
+      goto fail;
+   }
    memset(ROM, 0xFF, 0x3000000);
 
    for(i = 0; i < sizeof(sgi->rom_layout) / sizeof(sgi->rom_layout[0]) && sgi->rom_layout[i].size; i++)

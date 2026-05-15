@@ -92,6 +92,15 @@ static MDFN_COLD void StateAction(StateMem *sm, const unsigned load, const bool 
 void CART_CS1RAM_Init(struct CartInfo *c)
 {
    CS1RAM = (uint16_t*)calloc(0x1000000 / sizeof(uint16_t), sizeof(uint16_t));
+   if (!CS1RAM)
+   {
+      /* OOM allocating 16MB.  Pre-conversion C++ used `new uint16_t[]`
+       * which threw std::bad_alloc; the conversion to calloc dropped
+       * the check.  Silent return matches ar4mp.c's convention --
+       * Cart.Read/Write/Kill stay at CART_Init's installed dummies so
+       * any further cart access is a safe no-op. */
+      return;
+   }
 
    SS_SetPhysMemMap(0x04000000, 0x04FFFFFF, CS1RAM, 0x1000000, true);
    CartInfo_CS01_SetRW8W16(c, 0x04000000, 0x04FFFFFF,

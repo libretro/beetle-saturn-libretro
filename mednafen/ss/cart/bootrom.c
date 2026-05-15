@@ -108,6 +108,18 @@ bool CART_BootROM_Init(struct CartInfo *c, RFILE *str)
    assert(ROM_Size >= ss);
    /* */
    ROM = (uint16_t*)calloc(ROM_Size / sizeof(uint16_t), sizeof(uint16_t));
+   if (!ROM)
+   {
+      /* Pre-conversion C++ code used `new uint16_t[]` which threw
+       * std::bad_alloc on OOM; the conversion to calloc dropped the
+       * check.  Cart.Kill is still DummyKill at this point (CART_Init
+       * installs the real Kill on success only), so an early bail
+       * leaves the Cart struct in a safe state for the caller. */
+      log_cb(RETRO_LOG_ERROR,
+            "Bootable Saturn cart ROM: out of memory allocating %u-byte buffer.\n",
+            (unsigned)ROM_Size);
+      return false;
+   }
    memset(ROM, 0x00, ROM_Size);
    filestream_read(str, ROM, ss);
    sha256_hasher_process(&h, ROM, ss);
