@@ -191,7 +191,10 @@ static bool m3u_list_push(m3u_list *l, const char *s)
 		l->items = ni;
 		l->cap   = newcap;
 	}
-	dup = strdup(s);
+	/* s is normally a stack buffer (efp_buf) at the lone call site so
+	 * never NULL in practice, but strdup(NULL) is UB on glibc; mirror
+	 * disc_list_push's defensive ternary. */
+	dup = strdup(s ? s : "");
 	if(!dup)
 		return false;
 	l->items[l->count++] = dup;

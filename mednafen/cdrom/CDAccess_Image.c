@@ -103,6 +103,21 @@ static bool subq_map_empty(const subq_map *m)
 
 static void subq_map_insert(subq_map *m, uint32_t aba, const uint8_t data[12])
 {
+   unsigned i;
+   /* Overwrite-on-duplicate to match the std::map::operator[]= semantics
+    * the pre-conversion code had: a malformed SBI with duplicate aba
+    * entries should retain the last write, not an arbitrary one after
+    * qsort. SBI sizes are tiny (a few dozen entries) so the linear scan
+    * here is cheaper than maintaining a side index. Overwrite preserves
+    * sort order (the aba doesn't change), so m->sorted stays as-is. */
+   for (i = 0; i < m->count; i++)
+   {
+      if (m->entries[i].aba == aba)
+      {
+         memcpy(m->entries[i].data, data, 12);
+         return;
+      }
+   }
    if (m->count >= SUBQ_MAP_MAX)
       return;
    m->entries[m->count].aba = aba;
