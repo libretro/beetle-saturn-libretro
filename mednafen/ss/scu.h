@@ -22,29 +22,9 @@
 #ifndef __MDFN_SS_SCU_H
 #define __MDFN_SS_SCU_H
 
-enum
-{
- SCU_INT_VBIN = 0x00,
- SCU_INT_VBOUT,
- SCU_INT_HBIN,
- SCU_INT_TIMER0,
- SCU_INT_TIMER1,
- SCU_INT_DSP,
- SCU_INT_SCSP,
- SCU_INT_SMPC,
- SCU_INT_PAD,
-
- SCU_INT_L2DMA,
- SCU_INT_L1DMA,
- SCU_INT_L0DMA,
-
- SCU_INT_DMA_ILL,
-
- SCU_INT_VDP1,
-
- SCU_INT_EXT0	= 0x10,
- SCU_INT_EXTF	= 0x1F,
-};
+/* SCU_INT_* enum lives in ss_c_abi.h (shared verbatim with the C-converted
+   modules). Single source of truth -- see that header. */
+#include "ss_c_abi.h"
 
 void SCU_Reset(bool powering_up) MDFN_COLD;
 

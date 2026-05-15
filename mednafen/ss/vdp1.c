@@ -49,22 +49,19 @@
 /* Localized externs from ss.h, scu.h, vdp2.h — these stay C++
    but expose C linkage for the symbols we need. */
 extern uint32_t ss_horrible_hacks;
-/* Values must match the HORRIBLEHACK_* enum in ss.h byte-for-byte. */
-#define HORRIBLEHACK_VDP1VRAM5000FIX    (1U << 2)
-#define HORRIBLEHACK_VDP1RWDRAWSLOWDOWN (1U << 3)
-#define HORRIBLEHACK_VDP1INSTANT        (1U << 4)
 
-/* Mirror event_list_entry from ss.h — just { int32_t event_time; } */
-typedef struct { int32_t event_time; } event_list_entry;
+/* SS_EVENT_*, SCU_INT_*, HORRIBLEHACK_* and event_list_entry come from the
+   shared C/C++ leaf header — the single source of truth. They were
+   previously re-typed by hand here and miscounted (SS_EVENT_VDP1/VDP2 and
+   SCU_INT_VDP1 were all wrong), which broke VDP1 event scheduling. Never
+   transcribe these again — add to ss_c_abi.h instead. */
+#include "ss_c_abi.h"
+
 extern event_list_entry events[];
-extern void SS_SetEventNT(event_list_entry* e, const int32_t next_timestamp);
-enum { SS_EVENT_VDP1 = 7 }; /* from ss.h enum */
-enum { SS_EVENT_VDP2 = 8 };
 extern void SS_SetEventNT(event_list_entry* e, const int32_t next_timestamp);
 extern void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable);
 
 extern void SCU_SetInt(unsigned which, bool active);
-enum { SCU_INT_VDP1 = 4 }; /* from scu.h enum */
 extern bool SCU_CheckVDP1HaltKludge(void);
 
 extern int32_t VDP2_Update(int32_t timestamp);

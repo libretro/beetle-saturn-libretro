@@ -52,11 +52,9 @@
 #include "cart/stv.h"
 
 /* ss.h is C++ (class SH7095, default args), so it cannot be included
-   here. cart.c needs only SS_EVENT_DISABLED_TS from it; mirror it
-   locally. The value is fixed by the savestate-visible event
-   scheduling and must match ss.h's
-   `enum : sscpu_timestamp_t { SS_EVENT_DISABLED_TS = 0x7FFFFFFF }`. */
-#define SS_EVENT_DISABLED_TS 0x7FFFFFFF
+   here. Cross-boundary constants come from the shared C/C++ leaf
+   header instead of being re-typed -- see ss_c_abi.h. */
+#include "ss_c_abi.h"
 
 struct CartInfo Cart;
 

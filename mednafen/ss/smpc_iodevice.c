@@ -53,12 +53,10 @@
 #include "libretro_settings.h"
 
 /* ss.h is a C++ header (class SH7095, default args, ...), so it
-   cannot be included here. The device hierarchy only needs one value
-   from it: SS_EVENT_DISABLED_TS. Mirror it locally; the value is
-   fixed by the savestate-visible event scheduling and must match
-   ss.h's `enum : sscpu_timestamp_t { SS_EVENT_DISABLED_TS =
-   0x7FFFFFFF }`. */
-#define SS_EVENT_DISABLED_TS 0x7FFFFFFF
+   cannot be included here. Cross-boundary constants come from the
+   shared C/C++ leaf header instead of being re-typed -- see
+   ss_c_abi.h. */
+#include "ss_c_abi.h"
 
 /* trio_snprintf was just `#define trio_snprintf snprintf` in the C++
    build's mednafen.h shim; use snprintf directly. */
