@@ -1028,7 +1028,23 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
    }
 
    if (active_track >= 0)
+   {
       memcpy(&self->Tracks[active_track], &TmpTrack, sizeof(TmpTrack));
+      /* The TRACK and FILE handlers commit-then-zero TmpTrack to
+       * maintain the invariant "TmpTrack.FirstFileInstance==1 iff
+       * TmpTrack holds uncommitted resources".  cleanup_close's
+       * TmpTrack-cleanup block (added in 2f74753) relies on that
+       * invariant.  This post-loop commit was the lone exception:
+       * without the zero, TmpTrack.fp / AReader remained aliased to
+       * self->Tracks[active_track]'s, and any subsequent fall-through
+       * to cleanup_close (success path) or goto cleanup_close (the
+       * sites below: FirstTrack > LastTrack, the second processing
+       * loop's fp/AReader check, SBI failure) would free those via
+       * TmpTrack while leaving self->Tracks[active_track] holding
+       * dangling pointers.  CDAccess_Image_Cleanup at content-close
+       * time then walked them and crashed. */
+      memset(&TmpTrack, 0, sizeof(TmpTrack));
+   }
 
    if (self->FirstTrack > self->LastTrack)
       goto cleanup_close;
@@ -1183,13 +1199,18 @@ skip_sbi: ;
 
 cleanup_close:
    /* TmpTrack holds an uncommitted file handle (and possibly AReader)
-    * between a CUE FILE-line open and the next TRACK/FILE-line that
-    * memcpys it into self->Tracks[active_track].  If parsing fails in
-    * that window we goto here directly and TmpTrack goes out of scope
-    * as a stack local; the pre-conversion C++ used a unique_ptr that
-    * handled this in its destructor.  Mirror that here.  Gate on
-    * FirstFileInstance: a shared-fp track (FFI==0, fp aliased to a
-    * cache entry) must NOT close the fp -- the owner does that. */
+    * between a CUE FILE-line open and the next commit -- which can be
+    * a TRACK or FILE line during parsing, or the post-loop final
+    * commit after the parse loop ends.  All three commit sites
+    * memcpy TmpTrack into self->Tracks[active_track] and then
+    * memset(&TmpTrack, 0, ...), so TmpTrack.FirstFileInstance==1 here
+    * implies TmpTrack still owns resources that nobody else does.
+    * If parsing fails in the open-to-commit window we goto here
+    * directly and TmpTrack goes out of scope as a stack local; the
+    * pre-conversion C++ used a unique_ptr that handled this in its
+    * destructor.  Mirror that here.  Gate on FirstFileInstance: a
+    * shared-fp track (FFI==0, fp aliased to a cache entry) must NOT
+    * close the fp -- the owner does that. */
    if (TmpTrack.FirstFileInstance)
    {
       if (TmpTrack.AReader)
