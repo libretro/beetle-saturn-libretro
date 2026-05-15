@@ -279,7 +279,7 @@ void retro_reset(void)
    SS_Reset(true);
 }
 
-bool retro_load_game_special(unsigned, const struct retro_game_info *, size_t)
+bool retro_load_game_special(unsigned type, const struct retro_game_info *info, size_t num)
 {
    return false;
 }
@@ -1340,7 +1340,7 @@ size_t retro_get_memory_size(unsigned type)
 void retro_cheat_reset(void)
 {}
 
-void retro_cheat_set(unsigned, bool, const char *)
+void retro_cheat_set(unsigned index, bool enabled, const char *code)
 {}
 
 // Use a simpler approach to make sure that things go right for libretro.
