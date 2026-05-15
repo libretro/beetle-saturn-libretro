@@ -137,6 +137,14 @@ static double last_sound_rate;
 #ifdef NEED_DEINTERLACER
 static bool PrevInterlaced;
 static Deinterlacer deint;
+#else
+/* Two uses of PrevInterlaced in retro_run's frame-emit path
+ * (cur_height calculation and the pix pointer offset) are intentionally
+ * not gated, because the height/offset math needs a value either way.
+ * Without the SW deinterlacer, fields are never combined, so the
+ * single-field semantics (<< 0 = identity) are correct.  Declaring as
+ * a const false keeps every call site source-compatible. */
+static const bool PrevInterlaced = false;
 #endif
 
 static MDFN_Surface *surf = NULL;
@@ -479,6 +487,14 @@ static void check_variables(bool startup)
       const bool off = (strcmp(var.value, "off") == 0);
       VDP2::SetDeinterlaceOff(off);
 
+#ifdef NEED_DEINTERLACER
+      /* The 'deint' instance is itself #ifdef NEED_DEINTERLACER (declared
+       * at file scope above), as are every other Deinterlacer_* call in
+       * this TU (Init, ClearState, Process, GetType, Cleanup).  This
+       * setting-handler chain was the lone exception, breaking the
+       * NEED_DEINTERLACER=0 build.  VDP2::SetDeinterlaceOff stays
+       * outside the gate -- VDP2 is the GPU subsystem and independent
+       * of the SW deinterlacer. */
       if (strcmp(var.value, "bob") == 0)
          Deinterlacer_SetType(&deint, DEINT_BOB);
       else if (strcmp(var.value, "bob_offset") == 0)
@@ -489,6 +505,7 @@ static void check_variables(bool startup)
          Deinterlacer_SetType(&deint, DEINT_OFF);
       else
          Deinterlacer_SetType(&deint, DEINT_WEAVE);
+#endif
    }
 
    var.key = "beetle_saturn_mesh_transparency";
