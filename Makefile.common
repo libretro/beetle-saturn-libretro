@@ -56,7 +56,6 @@ ifeq ($(NEED_TREMOR), 1)
 endif
 
 SOURCES_CXX += \
-	$(CORE_EMU_DIR)/db.cpp \
 	$(CORE_EMU_DIR)/cdb.cpp \
 	$(CORE_EMU_DIR)/sound.cpp \
 	$(CORE_EMU_DIR)/ss.cpp \
@@ -67,6 +66,11 @@ SOURCES_CXX += \
 	$(CORE_EMU_DIR)/vdp2.cpp \
 	$(CORE_EMU_DIR)/vdp2_render.cpp \
 	$(CORE_EMU_DIR)/smpc.cpp
+
+# db.cpp -> db.c. Dead std:: helpers (DB_GetInternalDB,
+# DB_GetHHDescriptions, FDIDToString) were removed in an earlier
+# commit, leaving only POD tables and lookup functions.
+SOURCES_C += $(CORE_EMU_DIR)/db.c
 
 # The cartridge subsystem, converted from C++ to C. CartInfo was
 # already a plain struct of function pointers (C-style polymorphism),

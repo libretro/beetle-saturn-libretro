@@ -26,8 +26,8 @@
  with full cache emulation enabled.
 */
 
-#include <mednafen/mednafen.h>
 #include <mednafen/hash/crc.h>
+#include <string.h>
 #include <strings.h>
 
 #include "ss.h"
@@ -129,8 +129,8 @@ static const struct
  //
  //
  //
- { nullptr, NULL, CART_CS1RAM_16M, "Heart of Darkness (Prototype)", "Game requirement(though it's probable the original dev cart was only around 6 to 8MiB).", { 0x4a, 0xf9, 0xff, 0x30, 0xea, 0x54, 0xfe, 0x3a, 0x79, 0xa7, 0x68, 0x69, 0xae, 0xde, 0x55, 0xbb } },
- { nullptr, NULL, CART_CS1RAM_16M, "Heart of Darkness (Prototype)", "Game requirement(though it's probable the original dev cart was only around 6 to 8MiB).", { 0xf1, 0x71, 0xc3, 0xe4, 0x69, 0xd5, 0x99, 0x93, 0x94, 0x09, 0x05, 0xfc, 0x29, 0xd3, 0x8a, 0x59 } },
+ { NULL, NULL, CART_CS1RAM_16M, "Heart of Darkness (Prototype)", "Game requirement(though it's probable the original dev cart was only around 6 to 8MiB).", { 0x4a, 0xf9, 0xff, 0x30, 0xea, 0x54, 0xfe, 0x3a, 0x79, 0xa7, 0x68, 0x69, 0xae, 0xde, 0x55, 0xbb } },
+ { NULL, NULL, CART_CS1RAM_16M, "Heart of Darkness (Prototype)", "Game requirement(though it's probable the original dev cart was only around 6 to 8MiB).", { 0xf1, 0x71, 0xc3, 0xe4, 0x69, 0xd5, 0x99, 0x93, 0x94, 0x09, 0x05, 0xfc, 0x29, 0xd3, 0x8a, 0x59 } },
  //
  //
  // Backup memory cart:
@@ -381,7 +381,7 @@ static const struct
 // identically.
 // ============================================================================
 
-static const STVGameInfo STVGI[] =
+static const struct STVGameInfo STVGI[] =
 {
  // Broken(encryption)
  {
@@ -1649,7 +1649,7 @@ static const STVGameInfo STVGI[] =
  },
 };
 
-const STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s)
+const struct STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s)
 {
  uint8_t tmp[0x80];
  uint32_t dr;
@@ -1664,72 +1664,81 @@ const STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s)
 
  head_crc32 = crc32_zip(0, tmp, dr);
 
- for(const STVGameInfo& e : STVGI)
  {
-  auto const& rle = e.rom_layout[0];
-
-  if(!strcasecmp(fname, rle.fname))
+  size_t i;
+  for(i = 0; i < sizeof(STVGI)/sizeof(STVGI[0]); i++)
   {
-   if(!rle.head_crc32 || head_crc32 == rle.head_crc32)
-    return &e;
+   const struct STVGameInfo* e = &STVGI[i];
+   const __typeof__(e->rom_layout[0])* rle = &e->rom_layout[0];
+
+   if(!strcasecmp(fname, rle->fname))
+   {
+    if(!rle->head_crc32 || head_crc32 == rle->head_crc32)
+     return e;
+   }
   }
  }
 
- return nullptr;
+ return NULL;
 }
 
 void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8_t* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode)
 {
- for(auto& re : regiondb)
+ size_t i;
+
+ for(i = 0; i < sizeof(regiondb)/sizeof(regiondb[0]); i++)
  {
-  if(!memcmp(re.id, fd_id, 16))
+  const __typeof__(regiondb[0])* re = &regiondb[i];
+  if(!memcmp(re->id, fd_id, 16))
   {
-   *region = re.area;
+   *region = re->area;
    break;
   }
  }
 
- for(auto& ca : cartdb)
+ for(i = 0; i < sizeof(cartdb)/sizeof(cartdb[0]); i++)
  {
+  const __typeof__(cartdb[0])* ca = &cartdb[i];
   bool match;
 
-  if(ca.sgid)
+  if(ca->sgid)
   {
-   match = !strcmp(ca.sgid, sgid);
+   match = !strcmp(ca->sgid, sgid);
 
-   if(ca.sgname)
-    match &= !strcmp(ca.sgname, sgname);
+   if(ca->sgname)
+    match &= !strcmp(ca->sgname, sgname);
   }
   else
-   match = !memcmp(ca.fd_id, fd_id, 16);
+   match = !memcmp(ca->fd_id, fd_id, 16);
 
   if(match)
   {
-   *cart_type = ca.cart_type;
+   *cart_type = ca->cart_type;
    break;
   }
  }
 
- for(auto& c : cemdb)
+ for(i = 0; i < sizeof(cemdb)/sizeof(cemdb[0]); i++)
  {
+  const __typeof__(cemdb[0])* c = &cemdb[i];
   bool match;
 
-  if(c.sgid)
+  if(c->sgid)
   {
-   match = !strcmp(c.sgid, sgid);
+   match = !strcmp(c->sgid, sgid);
 
-   if(c.sgname)
-    match &= !strcmp(c.sgname, sgname);
+   if(c->sgname)
+    match &= !strcmp(c->sgname, sgname);
 
-   if(c.sgarea)
-    match &= !strcmp(c.sgarea, sgarea);
+   if(c->sgarea)
+    match &= !strcmp(c->sgarea, sgarea);
   }
   else
-   match = !memcmp(c.fd_id, fd_id, 16);
+   match = !memcmp(c->fd_id, fd_id, 16);
 
   if(match)
   {
-   *cpucache_emumode = c.mode;
+   *cpucache_emumode = c->mode;
    break;
   }
  }
@@ -1790,11 +1799,13 @@ static const struct
 
 uint32_t DB_LookupHH(const char* sgid, const uint8_t* fd_id)
 {
- for(auto& hh : hhdb)
+ size_t i;
+ for(i = 0; i < sizeof(hhdb)/sizeof(hhdb[0]); i++)
  {
-  if((hh.sgid && !strcmp(hh.sgid, sgid)) || (!hh.sgid && !memcmp(hh.fd_id, fd_id, 16)))
+  const __typeof__(hhdb[0])* hh = &hhdb[i];
+  if((hh->sgid && !strcmp(hh->sgid, sgid)) || (!hh->sgid && !memcmp(hh->fd_id, fd_id, 16)))
   {
-   return hh.horrible_hacks;
+   return hh->horrible_hacks;
   }
  }
 
