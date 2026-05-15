@@ -321,8 +321,9 @@ static void split_path(const char *path, char *dir_out, size_t dir_sz,
 
 /* Equivalent to MDFN_EvalFIP(dir, name, skip_safety=true): if name
  * is absolute, use as-is; else join dir + sep + name. */
-static void join_path(const char *dir, const char *name, char *out_buf, size_t out_sz)
+static bool join_path(const char *dir, const char *name, char *out_buf, size_t out_sz)
 {
+   int n;
    /* Treat names with absolute path indicators as already absolute. */
    if (name[0] == '/'
 #ifdef _WIN32
@@ -331,10 +332,22 @@ static void join_path(const char *dir, const char *name, char *out_buf, size_t o
 #endif
       )
    {
+      size_t name_len = strlen(name);
+      if (name_len >= out_sz)
+         return false;
       copy_str(out_buf, out_sz, name);
-      return;
+      return true;
    }
-   snprintf(out_buf, out_sz, "%s%c%s", dir, PATH_SEP, name);
+   /* snprintf returns the length that *would* have been written, not
+    * what was written.  A return >= out_sz means truncation.  Pre-
+    * conversion code used std::string and grew the buffer; here a
+    * pathological path silently truncated and produced a not-found
+    * error one layer down.  Surface the failure here for a clearer
+    * error path. */
+   n = snprintf(out_buf, out_sz, "%s%c%s", dir, PATH_SEP, name);
+   if (n < 0 || (size_t)n >= out_sz)
+      return false;
+   return true;
 }
 
 /* ---- CUE/TOC parser tables ------------------------------------- */
@@ -497,7 +510,8 @@ static bool CDAccess_Image_ParseTOCFileLineInfo(CDAccess_Image *self,
    {
       char efn[2048];
       track->FirstFileInstance = 1;
-      join_path(self->base_dir, filename, efn, sizeof(efn));
+      if (!join_path(self->base_dir, filename, efn, sizeof(efn)))
+         return false;
 
       if (image_memcache)
          track->fp = cdstream_new_memcached(efn);
@@ -859,9 +873,18 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
             }
 
             if (strstr(args[0], "cdrom://") == NULL)
-               join_path(self->base_dir, args[0], efn, sizeof(efn));
+            {
+               if (!join_path(self->base_dir, args[0], efn, sizeof(efn)))
+                  goto cleanup_close;
+            }
             else
+            {
+               /* cdrom:// URL: copied verbatim.  Detect truncation
+                * explicitly (copy_str silently truncates). */
+               if (strlen(args[0]) >= sizeof(efn))
+                  goto cleanup_close;
                copy_str(efn, sizeof(efn), args[0]);
+            }
 
             if (image_memcache)
                TmpTrack.fp = cdstream_new_memcached(efn);
@@ -1135,11 +1158,23 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
          }
       }
 
-      snprintf(sbi_name, sizeof(sbi_name), "%s.%s", file_base, sbi_ext);
-      join_path(self->base_dir, sbi_name, sbi_path, sizeof(sbi_path));
+      /* Construct sbi_path = base_dir + '/' + file_base + '.' + sbi_ext.
+       * On a pathological file_base / base_dir length that overflows
+       * either fixed buffer, skip SBI loading rather than failing the
+       * image -- LoadSBI itself treats "file doesn't exist" as success
+       * because most games ship no .sbi, and a truncated lookup path
+       * could otherwise match an unrelated file on disk. */
+      {
+         int n = snprintf(sbi_name, sizeof(sbi_name), "%s.%s", file_base, sbi_ext);
+         if (n < 0 || (size_t)n >= sizeof(sbi_name))
+            goto skip_sbi;
+         if (!join_path(self->base_dir, sbi_name, sbi_path, sizeof(sbi_path)))
+            goto skip_sbi;
+      }
 
       if (!CDAccess_Image_LoadSBI(self, sbi_path))
          goto cleanup_close;
+skip_sbi: ;
    }
 
    CDAccess_Image_GenerateTOC(self);

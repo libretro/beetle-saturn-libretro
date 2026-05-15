@@ -65,20 +65,50 @@ static bool disc_list_push(CDIF *cdif, const char *path, const char *label)
 
 	if(num_discs >= disc_cap)
 	{
-		size_t newcap   = disc_cap ? disc_cap * 2 : 8;
-		CDIF  **nc      = (CDIF  **)realloc(disc_cdif,   newcap * sizeof(CDIF *));
-		char  **np      = (char  **)realloc(disc_paths,  newcap * sizeof(char *));
-		char  **nl      = (char  **)realloc(disc_labels, newcap * sizeof(char *));
-		if(nc) disc_cdif   = nc;
-		if(np) disc_paths  = np;
-		if(nl) disc_labels = nl;
+		/* Atomic three-array grow.  The previous version reallocated
+		 * each array independently; a partial-failure (e.g. realloc on
+		 * disc_cdif succeeds but disc_paths fails) committed the
+		 * growing buffer into disc_cdif while leaving disc_paths at the
+		 * old capacity, with disc_cap pointing at the old size.  The
+		 * resulting tri-array state was self-healing in practice (the
+		 * next push retried the grow) but never internally consistent
+		 * in between, which is the wrong invariant to leave lying
+		 * around.
+		 *
+		 * Allocate three fresh buffers first; only swap them in once
+		 * all three succeeded.  On any failure: free whatever did
+		 * succeed and return false with no mutation to the live state.
+		 * Cost is one extra alloc+memcpy+free cycle versus realloc, but
+		 * disc-list growth is O(log n) total over a session and the
+		 * disc count is small. */
+		size_t newcap = disc_cap ? disc_cap * 2 : 8;
+		CDIF  **nc    = (CDIF  **)malloc(newcap * sizeof(CDIF *));
+		char  **np    = (char  **)malloc(newcap * sizeof(char *));
+		char  **nl    = (char  **)malloc(newcap * sizeof(char *));
+
 		if(!nc || !np || !nl)
 		{
+			free(nc);
+			free(np);
+			free(nl);
 			if(cdif)
 				CDIF_Close(cdif);
 			return false;
 		}
-		disc_cap = newcap;
+
+		if(num_discs)
+		{
+			memcpy(nc, disc_cdif,   num_discs * sizeof(CDIF *));
+			memcpy(np, disc_paths,  num_discs * sizeof(char *));
+			memcpy(nl, disc_labels, num_discs * sizeof(char *));
+		}
+		free(disc_cdif);
+		free(disc_paths);
+		free(disc_labels);
+		disc_cdif   = nc;
+		disc_paths  = np;
+		disc_labels = nl;
+		disc_cap    = newcap;
 	}
 
 	path_dup  = strdup(path  ? path  : "");

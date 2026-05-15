@@ -95,13 +95,17 @@ typedef struct CDIF_Queue
    scond_t     *cond;
 } CDIF_Queue;
 
-static void CDIF_Queue_Init(CDIF_Queue *q)
+static bool CDIF_Queue_Init(CDIF_Queue *q)
 {
    q->head  = 0;
    q->tail  = 0;
    q->count = 0;
    q->mutex = slock_new();
    q->cond  = scond_new();
+   /* slock_new / scond_new can return NULL on OOM.  Report up so
+    * CDIF_Open's MT-path init can roll back rather than deadlocking
+    * later inside CDIF_Queue_Read on a half-initialised queue. */
+   return q->mutex && q->cond;
 }
 
 static void CDIF_Queue_Free(CDIF_Queue *q)
@@ -557,13 +561,45 @@ CDIF *CDIF_Open(const char *path, bool image_memcache)
    if (cdif->is_mt)
    {
       CDIF_Message msg;
+      /* Step every MT-init allocation under a single ok flag.  Any
+       * NULL return from slock_new / scond_new / sthread_create means
+       * the read thread will never reach the DONE-message signal, and
+       * the CDIF_Queue_Read below would block forever waiting on it.
+       * Roll back partial state and fail the open instead. */
+      bool ok = true;
 
-      CDIF_Queue_Init(&cdif->ReadThreadQueue);
-      CDIF_Queue_Init(&cdif->EmuThreadQueue);
-      cdif->SBMutex      = slock_new();
-      cdif->SBCond       = scond_new();
+      ok = ok && CDIF_Queue_Init(&cdif->ReadThreadQueue);
+      ok = ok && CDIF_Queue_Init(&cdif->EmuThreadQueue);
 
-      cdif->CDReadThread = sthread_create(CDIF_ReadThreadStart, cdif);
+      if (ok)
+      {
+         cdif->SBMutex = slock_new();
+         cdif->SBCond  = scond_new();
+         if (!cdif->SBMutex || !cdif->SBCond)
+            ok = false;
+      }
+
+      if (ok)
+      {
+         cdif->CDReadThread = sthread_create(CDIF_ReadThreadStart, cdif);
+         if (!cdif->CDReadThread)
+            ok = false;
+      }
+
+      if (!ok)
+      {
+         /* CDIF_Queue_Free is NULL-safe on the mutex/cond it owns;
+          * slock_free / scond_free on NULL is also safe per libretro-
+          * common's rthreads contract. */
+         CDIF_Queue_Free(&cdif->ReadThreadQueue);
+         CDIF_Queue_Free(&cdif->EmuThreadQueue);
+         if (cdif->SBMutex) slock_free(cdif->SBMutex);
+         if (cdif->SBCond)  scond_free(cdif->SBCond);
+         cdif->disc_cdaccess->destroy(cdif->disc_cdaccess);
+         free(cdif);
+         return NULL;
+      }
+
       /* Wait for the read thread to fill disc_toc and signal DONE. */
       CDIF_Queue_Read(&cdif->EmuThreadQueue, &msg, true);
    }
