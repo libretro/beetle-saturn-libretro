@@ -306,6 +306,10 @@ int32_t CMD_SetLocalCoord(const uint16_t* cmd_data)
    ECD / SPD switch folds to one arm, as the template instantiation did. */
 static MDFN_FORCE_INLINE uint32_t TexFetch_impl(const unsigned ECDSPDMode, uint32_t x)
 {
+ /* Former C++ template parameter -- must reach this body as a compile-time
+    constant (see VDP1_ASSUME_FOLDED in vdp1_common.h). */
+ VDP1_ASSUME_FOLDED(ECDSPDMode);
+ {
  const uint32_t base = VDP1_LineData.tex_base;
  const bool ECD = ECDSPDMode & 0x10;
  const bool SPD = ECDSPDMode & 0x08;
@@ -408,6 +412,7 @@ static MDFN_FORCE_INLINE uint32_t TexFetch_impl(const unsigned ECDSPDMode, uint3
  }
 
  return 0; /* unreachable: ColorMode is always 0-7 */
+ } /* VDP1_ASSUME_FOLDED block */
 }
 
 

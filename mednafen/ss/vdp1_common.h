@@ -208,6 +208,44 @@ static INLINE int32_t VDP1_AdjustDrawTiming(const int32_t cycles) {
 bool VDP1_SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textured, const uint16_t mode);
 
 
+/* ---------------------------------------------------------------------------
+ * VDP1_ASSUME_FOLDED -- compile-time guarantee that a template-engine
+ * parameter constant-folds.
+ *
+ * VDP1_DrawLine_impl / VDP1_PlotPixel / TexFetch_impl are the C replacements
+ * for C++ templates: each is MDFN_FORCE_INLINE and every dispatch wrapper
+ * calls it with literal constant args, so the if(param) branches dead-strip
+ * exactly as a template instantiation did. VDP1_ASSUME_FOLDED() turns that
+ * from an assumption into a hard requirement -- if a parameter ever stops
+ * folding (engine downgraded from MDFN_FORCE_INLINE to plain INLINE, or
+ * called with a runtime argument) the build FAILS at that source line
+ * instead of silently regressing into per-pixel runtime branching.
+ * tools/check_engine_inlined.py is the same check from the outside; this is
+ * the same check at the source site.
+ *
+ * Gated on __OPTIMIZE__: at -O0, __builtin_constant_p() is conservatively 0
+ * before constant propagation runs, so this is a no-op for debug builds and
+ * active for every optimized build (the core ships -O2).
+ * ------------------------------------------------------------------------- */
+#if defined(__OPTIMIZE__)
+ #if defined(__GNUC__) && !defined(__clang__)
+  extern void VDP1_PARAM_NOT_FOLDED(void)
+    __attribute__((error(
+      "VDP1 template-engine parameter did not constant-fold: the engine is "
+      "not being force-inlined into its wrapper -- check MDFN_FORCE_INLINE")));
+ #else
+  /* Portable fallback (clang/others that don't honor the error attribute):
+     left undefined on purpose, so a surviving call is an unmistakable
+     'undefined reference to VDP1_PARAM_NOT_FOLDED' link error. */
+  extern void VDP1_PARAM_NOT_FOLDED(void);
+ #endif
+ #define VDP1_ASSUME_FOLDED(x) \
+   do { if(!__builtin_constant_p(x)) VDP1_PARAM_NOT_FOLDED(); } while(0)
+#else
+ #define VDP1_ASSUME_FOLDED(x) ((void)0)
+#endif
+
+
 /* MDFN_FORCE_INLINE, not INLINE: this is the C replacement for a C++ template.
    Each wrapper calls it with all-constant former-template args; forcing the
    inline is what lets the compiler dead-strip the if(param) branches, exactly
@@ -219,6 +257,13 @@ static MDFN_FORCE_INLINE int32_t VDP1_PlotPixel(const int die, const unsigned bp
  const int GouraudEn, const int HalfFGEn, const int HalfBGEn,
  int32_t x, int32_t y, uint16_t pix, bool transparent, GourauderTheTerrible* g)
 {
+ /* Former C++ template parameters -- must reach this body as compile-time
+    constants (see VDP1_ASSUME_FOLDED above). */
+ VDP1_ASSUME_FOLDED(die);    VDP1_ASSUME_FOLDED(bpp8);   VDP1_ASSUME_FOLDED(MSBOn);
+ VDP1_ASSUME_FOLDED(UserClipEn); VDP1_ASSUME_FOLDED(UserClipMode);
+ VDP1_ASSUME_FOLDED(MeshEn); VDP1_ASSUME_FOLDED(GouraudEn);
+ VDP1_ASSUME_FOLDED(HalfFGEn); VDP1_ASSUME_FOLDED(HalfBGEn);
+ {
  int32_t ret = 0;
  uint16_t* fbyptr;
  if(die) { fbyptr = &VDP1_FBDrawWhichPtr[((y >> 1) & 0xFF) << 9]; transparent |= ((y & 1) != (bool)(VDP1_FBCR & VDP1_FBCR_DIL)); }
@@ -257,6 +302,7 @@ static MDFN_FORCE_INLINE int32_t VDP1_PlotPixel(const int die, const unsigned bp
   ret++;
  }
  return ret;
+ } /* VDP1_ASSUME_FOLDED block */
 }
 
 
@@ -282,6 +328,14 @@ static MDFN_FORCE_INLINE int32_t VDP1_DrawLine_impl(const int AA, const int Text
  const int ECD, const int SPD, const int GouraudEn,
  const int HalfFGEn, const int HalfBGEn, bool* need_line_resume)
 {
+ /* Former C++ template parameters -- must reach this body as compile-time
+    constants (see VDP1_ASSUME_FOLDED above). */
+ VDP1_ASSUME_FOLDED(AA);     VDP1_ASSUME_FOLDED(Textured); VDP1_ASSUME_FOLDED(die);
+ VDP1_ASSUME_FOLDED(bpp8);   VDP1_ASSUME_FOLDED(MSBOn);    VDP1_ASSUME_FOLDED(UserClipEn);
+ VDP1_ASSUME_FOLDED(UserClipMode); VDP1_ASSUME_FOLDED(MeshEn); VDP1_ASSUME_FOLDED(ECD);
+ VDP1_ASSUME_FOLDED(SPD);    VDP1_ASSUME_FOLDED(GouraudEn);
+ VDP1_ASSUME_FOLDED(HalfFGEn); VDP1_ASSUME_FOLDED(HalfBGEn);
+ {
  const uint32_t clipo = ((VDP1_SysClipY & 0x3FF) << 16) | (VDP1_SysClipX & 0x3FF);
  const uint32_t uclipo0 = ((VDP1_UserClipY0 & 0x3FF) << 16) | (VDP1_UserClipX0 & 0x3FF);
  const uint32_t uclipo1 = ((VDP1_UserClipY1 & 0x3FF) << 16) | (VDP1_UserClipX1 & 0x3FF);
@@ -311,6 +365,7 @@ static MDFN_FORCE_INLINE int32_t VDP1_DrawLine_impl(const int AA, const int Text
    *need_line_resume = true; return ret; }
  } while(MDFN_LIKELY(lid.xy != lid.term_xy));
  return ret;
+ } /* VDP1_ASSUME_FOLDED block */
 }
 
 
