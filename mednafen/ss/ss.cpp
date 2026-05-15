@@ -1078,17 +1078,22 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
             RETRO_VFS_FILE_ACCESS_READ,
             RETRO_VFS_FILE_ACCESS_HINT_NONE);
 
-      // Saturn BIOSes are 512 KiB; ST-V BIOSes are 128 KiB
-      // (mapped into the upper half of the 512 KiB BIOSROM[] array
-      // and read by the SH-2 from the same 0x00000000-0x000FFFFF
-      // window). Accept either size.
-      const int64_t bios_size = filestream_get_size(BIOSFile);
       if(!BIOSFile)
       {
          log_cb(RETRO_LOG_ERROR, "Cannot open BIOS file \"%s\".\n", bios_path);
          return false;
       }
-      else if(bios_size != 524288 && !(is_stv && bios_size == 131072))
+
+      // Saturn BIOSes are 512 KiB; ST-V BIOSes are 128 KiB
+      // (mapped into the upper half of the 512 KiB BIOSROM[] array
+      // and read by the SH-2 from the same 0x00000000-0x000FFFFF
+      // window). Accept either size.
+      //
+      // filestream_get_size must come AFTER the BIOSFile NULL check
+      // -- on filestream_open failure BIOSFile is NULL and passing
+      // it to get_size would be undefined.
+      const int64_t bios_size = filestream_get_size(BIOSFile);
+      if(bios_size != 524288 && !(is_stv && bios_size == 131072))
       {
          log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" is of an incorrect size.\n", bios_path);
          filestream_close(BIOSFile);
@@ -1097,7 +1102,19 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       else
       {
          memset(BIOSROM, 0xFF, sizeof(BIOSROM));
-         filestream_read(BIOSFile, BIOSROM, bios_size);
+         /* Short read between get_size and the actual read would
+          * leave BIOSROM half-loaded (head: partial BIOS bytes,
+          * tail: 0xFF from the memset above), BIOS_SHA256 would
+          * hash the corrupted data, and the byte-swap loop below
+          * would scramble it further.  Fail init with a clear
+          * error rather than silently emulating with a corrupted
+          * BIOS image. */
+         if(filestream_read(BIOSFile, BIOSROM, bios_size) != bios_size)
+         {
+            log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" could not be fully read (short or failed read).\n", bios_path);
+            filestream_close(BIOSFile);
+            return false;
+         }
          filestream_close(BIOSFile);
          BIOS_SHA256 = sha256(BIOSROM, 512 * 1024);
 
@@ -1229,7 +1246,22 @@ static MDFN_COLD void LoadBackupRAM(void)
  if (!brs)
     return;
 
- filestream_read(brs, BackupRAM, sizeof(BackupRAM));
+ /* Short / failed read would leave BackupRAM holding a mix of
+  * save-file bytes in the head and the BRAM_Init_Data pattern
+  * (installed by InitCommon a few lines back) in the tail.  The
+  * game may then write that hybrid back to disk as a "save",
+  * propagating the corruption forward.  On a short read, restore
+  * the fresh-format BRAM pattern so the game sees an unformatted
+  * BackupRAM and either reformats it cleanly or treats it as a
+  * missing save -- both well-defined behaviours. */
+ if(filestream_read(brs, BackupRAM, sizeof(BackupRAM)) != (int64_t)sizeof(BackupRAM))
+ {
+    unsigned i;
+    log_cb(RETRO_LOG_WARN, "Backup RAM save file at \"%s\" is short or unreadable; reverting to unformatted BRAM.\n", fpath);
+    memset(BackupRAM, 0x00, sizeof(BackupRAM));
+    for(i = 0; i < 0x40; i++)
+       BackupRAM[i] = BRAM_Init_Data[i & 0x0F];
+ }
  filestream_close(brs);
 }
 
@@ -1274,7 +1306,23 @@ static MDFN_COLD void LoadCartNV(void)
    if (!nvs)
       return;
 
-   filestream_read(nvs, nv_ptr, nv_size);
+   /* Short / failed read would leave nv_ptr holding a mix of
+    * save-file bytes in the head and the cart-specific
+    * post-CART_Init state in the tail (different for each cart
+    * type).  Same hazard as LoadBackupRAM: the game may write
+    * that hybrid back as a save.  Zero the buffer on short read
+    * so the game sees a blank cart and rebuilds save state from
+    * scratch.  CART_Reset on the next emulation reset would
+    * restore any cart-specific magic the cart needs, but a
+    * zeroed buffer is already a defined "fresh" state that
+    * every cart driver handles. */
+   if(filestream_read(nvs, nv_ptr, nv_size) != (int64_t)nv_size)
+   {
+      log_cb(RETRO_LOG_WARN, "Cart NV save file at \"%s\" is short or unreadable; reverting to blank cart NV.\n", fpath);
+      memset(nv_ptr, 0, nv_size);
+      filestream_close(nvs);
+      return;
+   }
    filestream_close(nvs);
 
    if (!nv16)
