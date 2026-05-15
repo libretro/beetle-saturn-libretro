@@ -33,10 +33,10 @@
 
 #include "smpc_iodevice.h"
 /* stvio only needs STVGameInfo and STV_* enums; both live in
- * db_stv.h which is pure C (stdint+stdbool).  db.h would pull in
- * <string>/<vector> for DB_GetHHDescriptions/DB_GetInternalDB which
- * stvio doesn't use -- include the narrower header instead so this
- * header stays includable from stvio.c. */
+ * db_stv.h which is pure C (stdint+stdbool).  db.h is C-clean too
+ * (was made so when the std::-using DB_GetHHDescriptions /
+ * DB_GetInternalDB functions were dropped as dead code), but
+ * db_stv.h is the narrower include matching actual usage. */
 #include "db_stv.h"
 
 #ifdef __cplusplus

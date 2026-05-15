@@ -22,11 +22,7 @@
 #ifndef __MDFN_SS_DB_H
 #define __MDFN_SS_DB_H
 
-#include <string>
-#include <vector>
-
 #include "../mednafen-types.h"
-#include "../git.h"
 #include "../cdstream.h"
 
 enum
@@ -43,8 +39,6 @@ const STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s);
 
 void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8_t* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode);
 uint32_t DB_LookupHH(const char* sgid, const uint8_t* fd_id);
-void DB_GetInternalDB(std::vector<GameDB_Database>* databases) MDFN_COLD;
-std::string DB_GetHHDescriptions(const uint32_t hhv) MDFN_COLD;
 
 
 #endif
