@@ -89,6 +89,28 @@ static void CheckEventsByMemTS(void);
 
 SH7095 CPU[2]{ {"SH2-M", SS_EVENT_SH2_M_DMA, SCU_MSH2VectorFetch}, {"SH2-S", SS_EVENT_SH2_S_DMA, SCU_SSH2VectorFetch}};
 
+/* C-linkage proxies bridging the SH7095 class to C consumers.  Used
+ * by smpc.c (the converted SMPC TU) to drive slave-CPU enable/disable
+ * (SMPC SH2_RESET / SH2_GET / SH2_SET commands) and to assert NMI
+ * (SMPC SYSRES / SNDRES / CDON / CDOFF paths).  The cpu index picks
+ * between SH-2 master (0) and slave (1); callers in smpc.c pass
+ * literal 0/1 to match the historical CPU[0]/CPU[1] indexing.
+ *
+ * The proxies stay here in ss.cpp rather than in sh7095.cpp because
+ * the CPU[2] global lives in this TU.  sh7095.h itself remains
+ * C++-only (it exposes the class, and there is no current C TU that
+ * needs anything beyond these two methods); when more SH7095
+ * operations need C-callable proxies they should be added here. */
+extern "C" void SH7095_SetActive(int cpu, bool active)
+{
+ CPU[cpu].SetActive(active);
+}
+
+extern "C" void SH7095_SetNMI(int cpu, bool level)
+{
+ CPU[cpu].SetNMI(level);
+}
+
 static uint16_t BIOSROM[524288 / sizeof(uint16_t)];
 uint8_t WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
 // Effectively 32-bit in reality, but 16-bit here because of CPU interpreter design(regarding fastmap).

@@ -28,19 +28,35 @@
 */
 
 #include "ss.h"
-#include <mednafen/mednafen.h>
-#include <mednafen/general.h>
-#include <mednafen/cdrom/CDUtility.h>
+#include "../emuspec.h"			/* EmulateSpecStruct full layout */
 
 #include "smpc.h"
 #include "smpc_iodevice.h"
 #include "sound.h"
 #include "vdp1.h"
-#include "vdp2.h"
 #include "cdb.h"
 #include "scu.h"
 
-#include "sh7095.h"
+/* This TU was formerly C++ and reached VDP2's namespace (vdp2.h)
+ * and the SH7095 class (sh7095.h) directly.  After the C conversion
+ * both are unreachable -- vdp2.h has a `namespace VDP2 { ... }` wrap
+ * and sh7095.h exposes a class.  The calls now go via the matching
+ * extern "C" proxies in vdp2.cpp and ss.cpp; local forward decls
+ * here cover them.  Same pattern as vdp1.c's VDP2_Update decl.
+ *
+ *   vdp2.cpp:  VDP2_GetGunXTranslation / VDP2_Reset / VDP2_Update /
+ *              VDP2_SetExtLatch
+ *   ss.cpp:    SH7095_SetActive(cpu_index, active)
+ *              SH7095_SetNMI(cpu_index, level)
+ *
+ * sscpu_timestamp_t comes from ss.h (which is included above). */
+extern void VDP2_GetGunXTranslation(bool clock28m, float* scale, float* offs);
+extern void VDP2_Reset(bool powering_up);
+extern int32_t VDP2_Update(int32_t timestamp);
+extern void VDP2_SetExtLatch(int32_t event_timestamp, bool status);
+
+extern void SH7095_SetActive(int cpu, bool active);
+extern void SH7095_SetNMI(int cpu, bool level);
 
 enum
 {
@@ -247,7 +263,7 @@ static void UpdateIOBus(unsigned port, const sscpu_timestamp_t timestamp)
   bool tmp = (!(IOBusState[0] & 0x40) & ExLatchEn[0]) | (!(IOBusState[1] & 0x40) & ExLatchEn[1]);
 
   SCU_SetInt(SCU_INT_PAD, tmp);
-  VDP2::SetExtLatch(timestamp, tmp);
+  VDP2_SetExtLatch(timestamp, tmp);
  }
 }
 
@@ -275,7 +291,7 @@ static void MapPorts(void)
   else
    nd = VirtualPorts[vp++];
 
-  // The original code assumed nd != nullptr here. That's true when
+  // The original code assumed nd != NULL here. That's true when
   // every VirtualPort has been populated by SMPC_SetInput before any
   // call to MapPorts() that touches that port. Init carefully arranges
   // for this to hold by calling SetInput in order, so the (vp - 1)
@@ -295,7 +311,7 @@ void SMPC_SetMultitap(unsigned sport, bool enabled)
 {
  assert(sport < 2);
 
- SPorts[sport] = (enabled ? PossibleMultitaps[sport] : nullptr);
+ SPorts[sport] = (enabled ? PossibleMultitaps[sport] : NULL);
  MapPorts();
 }
 
@@ -324,7 +340,7 @@ void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr)
  //
  //
  //
- IODevice* nd = nullptr;
+ IODevice* nd = NULL;
 
  if(!strcmp(type, "none"))
   nd = PossibleDevices[port].none;
@@ -353,7 +369,7 @@ void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr)
   // ptr here is an IODevice*, not the usual raw input-state buffer; clear
   // it so the DPtr slot below doesn't treat it as one.
   nd = (IODevice*)ptr;
-  ptr = nullptr;
+  ptr = NULL;
  }
  else
   abort();
@@ -483,13 +499,13 @@ void SMPC_Init(const uint8_t area_code_arg, const int32_t master_clock_arg, bool
 
  for(unsigned sp = 0; sp < 2; sp++)
  {
-  SPorts[sp]  = nullptr;
-  IOPorts[sp] = nullptr; /* beetle/libretro: added to fix crash when two multi-taps are used */
+  SPorts[sp]  = NULL;
+  IOPorts[sp] = NULL; /* beetle/libretro: added to fix crash when two multi-taps are used */
  }
 
  for(unsigned i = 0; i < 12; i++)
  {
-  VirtualPorts[i] = nullptr;
+  VirtualPorts[i] = NULL;
   SMPC_SetInput(i, "none", NULL);
  }
 
@@ -565,7 +581,7 @@ void SMPC_Reset(bool powering_up)
 {
  SlaveSH2Pending = 0;
  SlaveSH2On = false;
- CPU[1].SetActive(SlaveSH2On);
+ SH7095_SetActive(1, SlaveSH2On);
  //
  TurnSoundCPUOff();
  CDOn = true; // ? false;
@@ -573,7 +589,7 @@ void SMPC_Reset(bool powering_up)
  ResetButtonCount = 0;
  ResetNMIEnable = false;	// or only on powering_up?
 
- CPU[0].SetNMI(true);
+ SH7095_SetNMI(0, true);
 
  memset(IREG, 0, sizeof(IREG));
  memset(OREG, 0, sizeof(OREG));
@@ -756,7 +772,7 @@ void SMPC_TransformInput(void)
 {
  float gun_x_scale, gun_x_offs;
 
- VDP2::GetGunXTranslation(((PendingClockDivisor > 0) ? PendingClockDivisor : CurrentClockDivisor) == CLOCK_DIVISOR_28M, &gun_x_scale, &gun_x_offs);
+ VDP2_GetGunXTranslation(((PendingClockDivisor > 0) ? PendingClockDivisor : CurrentClockDivisor) == CLOCK_DIVISOR_28M, &gun_x_scale, &gun_x_offs);
 
  for(unsigned vp = 0; vp < 12; vp++)
   VirtualPorts[vp]->vt->TransformInput(VirtualPorts[vp], VirtualPortsDPtr[vp], gun_x_scale, gun_x_offs);
@@ -767,7 +783,7 @@ void SMPC_ProcessSlaveOffOn(void)
  if(SlaveSH2Pending)
  {
   SlaveSH2On = (SlaveSH2Pending > 0);
-  CPU[1].SetActive(SlaveSH2On);
+  SH7095_SetActive(1, SlaveSH2On);
   SlaveSH2Pending = 0;
   //
  }
@@ -808,7 +824,7 @@ void SMPC_EndFrame(EmulateSpecStruct* espec, const sscpu_timestamp_t timestamp)
  {
   float gun_x_scale, gun_x_offs;
 
-  VDP2::GetGunXTranslation(CurrentClockDivisor == CLOCK_DIVISOR_28M, &gun_x_scale, &gun_x_offs);
+  VDP2_GetGunXTranslation(CurrentClockDivisor == CLOCK_DIVISOR_28M, &gun_x_scale, &gun_x_offs);
 
   for(unsigned i = 0; i < 2; i++)
   {
@@ -843,9 +859,9 @@ void SMPC_Write(const sscpu_timestamp_t timestamp, uint8_t A, uint8_t V)
  A &= 0x3F;
 
  //
- // Call VDP2::Update() to prevent out-of-temporal-order calls to SMPC_Update() from here and the event system.
+ // Call VDP2_Update() to prevent out-of-temporal-order calls to SMPC_Update() from here and the event system.
  //
- SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2::Update(timestamp));	// TODO: conditionalize so we don't consume so much CPU time if a game writes continuously to SMPC ports
+ SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2_Update(timestamp));	// TODO: conditionalize so we don't consume so much CPU time if a game writes continuously to SMPC ports
  sscpu_timestamp_t nt = SMPC_Update(timestamp);
  switch(A)
  {
@@ -1157,8 +1173,8 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 
        if(ResetNMIEnable)
        {
-        CPU[0].SetNMI(false);
-        CPU[0].SetNMI(true);
+        SH7095_SetNMI(0, false);
+        SH7095_SetNMI(0, true);
 
         ResetButtonCount = -1;
        }
@@ -1231,7 +1247,7 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 
      SOUND_Reset(false);
      VDP1_Reset(false);
-     VDP2::Reset(false);
+     VDP2_Reset(false);
      SCU_Reset(false);
 
      // Change clock
@@ -1248,8 +1264,8 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
      SMPC_WAIT_UNTIL_COND(vsync);
 
      // Send NMI to master SH-2
-     CPU[0].SetNMI(false);
-     CPU[0].SetNMI(true);
+     SH7095_SetNMI(0, false);
+     SH7095_SetNMI(0, true);
     }
     else if(ExecutingCommand == CMD_INTBACK)
     {
@@ -1571,8 +1587,8 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
     }
     else if(ExecutingCommand == CMD_NMIREQ)
     {
-     CPU[0].SetNMI(false);
-     CPU[0].SetNMI(true);
+     SH7095_SetNMI(0, false);
+     SH7095_SetNMI(0, true);
     }
     else if(ExecutingCommand == CMD_RESENAB)
     {

@@ -1484,3 +1484,26 @@ extern "C" void VDP2_SetDeinterlaceOff(bool off)
 {
  VDP2::SetDeinterlaceOff(off);
 }
+
+/* smpc.c calls these three.  GetGunXTranslation: gun crosshair
+   drawing reads it twice per port to scale and offset the gun X
+   coordinate.  Reset: slave-on/off transitions in the SMPC SS
+   "soft reset" path drag every SS-core module along.
+   SetExtLatch: gun trigger latching on the SMPC port-update
+   cadence.  SetExtLatch was previously an inline helper in vdp2.h;
+   the proxy loses cross-TU inlining for one call per SMPC port
+   read, which is not in any tight loop. */
+extern "C" void VDP2_GetGunXTranslation(bool clock28m, float* scale, float* offs)
+{
+ VDP2::GetGunXTranslation(clock28m, scale, offs);
+}
+
+extern "C" void VDP2_Reset(bool powering_up)
+{
+ VDP2::Reset(powering_up);
+}
+
+extern "C" void VDP2_SetExtLatch(sscpu_timestamp_t event_timestamp, bool status)
+{
+ VDP2::SetExtLatch(event_timestamp, status);
+}

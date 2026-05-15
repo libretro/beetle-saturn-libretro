@@ -64,13 +64,18 @@ SOURCES_CXX += \
 	$(CORE_EMU_DIR)/scu_dsp_jmp.cpp \
 	$(CORE_EMU_DIR)/scu_dsp_misc.cpp \
 	$(CORE_EMU_DIR)/vdp2.cpp \
-	$(CORE_EMU_DIR)/vdp2_render.cpp \
-	$(CORE_EMU_DIR)/smpc.cpp
+	$(CORE_EMU_DIR)/vdp2_render.cpp
 
 # db.cpp -> db.c. Dead std:: helpers (DB_GetInternalDB,
 # DB_GetHHDescriptions, FDIDToString) were removed in an earlier
 # commit, leaving only POD tables and lookup functions.
-SOURCES_C += $(CORE_EMU_DIR)/db.c
+#
+# smpc.cpp -> smpc.c. The class-method calls (CPU[X].SetActive,
+# CPU[X].SetNMI) and the namespace calls (VDP2::Update, VDP2::Reset,
+# VDP2::GetGunXTranslation, VDP2::SetExtLatch) now route through
+# extern "C" proxies in ss.cpp and vdp2.cpp respectively.
+SOURCES_C += $(CORE_EMU_DIR)/db.c \
+		$(CORE_EMU_DIR)/smpc.c
 
 # The cartridge subsystem, converted from C++ to C. CartInfo was
 # already a plain struct of function pointers (C-style polymorphism),
