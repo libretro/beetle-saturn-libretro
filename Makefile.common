@@ -174,7 +174,6 @@ endif
 SOURCES_C += $(MEDNAFEN_DIR)/state.c
 
 SOURCES_CXX += \
-	$(CORE_DIR)/disc.cpp \
 	$(CORE_DIR)/libretro.cpp
 
 # Deinterlacer.cpp / surface.cpp were dropped; the surface header is
@@ -185,6 +184,7 @@ SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
 		$(MEDNAFEN_DIR)/general.c \
 		$(MEDNAFEN_DIR)/mempatcher.c \
 		$(MEDNAFEN_DIR)/settings.c \
+		$(CORE_DIR)/disc.c \
 		$(CORE_DIR)/input.c \
 		$(CORE_DIR)/libretro_settings.c \
 		$(MEDNAFEN_DIR)/video/Deinterlacer.c \

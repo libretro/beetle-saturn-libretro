@@ -6,7 +6,17 @@
 #include <stdlib.h>
 
 #include "mednafen/mednafen-types.h"
-#include "mednafen/git.h"
+/* log_cb and MDFNGI are the only symbols disc needs from git.h.
+ * git.h is C++-only (class MDFNGI's surroundings -- CheatFormatStruct
+ * with std::exception, GameDB_Database with std::vector<...>, etc).
+ * MDFNGI itself is POD and lives in mdfn_gameinfo.h, which is C-
+ * includable; log_cb's retro_log_printf_t type comes from libretro.h
+ * (above) and the variable is defined in libretro.cpp -- variables
+ * don't name-mangle so the cross-language reference resolves without
+ * extern "C". */
+#include "mednafen/mdfn_gameinfo.h"
+extern retro_log_printf_t log_cb;
+
 #include "mednafen/general.h"
 #include "mednafen/cdrom/cdromif.h"
 #include "mednafen/hash/md5.h"
@@ -15,12 +25,16 @@
 #include "mednafen/ss/cdb.h"
 #include "mednafen/ss/smpc.h"
 
-// Forward declarations
-extern "C"{
+/* rfopen / rfgets / rfclose are libretro-common C symbols.  The
+ * pre-conversion extern "C" wrap around these forward decls was
+ * a no-op even in C++ (the symbols are already C-linkage on the
+ * defining side, and a C++ TU declaring `extern "C" RFILE* rfopen
+ * (...)` produces the same unmangled reference whether inside or
+ * outside the wrap).  In C the keyword doesn't exist at all, so
+ * the wrap is dropped on conversion. */
 RFILE* rfopen(const char *path, const char *mode);
 char *rfgets(char *buffer, int maxCount, RFILE* stream);
 int rfclose(RFILE* stream);
-}
 
 extern bool cdimagecache;
 //------------------------------------------------------------------------------
