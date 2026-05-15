@@ -49,7 +49,7 @@ extern "C" { MDFN_HIDE extern bool VDP1_MeshImproved; }
 
 //uint8_t vdp2rend_prepad_bss
 
-static EmulateSpecStruct* espec = NULL;
+static struct EmulateSpecStruct* espec = NULL;
 static bool PAL;
 static bool CorrectAspect;
 static bool ShowHOverscan;
@@ -58,7 +58,7 @@ static int LineVisFirst, LineVisLast;
 static uint32_t NextOutLine;
 static bool Clock28M;
 static unsigned VisibleLines;
-static VDP2Rend_LIB LIB[256];
+static struct VDP2Rend_LIB LIB[256];
 static uint16_t VRAM[262144];
 static uint16_t CRAM[2048];
 
@@ -343,7 +343,7 @@ struct TileFetcher
   pcco = 0;
   spr = false;
   scc = false;
-  tile_vrb = nullptr;
+  tile_vrb = NULL;
   cellx_xor = 0;
  }
 
@@ -1205,14 +1205,11 @@ static void Reset(bool powering_up)
 
  SDCTL = 0;
  //
- for(auto& spn : SpritePrioNum)
-  spn = 0;
+ memset(SpritePrioNum, 0, sizeof(SpritePrioNum));
  //
- for(auto& scr : SpriteCCRatio)
-  scr = 0;
+ memset(SpriteCCRatio, 0, sizeof(SpriteCCRatio));
  //
- for(auto& ao : CRAMAddrOffs_NBG)
-  ao = 0;
+ memset(CRAMAddrOffs_NBG, 0, sizeof(CRAMAddrOffs_NBG));
 
  CRAMAddrOffs_RBG0 = 0;
 
@@ -1221,9 +1218,7 @@ static void Reset(bool powering_up)
  ColorOffsEn = 0;
  ColorOffsSel = 0;
 
- for(auto& co : ColorOffs)
-  for(auto& coe : co)
-   coe = 0;
+ memset(ColorOffs, 0, sizeof(ColorOffs));
 }
 
 // Prio(3 bits), color calc(1 bit), layer num(3 bits), 1 bit for palette/rgb format, 1 bit for line color enable, 1 bit for color offs enable, 1 bit for color offs select
@@ -2703,7 +2698,15 @@ static void T_MixIt(uint32_t* target, const unsigned vdp2_line, const unsigned w
   //
   //if(tmp_pix[5] & (1U << PIX_DOSHAD_SHIFT))
   // pt &= ~0x2020202020202020ULL;
-  static_assert((1U << PIX_DOSHAD_SHIFT) == 0x40, "PIX_DOSHAD_SHIFT is wrong value.");
+  // PIX_DOSHAD_SHIFT compile-time check via negative-array-bound trick
+  // (no static_assert / _Static_assert dependence; works in both C and
+  // C++ -- C++ has its own static_assert, C99 doesn't get _Static_assert
+  // until C11, and GCC's C++ mode rejects _Static_assert without
+  // -fpermissive).  Triggers `size of unnamed array is negative` on
+  // mismatch.  The typedef is named to allow grep'ing for the assert.
+  typedef char VDP2REND_PIX_DOSHAD_SHIFT_check[
+   1 - 2*!((1U << PIX_DOSHAD_SHIFT) == 0x40)];
+  (void)sizeof(VDP2REND_PIX_DOSHAD_SHIFT_check);
   pt &= ~((((tmp_pix[5] >> 1) & 0x20) << (uint8_t)(tmp_pix[5] >> PIX_PRIO_TEST_SHIFT)));
 
 
@@ -3808,7 +3811,7 @@ static slock_t  *DrainLock = NULL;
 static scond_t  *DrainCond = NULL;
 static bool DoWakeupIfNecessary;
 
-static INLINE void WWQ(uint16_t command, uint32_t arg32 = 0, uint16_t arg16 = 0)
+static INLINE void WWQ(uint16_t command, uint32_t arg32, uint16_t arg16)
 {
  // Queue back-pressure spin. retro_sleep(1) was problematic on Windows
  // without timeBeginPeriod(1) -- Sleep(1) rounds up to the 15.6ms timer
@@ -3982,7 +3985,7 @@ void VDP2REND_GetGunXTranslation(const bool clock28m, float* scale, float* offs)
  }
 }
 
-void VDP2REND_SetGetVideoParams(MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend)
+void VDP2REND_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend)
 {
  CorrectAspect = caspect;
  ShowHOverscan = show_h_overscan;
@@ -4030,13 +4033,13 @@ void VDP2REND_Kill(void)
 {
  if(WakeupSem != NULL)
  {
-  WWQ(COMMAND_SET_BUSYWAIT, true);
+  WWQ(COMMAND_SET_BUSYWAIT, true, 0);
   ssem_signal(WakeupSem);
  }
 
  if(RThread != NULL)
  {
-  WWQ(COMMAND_EXIT);
+  WWQ(COMMAND_EXIT, 0, 0);
   sthread_join(RThread);
   /* sthread_join frees the handle (libretro-common's rthreads.c
      does `free(thread)` at the end of sthread_join), so RThread
@@ -4069,7 +4072,7 @@ void VDP2REND_Kill(void)
  }
 }
 
-void VDP2REND_StartFrame(EmulateSpecStruct* espec_arg, const bool clock28m, const int SurfInterlaceField)
+void VDP2REND_StartFrame(struct EmulateSpecStruct* espec_arg, const bool clock28m, const int SurfInterlaceField)
 {
  NextOutLine = 0;
  Clock28M = clock28m;
@@ -4116,7 +4119,7 @@ void VDP2REND_EndFrame(void)
   slock_unlock(DrainLock);
  }
 
- WWQ(COMMAND_SET_BUSYWAIT, false);
+ WWQ(COMMAND_SET_BUSYWAIT, false, 0);
 
  if(NextOutLine < VisibleLines)
  {
@@ -4137,7 +4140,7 @@ void VDP2REND_EndFrame(void)
  espec = NULL;
 }
 
-VDP2Rend_LIB* VDP2REND_GetLIB(unsigned line)
+struct VDP2Rend_LIB* VDP2REND_GetLIB(unsigned line)
 {
  assert(line < (PAL ? 256 : 240)); // NO: VisibleLines);
 
@@ -4163,7 +4166,7 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool 
   //
   if(crt_line == bwthresh)
   {
-   WWQ(COMMAND_SET_BUSYWAIT, true);
+   WWQ(COMMAND_SET_BUSYWAIT, true, 0);
    ssem_signal(WakeupSem);
   }
   else if(crt_line < bwthresh)
@@ -4184,12 +4187,12 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool 
 
 void VDP2REND_Reset(bool powering_up)
 {
- WWQ(COMMAND_RESET, powering_up);
+ WWQ(COMMAND_RESET, powering_up, 0);
 }
 
 void VDP2REND_SetLayerEnableMask(uint64_t mask)
 {
- WWQ(COMMAND_SET_LEM, mask);
+ WWQ(COMMAND_SET_LEM, mask, 0);
 }
 
 void VDP2REND_SetDeinterlaceOff(bool off)
@@ -4225,7 +4228,7 @@ void VDP2REND_SetDeinterlaceOff(bool off)
  if (RThread == NULL)
   DeinterlaceOff = off;
  else
-  WWQ(COMMAND_SET_DEINT_OFF, (uint32_t)off);
+  WWQ(COMMAND_SET_DEINT_OFF, (uint32_t)off, 0);
 }
 
 void VDP2REND_Write8_DB(uint32_t A, uint16_t DB)
