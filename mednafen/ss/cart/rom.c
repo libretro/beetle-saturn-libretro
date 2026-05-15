@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>   /* memset (short-read zero-fill below) */
 
 #include <streams/file_stream.h>
 
@@ -51,7 +52,20 @@ void CART_ROM_Init(struct CartInfo *c, RFILE *str)
 {
    unsigned i;
 
-   filestream_read(str, ROM, 0x200000);
+   /* ROM is a static module-scope array, so the very first load in a
+    * process is BSS-zeroed.  But RetroArch can reload (different)
+    * content without restarting, and on a short read here the unread
+    * tail would otherwise carry the previous game's bytes.  Detect
+    * any short / failed read and zero the buffer so subsequent
+    * byte-swap and SS_SetPhysMemMap install a known-blank region
+    * instead of stale data from a prior game.  CART_ROM_Init returns
+    * void (its only callers in cart.c are the KOF95 / ULTRAMAN slot
+    * paths, which do not check), so the cart slot is still installed
+    * -- just over zeros.  filestream_read returns bytes read (or a
+    * value < expected on EOF / short file / read error), so a single
+    * `!=` check covers every short-read variant. */
+   if(filestream_read(str, ROM, 0x200000) != 0x200000)
+      memset(ROM, 0, 0x200000);
 
    for(i = 0; i < 0x100000; i++)
    {

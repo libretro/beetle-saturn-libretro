@@ -168,8 +168,24 @@ void CART_AR4MP_Init(struct CartInfo *c, RFILE *str)
       ExtRAM = NULL;
       return;
    }
-   /* */
-   filestream_read(str, FLASH, 0x40000);
+   /* Short read leaves uninitialised malloc'd bytes in the tail of
+    * FLASH, which then become "ROM" after the byte-swap loop below
+    * and get installed into the Saturn address map by
+    * SS_SetPhysMemMap.  Tear down the same way as the OOM path:
+    * free both buffers, NULL the globals, and return without
+    * installing cart callbacks -- the cart slot stays at the
+    * dummies CART_Init configured at the top.  filestream_read
+    * returns the byte count actually read (or a value < expected
+    * on EOF / short file / read error), so a single `!=` check
+    * catches every short-read variant. */
+   if(filestream_read(str, FLASH, 0x40000) != 0x40000)
+   {
+      free(FLASH);
+      free(ExtRAM);
+      FLASH  = NULL;
+      ExtRAM = NULL;
+      return;
+   }
 
    for(i = 0; i < 0x20000; i++)
    {
