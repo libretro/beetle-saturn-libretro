@@ -59,7 +59,7 @@ extern uint32_t IBufferCount;
 #endif
 #include "../../libretro_settings.h"
 #include "../../input.h"
-extern void MDFN_MidSync(void);
+#include "../general.h"		/* MDFN_MidSync (defined in libretro.c) */
 extern bool is_pal;
 extern char retro_base_directory[4096];
 

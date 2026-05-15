@@ -173,8 +173,10 @@ endif
 
 SOURCES_C += $(MEDNAFEN_DIR)/state.c
 
-SOURCES_CXX += \
-	$(CORE_DIR)/libretro.cpp
+# All top-level C++ TUs have been converted to C
+# (disc.cpp -> disc.c, input.cpp -> input.c, libretro.cpp ->
+# libretro.c).  The remaining C++ in this build lives in
+# mednafen/ss/ and mednafen/hw_cpu/m68k/.
 
 # Deinterlacer.cpp / surface.cpp were dropped; the surface header is
 # now header-only (PSX-style, with the MDFN_PixelFormat class removed)
@@ -186,6 +188,7 @@ SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
 		$(MEDNAFEN_DIR)/settings.c \
 		$(CORE_DIR)/disc.c \
 		$(CORE_DIR)/input.c \
+		$(CORE_DIR)/libretro.c \
 		$(CORE_DIR)/libretro_settings.c \
 		$(MEDNAFEN_DIR)/video/Deinterlacer.c \
 		$(MEDNAFEN_DIR)/hash/md5.c \

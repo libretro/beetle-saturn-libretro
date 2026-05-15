@@ -101,8 +101,23 @@
  // Persist BackupRAM / cart NV to disk. Safe to call from any thread
  // (including outside Emulate()). Return false if the write failed so
  // the caller can schedule a retry.
+ //
+ // These and the other SS-core entry points below (SS_Reset / Emulate /
+ // CloseGame / InitCommon / SS_RequestMLExit / SS_RequestEHLExit) are
+ // wrapped in extern "C" because the libretro entry-point TU
+ // (libretro.c, converted from C++) calls them across the C/C++
+ // boundary.  ss.cpp is still C++; the wrap propagates C linkage
+ // from these declarations to the matching definitions in ss.cpp.
+#ifdef __cplusplus
+extern "C" {
+#endif
+
  bool SS_FlushBackupRAM(void);
  bool SS_FlushCartNV(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 
  typedef int32_t sscpu_timestamp_t;
@@ -119,8 +134,16 @@
 
  MDFN_HIDE extern int32_t SH7095_mem_timestamp;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
  void SS_RequestMLExit(void);
  void SS_RequestEHLExit(void);
+
+#ifdef __cplusplus
+}
+#endif
 
  /* SS_EVENT_* enum lives in ss_c_abi.h (shared with C modules). */
 
@@ -165,6 +188,38 @@ extern "C" void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, 
 void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable) MDFN_COLD;
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+ /* Forward-declare struct types used in the InitCommon/Emulate
+  * prototypes below.  Both are defined in C-includable headers
+  * (db_stv.h for STVGameInfo, emuspec.h for EmulateSpecStruct via
+  * git.h's transitive include); the forward decls here let ss.h
+  * stay independent of those includes -- TUs that need the full
+  * struct layouts pull the appropriate header themselves. */
+ struct STVGameInfo;
+ struct EmulateSpecStruct;
+
  void SS_Reset(bool powering_up) MDFN_COLD;
+
+ /* Top-level SS-core entry points called from libretro.c.
+  * Defined in ss.cpp (still C++).  See the longer comment near
+  * SS_FlushBackupRAM above for the cross-language ABI rationale.
+  * InitCommon's C++-side default args (rom_dir, main_fname, sgi
+  * all default to NULL) are dropped here so the declaration is C-
+  * parseable; the few libretro.c callsites that relied on defaults
+  * pass NULL explicitly. */
+ bool InitCommon(const unsigned cpucache_emumode, const unsigned horrible_hacks, const unsigned cart_type, const unsigned smpc_area, const char* rom_dir, const char* main_fname, const struct STVGameInfo* sgi) MDFN_COLD;
+ void Emulate(struct EmulateSpecStruct* espec_arg);
+ void CloseGame(void) MDFN_COLD;
+
+ /* Defined in ss.cpp; called from libretro.c's save-state /
+  * end-of-game path via the same C/C++ boundary. */
+ void MDFN_BackupSavFile(const uint8_t max_backup_count, const char* sav_ext);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

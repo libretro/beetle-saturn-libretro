@@ -1468,10 +1468,19 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
 }
 
-/* C-linkage wrapper: vdp1.c (converted to C) schedules a VDP2 update
-   via this. VDP2 itself is still C++; this thin shim bridges the
-   C/C++ boundary until VDP2 is converted. */
+/* C-linkage wrappers: thin shims that bridge the C/C++ boundary for
+   C-converted consumers (vdp1.c, libretro.c) calling into the VDP2
+   namespace until VDP2 is itself converted.  All forward into the
+   matching VDP2::Foo C++ function. */
 extern "C" sscpu_timestamp_t VDP2_Update(sscpu_timestamp_t timestamp)
 {
  return VDP2::Update(timestamp);
+}
+
+/* libretro.c (the converted entry-point TU) toggles the VDP2
+   deinterlace path from check_variables() when the user changes the
+   "ss_deinterlace" option at runtime. */
+extern "C" void VDP2_SetDeinterlaceOff(bool off)
+{
+ VDP2::SetDeinterlaceOff(off);
 }

@@ -12,13 +12,19 @@
 #include <time.h>
 
 #include "mednafen/mednafen-types.h"
-#include "mednafen/mednafen.h"
 #include "mednafen/settings.h"
-#include "mednafen/git.h"
+/* MDFNGI and EmulateSpecStruct were the only types this TU needed
+ * from the C++-only mednafen/git.h.  Both have C-compat POD homes
+ * now -- mdfn_gameinfo.h and emuspec.h respectively.  Pull those
+ * in directly; git.h would drag in <algorithm>/<string>/<vector>/
+ * <map> through its CheatFormatStruct/GameDB_Entry/etc. surface,
+ * which fails in a C TU. */
+#include "mednafen/mdfn_gameinfo.h"
+#include "mednafen/emuspec.h"
 #include "mednafen/general.h"
 #include "mednafen/mempatcher.h"
-#ifdef NEED_DEINTERLACER
 #include "mednafen/video/surface.h"
+#ifdef NEED_DEINTERLACER
 #include "mednafen/video/Deinterlacer.h"
 #endif
 #include "mednafen/cdrom/CDUtility.h"
@@ -28,7 +34,10 @@
 #include "mednafen/ss/db.h"
 #include "mednafen/ss/smpc.h"
 #include "mednafen/ss/vdp1.h"
-#include "mednafen/ss/vdp2.h"
+/* mednafen/ss/vdp2.h is C++-only (namespace VDP2 { ... } wrap);
+ * this TU's one VDP2 entry point goes via the extern "C"
+ * VDP2_SetDeinterlaceOff proxy in vdp2.cpp, locally forward-
+ * declared below.  Same pattern as vdp1.c uses for VDP2_Update. */
 #include "mednafen/ss/sound.h"
 
 #include "libretro_core_options.h"
@@ -124,13 +133,12 @@ MDFNGI *MDFNGameInfo = NULL;
 
 extern MDFNGI EmulatedSS;
 
-// forward declarations
-// ST-V load path passes rom_dir/main_fname/sgi; CD load passes the
-// defaulted nullptrs.
-struct STVGameInfo;
-bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrible_hacks, const unsigned cart_type, const unsigned smpc_area, const char* rom_dir = nullptr, const char* main_fname = nullptr, const STVGameInfo* sgi = nullptr);
-MDFN_COLD void CloseGame(void);
-void Emulate(EmulateSpecStruct* espec_arg);
+/* VDP2 itself is still C++ (the `namespace VDP2 { ... }` wrap in
+ * vdp2.h hasn't been lifted yet), so this C TU reaches the single
+ * VDP2 entry point it needs via the matching extern "C" proxy in
+ * vdp2.cpp.  Same pattern as vdp1.c's VDP2_Update forward decl. */
+extern void VDP2_SetDeinterlaceOff(bool off);
+
 static bool overscan;
 static double last_sound_rate;
 
@@ -477,7 +485,7 @@ static void check_variables(bool startup)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       // The "off" mode pairs DEINT_OFF on the deinterlacer (which then
-      // does nothing) with VDP2::SetDeinterlaceOff(true) on the VDP2
+      // does nothing) with VDP2_SetDeinterlaceOff(true) on the VDP2
       // renderer side, which causes each rendered scanline to also be
       // memcpy'd to the opposite-field row of the libretro surface.
       // Every emulated frame thus produces a stable, full-resolution
@@ -485,14 +493,14 @@ static void check_variables(bool startup)
       // default single-field-per-frame behaviour and let the
       // deinterlacer combine fields after the fact.
       const bool off = (strcmp(var.value, "off") == 0);
-      VDP2::SetDeinterlaceOff(off);
+      VDP2_SetDeinterlaceOff(off);
 
 #ifdef NEED_DEINTERLACER
       /* The 'deint' instance is itself #ifdef NEED_DEINTERLACER (declared
        * at file scope above), as are every other Deinterlacer_* call in
        * this TU (Init, ClearState, Process, GetType, Cleanup).  This
        * setting-handler chain was the lone exception, breaking the
-       * NEED_DEINTERLACER=0 build.  VDP2::SetDeinterlaceOff stays
+       * NEED_DEINTERLACER=0 build.  VDP2_SetDeinterlaceOff stays
        * outside the gate -- VDP2 is the GPU subsystem and independent
        * of the SW deinterlacer. */
       if (strcmp(var.value, "bob") == 0)
@@ -662,7 +670,7 @@ static bool MDFNI_LoadGame(const char *name)
             {
                DetectRegion(&region);
 
-               DB_Lookup(nullptr, sgid, sgname, sgarea, fd_id, &region, &cart_type, &cpucache_emumode);
+               DB_Lookup(NULL, sgid, sgname, sgarea, fd_id, &region, &cart_type, &cpucache_emumode);
                horrible_hacks = DB_LookupHH(sgid, fd_id);
 
                // forced region setting?
@@ -675,7 +683,8 @@ static bool MDFNI_LoadGame(const char *name)
 
                // GO!
                if (InitCommon(cpucache_emumode,
-                    horrible_hacks, cart_type, region))
+                    horrible_hacks, cart_type, region,
+                    NULL, NULL, NULL))
                {
                   MDFN_LoadGameCheats();
                   MDFNMP_InstallReadPatches();
@@ -724,7 +733,7 @@ static bool MDFNI_LoadGame(const char *name)
 
          const char* base = path_basename(name);
 
-         const STVGameInfo* sgi = DB_LookupSTV(base ? base : "", &stvfs);
+         const struct STVGameInfo* sgi = DB_LookupSTV(base ? base : "", &stvfs);
 
          cdstream_close(&stvfs);
 
@@ -771,7 +780,7 @@ static bool MDFNI_LoadGame(const char *name)
       cart_type = setting_cart;
 
    // Initialise with safe parameters
-   if (!InitCommon(cpucache_emumode, horrible_hacks, cart_type, region))
+   if (!InitCommon(cpucache_emumode, horrible_hacks, cart_type, region, NULL, NULL, NULL))
       return false;
 
    MDFN_LoadGameCheats();
@@ -947,7 +956,13 @@ void retro_run(void)
    int32_t rects[MEDNAFEN_CORE_GEOMETRY_MAX_H];
    rects[0] = ~0;
 
-   EmulateSpecStruct spec;
+   /* Was `EmulateSpecStruct spec;` relying on the C++ default
+    * member initializers in git.h's struct EmulateSpecStruct.  After
+    * the factor-out to the C-compat mednafen/emuspec.h those
+    * defaults are gone; this explicit zero-init produces the same
+    * semantics: surface/LineWidths NULL, InterlaceOn/Field/skip
+    * false, sizes/cycles 0. */
+   EmulateSpecStruct spec = {0};
    spec.surface = surf;
    spec.LineWidths = rects;
    spec.SoundBufSize = 0;

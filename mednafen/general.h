@@ -41,6 +41,12 @@ void MDFN_GetFilePathComponents(const char *file_path,
 // Absolute rel_path values are copied through unchanged.
 void MDFN_EvalFIP(char *out, size_t out_size, const char *dir_path, const char *rel_path);
 
+// Mid-frame synchronisation hook called from inside Emulate() (ss.cpp).
+// Defined in the libretro entry-point TU (libretro.c after the C
+// conversion).  The C-linkage declaration here matches the C
+// definition so ss.cpp's call resolves on the unmangled symbol.
+void MDFN_MidSync(void);
+
 #ifdef __cplusplus
 }
 #endif
