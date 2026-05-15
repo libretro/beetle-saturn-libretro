@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-typedef struct
+typedef struct MDFNGI
 {
    /* Time base for EmulateSpecStruct::MasterCycles.
       MasterClock must be >= MDFN_MASTERCLOCK_FIXED(1.0). All or part

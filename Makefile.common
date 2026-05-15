@@ -62,7 +62,6 @@ SOURCES_CXX += \
 	$(CORE_EMU_DIR)/scu_dsp_mvi.cpp \
 	$(CORE_EMU_DIR)/scu_dsp_jmp.cpp \
 	$(CORE_EMU_DIR)/scu_dsp_misc.cpp \
-	$(CORE_EMU_DIR)/vdp2.cpp \
 	$(CORE_EMU_DIR)/vdp2_render.cpp
 
 # db.cpp -> db.c. Dead std:: helpers (DB_GetInternalDB,
@@ -82,9 +81,19 @@ SOURCES_CXX += \
 # SeekStart2) had ~100 callsites filled in with explicit defaults.
 # FilterS::MODE_SEL_X enum hoisted to file scope.  All cdb-internal,
 # no public-ABI changes.
+#
+# vdp2.cpp -> vdp2.c. The `namespace VDP2 { ... }` wrap was lifted
+# and the 19 public entry points renamed to VDP2_* (matching the
+# extern "C" proxy convention used in earlier commits, which are
+# now redundant and removed).  The RW<T,IsWrite> template
+# monomorphized into RW_R16 / RW_W8 / RW_W16.  Three auto&
+# references converted to __typeof__()* pointers.  Two
+# CPU[i].SetExtHaltDMAKludgeFromVDP2 callsites routed through a
+# new SH7095_SetExtHaltDMAKludge proxy in ss.cpp.
 SOURCES_C += $(CORE_EMU_DIR)/db.c \
 		$(CORE_EMU_DIR)/smpc.c \
-		$(CORE_EMU_DIR)/cdb.c
+		$(CORE_EMU_DIR)/cdb.c \
+		$(CORE_EMU_DIR)/vdp2.c
 
 # The cartridge subsystem, converted from C++ to C. CartInfo was
 # already a plain struct of function pointers (C-style polymorphism),

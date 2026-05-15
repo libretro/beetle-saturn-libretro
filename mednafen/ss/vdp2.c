@@ -25,8 +25,6 @@
 // SMPC clock change code.
 
 #include "ss.h"
-#include <mednafen/mednafen.h>
-#include <mednafen/general.h>
 #include "vdp1.h"
 #include "vdp2.h"
 #include "scu.h"
@@ -35,10 +33,23 @@
 #include "vdp2_common.h"
 #include "vdp2_render.h"
 
-#include "sh7095.h"
-
-namespace VDP2
-{
+/* This TU was formerly wrapped in `namespace VDP2 { ... }` -- now
+ * converted to C, with the 19 public entry points renamed to the
+ * VDP2_ prefix that the extern "C" proxies in this file used to
+ * provide.  Internal callsites between the namespace's own
+ * functions (only `Update(SH7095_mem_timestamp)`, hit at 3 sites
+ * in the SCU / register-write paths) were updated to the prefixed
+ * names.  mednafen.h / general.h / sh7095.h dropped: the C++-only
+ * git.h transitive that mednafen.h pulled in is no longer
+ * tolerable, general.h was unused, and sh7095.h was only providing
+ * the SH7095 class -- this TU never used the class, only the
+ * SH7095_mem_timestamp global which ss.h declares.
+ *
+ * Local forward decl: the SetExtHaltDMAKludgeFromVDP2 class method
+ * call in the HORRIBLEHACK_NOSH2DMALINE106 path goes through a
+ * matching extern "C" proxy in ss.cpp (where the CPU[2] global
+ * lives).  Same forward-decl pattern smpc.c uses. */
+extern void SH7095_SetExtHaltDMAKludge(int cpu, bool state);
 
 static bool PAL;
 static sscpu_timestamp_t lastts;
@@ -126,40 +137,40 @@ static void FetchRotParams(const bool field)
 
  for(unsigned i = 0; i < 2; i++)
  {
-  auto& rp = RotParams[i];
+  __typeof__(RotParams[i]) *rp = &RotParams[i];
 
-  rp.Xst = sign_x_to_s32(23, BE32_VRAM((a + 0x00) & 0x3FFFF) >> 6);
-  rp.Yst = sign_x_to_s32(23, BE32_VRAM((a + 0x02) & 0x3FFFF) >> 6);
-  rp.Zst = sign_x_to_s32(23, BE32_VRAM((a + 0x04) & 0x3FFFF) >> 6);
+  rp->Xst = sign_x_to_s32(23, BE32_VRAM((a + 0x00) & 0x3FFFF) >> 6);
+  rp->Yst = sign_x_to_s32(23, BE32_VRAM((a + 0x02) & 0x3FFFF) >> 6);
+  rp->Zst = sign_x_to_s32(23, BE32_VRAM((a + 0x04) & 0x3FFFF) >> 6);
 
-  rp.DXst = sign_x_to_s32(13, BE32_VRAM((a + 0x06) & 0x3FFFF) >> 6);
-  rp.DYst = sign_x_to_s32(13, BE32_VRAM((a + 0x08) & 0x3FFFF) >> 6);
+  rp->DXst = sign_x_to_s32(13, BE32_VRAM((a + 0x06) & 0x3FFFF) >> 6);
+  rp->DYst = sign_x_to_s32(13, BE32_VRAM((a + 0x08) & 0x3FFFF) >> 6);
 
-  rp.DX = sign_x_to_s32(13, BE32_VRAM((a + 0x0A) & 0x3FFFF) >> 6);
-  rp.DY = sign_x_to_s32(13, BE32_VRAM((a + 0x0C) & 0x3FFFF) >> 6);
+  rp->DX = sign_x_to_s32(13, BE32_VRAM((a + 0x0A) & 0x3FFFF) >> 6);
+  rp->DY = sign_x_to_s32(13, BE32_VRAM((a + 0x0C) & 0x3FFFF) >> 6);
 
   for(unsigned m = 0; m < 6; m++)
   {
-   rp.RotMatrix[m] = sign_x_to_s32(14, BE32_VRAM((a + 0x0E + (m << 1)) & 0x3FFFF) >> 6);
+   rp->RotMatrix[m] = sign_x_to_s32(14, BE32_VRAM((a + 0x0E + (m << 1)) & 0x3FFFF) >> 6);
   }
 
-  rp.Px = sign_x_to_s32(14, VRAM[(a + 0x1A) & 0x3FFFF]);
-  rp.Py = sign_x_to_s32(14, VRAM[(a + 0x1B) & 0x3FFFF]);
-  rp.Pz = sign_x_to_s32(14, VRAM[(a + 0x1C) & 0x3FFFF]);
+  rp->Px = sign_x_to_s32(14, VRAM[(a + 0x1A) & 0x3FFFF]);
+  rp->Py = sign_x_to_s32(14, VRAM[(a + 0x1B) & 0x3FFFF]);
+  rp->Pz = sign_x_to_s32(14, VRAM[(a + 0x1C) & 0x3FFFF]);
 
-  rp.Cx = sign_x_to_s32(14, VRAM[(a + 0x1E) & 0x3FFFF]);
-  rp.Cy = sign_x_to_s32(14, VRAM[(a + 0x1F) & 0x3FFFF]);
-  rp.Cz = sign_x_to_s32(14, VRAM[(a + 0x20) & 0x3FFFF]);
+  rp->Cx = sign_x_to_s32(14, VRAM[(a + 0x1E) & 0x3FFFF]);
+  rp->Cy = sign_x_to_s32(14, VRAM[(a + 0x1F) & 0x3FFFF]);
+  rp->Cz = sign_x_to_s32(14, VRAM[(a + 0x20) & 0x3FFFF]);
 
-  rp.Mx = sign_x_to_s32(24, BE32_VRAM((a + 0x22) & 0x3FFFF) >> 6);
-  rp.My = sign_x_to_s32(24, BE32_VRAM((a + 0x24) & 0x3FFFF) >> 6);
+  rp->Mx = sign_x_to_s32(24, BE32_VRAM((a + 0x22) & 0x3FFFF) >> 6);
+  rp->My = sign_x_to_s32(24, BE32_VRAM((a + 0x24) & 0x3FFFF) >> 6);
 
-  rp.kx = sign_x_to_s32(24, BE32_VRAM((a + 0x26) & 0x3FFFF));
-  rp.ky = sign_x_to_s32(24, BE32_VRAM((a + 0x28) & 0x3FFFF));
+  rp->kx = sign_x_to_s32(24, BE32_VRAM((a + 0x26) & 0x3FFFF));
+  rp->ky = sign_x_to_s32(24, BE32_VRAM((a + 0x28) & 0x3FFFF));
 
-  rp.KAst = BE32_VRAM((a + 0x2A) & 0x3FFFF) >> 6;
-  rp.DKAst = sign_x_to_s32(20, BE32_VRAM((a + 0x2C) & 0x3FFFF) >> 6);
-  rp.DKAx = sign_x_to_s32(20, BE32_VRAM((a + 0x2E) & 0x3FFFF) >> 6);
+  rp->KAst = BE32_VRAM((a + 0x2A) & 0x3FFFF) >> 6;
+  rp->DKAst = sign_x_to_s32(20, BE32_VRAM((a + 0x2C) & 0x3FFFF) >> 6);
+  rp->DKAx = sign_x_to_s32(20, BE32_VRAM((a + 0x2E) & 0x3FFFF) >> 6);
 
   a += 0x40;
   //
@@ -168,19 +179,19 @@ static void FetchRotParams(const bool field)
   // const bool imft = (InterlaceMode == IM_DOUBLE && field);
 
   if(RPRCTL[i] & 0x01)
-   rp.XstAccum = rp.Xst; // + rp.DXst * imft;
+   rp->XstAccum = rp->Xst; // + rp->DXst * imft;
   else
-   rp.XstAccum += rp.DXst; // << (InterlaceMode == IM_DOUBLE);
+   rp->XstAccum += rp->DXst; // << (InterlaceMode == IM_DOUBLE);
 
   if(RPRCTL[i] & 0x02)
-   rp.YstAccum = rp.Yst; // + rp.DYst * imft;
+   rp->YstAccum = rp->Yst; // + rp->DYst * imft;
   else
-   rp.YstAccum += rp.DYst; // << (InterlaceMode == IM_DOUBLE);
+   rp->YstAccum += rp->DYst; // << (InterlaceMode == IM_DOUBLE);
 
   if(RPRCTL[i] & 0x04)
-   rp.KAstAccum = (KTAOF[i] << 26) + rp.KAst; // + rp.DKAst * imft;
+   rp->KAstAccum = (KTAOF[i] << 26) + rp->KAst; // + rp->DKAst * imft;
   else
-   rp.KAstAccum += rp.DKAst; // << (InterlaceMode == IM_DOUBLE);
+   rp->KAstAccum += rp->DKAst; // << (InterlaceMode == IM_DOUBLE);
  }
 #undef BE32_VRAM
 }
@@ -349,12 +360,12 @@ static void LatchHV(void)
 
 //
 //
-void GetGunXTranslation(const bool clock28m, float* scale, float* offs)
+void VDP2_GetGunXTranslation(const bool clock28m, float* scale, float* offs)
 {
  VDP2REND_GetGunXTranslation(clock28m, scale, offs);
 }
 
-void StartFrame(EmulateSpecStruct* espec, const bool clock28m)
+void VDP2_StartFrame(struct EmulateSpecStruct* espec, const bool clock28m)
 {
  Clock28M = clock28m;
  VDP2REND_StartFrame(espec, clock28m, SurfInterlaceField);
@@ -380,7 +391,7 @@ static INLINE void IncVCounter(const sscpu_timestamp_t event_timestamp)
   const bool s = (VCounter == (VTimings[PAL][VRes][VPHASE__COUNT - 1] - 1));
 
   for(size_t i = 0; i < 2; i++)
-   CPU[i].SetExtHaltDMAKludgeFromVDP2(s);
+   SH7095_SetExtHaltDMAKludge(i, s);
  }
 
  // - 1, so the CPU loop will  have plenty of time to exit before we reach non-hblank top border area
@@ -482,7 +493,7 @@ static INLINE int32_t AddHCounter(const sscpu_timestamp_t event_timestamp, int32
 
    if(VPhase == VPHASE_ACTIVE)
    {
-    VDP2Rend_LIB* lib = VDP2REND_GetLIB(VCounter);
+    struct VDP2Rend_LIB* lib = VDP2REND_GetLIB(VCounter);
 
     lib->win_ymet[0] = Window[0].YIn;
     lib->win_ymet[1] = Window[1].YIn;
@@ -518,34 +529,34 @@ static INLINE int32_t AddHCounter(const sscpu_timestamp_t event_timestamp, int32
 
       for(unsigned i = 0; i < 2; i++)
       {
-       auto const& rp = RotParams[i];
-       auto& r = lib->rv[i];
+       const __typeof__(RotParams[i]) *rp = &RotParams[i];
+       __typeof__(lib->rv[i]) *r = &lib->rv[i];
 
-       r.Xsp = ((int64_t)rp.RotMatrix[0] * ((int32_t)rp.XstAccum - (rp.Px * 1024)) +
-	       (int64_t)rp.RotMatrix[1] * ((int32_t)rp.YstAccum - (rp.Py * 1024)) +
-	       (int64_t)rp.RotMatrix[2] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
-       r.Ysp = ((int64_t)rp.RotMatrix[3] * ((int32_t)rp.XstAccum - (rp.Px * 1024)) +
-	       (int64_t)rp.RotMatrix[4] * ((int32_t)rp.YstAccum - (rp.Py * 1024)) +
-	       (int64_t)rp.RotMatrix[5] * (rp.Zst      - (rp.Pz * 1024))) >> 10;
+       r->Xsp = ((int64_t)rp->RotMatrix[0] * ((int32_t)rp->XstAccum - (rp->Px * 1024)) +
+	       (int64_t)rp->RotMatrix[1] * ((int32_t)rp->YstAccum - (rp->Py * 1024)) +
+	       (int64_t)rp->RotMatrix[2] * (rp->Zst      - (rp->Pz * 1024))) >> 10;
+       r->Ysp = ((int64_t)rp->RotMatrix[3] * ((int32_t)rp->XstAccum - (rp->Px * 1024)) +
+	       (int64_t)rp->RotMatrix[4] * ((int32_t)rp->YstAccum - (rp->Py * 1024)) +
+	       (int64_t)rp->RotMatrix[5] * (rp->Zst      - (rp->Pz * 1024))) >> 10;
   
-       r.Xp = rp.RotMatrix[0] * (rp.Px - rp.Cx) +
-	     rp.RotMatrix[1] * (rp.Py - rp.Cy) +
-	     rp.RotMatrix[2] * (rp.Pz - rp.Cz) +
-	     (rp.Cx * 1024) + rp.Mx;
+       r->Xp = rp->RotMatrix[0] * (rp->Px - rp->Cx) +
+	     rp->RotMatrix[1] * (rp->Py - rp->Cy) +
+	     rp->RotMatrix[2] * (rp->Pz - rp->Cz) +
+	     (rp->Cx * 1024) + rp->Mx;
 
-       r.Yp = rp.RotMatrix[3] * (rp.Px - rp.Cx) +
-	     rp.RotMatrix[4] * (rp.Py - rp.Cy) +
-	     rp.RotMatrix[5] * (rp.Pz - rp.Cz) +
-	     (rp.Cy * 1024) + rp.My;
+       r->Yp = rp->RotMatrix[3] * (rp->Px - rp->Cx) +
+	     rp->RotMatrix[4] * (rp->Py - rp->Cy) +
+	     rp->RotMatrix[5] * (rp->Pz - rp->Cz) +
+	     (rp->Cy * 1024) + rp->My;
 
-       r.dX = (rp.RotMatrix[0] * rp.DX + rp.RotMatrix[1] * rp.DY) >> 10;
-       r.dY = (rp.RotMatrix[3] * rp.DX + rp.RotMatrix[4] * rp.DY) >> 10;
+       r->dX = (rp->RotMatrix[0] * rp->DX + rp->RotMatrix[1] * rp->DY) >> 10;
+       r->dY = (rp->RotMatrix[3] * rp->DX + rp->RotMatrix[4] * rp->DY) >> 10;
 
-       r.kx = rp.kx;
-       r.ky = rp.ky;
+       r->kx = rp->kx;
+       r->ky = rp->ky;
 
-       r.KAstAccum = rp.KAstAccum;
-       r.DKAx = rp.DKAx;
+       r->KAstAccum = rp->KAstAccum;
+       r->DKAx = rp->DKAx;
       }
      }
     }
@@ -568,7 +579,7 @@ static INLINE int32_t AddHCounter(const sscpu_timestamp_t event_timestamp, int32
  return (HTimings[HRes & 1][HPhase] - HCounter);
 }
 
-sscpu_timestamp_t Update(sscpu_timestamp_t timestamp)
+sscpu_timestamp_t VDP2_Update(sscpu_timestamp_t timestamp)
 {
  int32_t clocks;
 
@@ -615,7 +626,7 @@ static INLINE void RegsWrite(uint32_t A, uint16_t V)
 	break;
 
   case 0x00:
-	Update(SH7095_mem_timestamp);
+	VDP2_Update(SH7095_mem_timestamp);
 	//
 	DisplayOn = (V >> 15) & 0x1;
 	BorderMode = (V >> 8) & 0x1;
@@ -625,7 +636,7 @@ static INLINE void RegsWrite(uint32_t A, uint16_t V)
 	//
 	InternalVB |= !DisplayOn;
 	//
-	SS_SetEventNT(&events[SS_EVENT_VDP2], Update(SH7095_mem_timestamp));
+	SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2_Update(SH7095_mem_timestamp));
 	break;
 
   case 0x02:
@@ -702,12 +713,12 @@ static INLINE uint16_t RegsRead(uint32_t A)
   case 0x02:
 	if(!ExLatchEnable)
 	{
-	 SS_SetEventNT(&events[SS_EVENT_VDP2], Update(SH7095_mem_timestamp));
+	 SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2_Update(SH7095_mem_timestamp));
  	 LatchHV();
 	}
 	return (ExLatchEnable << 9) | (ExSyncEnable << 8) | (DispAreaSelect << 1) | (ExBGEnable << 0);
   case 0x04:
-	SS_SetEventNT(&events[SS_EVENT_VDP2], Update(SH7095_mem_timestamp));
+	SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2_Update(SH7095_mem_timestamp));
 	{
 	 // TODO: EXSYFG
 	 uint16_t ret = (HVIsExLatched << 9) | (InternalVB << 3) | ((HPhase > HPHASE_ACTIVE) << 2) | (Odd << 1) | (PAL << 0);
@@ -731,11 +742,18 @@ static INLINE uint16_t RegsRead(uint32_t A)
  return 0;
 }
 
-template<typename T, bool IsWrite>
-static INLINE uint32_t RW(uint32_t A, uint16_t* DB)
-{
- static_assert(IsWrite || sizeof(T) == 2, "Wrong type for read.");
+/* Was `template<typename T, bool IsWrite> static INLINE uint32_t
+ * RW(uint32_t A, uint16_t* DB)` with a static_assert blocking
+ * `RW<uint8_t, false>` (8-bit reads forbidden -- SH7095 always
+ * reads VDP2 as 16-bit).  Three instantiations were used in
+ * practice: RW<uint16_t, false>, RW<uint8_t, true>, RW<uint16_t,
+ * true>.  Monomorphized into three plain INLINE functions; the
+ * branch-on-IsWrite is gone (function pick is at the callsite)
+ * and the `sizeof(T) == 2` mask check is folded to constants. */
 
+/* Read 16-bit (only valid read mode). */
+static INLINE uint32_t RW_R16(uint32_t A, uint16_t* DB)
+{
  A &= 0x1FFFFF;
 
  //
@@ -745,14 +763,7 @@ static INLINE uint32_t RW(uint32_t A, uint16_t* DB)
  {
   const size_t vri = (A & 0x7FFFF) >> 1;
 
-  if(IsWrite)
-  {
-   const unsigned mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF00 >> ((A & 1) << 3));
-
-   VRAM[vri] = (VRAM[vri] &~ mask) | (*DB & mask);
-  }
-  else
-   *DB = VRAM[vri];
+  *DB = VRAM[vri];
 
   return VRAMPenalty[vri >> 16];
  }
@@ -764,41 +775,18 @@ static INLINE uint32_t RW(uint32_t A, uint16_t* DB)
  {
   const unsigned cri = (A & 0xFFF) >> 1;
 
-  if(IsWrite)
+  switch(CRAM_Mode)
   {
-   switch(CRAM_Mode)
-   {
-    case CRAM_MODE_RGB555_1024:
-	(CRAM + 0x000)[cri & 0x3FF] = *DB;
-	(CRAM + 0x400)[cri & 0x3FF] = *DB;
-	break;
-
-    case CRAM_MODE_RGB555_2048:
-	CRAM[cri] = *DB;
-	break;
-
-    case CRAM_MODE_RGB888_1024:
-    case CRAM_MODE_ILLEGAL:
-    default:
-	CRAM[((cri >> 1) & 0x3FF) | ((cri & 1) << 10)] = *DB;
-	break;
-   }
-  }
-  else
-  {
-   switch(CRAM_Mode)
-   {
-    case CRAM_MODE_RGB555_1024:
-    case CRAM_MODE_RGB555_2048:
+   case CRAM_MODE_RGB555_1024:
+   case CRAM_MODE_RGB555_2048:
 	*DB = CRAM[cri];
 	break;
 
-    case CRAM_MODE_RGB888_1024:
-    case CRAM_MODE_ILLEGAL:
-    default:
+   case CRAM_MODE_RGB888_1024:
+   case CRAM_MODE_ILLEGAL:
+   default:
 	*DB = CRAM[((cri >> 1) & 0x3FF) | ((cri & 1) << 10)];
 	break;
-   }
   }
 
   return 0;
@@ -809,47 +797,161 @@ static INLINE uint32_t RW(uint32_t A, uint16_t* DB)
  //
  if(A < 0x1C0000)
  {
-  if(IsWrite)
-  {
-   RegsWrite(A, *DB);
-  }
-  else
-   *DB = RegsRead(A);
+  *DB = RegsRead(A);
 
   return 0;
  }
 
- if(!IsWrite)
-  *DB = 0;
+ *DB = 0;
 
  return 0;
 }
 
-uint16_t Read16_DB(uint32_t A)
+/* Write 8-bit (mask = 0xFF00 >> ((A & 1) << 3)).  Only the VRAM
+ * write path uses the mask; CRAM and register writes are 16-bit
+ * regardless. */
+static INLINE uint32_t RW_W8(uint32_t A, uint16_t* DB)
+{
+ A &= 0x1FFFFF;
+
+ //
+ // VRAM
+ //
+ if(A < 0x100000)
+ {
+  const size_t vri = (A & 0x7FFFF) >> 1;
+  const unsigned mask = 0xFF00 >> ((A & 1) << 3);
+
+  VRAM[vri] = (VRAM[vri] &~ mask) | (*DB & mask);
+
+  return VRAMPenalty[vri >> 16];
+ }
+
+ //
+ // CRAM
+ //
+ if(A < 0x180000)
+ {
+  const unsigned cri = (A & 0xFFF) >> 1;
+
+  switch(CRAM_Mode)
+  {
+   case CRAM_MODE_RGB555_1024:
+	(CRAM + 0x000)[cri & 0x3FF] = *DB;
+	(CRAM + 0x400)[cri & 0x3FF] = *DB;
+	break;
+
+   case CRAM_MODE_RGB555_2048:
+	CRAM[cri] = *DB;
+	break;
+
+   case CRAM_MODE_RGB888_1024:
+   case CRAM_MODE_ILLEGAL:
+   default:
+	CRAM[((cri >> 1) & 0x3FF) | ((cri & 1) << 10)] = *DB;
+	break;
+  }
+
+  return 0;
+ }
+
+ //
+ // Registers
+ //
+ if(A < 0x1C0000)
+ {
+  RegsWrite(A, *DB);
+
+  return 0;
+ }
+
+ return 0;
+}
+
+/* Write 16-bit (mask = 0xFFFF, which folds the VRAM masked write
+ * to a plain assignment). */
+static INLINE uint32_t RW_W16(uint32_t A, uint16_t* DB)
+{
+ A &= 0x1FFFFF;
+
+ //
+ // VRAM
+ //
+ if(A < 0x100000)
+ {
+  const size_t vri = (A & 0x7FFFF) >> 1;
+
+  VRAM[vri] = *DB;
+
+  return VRAMPenalty[vri >> 16];
+ }
+
+ //
+ // CRAM
+ //
+ if(A < 0x180000)
+ {
+  const unsigned cri = (A & 0xFFF) >> 1;
+
+  switch(CRAM_Mode)
+  {
+   case CRAM_MODE_RGB555_1024:
+	(CRAM + 0x000)[cri & 0x3FF] = *DB;
+	(CRAM + 0x400)[cri & 0x3FF] = *DB;
+	break;
+
+   case CRAM_MODE_RGB555_2048:
+	CRAM[cri] = *DB;
+	break;
+
+   case CRAM_MODE_RGB888_1024:
+   case CRAM_MODE_ILLEGAL:
+   default:
+	CRAM[((cri >> 1) & 0x3FF) | ((cri & 1) << 10)] = *DB;
+	break;
+  }
+
+  return 0;
+ }
+
+ //
+ // Registers
+ //
+ if(A < 0x1C0000)
+ {
+  RegsWrite(A, *DB);
+
+  return 0;
+ }
+
+ return 0;
+}
+
+uint16_t VDP2_Read16_DB(uint32_t A)
 {
  uint16_t DB;
 
- RW<uint16_t, false>(A, &DB);
+ RW_R16(A, &DB);
 
  return DB;
 }
 
 
-uint32_t Write8_DB(uint32_t A, uint16_t DB)
+uint32_t VDP2_Write8_DB(uint32_t A, uint16_t DB)
 {
  VDP2REND_Write8_DB(A, DB);
 
- return RW<uint8_t, true>(A, &DB);
+ return RW_W8(A, &DB);
 }
 
-uint32_t Write16_DB(uint32_t A, uint16_t DB)
+uint32_t VDP2_Write16_DB(uint32_t A, uint16_t DB)
 {
  VDP2REND_Write16_DB(A, DB);
 
- return RW<uint16_t, true>(A, &DB);
+ return RW_W16(A, &DB);
 }
 
-uint32_t Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const uint16_t* words)
+uint32_t VDP2_Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const uint16_t* words)
 {
  VDP2REND_WriteBurst16_DB(base, n16, add_mode, words);
 
@@ -860,7 +962,7 @@ uint32_t Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const u
  for(uint32_t i = 0; i < n16; i++)
  {
   uint16_t w = words[i];
-  penalty_sum += RW<uint16_t, true>(a, &w);
+  penalty_sum += RW_W16(a, &w);
   a += stride;
  }
 
@@ -872,13 +974,13 @@ uint32_t Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const u
 //
 //
 
-void AdjustTS(const int32_t delta)
+void VDP2_AdjustTS(const int32_t delta)
 {
  lastts += delta;
 }
 
 
-void Init(const bool IsPAL, const uint64_t affinity)
+void VDP2_Init(const bool IsPAL, const uint64_t affinity)
 {
  SurfInterlaceField = -1;
  PAL = IsPAL;
@@ -893,12 +995,12 @@ void Init(const bool IsPAL, const uint64_t affinity)
  VDP2REND_Init(IsPAL, affinity);
 }
 
-void SetGetVideoParams(MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend)
+void VDP2_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend)
 {
  VDP2REND_SetGetVideoParams(gi, caspect, sls, sle, show_h_overscan, dohblend);
 }
 
-void Kill(void)
+void VDP2_Kill(void)
 {
  VDP2REND_Kill();
 }
@@ -906,7 +1008,7 @@ void Kill(void)
 //
 // TODO: Check reset versus power on values.
 //
-void Reset(bool powering_up)
+void VDP2_Reset(bool powering_up)
 {
  memset(RawRegs, 0, sizeof(RawRegs));
 
@@ -929,7 +1031,7 @@ void Reset(bool powering_up)
  Odd = true;
 
  for(size_t i = 0; i < 2; i++)
-  CPU[i].SetExtHaltDMAKludgeFromVDP2(false);
+  SH7095_SetExtHaltDMAKludge(i, false);
 
  RAMCTL_Raw = 0;
  CRAM_Mode = 0;
@@ -984,7 +1086,7 @@ void Reset(bool powering_up)
 //
 //
 //
-uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len)
+uint32_t VDP2_GetRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
  switch(id)
  {
@@ -1092,7 +1194,7 @@ uint32_t GetRegister(const unsigned id, char* const special, const uint32_t spec
  return 0xDEADBEEF;
 }
 
-void SetRegister(const unsigned id, const uint32_t value)
+void VDP2_SetRegister(const unsigned id, const uint32_t value)
 {
    int rr = -1;
 
@@ -1262,7 +1364,7 @@ void SetRegister(const unsigned id, const uint32_t value)
    }
 }
 
-uint8_t PeekVRAM(uint32_t addr)
+uint8_t VDP2_PeekVRAM(uint32_t addr)
 {
  /* ne16_rbo_be<uint8_t>: byte read from uint16_t-array BE bus. */
 #ifdef MSB_FIRST
@@ -1272,7 +1374,7 @@ uint8_t PeekVRAM(uint32_t addr)
 #endif
 }
 
-void PokeVRAM(uint32_t addr, const uint8_t val)
+void VDP2_PokeVRAM(uint32_t addr, const uint8_t val)
 {
  addr &= 0x7FFFF;
 
@@ -1289,17 +1391,17 @@ void PokeVRAM(uint32_t addr, const uint8_t val)
  VDP2REND_Write16_DB(addr & ~1, VRAM[(addr & ~1) >> 1]);
 }
 
-void SetLayerEnableMask(uint64_t mask)
+void VDP2_SetLayerEnableMask(uint64_t mask)
 {
  VDP2REND_SetLayerEnableMask(mask);
 }
 
-void SetDeinterlaceOff(bool off)
+void VDP2_SetDeinterlaceOff(bool off)
 {
  VDP2REND_SetDeinterlaceOff(off);
 }
 
-void StateAction(StateMem* sm, const unsigned load, const bool data_only)
+void VDP2_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {
  SFORMAT StateRegs[] =
  {
@@ -1466,44 +1568,12 @@ void StateAction(StateMem* sm, const unsigned load, const bool data_only)
  VDP2REND_StateAction(sm, load, data_only, RawRegs, CRAM, VRAM);
 }
 
-}
-
-/* C-linkage wrappers: thin shims that bridge the C/C++ boundary for
-   C-converted consumers (vdp1.c, libretro.c) calling into the VDP2
-   namespace until VDP2 is itself converted.  All forward into the
-   matching VDP2::Foo C++ function. */
-extern "C" sscpu_timestamp_t VDP2_Update(sscpu_timestamp_t timestamp)
-{
- return VDP2::Update(timestamp);
-}
-
-/* libretro.c (the converted entry-point TU) toggles the VDP2
-   deinterlace path from check_variables() when the user changes the
-   "ss_deinterlace" option at runtime. */
-extern "C" void VDP2_SetDeinterlaceOff(bool off)
-{
- VDP2::SetDeinterlaceOff(off);
-}
-
-/* smpc.c calls these three.  GetGunXTranslation: gun crosshair
-   drawing reads it twice per port to scale and offset the gun X
-   coordinate.  Reset: slave-on/off transitions in the SMPC SS
-   "soft reset" path drag every SS-core module along.
-   SetExtLatch: gun trigger latching on the SMPC port-update
-   cadence.  SetExtLatch was previously an inline helper in vdp2.h;
-   the proxy loses cross-TU inlining for one call per SMPC port
-   read, which is not in any tight loop. */
-extern "C" void VDP2_GetGunXTranslation(bool clock28m, float* scale, float* offs)
-{
- VDP2::GetGunXTranslation(clock28m, scale, offs);
-}
-
-extern "C" void VDP2_Reset(bool powering_up)
-{
- VDP2::Reset(powering_up);
-}
-
-extern "C" void VDP2_SetExtLatch(sscpu_timestamp_t event_timestamp, bool status)
-{
- VDP2::SetExtLatch(event_timestamp, status);
-}
+/* The trailing extern "C" proxy block (5 forwarders into the
+ * namespace) was removed when the `namespace VDP2 { ... }` wrap
+ * was lifted -- the renamed functions ARE C-linkage natively now,
+ * so the proxies are redundant.
+ *
+ * The one INLINE entry point (VDP2_SetExtLatch) moved entirely
+ * into vdp2.h's C-compat block, which means smpc.c now gets it
+ * inlined directly from the header at zero call cost -- an
+ * improvement over the previous proxy form.  See vdp2.h. */

@@ -23,42 +23,63 @@
 #define __MDFN_SS_VDP2_H
 
 #include <mednafen/state.h>
-#include <mednafen/git.h>
+#include "ss.h"				/* sscpu_timestamp_t, events[], SS_SetEventNT, SS_EVENT_VDP2 */
 
-namespace VDP2
+/* MDFNGI / EmulateSpecStruct: forward-declared rather than pulling
+ * in the C++-only git.h.  This header is now C-compat (the
+ * VDP2 subsystem was converted from C++ to C; the `namespace VDP2
+ * { ... }` wrap was replaced with VDP2_-prefixed free functions
+ * under an extern "C" wrap).  vdp2_render.cpp / ss.cpp stay C++
+ * for now; smpc.c / vdp1.c / libretro.c are C and now consume
+ * vdp2.h directly instead of going through extern "C" proxies. */
+struct MDFNGI;
+struct EmulateSpecStruct;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+uint32_t VDP2_Write8_DB(uint32_t A, uint16_t DB) MDFN_HOT;
+uint32_t VDP2_Write16_DB(uint32_t A, uint16_t DB) MDFN_HOT;
+/* DSP-DMA burst of n16 16-bit writes into the VDP2 window:
+ * words[i] -> (base + i*((1<<add_mode)&~1)).  Performs the SH2-side
+ * array writes here and queues a single renderer burst; returns the
+ * summed VRAM access penalty. */
+uint32_t VDP2_Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const uint16_t* words) MDFN_HOT;
+uint16_t VDP2_Read16_DB(uint32_t A) MDFN_HOT;
+
+void VDP2_Init(const bool IsPAL, const uint64_t affinity) MDFN_COLD;
+void VDP2_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend) MDFN_COLD;
+void VDP2_Kill(void) MDFN_COLD;
+void VDP2_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
+
+void VDP2_Reset(bool powering_up) MDFN_COLD;
+void VDP2_SetLayerEnableMask(uint64_t mask) MDFN_COLD;
+void VDP2_SetDeinterlaceOff(bool off) MDFN_COLD;
+
+sscpu_timestamp_t VDP2_Update(sscpu_timestamp_t timestamp);
+void VDP2_AdjustTS(const int32_t delta);
+
+void VDP2_GetGunXTranslation(const bool clock28m, float* scale, float* offs);
+void VDP2_StartFrame(struct EmulateSpecStruct* espec, const bool clock28m);
+
+/* MDFN_HIDE extern globals defined in vdp2.c, accessed via the
+ * INLINE accessors below from C++ callers (ss.cpp's CRT-line and
+ * VBlank handling).  Kept inline so the optimizer can fold the
+ * cross-TU read into the caller. */
+MDFN_HIDE extern bool VBOut;
+MDFN_HIDE extern bool HBOut;
+MDFN_HIDE extern bool ExLatchIn;
+MDFN_HIDE extern bool ExLatchEnable;
+MDFN_HIDE extern bool ExLatchPending;
+MDFN_HIDE extern int32_t VCounter;
+MDFN_HIDE extern int32_t HCounter;
+
+static INLINE bool VDP2_GetVBOut(void) { return VBOut; }
+static INLINE bool VDP2_GetHBOut(void) { return HBOut; }
+
+static INLINE void VDP2_SetExtLatch(sscpu_timestamp_t event_timestamp, bool status)
 {
-
-uint32_t Write8_DB(uint32_t A, uint16_t DB) MDFN_HOT;
-uint32_t Write16_DB(uint32_t A, uint16_t DB) MDFN_HOT;
-// DSP-DMA burst of n16 16-bit writes into the VDP2 window: words[i] -> (base + i*((1<<add_mode)&~1)).
-// Performs the SH2-side array writes here and queues a single renderer burst; returns the summed VRAM access penalty.
-uint32_t Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const uint16_t* words) MDFN_HOT;
-uint16_t Read16_DB(uint32_t A) MDFN_HOT;
-
-void Init(const bool IsPAL, const uint64_t affinity) MDFN_COLD;
-void SetGetVideoParams(MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend) MDFN_COLD;
-void Kill(void) MDFN_COLD;
-void StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
-
-void Reset(bool powering_up) MDFN_COLD;
-void SetLayerEnableMask(uint64_t mask) MDFN_COLD;
-void SetDeinterlaceOff(bool off) MDFN_COLD;
-
-sscpu_timestamp_t Update(sscpu_timestamp_t timestamp);
-void AdjustTS(const int32_t delta);
-
-void GetGunXTranslation(const bool clock28m, float* scale, float* offs);
-void StartFrame(EmulateSpecStruct* espec, const bool clock28m);
-
-INLINE bool GetVBOut(void) { MDFN_HIDE extern bool VBOut; return VBOut; }
-INLINE bool GetHBOut(void) { MDFN_HIDE extern bool HBOut; return HBOut; }
-
-INLINE void SetExtLatch(sscpu_timestamp_t event_timestamp, bool status)
-{
- MDFN_HIDE extern bool ExLatchIn;
- MDFN_HIDE extern bool ExLatchEnable;
- MDFN_HIDE extern bool ExLatchPending;
-
  if(MDFN_UNLIKELY(ExLatchIn != status))
  {
   ExLatchIn = status;
@@ -66,20 +87,25 @@ INLINE void SetExtLatch(sscpu_timestamp_t event_timestamp, bool status)
   //
   if(ExLatchEnable & ExLatchIn)
   {
-   //
-   // Should be safer(avoid unintended reentrant and recursive calls to *Update() functions, now and in the future) to just schedule a call to VDP2::Update()
-   // than calling it directly from here, though it's possible a scheduled DMA could rewrite
-   // ExLatchEnable and VDP2 timing registers and cause weird results(latching correct values or not latching at all, versus also latching wrong values), but that shouldn't
-   // be a problem in practice...
-   //
+   /*
+    * Should be safer (avoid unintended reentrant and recursive
+    * calls to *Update() functions, now and in the future) to just
+    * schedule a call to VDP2_Update() than calling it directly
+    * from here, though it's possible a scheduled DMA could
+    * rewrite ExLatchEnable and VDP2 timing registers and cause
+    * weird results (latching correct values or not latching at
+    * all, versus also latching wrong values), but that shouldn't
+    * be a problem in practice...
+    */
    ExLatchPending = true;
    SS_SetEventNT(&events[SS_EVENT_VDP2], event_timestamp);
   }
  }
 }
 
-//
-//
+/*
+ *
+ */
 enum
 {
  GSREG_LINE = 0,
@@ -141,12 +167,16 @@ enum
  GSREG_PRIR
 };
 
-uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
-void SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
-uint8_t PeekVRAM(uint32_t addr) MDFN_COLD;
-void PokeVRAM(uint32_t addr, const uint8_t val) MDFN_COLD;
+uint32_t VDP2_GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
+void VDP2_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
+uint8_t VDP2_PeekVRAM(uint32_t addr) MDFN_COLD;
+void VDP2_PokeVRAM(uint32_t addr, const uint8_t val) MDFN_COLD;
 
-INLINE uint32_t PeekLine(void) { MDFN_HIDE extern int32_t VCounter; return VCounter; }
-INLINE uint32_t PeekHPos(void) { MDFN_HIDE extern int32_t HCounter; return HCounter; }
+static INLINE uint32_t VDP2_PeekLine(void) { return VCounter; }
+static INLINE uint32_t VDP2_PeekHPos(void) { return HCounter; }
+
+#ifdef __cplusplus
 }
+#endif
+
 #endif

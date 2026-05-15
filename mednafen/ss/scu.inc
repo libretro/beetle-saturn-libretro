@@ -438,23 +438,23 @@ static INLINE void SCU_RegRW_DB(uint32_t A, uint32_t* DB)
 
    case 0x90:	// Timer 0 Compare
 	{
-	 VDP2::Update(SH7095_mem_timestamp);
+	 VDP2_Update(SH7095_mem_timestamp);
 	 Timer0_Compare = (Timer0_Compare &~ mask) | (*DB & mask & 0x3FF);
-	 SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2::Update(SH7095_mem_timestamp));
+	 SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2_Update(SH7095_mem_timestamp));
 	}
 	break;
 
    case 0x94:	// Timer 1 Reload Value
 	{
-	 VDP2::Update(SH7095_mem_timestamp);
+	 VDP2_Update(SH7095_mem_timestamp);
 	 Timer1_Reload = (Timer1_Reload &~ mask) | (*DB & mask & 0x1FF);
-	 SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2::Update(SH7095_mem_timestamp));
+	 SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2_Update(SH7095_mem_timestamp));
 	}
 	break;
 
    case 0x98:	// Timer Control
 	{
-	 VDP2::Update(SH7095_mem_timestamp);
+	 VDP2_Update(SH7095_mem_timestamp);
 	 uint32_t tmp = (Timer1_Mode << 8) | (Timer_Enable << 0);
 	 tmp = (tmp &~ mask) | (*DB & mask);
 	 Timer1_Mode = (tmp >> 8) & 1;
@@ -465,7 +465,7 @@ static INLINE void SCU_RegRW_DB(uint32_t A, uint32_t* DB)
 	  Timer0_Counter = 0;
 	 }
 
-	 SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2::Update(SH7095_mem_timestamp));
+	 SS_SetEventNT(&events[SS_EVENT_VDP2], VDP2_Update(SH7095_mem_timestamp));
 	}
 	break;
 
@@ -891,16 +891,16 @@ static INLINE void BBusRW_DB(uint32_t A, uint16_t* DB, int32_t* time_thing, int3
    uint32_t expenalty;
 
    if(sizeof(T) == 1)
-    expenalty = VDP2::Write8_DB(A, *DB);
+    expenalty = VDP2_Write8_DB(A, *DB);
    else
-    expenalty = VDP2::Write16_DB(A, *DB);
+    expenalty = VDP2_Write16_DB(A, *DB);
 
    if(dma_time_thing != NULL)
     *dma_time_thing -= expenalty;
   }
   else
   {
-   *DB = VDP2::Read16_DB(A);
+   *DB = VDP2_Read16_DB(A);
   }
 
   return;
@@ -1821,7 +1821,7 @@ static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
     } while(--count);
 
     dsp->T0_Until -= (int32_t)n16;
-    dsp->T0_Until -= (int32_t)VDP2::Write16Burst_DB(addr, n16, add_mode, burstbuf);
+    dsp->T0_Until -= (int32_t)VDP2_Write16Burst_DB(addr, n16, add_mode, burstbuf);
     addr += n16 * addr_add_amount;
 
     if(!hold)

@@ -111,6 +111,15 @@ extern "C" void SH7095_SetNMI(int cpu, bool level)
  CPU[cpu].SetNMI(level);
 }
 
+/* Used by vdp2.c (converted from C++) for the HORRIBLEHACK_NOSH2DMA-
+ * LINE106 path -- vdp2's CPU loop iterates CPU[0..1] once per scanline
+ * advance and sets the kludge flag.  Matches the SetActive / SetNMI
+ * proxies above; cpu index picks master (0) / slave (1). */
+extern "C" void SH7095_SetExtHaltDMAKludge(int cpu, bool state)
+{
+ CPU[cpu].SetExtHaltDMAKludgeFromVDP2(state);
+}
+
 static uint16_t BIOSROM[524288 / sizeof(uint16_t)];
 uint8_t WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
 // Effectively 32-bit in reality, but 16-bit here because of CPU interpreter design(regarding fastmap).
@@ -624,7 +633,7 @@ static MDFN_COLD void InitEvents(void)
  event_handlers[SS_EVENT_SMPC] = SMPC_Update;
 
  event_handlers[SS_EVENT_VDP1] = VDP1_Update;
- event_handlers[SS_EVENT_VDP2] = VDP2::Update;
+ event_handlers[SS_EVENT_VDP2] = VDP2_Update;
 
  event_handlers[SS_EVENT_CDB] = CDB_Update;
 
@@ -805,7 +814,7 @@ void SS_Reset(bool powering_up)
  SMPC_Reset(powering_up);
 
  VDP1_Reset(powering_up);
- VDP2::Reset(powering_up);
+ VDP2_Reset(powering_up);
 
  CDB_Reset(powering_up);
 
@@ -860,7 +869,7 @@ void Emulate(EmulateSpecStruct* espec_arg)
 
  cur_clock_div = SMPC_StartFrame();
  UpdateSMPCInput(0);
- VDP2::StartFrame(espec, cur_clock_div == 61);
+ VDP2_StartFrame(espec, cur_clock_div == 61);
  CART_SetCPUClock(EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1), cur_clock_div);
  espec->SoundBufSize = 0;
  espec->MasterCycles = 0;
@@ -884,7 +893,7 @@ void Emulate(EmulateSpecStruct* espec_arg)
  CDB_ResetTS();
  SOUND_AdjustTS(-end_ts);
  VDP1_AdjustTS(-end_ts);
- VDP2::AdjustTS(-end_ts);
+ VDP2_AdjustTS(-end_ts);
  SMPC_ResetTS();
  SCU_AdjustTS(-end_ts);
  CART_AdjustTS(-end_ts);
@@ -936,7 +945,7 @@ static MDFN_COLD void Cleanup(void)
  CART_Kill();
 
  VDP1_Kill();
- VDP2::Kill();
+ VDP2_Kill();
  SOUND_Kill();
  CDB_Kill();
  STVIO_Kill();
@@ -1165,8 +1174,8 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    SCU_Init();
    SMPC_Init(smpc_area, MasterClock, is_stv);
    VDP1_Init();
-   VDP2::Init(PAL,vdp2_affinity);
-   VDP2::SetGetVideoParams(&EmulatedSS, true, sls, sle, true, DoHBlend);
+   VDP2_Init(PAL,vdp2_affinity);
+   VDP2_SetGetVideoParams(&EmulatedSS, true, sls, sle, true, DoHBlend);
    CDB_Init();
    SOUND_Init();
 
@@ -1623,7 +1632,7 @@ extern "C" MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load
 
  CDB_StateAction(sm, load, false);
  VDP1_StateAction(sm, load, false);
- VDP2::StateAction(sm, load, false);
+ VDP2_StateAction(sm, load, false);
 
  SOUND_StateAction(sm, load, false);
  CART_StateAction(sm, load, false);

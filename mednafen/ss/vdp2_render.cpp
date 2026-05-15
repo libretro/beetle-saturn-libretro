@@ -4277,7 +4277,7 @@ void VDP2REND_WriteBurst16_DB(uint32_t base, uint32_t n16, uint32_t add_mode, co
  WWQ(COMMAND_WRITE16_BURST, base, (uint16_t)(n16 | (add_mode << 13)));
 }
 
-void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16_t (&rr)[0x100], uint16_t (&cr)[2048], uint16_t (&vr)[262144])
+void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16_t* rr, uint16_t* cr, uint16_t* vr)
 {
  while(MDFN_UNLIKELY(WQ_PopCount.load(std::memory_order_acquire) != Prod.PushLocal))
  {
