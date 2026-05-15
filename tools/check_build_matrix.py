@@ -70,7 +70,7 @@ SOURCE_GLOBS = [
     "mednafen/hw_cpu/m68k/*.cpp",
     "mednafen/video/*.c", "mednafen/video/*.cpp",
     "mednafen/*.c", "mednafen/*.cpp",
-    "libretro.cpp", "disc.cpp", "input.cpp",
+    "libretro.cpp", "disc.cpp", "input.c",
 ]
 
 def project_sources():

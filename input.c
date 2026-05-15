@@ -2,13 +2,16 @@
 #include "libretro.h"
 #include "libretro_settings.h"
 #include "mednafen/mednafen-types.h"
-#include "mednafen/git.h"   /* log_cb -- input.cpp uses this directly
-                               (input_update logs the throttle-latch
-                               state changes); previously got it
-                               transitively via smpc.h.  Include
-                               directly so the dependency doesn't
-                               break when intermediate headers shrink
-                               their own include surface. */
+/* log_cb is the only symbol this TU uses from mednafen/git.h.  git.h
+ * is C++-only (class MDFNGI with std::vector / std::string members),
+ * so the C-converted input.c can no longer include it.  Forward-
+ * declare directly: retro_log_printf_t comes from libretro.h
+ * (included above), and log_cb is defined as a file-scope variable
+ * in libretro.cpp.  Variables aren't name-mangled in C++, so the
+ * cross-language reference resolves on the unmangled symbol -- no
+ * extern "C" wrap is required on either side. */
+extern retro_log_printf_t log_cb;
+
 #include "mednafen/ss/ss.h"
 #include "mednafen/ss/smpc.h"
 #include "mednafen/state.h"
@@ -648,8 +651,8 @@ void input_update_with_bitmasks( retro_input_state_t input_state_cb )
 				get_analog_stick( input_state_cb, iplayer, RETRO_DEVICE_INDEX_ANALOG_LEFT, &analog_x, &analog_y );
 
 				// mednafen wants 0 - 32767 - 65535
-				thumb_x = static_cast< uint16_t >( analog_x + 32767 );
-				thumb_y = static_cast< uint16_t >( analog_y + 32767 );
+				thumb_x = (uint16_t)(analog_x + 32767);
+				thumb_y = (uint16_t)(analog_y + 32767);
 
 				//
 				// -- triggers
@@ -1220,8 +1223,8 @@ void input_update( retro_input_state_t input_state_cb )
 
 				get_analog_stick( input_state_cb, iplayer, RETRO_DEVICE_INDEX_ANALOG_LEFT, &analog_x, &analog_y );
 
-				thumb_x = static_cast< uint16_t >( analog_x + 32767 );
-				thumb_y = static_cast< uint16_t >( analog_y + 32767 );
+				thumb_x = (uint16_t)(analog_x + 32767);
+				thumb_y = (uint16_t)(analog_y + 32767);
 
 				//
 				// -- triggers
