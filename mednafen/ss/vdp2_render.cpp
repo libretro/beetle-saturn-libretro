@@ -1025,65 +1025,68 @@ static INLINE void RegsWrite(uint32_t A, uint16_t V)
  }
 }
 
-template<typename T>
-static INLINE void MemW(uint32_t A, const uint16_t DB)
-{
- A &= 0x1FFFFF;
-
- //
- // VRAM
- //
- if(A < 0x100000)
- {
-  const size_t vri = (A & 0x7FFFF) >> 1;
-  const unsigned mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF00 >> ((A & 1) << 3));
-
-  VRAM[vri] = (VRAM[vri] &~ mask) | (DB & mask);
-
-  return;
- }
-
- //
- // CRAM
- //
- if(A < 0x180000)
- {
-  const unsigned cri = (A & 0xFFF) >> 1;
-
-  switch(CRAM_Mode)
-  {
-    case CRAM_MODE_RGB555_1024:
-	(CRAM + 0x000)[cri & 0x3FF] = DB;
-	(CRAM + 0x400)[cri & 0x3FF] = DB;
-	CacheCRE(cri);
-	break;
-
-    case CRAM_MODE_RGB555_2048:
-	CRAM[cri] = DB;
-	CacheCRE(cri);
-	break;
-
-    case CRAM_MODE_RGB888_1024:
-    case CRAM_MODE_ILLEGAL:
-    default:
-	CRAM[((cri >> 1) & 0x3FF) | ((cri & 1) << 10)] = DB;
-	CacheCRE(cri);
-	break;
-  }
-
-  return;
- }
-
- //
- // Registers
- //
- if(A < 0x1C0000)
- {
-  RegsWrite(A, DB);
-
-  return;
- }
+/* MemW: was `template<typename T> static INLINE void MemW(uint32_t A,
+ * const uint16_t DB)` with two instantiations (T = uint8_t, uint16_t).
+ * The only T-dependent expression is the VRAM-write mask -- byte writes
+ * select the high or low byte of the BE uint16_t storage based on A's
+ * LSB; word writes write the whole uint16_t.  CRAM and register paths
+ * are size-agnostic.  Monomorphized into MemW_u8 / MemW_u16 sharing
+ * the body via MEMW_BODY -- only argument is the mask expression. */
+#define MEMW_BODY(MASK_EXPR)                                                     \
+{                                                                                \
+ A &= 0x1FFFFF;                                                                  \
+                                                                                 \
+ /* VRAM */                                                                      \
+ if(A < 0x100000)                                                                \
+ {                                                                               \
+  const size_t vri = (A & 0x7FFFF) >> 1;                                         \
+  const unsigned mask = (MASK_EXPR);                                             \
+                                                                                 \
+  VRAM[vri] = (VRAM[vri] &~ mask) | (DB & mask);                                 \
+                                                                                 \
+  return;                                                                        \
+ }                                                                               \
+                                                                                 \
+ /* CRAM */                                                                      \
+ if(A < 0x180000)                                                                \
+ {                                                                               \
+  const unsigned cri = (A & 0xFFF) >> 1;                                         \
+                                                                                 \
+  switch(CRAM_Mode)                                                              \
+  {                                                                              \
+    case CRAM_MODE_RGB555_1024:                                                  \
+        (CRAM + 0x000)[cri & 0x3FF] = DB;                                        \
+        (CRAM + 0x400)[cri & 0x3FF] = DB;                                        \
+        CacheCRE(cri);                                                           \
+        break;                                                                   \
+                                                                                 \
+    case CRAM_MODE_RGB555_2048:                                                  \
+        CRAM[cri] = DB;                                                          \
+        CacheCRE(cri);                                                           \
+        break;                                                                   \
+                                                                                 \
+    case CRAM_MODE_RGB888_1024:                                                  \
+    case CRAM_MODE_ILLEGAL:                                                      \
+    default:                                                                     \
+        CRAM[((cri >> 1) & 0x3FF) | ((cri & 1) << 10)] = DB;                     \
+        CacheCRE(cri);                                                           \
+        break;                                                                   \
+  }                                                                              \
+                                                                                 \
+  return;                                                                        \
+ }                                                                               \
+                                                                                 \
+ /* Registers */                                                                 \
+ if(A < 0x1C0000)                                                                \
+ {                                                                               \
+  RegsWrite(A, DB);                                                              \
+                                                                                 \
+  return;                                                                        \
+ }                                                                               \
 }
+
+static INLINE void MemW_u8 (uint32_t A, const uint16_t DB) MEMW_BODY(0xFF00 >> ((A & 1) << 3))
+static INLINE void MemW_u16(uint32_t A, const uint16_t DB) MEMW_BODY(0xFFFF)
 
 
 static void Reset(bool powering_up)
@@ -3919,11 +3922,11 @@ static void/*int*/ RThreadEntry(void* data)
   switch(wqe->Command)
   {
    case COMMAND_WRITE8:
-	MemW<uint8_t>(wqe->Arg32, wqe->Arg16);
+	MemW_u8(wqe->Arg32, wqe->Arg16);
 	break;
 
    case COMMAND_WRITE16:
-	MemW<uint16_t>(wqe->Arg32, wqe->Arg16);
+	MemW_u16(wqe->Arg32, wqe->Arg16);
 	break;
 
    case COMMAND_WRITE16_BURST:
@@ -3934,7 +3937,7 @@ static void/*int*/ RThreadEntry(void* data)
 
 	 for(uint32_t i = 0; i < n16; i++)
 	 {
-	  MemW<uint16_t>(a, BurstBuf[(Cons.BurstReadPos + i) & BurstBufMask]);
+	  MemW_u16(a, BurstBuf[(Cons.BurstReadPos + i) & BurstBufMask]);
 	  a += stride;
 	 }
 	 Cons.BurstReadPos += n16;
@@ -4284,7 +4287,7 @@ void VDP2REND_Write8_DB(uint32_t A, uint16_t DB)
  //if(VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount) != Prod.DrawPushLocal)
   WWQ(COMMAND_WRITE8, A, DB);
  //else
- // MemW<uint8_t>(A, DB);
+ // MemW_u8(A, DB);
 }
 
 void VDP2REND_Write16_DB(uint32_t A, uint16_t DB)
@@ -4292,7 +4295,7 @@ void VDP2REND_Write16_DB(uint32_t A, uint16_t DB)
  //if(VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount) != Prod.DrawPushLocal)
   WWQ(COMMAND_WRITE16, A, DB);
  //else
- // MemW<uint16_t>(A, DB);
+ // MemW_u16(A, DB);
 }
 
 // DSP-DMA burst of n16 16-bit writes: words[i] -> (base + i * ((1<<add_mode)&~1)).
