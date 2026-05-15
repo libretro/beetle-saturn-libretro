@@ -38,36 +38,43 @@
 // TODO: Framebuffer swap/auto drawing start happens a bit too early, should happen near
 //       end of hblank instead of the beginning.
 
-/* ss.h removed — symbols localized below */
-/* mednafen.h removed */
-/* scu.h removed — SCU symbols localized below */
 #include <string.h>
 #include "vdp1.h"
-/* vdp2.h removed */
 #include "vdp1_common.h"
 
-/* Localized externs from ss.h, scu.h, vdp2.h — these stay C++
-   but expose C linkage for the symbols we need. */
-extern uint32_t ss_horrible_hacks;
+/* ss.h and scu.h became C-includable in ba93ea6 (the SS-core
+   omnibus), so include them directly instead of localising the
+   handful of cross-TU symbols inline.  Six previously-inlined
+   externs (ss_horrible_hacks, event_list_entry events[],
+   SS_SetEventNT, SS_SetPhysMemMap, SH7095_mem_timestamp, SCU_SetInt,
+   SCU_CheckVDP1HaltKludge) now come from the real headers, which
+   removes a per-TU ledger to keep in sync. */
+#include "ss.h"
+#include "scu.h"
 
-/* SS_EVENT_*, SCU_INT_*, HORRIBLEHACK_* and event_list_entry come from the
-   shared C/C++ leaf header — the single source of truth. They were
-   previously re-typed by hand here and miscounted (SS_EVENT_VDP1/VDP2 and
-   SCU_INT_VDP1 were all wrong), which broke VDP1 event scheduling. Never
-   transcribe these again — add to ss_c_abi.h instead. */
+/* SS_EVENT_*, SCU_INT_*, HORRIBLEHACK_* and event_list_entry come
+   from the shared C/C++ leaf header -- the single source of truth.
+   They were previously re-typed by hand here and miscounted
+   (SS_EVENT_VDP1/VDP2 and SCU_INT_VDP1 were all wrong), which
+   broke VDP1 event scheduling.  Never transcribe these again --
+   add to ss_c_abi.h instead.  ss.h pulls this in transitively but
+   vdp1.c uses these symbols directly so the explicit include
+   reflects actual usage and stays stable across upstream
+   reorganisations. */
 #include "ss_c_abi.h"
 
-extern event_list_entry events[];
-extern void SS_SetEventNT(event_list_entry* e, const int32_t next_timestamp);
-extern void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable);
-
-extern void SCU_SetInt(unsigned which, bool active);
-extern bool SCU_CheckVDP1HaltKludge(void);
-
+/* vdp2.h is still C++-only (namespace VDP2 wrap), so the one
+   remaining VDP2 entry point that vdp1.c needs gets a localised
+   forward decl until vdp2.h is itself made C-includable.
+   vdp2.cpp:1474 has the matching `extern "C" VDP2_Update` proxy
+   that forwards into VDP2::Update. */
 extern int32_t VDP2_Update(int32_t timestamp);
-extern int32_t SH7095_mem_timestamp;
 
-static INLINE int32_t sign_x_to_s32(unsigned n, uint32_t x) { return ((int32_t)(x << (32 - n))) >> (32 - n); }
+/* sign_x_to_s32(n_bits, value) is provided as a macro in math_ops.h,
+   which now reaches vdp1.c transitively via ss.h.  The previous
+   local static inline function was a verbatim duplicate kept here
+   only because ss.h (and therefore math_ops.h) was C++-only at the
+   original conversion time. */
 
 
 enum { VDP1_UpdateTimingGran = 263 };
