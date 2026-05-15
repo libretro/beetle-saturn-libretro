@@ -208,7 +208,13 @@ static INLINE int32_t VDP1_AdjustDrawTiming(const int32_t cycles) {
 bool VDP1_SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textured, const uint16_t mode);
 
 
-static INLINE int32_t VDP1_PlotPixel(const int die, const unsigned bpp8, const int MSBOn,
+/* MDFN_FORCE_INLINE, not INLINE: this is the C replacement for a C++ template.
+   Each wrapper calls it with all-constant former-template args; forcing the
+   inline is what lets the compiler dead-strip the if(param) branches, exactly
+   as template instantiation did. Plain INLINE is only a hint and the compiler
+   refuses it here (function too large), leaving one generic out-of-line copy
+   with every branch live -- a real per-pixel slowdown vs the C++ original. */
+static MDFN_FORCE_INLINE int32_t VDP1_PlotPixel(const int die, const unsigned bpp8, const int MSBOn,
  const int UserClipEn, const int UserClipMode, const int MeshEn,
  const int GouraudEn, const int HalfFGEn, const int HalfBGEn,
  int32_t x, int32_t y, uint16_t pix, bool transparent, GourauderTheTerrible* g)
@@ -264,7 +270,13 @@ static INLINE int32_t VDP1_PlotPixel(const int die, const unsigned bpp8, const i
    else clipped |= !(((uclipo1 - (pxy)) | ((pxy) - uclipo0)) & 0x80008000); } \
   ret += VDP1_PlotPixel(dl_die, dl_bpp8, dl_MSBOn, dl_UCE, dl_UCM, dl_ME, dl_GE, dl_HFE, dl_HBE, px, py, pix, transparent | clipped, (dl_GE ? &lid.g : NULL)); }
 
-static INLINE int32_t VDP1_DrawLine_impl(const int AA, const int Textured,
+/* MDFN_FORCE_INLINE, not INLINE -- see the note on VDP1_PlotPixel above.
+   This is the body of the former DrawLine<...> template; it MUST be inlined
+   into each VDP1_GEN_WRAPPER slot so the per-slot constant args fold away.
+   With plain INLINE the optimizer leaves it out-of-line at -O2 (too big to
+   inline into 1728 sites) and every slot becomes a thunk into one generic
+   copy with all 13 branches live. */
+static MDFN_FORCE_INLINE int32_t VDP1_DrawLine_impl(const int AA, const int Textured,
  const int die, const unsigned bpp8, const int MSBOn,
  const int UserClipEn, const int UserClipMode, const int MeshEn,
  const int ECD, const int SPD, const int GouraudEn,

@@ -301,7 +301,10 @@ int32_t CMD_SetLocalCoord(const uint16_t* cmd_data)
  return 0;
 }
 
-static INLINE uint32_t TexFetch_impl(const unsigned ECDSPDMode, uint32_t x)
+/* MDFN_FORCE_INLINE, not INLINE: replaces the C++ TexFetch<ECDSPDMode>
+   template. Must inline into each TexFetch_0xNN wrapper so the ColorMode /
+   ECD / SPD switch folds to one arm, as the template instantiation did. */
+static MDFN_FORCE_INLINE uint32_t TexFetch_impl(const unsigned ECDSPDMode, uint32_t x)
 {
  const uint32_t base = VDP1_LineData.tex_base;
  const bool ECD = ECDSPDMode & 0x10;
