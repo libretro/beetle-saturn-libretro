@@ -150,10 +150,49 @@ bool MDFNMP_Init(uint32_t ps, uint32_t numpages)
 
 void MDFNMP_Kill(void)
 {
+   unsigned int x;
+   size_t ci;
+
    if(RAMPtrs)
    {
       free(RAMPtrs);
       RAMPtrs = NULL;
+   }
+   NumPages = 0;
+   PageSize = 0;
+
+   /* Free per-cheat strings.  MDFN_FlushGameCheats normally does this
+    * on the retro_unload_game path before MDFNMP_Kill is reached,
+    * setting cheats_count to 0 -- so the loop below is a no-op in
+    * that flow.  Defending against Kill being called without a
+    * preceding Flush (another caller in the future, refactor that
+    * drops the Flush, etc.) so we never leak the name / conditions
+    * strings. */
+   for(ci = 0; ci < cheats_count; ci++)
+   {
+      free(cheats[ci].name);
+      free(cheats[ci].conditions); /* free(NULL) is well-defined */
+   }
+   /* Free the CHEATF backing array itself, which Flush deliberately
+    * keeps allocated to preserve capacity across game loads.  Without
+    * this, the realloc'd array survives every unload and is only
+    * reclaimed at process exit by the OS (a valgrind-class leak, not
+    * a runtime-pressure leak, but still part of "Kill should undo
+    * everything Init / runtime mutation accumulated"). */
+   free(cheats);
+   cheats       = NULL;
+   cheats_count = 0;
+   cheats_cap   = 0;
+
+   /* Same treatment for the eight SubCheats buckets.  RebuildSubCheats
+    * (called from Flush) only resets the counts -- the realloc'd
+    * SUBCHEAT* arrays survive until here. */
+   for(x = 0; x < 8; x++)
+   {
+      free(SubCheats[x]);
+      SubCheats[x]       = NULL;
+      SubCheats_count[x] = 0;
+      SubCheats_cap[x]   = 0;
    }
 }
 
