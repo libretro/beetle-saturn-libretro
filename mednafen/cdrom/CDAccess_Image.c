@@ -1147,6 +1147,27 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
    success = true;
 
 cleanup_close:
+   /* TmpTrack holds an uncommitted file handle (and possibly AReader)
+    * between a CUE FILE-line open and the next TRACK/FILE-line that
+    * memcpys it into self->Tracks[active_track].  If parsing fails in
+    * that window we goto here directly and TmpTrack goes out of scope
+    * as a stack local; the pre-conversion C++ used a unique_ptr that
+    * handled this in its destructor.  Mirror that here.  Gate on
+    * FirstFileInstance: a shared-fp track (FFI==0, fp aliased to a
+    * cache entry) must NOT close the fp -- the owner does that. */
+   if (TmpTrack.FirstFileInstance)
+   {
+      if (TmpTrack.AReader)
+      {
+         AR_Close(TmpTrack.AReader);
+         TmpTrack.AReader = NULL;
+      }
+      if (TmpTrack.fp)
+      {
+         cdstream_destroy(TmpTrack.fp);
+         TmpTrack.fp = NULL;
+      }
+   }
    if (opened)
       cdstream_close(&fp);
    return success;

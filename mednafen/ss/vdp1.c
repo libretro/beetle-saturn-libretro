@@ -1084,7 +1084,13 @@ bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w,
   // the previous scalar for-loop with MDFN_LIKELY was at the mercy
   // of the compiler's autovectorisation heuristics.
   memcpy(buf, fbyptr, (size_t)w * sizeof(uint16_t));
-  memcpy(mesh_buf, mfbyptr, (size_t)w * sizeof(uint16_t));
+  /* MeshFB row is only ever read by ApplyMeshOverlay (vdp2_render),
+   * which is itself gated on VDP1_MeshImproved.  When the option is
+   * off this memcpy lands in a buffer nothing reads -- skip it.  At
+   * 352-wide x 224 lines x 60Hz that saves ~9.5 MB/s of dead copy
+   * traffic in the default state. */
+  if(VDP1_MeshImproved)
+   memcpy(mesh_buf, mfbyptr, (size_t)w * sizeof(uint16_t));
  }
 
  //
