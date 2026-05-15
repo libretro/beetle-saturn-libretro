@@ -1015,7 +1015,10 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
 
    // Call InitFastMemMap() before functions like SOUND_Init()
    if(!InitFastMemMap())
+   {
+      Cleanup();
       return false;
+   }
    SS_SetPhysMemMap(0x00000000, 0x000FFFFF, BIOSROM, sizeof(BIOSROM));
    SS_SetPhysMemMap(0x00200000, 0x003FFFFF, WorkRAML, WORKRAM_BANK_SIZE_BYTES, true);
    SS_SetPhysMemMap(0x06000000, 0x07FFFFFF, WorkRAMH, WORKRAM_BANK_SIZE_BYTES, true);
@@ -1023,7 +1026,10 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    MDFNMP_RegSearchable(0x06000000, WORKRAM_BANK_SIZE_BYTES);
 
    if(!CART_Init(cart_type, rom_dir, main_fname, sgi))
+   {
+      Cleanup();
       return false;
+   }
    ActiveCartType = cart_type;
 
    //
@@ -1081,6 +1087,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       if(!BIOSFile)
       {
          log_cb(RETRO_LOG_ERROR, "Cannot open BIOS file \"%s\".\n", bios_path);
+         Cleanup();
          return false;
       }
 
@@ -1097,6 +1104,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       {
          log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" is of an incorrect size.\n", bios_path);
          filestream_close(BIOSFile);
+         Cleanup();
          return false;
       }
       else
@@ -1113,6 +1121,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          {
             log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" could not be fully read (short or failed read).\n", bios_path);
             filestream_close(BIOSFile);
+            Cleanup();
             return false;
          }
          filestream_close(BIOSFile);
