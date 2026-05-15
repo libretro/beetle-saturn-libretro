@@ -109,7 +109,6 @@ static bool vb_status, hb_status;
 static bool vbcdpending;
 static bool FBManualPending;
 static bool FBVBErasePending;
-static bool FBLastErasePending;	// Forces one final one-cycle erase when FCM flips 0->1, per Kronos f692be7 (Return Fire).
 static bool FBVBEraseActive;
 static sscpu_timestamp_t FBVBEraseLastTS;
 static sscpu_timestamp_t LastRWTS;
@@ -248,7 +247,6 @@ void VDP1_Reset(bool powering_up)
 
  FBManualPending = false;
  FBVBErasePending = false;
- FBLastErasePending = false;
  FBVBEraseActive = false;
 
  LOPR = 0;
@@ -980,13 +978,12 @@ void VDP1_SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_sta
    }
 
    EraseYCounter = ~0U;
-   if(!(VDP1_FBCR & VDP1_FBCR_FCM) || (FBManualPending && !(VDP1_FBCR & VDP1_FBCR_FCT)) || FBLastErasePending)
+   if(!(VDP1_FBCR & VDP1_FBCR_FCM) || (FBManualPending && !(VDP1_FBCR & VDP1_FBCR_FCT)))
    {
     if(VDP1_TVMR & VDP1_TVMR_ROTATE)
      FBVBErasePending = true;
     else
      EraseYCounter = EraseParams.y_start;
-    FBLastErasePending = false;
    }
 
    FBManualPending = false;
@@ -1147,22 +1144,6 @@ static INLINE void WriteReg(const unsigned which, const uint16_t value)
 	break;
 
   case 0x1:	// VDP1_FBCR
-	{
-	 // Backport of Kronos commit f692be7 (FCare, Nov 2024).  FCM=0 puts
-	 // VDP1 in one-cycle mode (auto-erase every frame); FCM=1 is manual
-	 // mode (erase only on explicit VDP1_FBCR.FCT/FCM=1 writes).  When the
-	 // game flips FCM 0->1 mid-frame, the frame currently in flight was
-	 // rendered under one-cycle semantics and should still get its
-	 // trailing auto-erase before the buffer goes "manual".  Without
-	 // this, stale framebuffer content from that last one-cycle frame
-	 // leaks into the first manual frame.  Cited symptom: Return Fire.
-	 // VBE in VDP1_TVMR is the explicit v-blank-erase path; if VBE is set
-	 // the erase is already coming, so suppress the catch-up.
-	 const bool old_fcm = (VDP1_FBCR  & VDP1_FBCR_FCM) != 0;
-	 const bool new_fcm = (value & VDP1_FBCR_FCM) != 0;
-	 if(!old_fcm && new_fcm && !(VDP1_TVMR & VDP1_TVMR_VBE))
-	  FBLastErasePending = true;
-	}
 	VDP1_FBCR = value & 0x1F;
 	FBManualPending |= value & 0x2;
 	break;
@@ -1438,7 +1419,6 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFVAR(FBManualPending),
 
   SFVAR(FBVBErasePending),
-  SFVAR(FBLastErasePending),
   SFVAR(FBVBEraseActive),
   SFVAR(FBVBEraseLastTS),
 
