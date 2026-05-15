@@ -104,8 +104,95 @@ def compile_one(f, flags):
             return err
     return None
 
+# C++-in-C-file detection.  -std=gnu99 accepts several C++ constructs
+# as GCC extensions that stricter C compilers (older mingw, MSVC,
+# embedded toolchains) reject outright.  The smpc/cdb cpp-to-c
+# conversions shipped `enum : int { ... }` (C2X typed-enum syntax)
+# because gnu99 silently accepted it -- broke the user's
+# x86_64-w64-mingw32.static-gcc build.  This pre-compile pattern gate
+# catches the class of leakage before the matrix compile step.
+#
+# Patterns match the *visible* code after stripping /* ... */ and
+# // ... comments -- a typed-enum mention in a comment doesn't trip.
+CXX_IN_C_PATTERNS = [
+    (re.compile(r'^[ \t]*enum[ \t]*:[ \t]*\w', re.MULTILINE),
+     "C++ typed enum -- use plain `enum { NAME = VAL };` (C: values are int)"),
+    (re.compile(r'(?<![A-Za-z0-9_])template[ \t]*<'),
+     "C++ template"),
+    (re.compile(r'^[ \t]*namespace[ \t]+\w', re.MULTILINE),
+     "C++ namespace"),
+    (re.compile(r'(?<![A-Za-z0-9_])nullptr(?![A-Za-z0-9_])'),
+     "C++ nullptr -- use NULL"),
+    (re.compile(r'(?<![A-Za-z0-9_])static_assert[ \t]*\('),
+     "C++ static_assert -- use _Static_assert (or the portable "
+     "typedef-char-array trick: typedef char NAME[1-2*!cond];)"),
+    (re.compile(r'^[ \t]*class[ \t]+[A-Za-z_]\w*[ \t]*[{:]', re.MULTILINE),
+     "C++ class"),
+    (re.compile(r'#[ \t]*include[ \t]*<(atomic|algorithm|array|vector|string|memory'
+                r'|iostream|cstdint|cstdio|cstring|cstdlib|chrono|thread'
+                r'|mutex|condition_variable|functional|tuple|map|set'
+                r'|unordered_map|unordered_set|list|deque)>'),
+     "C++ STL header"),
+]
+
+def strip_comments(src):
+    """Replace /* block */ and // line comments with same-length
+    whitespace so pattern matches don't trip on in-comment text,
+    while line numbers stay aligned to the original source.  Newlines
+    inside block comments are preserved; everything else inside a
+    comment becomes a space."""
+    def _block(m):
+        s = m.group(0)
+        # Keep newlines, blank out everything else
+        return "".join(ch if ch == "\n" else " " for ch in s)
+    src = re.sub(r'/\*.*?\*/', _block, src, flags=re.DOTALL)
+    # Line comments: leave the newline alone
+    src = re.sub(r'//[^\n]*', lambda m: " " * len(m.group(0)), src)
+    return src
+
+def cxx_pattern_check(f):
+    """Return None on clean, or a list of (line_no, pattern_msg, line_text)
+    on detection.  Applies to .c files only."""
+    if not f.endswith(".c"):
+        return None
+    with open(f, "r", encoding="utf-8", errors="replace") as fh:
+        raw = fh.read()
+    cleaned = strip_comments(raw)
+    # Map cleaned-offset back to original line number via cumulative
+    # line counts in the raw text -- crude but sufficient: match in
+    # cleaned, then find which raw line the match-start offset falls in.
+    fails = []
+    for rx, msg in CXX_IN_C_PATTERNS:
+        for m in rx.finditer(cleaned):
+            line_no = cleaned.count("\n", 0, m.start()) + 1
+            # Reconstruct the offending raw line for context.
+            raw_lines = raw.split("\n")
+            raw_line = raw_lines[line_no - 1] if line_no <= len(raw_lines) else ""
+            fails.append((line_no, msg, raw_line.strip()))
+    return fails or None
+
 def main():
     sources = project_sources()
+
+    # Run the C++-in-C pattern gate first.  This is the cheapest
+    # check and surfaces the class of leakage that -std=gnu99
+    # silently swallows (typed enums, nullptr, etc).  Failures here
+    # are reported with file:line and the offending source text.
+    print("check_build_matrix: scanning .c files for C++ leakage")
+    pattern_fails = 0
+    for f in sources:
+        hits = cxx_pattern_check(f)
+        if hits:
+            for line_no, msg, line_text in hits:
+                print(f"  {f}:{line_no}: {msg}")
+                print(f"    {line_text[:120]}")
+                pattern_fails += 1
+    if pattern_fails:
+        print(f"check_build_matrix: {pattern_fails} C++-in-C pattern hit(s) "
+              "-- fix before compile gate runs")
+        sys.exit(1)
+    print("  -- C++-in-C scan clean")
+
     # Files that are only in SOURCES under specific flags, per
     # Makefile.common.  Excluded from configs where the flag is off.
     M68K_SPLIT_ONLY = (
