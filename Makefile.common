@@ -56,7 +56,6 @@ ifeq ($(NEED_TREMOR), 1)
 endif
 
 SOURCES_CXX += \
-	$(CORE_EMU_DIR)/cdb.cpp \
 	$(CORE_EMU_DIR)/sound.cpp \
 	$(CORE_EMU_DIR)/ss.cpp \
 	$(CORE_EMU_DIR)/scu_dsp_gen.cpp \
@@ -74,8 +73,18 @@ SOURCES_CXX += \
 # CPU[X].SetNMI) and the namespace calls (VDP2::Update, VDP2::Reset,
 # VDP2::GetGunXTranslation, VDP2::SetExtLatch) now route through
 # extern "C" proxies in ss.cpp and vdp2.cpp respectively.
+#
+# cdb.cpp -> cdb.c. The BufferCDDA template took a runtime parameter
+# (two callsites, both at 75 Hz so cost is unmeasurable).  FileInfoS
+# member methods fad()/size() became free FileInfoS_fad/size()
+# INLINE helpers.  Five functions with C++ default arguments
+# (StartSeek / MakeBaseStatus / MakeReport / CDStatusResults /
+# SeekStart2) had ~100 callsites filled in with explicit defaults.
+# FilterS::MODE_SEL_X enum hoisted to file scope.  All cdb-internal,
+# no public-ABI changes.
 SOURCES_C += $(CORE_EMU_DIR)/db.c \
-		$(CORE_EMU_DIR)/smpc.c
+		$(CORE_EMU_DIR)/smpc.c \
+		$(CORE_EMU_DIR)/cdb.c
 
 # The cartridge subsystem, converted from C++ to C. CartInfo was
 # already a plain struct of function pointers (C-style polymorphism),

@@ -132,8 +132,9 @@
 
 // TODO: Test play command while filesys op is in progress.
 
+#include <stdlib.h>		/* abs() in Drive_Run seek timing */
+
 #include "ss.h"
-#include <mednafen/mednafen.h>
 #include "scu.h"
 #include "sound.h"
 #include "cdb.h"
@@ -142,7 +143,7 @@
 #include <mednafen/cdrom/cdromif.h>
 
 static void CheckBufPauseResume(void);
-static void StartSeek(const uint32_t cmd_target, const uint32_t cur_play_end = 0x800000, const uint32_t cur_play_repeat = 0, const uint32_t play_end_irq_type = 0, const bool no_pickup_change = false);
+static void StartSeek(const uint32_t cmd_target, const uint32_t cur_play_end, const uint32_t cur_play_repeat, const uint32_t play_end_irq_type, const bool no_pickup_change);
 static void ClearPendingSec(void);
 
 enum
@@ -278,19 +279,26 @@ static struct BufferT
  uint8_t Next;
 } Buffers[NumBuffers];
 
+/* MODE_SEL_X / MODE_INIT lived inside `struct FilterS` as an
+ * anonymous enum in the C++ form (accessed as FilterS::MODE_SEL_X).
+ * Hoisted to file scope for the C conversion -- C scopes anonymous
+ * enums in struct bodies to the enclosing scope anyway, but the
+ * empty enum declaration inside the struct generates a "declaration
+ * does not declare anything" warning.  Same values, file-scope
+ * named-enum form. */
+enum
+{
+ MODE_SEL_FILE    = 0x01,
+ MODE_SEL_CHANNEL = 0x02,
+ MODE_SEL_SUBMODE = 0x04,
+ MODE_SEL_CINFO   = 0x08,
+ MODE_SEL_SHREV   = 0x10,	/* Reverse sub-header conditions */
+ MODE_SEL_FADR	  = 0x40,
+ MODE_INIT	  = 0x80
+};
+
 static struct FilterS
 {
- enum
- {
-  MODE_SEL_FILE    = 0x01,
-  MODE_SEL_CHANNEL = 0x02,
-  MODE_SEL_SUBMODE = 0x04,
-  MODE_SEL_CINFO   = 0x08,
-  MODE_SEL_SHREV   = 0x10,	// Reverse sub-header conditions
-  MODE_SEL_FADR	   = 0x40,
-  MODE_INIT	   = 0x80
- };
-
  uint8_t Mode;
  uint8_t TrueConn;
  uint8_t FalseConn;
@@ -503,21 +511,21 @@ static void ResetBuffers(void)
 
 static void Filter_ResetCond(const unsigned fnum)
 {
- auto& f = Filters[fnum];
+ struct FilterS *f = &Filters[fnum];
 
- f.Mode = 0;
+ f->Mode = 0;
 
- f.FAD = 0;
- f.Range = 0;
+ f->FAD = 0;
+ f->Range = 0;
 
- f.Channel = 0;
- f.File = 0;
+ f->Channel = 0;
+ f->File = 0;
 
- f.SubMode = 0;
- f.SubModeMask = 0;
+ f->SubMode = 0;
+ f->SubModeMask = 0;
 
- f.CInfo = 0;
- f.CInfoMask = 0;
+ f->CInfo = 0;
+ f->CInfoMask = 0;
 }
 
 static uint8_t Buffer_Allocate(const bool zero_clear)
@@ -702,15 +710,28 @@ static struct FileInfoS
  uint8_t fad_be[4];
  uint8_t size_be[4];
 
- INLINE uint32_t fad(void)  const { return ((uint32_t)fad_be[0] << 24)  | ((uint32_t)fad_be[1] << 16)  | ((uint32_t)fad_be[2] << 8)  | (uint32_t)fad_be[3]; }
- INLINE uint32_t size(void) const { return ((uint32_t)size_be[0] << 24) | ((uint32_t)size_be[1] << 16) | ((uint32_t)size_be[2] << 8) | (uint32_t)size_be[3]; }
+ /* `uint32_t fad(void) const` / `uint32_t size(void) const` were
+  * inline methods on this struct in the C++ form.  C has no member
+  * functions; the same logic lives below as free INLINE helpers
+  * taking an explicit `fi` pointer.  Three call sites total. */
 
  uint8_t unit_size;
  uint8_t gap_size;
  uint8_t fnum;
  uint8_t attr;
 } FileInfo[256];
-static_assert(sizeof(FileInfoS) == 12 && sizeof(FileInfo) == 12 * 256, "FileInfo wrong size!");
+
+static INLINE uint32_t FileInfoS_fad(const struct FileInfoS *fi)
+{
+ return ((uint32_t)fi->fad_be[0] << 24) | ((uint32_t)fi->fad_be[1] << 16) | ((uint32_t)fi->fad_be[2] << 8) | (uint32_t)fi->fad_be[3];
+}
+
+static INLINE uint32_t FileInfoS_size(const struct FileInfoS *fi)
+{
+ return ((uint32_t)fi->size_be[0] << 24) | ((uint32_t)fi->size_be[1] << 16) | ((uint32_t)fi->size_be[2] << 8) | (uint32_t)fi->size_be[3];
+}
+
+_Static_assert(sizeof(struct FileInfoS) == 12 && sizeof(FileInfo) == 12 * 256, "FileInfo wrong size!");
 static bool FileInfoValid;
 static uint8_t FileInfoValidCount;	// 0 ... 254
 static uint32_t FileInfoOffs;		// 2 ... whatever
@@ -726,7 +747,7 @@ enum
  FATTR_XA_DIR = 0x80
 };
 
-static FileInfoS RootDirInfo;
+static struct FileInfoS RootDirInfo;
 static bool RootDirInfoValid;
 
 static struct
@@ -810,7 +831,7 @@ enum : int { FLSPhaseBias = __COUNTER__ + 1 };
 	 FLS.total_counter++;						\
 	}
 
-static void ReadRecord(FileInfoS* fi, const uint8_t* rr)
+static void ReadRecord(struct FileInfoS* fi, const uint8_t* rr)
 {
  const uint8_t rec_len = rr[0];
  const uint8_t fi_len = rr[32];
@@ -872,7 +893,7 @@ static bool FLS_Run(void)
    Filters[FLS.pnum].Mode = 0;
    //
    AuthDiscType = 0xFF;
-   StartSeek(0x800000 | 0x96, 0);
+   StartSeek(0x800000 | 0x96, 0, 0, 0, false);
    //
    //
    static const char ssid[16] = { 'S', 'E', 'G', 'A', ' ', 'S', 'E', 'G', 'A', 'S', 'A', 'T', 'U', 'R', 'N', ' ' };
@@ -893,7 +914,7 @@ static bool FLS_Run(void)
     AuthDiscType = 0x02;
 
    SetCDDeviceConn(0xFF);
-   StartSeek(0x800000 | 0x96);
+   StartSeek(0x800000 | 0x96, 0x800000, 0, 0, false);
   }
   else
   {
@@ -906,7 +927,7 @@ static bool FLS_Run(void)
     Filter_SetRange(FLS.pnum, 0, 0);
     Filters[FLS.pnum].Mode = 0;
 
-    StartSeek(0x800000 | 0xA6, 0);
+    StartSeek(0x800000 | 0xA6, 0, 0, 0, false);
 
     for(;;)
     {
@@ -929,7 +950,7 @@ static bool FLS_Run(void)
    if(RootDirInfoValid)
    {
     {
-     const FileInfoS* fi;
+     const struct FileInfoS* fi;
 
      if(FLS.fiaoffs >= 256)
       fi = &RootDirInfo;
@@ -938,8 +959,8 @@ static bool FLS_Run(void)
 
      Partition_Clear(FLS.pnum);
 
-     Filter_SetRange(FLS.pnum, fi->fad(), (fi->size() + 2047) >> 11);	// TODO: maybe remove + 2047, actual Saturn drive seems buggy...
-     Filters[FLS.pnum].Mode = FilterS::MODE_SEL_FADR;
+     Filter_SetRange(FLS.pnum, FileInfoS_fad(fi), (FileInfoS_size(fi) + 2047) >> 11);	// TODO: maybe remove + 2047, actual Saturn drive seems buggy...
+     Filters[FLS.pnum].Mode = MODE_SEL_FADR;
      Filters[FLS.pnum].File = fi->fnum;
 
      Filters[FLS.pnum].Channel = 0;
@@ -948,9 +969,9 @@ static bool FLS_Run(void)
      Filters[FLS.pnum].CInfo = 0;
      Filters[FLS.pnum].CInfoMask = 0;
 
-     FLS.total_max = fi->size();
+     FLS.total_max = FileInfoS_size(fi);
 
-     StartSeek(0x800000 | fi->fad(), 0);
+     StartSeek(0x800000 | FileInfoS_fad(fi), 0, 0, 0, false);
     }
     //
     //
@@ -1222,10 +1243,10 @@ static void SWReset(void)
 
  for(unsigned i = 0; i < 0x18; i++)
  {
-  auto& f = Filters[i];
+  struct FilterS *f = &Filters[i];
 
-  f.TrueConn = i;
-  f.FalseConn = 0xFF;
+  f->TrueConn = i;
+  f->FalseConn = 0xFF;
 
   Filter_ResetCond(i);
  }
@@ -1456,7 +1477,7 @@ uint8_t GetDriveStatus(void)
 //	Init, Open, Play, Seek, Scan
 //
 
-static uint8_t MakeBaseStatus(const bool rejected = false, const uint8_t hb = 0)
+static uint8_t MakeBaseStatus(const bool rejected, const uint8_t hb)
 {
  if(rejected)
   return STATUS_REJECTED;
@@ -1475,13 +1496,13 @@ static uint8_t MakeBaseStatus(const bool rejected = false, const uint8_t hb = 0)
 
 static bool TestFilterCond(const unsigned fnum, const uint8_t* data)
 {
- auto& f = Filters[fnum];
+ const struct FilterS *f = &Filters[fnum];
 
- if(f.Mode & FilterS::MODE_SEL_FADR)
+ if(f->Mode & MODE_SEL_FADR)
  {
   const uint32_t fad = AMSF_to_ABA(BCD_to_U8(data[12 + 0]), BCD_to_U8(data[12 + 1]), BCD_to_U8(data[12 + 2]));
 
-  if(fad < f.FAD || fad >= (f.FAD + f.Range))
+  if(fad < f->FAD || fad >= (f->FAD + f->Range))
    return false;
  }
 
@@ -1497,29 +1518,29 @@ static bool TestFilterCond(const unsigned fnum, const uint8_t* data)
  else
   file = channel = submode = cinfo = 0x00;
 
- const bool shinv = (bool)(f.Mode & FilterS::MODE_SEL_SHREV) && (bool)(f.Mode & 0x0F);
+ const bool shinv = (bool)(f->Mode & MODE_SEL_SHREV) && (bool)(f->Mode & 0x0F);
 
- if(f.Mode & FilterS::MODE_SEL_FILE)
+ if(f->Mode & MODE_SEL_FILE)
  {
-  if((bool)(file != f.File))
+  if((bool)(file != f->File))
    return shinv;
  }
 
- if(f.Mode & FilterS::MODE_SEL_CHANNEL)
+ if(f->Mode & MODE_SEL_CHANNEL)
  {
-  if((bool)(channel != f.Channel))
+  if((bool)(channel != f->Channel))
    return shinv;
  }
 
- if(f.Mode & FilterS::MODE_SEL_SUBMODE)
+ if(f->Mode & MODE_SEL_SUBMODE)
  {
-  if((bool)((submode & f.SubModeMask) != f.SubMode))
+  if((bool)((submode & f->SubModeMask) != f->SubMode))
    return shinv;
  }
 
- if(f.Mode & FilterS::MODE_SEL_CINFO)
+ if(f->Mode & MODE_SEL_CINFO)
  {
-  if((bool)((cinfo & f.CInfoMask) != f.CInfo))
+  if((bool)((cinfo & f->CInfoMask) != f->CInfo))
    return shinv;
  }
 
@@ -1561,13 +1582,13 @@ static void TranslateTOC(void)
 
  for(unsigned i = 1; i < 100; i++)
  {
-  const auto& t = toc.tracks[i];
+  const struct TOC_Track *t = &toc.tracks[i];
 
-  if(t.valid)
+  if(t->valid)
   {
-   const uint32_t fad = t.lba + 150;
+   const uint32_t fad = t->lba + 150;
 
-   td[0] = (t.control << 4) | t.adr;
+   td[0] = (t->control << 4) | t->adr;
    td[1] = fad >> 16;
    td[2] = fad >> 8;
    td[3] = fad >> 0;
@@ -1582,9 +1603,9 @@ static void TranslateTOC(void)
 
  // POINT=A0
  {
-  const auto& t = toc.tracks[toc.first_track];
+  const struct TOC_Track *t = &toc.tracks[toc.first_track];
 
-  td[0] = (t.control << 4) | t.adr;
+  td[0] = (t->control << 4) | t->adr;
   td[1] = toc.first_track;
   td[2] = toc.disc_type;
   td[3] = 0;
@@ -1594,9 +1615,9 @@ static void TranslateTOC(void)
 
  // POINT=A1
  {
-  const auto& t = toc.tracks[toc.last_track];
+  const struct TOC_Track *t = &toc.tracks[toc.last_track];
 
-  td[0] = (t.control << 4) | t.adr;
+  td[0] = (t->control << 4) | t->adr;
   td[1] = toc.last_track;
   td[2] = 0;
   td[3] = 0;
@@ -1606,10 +1627,10 @@ static void TranslateTOC(void)
 
  // Lead-out
  {
-  const auto& t = toc.tracks[100];
-  const uint32_t fad = t.lba + 150;
+  const struct TOC_Track *t = &toc.tracks[100];
+  const uint32_t fad = t->lba + 150;
 
-  td[0] = (t.control << 4) | t.adr;
+  td[0] = (t->control << 4) | t->adr;
   td[1] = fad >> 16;
   td[2] = fad >> 8;
   td[3] = fad >> 0;
@@ -1626,7 +1647,7 @@ static void TranslateTOC(void)
 //
 //
 //
-static void MakeReport(const bool rejected = false, const uint8_t hb = 0)
+static void MakeReport(const bool rejected, const uint8_t hb)
 {
  Results[0] = (MakeBaseStatus(rejected, hb) << 8) | (CurPosInfo.is_cdrom << 7) | (CurPosInfo.repcount & 0x7F);
 
@@ -1635,7 +1656,7 @@ static void MakeReport(const bool rejected = false, const uint8_t hb = 0)
  Results[3] = CurPosInfo.fad;
 }
 
-static void CDStatusResults(const bool rejected = false, const uint8_t hb = 0)
+static void CDStatusResults(const bool rejected, const uint8_t hb)
 {
  MakeReport(rejected, hb);
 
@@ -1718,7 +1739,7 @@ static void SeekStart1(void)
  }
 }
 
-static void SeekStart2(int delay_sub = 0)
+static void SeekStart2(int delay_sub)
 {
  CurPosInfo.status = STATUS_BUSY;
  CurPosInfo.is_cdrom = false;
@@ -1739,10 +1760,10 @@ static void ForceCompletePendingSeekStartup(void)
  if(DrivePhase == DRIVEPHASE_SEEK_START1)
  {
   SeekStart1();
-  SeekStart2();
+  SeekStart2(0);
  }
  else if(DrivePhase == DRIVEPHASE_SEEK_START2)
-  SeekStart2();
+  SeekStart2(0);
 }
 
 static void StartSeek(const uint32_t cmd_target, const uint32_t cur_play_end, const uint32_t cur_play_repeat, const uint32_t play_end_irq_type, const bool no_pickup_change)
@@ -1861,8 +1882,14 @@ static void CheckBufPauseResume(void)
  }
 }
 
-template<unsigned sample_shift = 0>
-static INLINE void BufferCDDA(const uint8_t* inbuf)
+/* Was `template<unsigned sample_shift = 0> static INLINE void
+ * BufferCDDA(const uint8_t* inbuf)` in the C++ form.  Two callsites
+ * (DRIVEPHASE_PLAY in Drive_Run) instantiate with sample_shift=2
+ * and sample_shift=0; both fire at 75 Hz so the shift-by-variable
+ * costs nothing measurable vs the C++ shift-by-constant.  Same
+ * runtime-parameter pattern used for every other template
+ * conversion in this tree. */
+static INLINE void BufferCDDA(unsigned sample_shift, const uint8_t* inbuf)
 {
  if(!CDDABuf_Count)
  {
@@ -1938,7 +1965,7 @@ static void Drive_Run(int64_t clocks)
 	//
 	//
 	//
-        StartSeek(0x800096);
+        StartSeek(0x800096, 0x800000, 0, 0, false);
 	break;
 
     case DRIVEPHASE_STOPPED:
@@ -2050,14 +2077,14 @@ static void Drive_Run(int64_t clocks)
 	 if(ScanMode >= 0)
 	 {
 	  if(!(SubQBuf_Safe[0] & 0x40))
-	   BufferCDDA<2>(SecPreBuf);
+	   BufferCDDA(2, SecPreBuf);
 
 	  CurPosInfo.is_cdrom = false;
 	  SecPreBuf_In = false;
 	 }
 	 else if(!(SubQBuf_Safe[0] & 0x40))
 	 {
-	  BufferCDDA(SecPreBuf);
+	  BufferCDDA(0, SecPreBuf);
 
 	  CurPosInfo.is_cdrom = false;
 	  SecPreBuf_In = false;
@@ -2200,7 +2227,7 @@ static void Drive_Run(int64_t clocks)
       PlayRepeatCounter |= 0x80;
       //
       SeekStart1();
-      SeekStart2();
+      SeekStart2(0);
      }
     }
     else if((SubQBuf_Safe[0] & 0x40) && !FreeBufferCount)
@@ -2338,14 +2365,14 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_CDSTATUS) //	= 0x00,
     {
-     CDStatusResults();
+     CDStatusResults(false, 0);
     }
     //
     //
     //
     else if(CTR.Command == COMMAND_GET_HWINFO) //	= 0x01,
     {
-     BasicResults(MakeBaseStatus() << 8,
+     BasicResults(MakeBaseStatus(false, 0) << 8,
 		  0x0002,
 		  0x0000,
 		  0x0600); // TODO: Before INIT: 0xFF00;
@@ -2416,7 +2443,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
        rsw = 0xFF;
       }
 
-      BasicResults(MakeBaseStatus() << 8, 0, (rsw << 8) | (fad >> 16), fad);
+      BasicResults(MakeBaseStatus(false, 0) << 8, 0, (rsw << 8) | (fad >> 16), fad);
      }
     }
     //
@@ -2469,7 +2496,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      {
       DT.Active = false;
 
-      BasicResults((MakeBaseStatus() << 8) | (DT.TotalCounter >> 16), DT.TotalCounter, 0, 0);
+      BasicResults((MakeBaseStatus(false, 0) << 8) | (DT.TotalCounter >> 16), DT.TotalCounter, 0, 0);
 
       if(DT.Writing)
       {
@@ -2506,7 +2533,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       CheckBufPauseResume();
      }
      else
-      BasicResults((MakeBaseStatus() << 8) | 0xFF, 0xFFFF, 0, 0);
+      BasicResults((MakeBaseStatus(false, 0) << 8) | 0xFF, 0xFFFF, 0, 0);
     }
     //
     //
@@ -2526,7 +2553,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       cmd_pep = 0x800000 | ((cmd_psp + cmd_pep) & 0x7FFFFF);
 
      if(((cmd_psp ^ cmd_pep) & 0x800000) && cmd_pep != 0)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       PlayCmdStartPos = cmd_psp;
@@ -2536,7 +2563,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
        PlayCmdRepCnt = pm & 0x0F;
       //
       CurPosInfo.status = STATUS_BUSY;	// Happens even if (PlayMode & 0x80)...
-      CDStatusResults();
+      CDStatusResults(false, 0);
       //
       //
       StartSeek(PlayCmdStartPos, PlayCmdEndPos, PlayCmdRepCnt, HIRQ_PEND, (bool)(pm & 0x80));
@@ -2548,7 +2575,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     else if(CTR.Command == COMMAND_SEEK) //		= 0x11,
     {
      CurPosInfo.status = STATUS_BUSY;
-     CDStatusResults();
+     CDStatusResults(false, 0);
      //
      //
      const uint32_t cmd_sp = ((CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
@@ -2572,7 +2599,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      {
       if(DrivePhase == DRIVEPHASE_STOPPED)	// TODO: Test
       {
-       StartSeek(0x800096);
+       StartSeek(0x800096, 0x800000, 0, 0, false);
       }
 
       SecPreBuf_In = -abs(SecPreBuf_In);
@@ -2582,7 +2609,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      }
      else
      {
-      StartSeek(cmd_sp);
+      StartSeek(cmd_sp, 0x800000, 0, 0, false);
      }
     }
     //
@@ -2593,11 +2620,11 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      uint8_t dir = CTR.CD[0] & 0xFF;
 
      if(dir >= 0x02)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       CurPosInfo.status = STATUS_BUSY;
-      CDStatusResults();
+      CDStatusResults(false, 0);
 
       StartScan(dir);
      }
@@ -2616,7 +2643,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       type = CTR.CD[0] & 0xFF;
 
       if(type >= 0x02)
-       CDStatusResults(true);
+       CDStatusResults(true, 0);
       else
       {
        if(type == 0) // Q (TODO: ADR other than 0x1)
@@ -2667,12 +2694,12 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      fnum = (CTR.CD[2] >> 8);
 
      if(fnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else if(FLS.Active)
       CDStatusResults(false, STATUS_WAIT);
      else
      {
-      CDStatusResults();
+      CDStatusResults(false, 0);
       //
       //
       //
@@ -2697,9 +2724,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     else if(CTR.Command == COMMAND_GET_AUTH)
     {
      if(FLS.Active && FLS.DoAuth)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
-      BasicResults(MakeBaseStatus() << 8, AuthDiscType, 0, 0);
+      BasicResults(MakeBaseStatus(false, 0) << 8, AuthDiscType, 0, 0);
     }
     //
     //
@@ -2709,12 +2736,12 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      #define fnum (CTR.CD[2] >> 8)
 
      if(fnum >= 0x18 && fnum != 0xFF)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       SetCDDeviceConn(fnum);
 
-      CDStatusResults();
+      CDStatusResults(false, 0);
 
       CMD_EAT_CLOCKS(96);
       TriggerIRQ(HIRQ_ESEL);
@@ -2726,14 +2753,14 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_CDDEVCONN) //	= 0x31,
     {
-     BasicResults((MakeBaseStatus() << 8), 0, CDDevConn << 8, 0);
+     BasicResults((MakeBaseStatus(false, 0) << 8), 0, CDDevConn << 8, 0);
     }
     //
     //
     //
     else if(CTR.Command == COMMAND_GET_LASTBUFDST) //	= 0x32,
     {
-     BasicResults(MakeBaseStatus() << 8, 0, LastBufDest << 8, 0);
+     BasicResults(MakeBaseStatus(false, 0) << 8, 0, LastBufDest << 8, 0);
     }
     //
     //
@@ -2743,7 +2770,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      #define fnum (CTR.CD[2] >> 8)
 
      if(fnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       //CMD_EAT_CLOCKS(30);
@@ -2753,7 +2780,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
        Filter_SetRange(fnum, fad, range);
 
-       CDStatusResults();
+       CDStatusResults(false, 0);
       }
       CMD_EAT_CLOCKS(96); //211);
       TriggerIRQ(HIRQ_ESEL);
@@ -2768,13 +2795,13 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      const unsigned fnum = CTR.CD[2] >> 8;
 
      if(fnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       const uint32_t fad = Filters[fnum].FAD;
       const uint32_t range = Filters[fnum].Range;
 
-      BasicResults((MakeBaseStatus() << 8) | (fad >> 16),
+      BasicResults((MakeBaseStatus(false, 0) << 8) | (fad >> 16),
 		   fad,
 		   (fnum << 8) | (range >> 16),
 		   range);
@@ -2788,7 +2815,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      #define fnum (CTR.CD[2] >> 8)
 
      if(fnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       //CMD_EAT_CLOCKS(30);
@@ -2800,7 +2827,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       Filters[fnum].SubMode = CTR.CD[3] >> 8;
       Filters[fnum].CInfo = CTR.CD[3] & 0xFF;
 
-      CDStatusResults();
+      CDStatusResults(false, 0);
 
       CMD_EAT_CLOCKS(96); //211);
       TriggerIRQ(HIRQ_ESEL);
@@ -2815,15 +2842,15 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      const unsigned fnum = CTR.CD[2] >> 8;
 
      if(fnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
-      const auto& f = Filters[fnum];
+      const struct FilterS *f = &Filters[fnum];
 
-      BasicResults((MakeBaseStatus() << 8) | f.Channel,
-		   (f.SubModeMask << 8) | f.CInfoMask,
-		   (fnum << 8) | f.File,
-		   (f.SubMode << 8) | f.CInfo);
+      BasicResults((MakeBaseStatus(false, 0) << 8) | f->Channel,
+		   (f->SubModeMask << 8) | f->CInfoMask,
+		   (fnum << 8) | f->File,
+		   (f->SubMode << 8) | f->CInfo);
      }
     }
     //
@@ -2834,7 +2861,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      #define fnum (CTR.CD[2] >> 8)
 
      if(fnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       //CMD_EAT_CLOCKS(30);
@@ -2844,7 +2871,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       if(CTR.CD[0] & 0x80)
        Filter_ResetCond(fnum);
 
-      CDStatusResults();
+      CDStatusResults(false, 0);
 
       CMD_EAT_CLOCKS(96); //211);
       TriggerIRQ(HIRQ_ESEL);
@@ -2859,9 +2886,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      const unsigned fnum = CTR.CD[2] >> 8;
 
      if(fnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
-      BasicResults((MakeBaseStatus() << 8) | Filters[fnum].Mode,
+      BasicResults((MakeBaseStatus(false, 0) << 8) | Filters[fnum].Mode,
 		   0,
 		   fnum << 8,
 		   0);
@@ -2877,7 +2904,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      #define fconn (CTR.CD[1] & 0xFF)
 
      if(fnum >= 0x18 || ((fcflags & 0x1) && (tconn >= 0x18) && tconn != 0xFF) || ((fcflags & 0x2) && (fconn >= 0x18) && fconn != 0xFF))
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       //CMD_EAT_CLOCKS(41);
@@ -2888,7 +2915,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       if(fcflags & 0x2)
        Filter_SetFalseConn(fnum, fconn);
 
-      CDStatusResults();
+      CDStatusResults(false, 0);
 
       CMD_EAT_CLOCKS(96); //192 + ((fcflags & 0x1) ? 167 : 0) + ((fcflags & 0x2) ? 198 : 0));
       TriggerIRQ(HIRQ_ESEL);
@@ -2906,13 +2933,13 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      const unsigned fnum = CTR.CD[2] >> 8;
 
      if(fnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
-      const auto& f = Filters[fnum];
+      const struct FilterS *f = &Filters[fnum];
 
-      BasicResults((MakeBaseStatus() << 8),
-		   (f.TrueConn << 8) | f.FalseConn,
+      BasicResults((MakeBaseStatus(false, 0) << 8),
+		   (f->TrueConn << 8) | f->FalseConn,
 		   fnum << 8,
 		   0);
      }
@@ -2933,14 +2960,14 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       pnum = CTR.CD[2] >> 8;
 
       if(pnum >= 0x18)
-       CDStatusResults(true);
+       CDStatusResults(true, 0);
       else
       {
        Partition_Clear(pnum);
 
        //CMD_EAT_CLOCKS(34);
 
-       CDStatusResults();
+       CDStatusResults(false, 0);
        //
        //
        //
@@ -2953,7 +2980,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      }
      else
      {
-      CDStatusResults();
+      CDStatusResults(false, 0);
       //
       //
       //
@@ -2975,7 +3002,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_BUFSIZE) //	= 0x50,
     {
-     BasicResults(MakeBaseStatus() << 8,
+     BasicResults(MakeBaseStatus(false, 0) << 8,
 		  FreeBufferCount,
 		  0x18 << 8,
 		  NumBuffers);
@@ -2989,11 +3016,11 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
      if(pnum >= 0x18)
      {
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      }
      else
      {
-      BasicResults(MakeBaseStatus() << 8,
+      BasicResults(MakeBaseStatus(false, 0) << 8,
 		   0,
 		   0,
 		   Partitions[pnum].Count);
@@ -3012,7 +3039,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      numsec = CTR.CD[3];
 
      if(pnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       offs = CTR.CD[1];
@@ -3028,7 +3055,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
        CDStatusResults(false, STATUS_WAIT);
       else
       {
-       CDStatusResults();
+       CDStatusResults(false, 0);
 
        //
        {
@@ -3065,7 +3092,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_ACTSIZE) //	= 0x53,
     {
-     BasicResults((MakeBaseStatus() << 8) | (CalcedActualSize >> 16), CalcedActualSize, 0, 0);
+     BasicResults((MakeBaseStatus(false, 0) << 8) | (CalcedActualSize >> 16), CalcedActualSize, 0, 0);
     }
     //
     //
@@ -3079,7 +3106,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      pnum = CTR.CD[2] >> 8;
 
      if(pnum >= 0x18 || (offs != 0xFFFF && offs >= Partitions[pnum].Count) || Partitions[pnum].Count == 0)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       const int bfi = ((offs == 0xFFFF) ? Partitions[pnum].LastBuf : Partition_GetBuffer(pnum, offs));
@@ -3096,7 +3123,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
        cinfo = sd[19];
       }
 
-      BasicResults((MakeBaseStatus() << 8) | (fad >> 16),
+      BasicResults((MakeBaseStatus(false, 0) << 8) | (fad >> 16),
 		  fad,
 		  (file << 8) | chan,
 		  (submode << 8) | cinfo);
@@ -3116,7 +3143,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      sfad = ((CTR.CD[2] & 0xFF) << 16) | CTR.CD[3];
 
      if(pnum >= 0x18 || (offs != 0xFFFF && offs >= Partitions[pnum].Count) || Partitions[pnum].Count == 0)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       int counter;
@@ -3150,7 +3177,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
        counter++;
       } while(bfi != 0xFF);
 
-      CDStatusResults();
+      CDStatusResults(false, 0);
       //
       //
       //
@@ -3163,7 +3190,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_FADSRCH) //	= 0x56,
     {
-     BasicResults(MakeBaseStatus() << 8, FADSearch.spos, (FADSearch.pnum << 8) | (FADSearch.fad >> 16), FADSearch.fad);
+     BasicResults(MakeBaseStatus(false, 0) << 8, FADSearch.spos, (FADSearch.pnum << 8) | (FADSearch.fad >> 16), FADSearch.fad);
     }
     //
     //
@@ -3177,7 +3204,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
      if(NewGetSecLenBad || NewPutSecLenBad)
      {
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      }
      else
      {
@@ -3187,7 +3214,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       if(NewPutSecLen != 0xFF)
        PutSecLen = NewPutSecLen;
 
-      CDStatusResults();
+      CDStatusResults(false, 0);
       TriggerIRQ(HIRQ_ESEL);
      }
     }
@@ -3201,7 +3228,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
      pnum = CTR.CD[2] >> 8;
      if(pnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       offs = CTR.CD[1];
@@ -3253,7 +3280,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
         DT.Active = true;
        }
        else
-        CDStatusResults();
+        CDStatusResults(false, 0);
 
        //
        //
@@ -3294,7 +3321,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
      if(fnum >= 0x18)
      {
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      }
      else if(numsec == 0 || numsec > FreeBufferCount || DT.Active)
      {
@@ -3343,7 +3370,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      src_pnum = CTR.CD[2] >> 8;
 
      if(src_pnum >= 0x18 || dst_fnum >= 0x18)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       int src_offs, numsec;
@@ -3384,7 +3411,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
         bfi = next_bfi;
        }
-       CDStatusResults();
+       CDStatusResults(false, 0);
        //
        //
        // TODO: Accurate timing(while not blocking other command execution and sector reading).  Note that "move sector data" is much faster than "copy sector data".
@@ -3401,7 +3428,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     else if(CTR.Command == COMMAND_GET_COPYERR) //	= 0x67,
     {
      // TODO: Implement if we ever implement proper asynch copy/moving
-     BasicResults((MakeBaseStatus() << 8) | 0x00, 0, 0, 0);
+     BasicResults((MakeBaseStatus(false, 0) << 8) | 0x00, 0, 0, 0);
     }
     //
     //
@@ -3435,16 +3462,16 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      if(FLS.Active)
       CDStatusResults(false, STATUS_WAIT);
      else if(reject)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else if(fileid == 0)	// NOP, kind of(even when FileInfoOffs > 2, interestingly)
      {
-      CDStatusResults();
+      CDStatusResults(false, 0);
       CMD_EAT_CLOCKS(400);
       TriggerIRQ(HIRQ_EFLS);
      }
      else
      {
-      CDStatusResults();
+      CDStatusResults(false, 0);
       //
       //
       FLS.fioffs = 2;
@@ -3471,11 +3498,11 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      if(FLS.Active)
       CDStatusResults(false, STATUS_WAIT);
      else if(fnum >= 0x18 || !FileInfoValid)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      // TODO: else if(start_fileid > FileInfoOffs && !FileInfoMore)
      else
      {
-      CDStatusResults();
+      CDStatusResults(false, 0);
       //
       //
       //
@@ -3498,10 +3525,10 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      if(FLS.Active)	// Maybe add a specific check for directory reading?  (Will have to if we chain READ_FILE into FLS.Active someday for whatever reason)
       CDStatusResults(false, STATUS_WAIT);
      else if(!FileInfoValid)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
-      BasicResults((MakeBaseStatus() << 8),
+      BasicResults((MakeBaseStatus(false, 0) << 8),
 		FileInfoValidCount,
 		(!FileInfoMore << 8) | (FileInfoOffs >> 16),
 		FileInfoOffs);
@@ -3525,7 +3552,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      if(FLS.Active || DT.Active)
       CDStatusResults(false, STATUS_WAIT);
      else if(reject)
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
       DT.CurBufIndex = 0;
@@ -3583,23 +3610,23 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      if(FLS.Active)
       CDStatusResults(false, STATUS_WAIT);
      else if(fnum >= 0x18 || !FileInfoValid || (fileid >= 2 && (fileid < FileInfoOffs || fileid >= (FileInfoOffs + FileInfoValidCount))))
-      CDStatusResults(true);
+      CDStatusResults(true, 0);
      else
      {
-      CDStatusResults();
+      CDStatusResults(false, 0);
 
       Partition_Clear(fnum);
 
       const uint32_t fiaoffs = (fileid < 2) ? fileid : (2 + fileid - FileInfoOffs);
-      uint32_t start_fad = (FileInfo[fiaoffs].fad() + offset) & 0xFFFFFF;
-      uint32_t sec_count = ((FileInfo[fiaoffs].size() + 2047) >> 11) - offset;	// FIXME: Check offset versus ifile size.
+      uint32_t start_fad = (FileInfoS_fad(&FileInfo[fiaoffs]) + offset) & 0xFFFFFF;
+      uint32_t sec_count = ((FileInfoS_size(&FileInfo[fiaoffs]) + 2047) >> 11) - offset;	// FIXME: Check offset versus ifile size.
 
       SetCDDeviceConn(fnum);
       Filter_SetTrueConn(fnum, fnum);
       Filter_SetFalseConn(fnum, 0xFF);
       Filter_SetRange(fnum, start_fad, sec_count);	// Not sure if correct for XA interleaved files...
 
-      Filters[fnum].Mode = FilterS::MODE_SEL_FADR | FilterS::MODE_SEL_FILE;
+      Filters[fnum].Mode = MODE_SEL_FADR | MODE_SEL_FILE;
       Filters[fnum].File = FileInfo[fiaoffs].fnum;
 
       Filters[fnum].Channel = 0;
@@ -3608,7 +3635,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       Filters[fnum].CInfo = 0;
       Filters[fnum].CInfoMask = 0;
       //
-      StartSeek(0x800000 | start_fad, 0x800000 | ((start_fad + sec_count) & 0x7FFFFF), 0, HIRQ_EFLS);
+      StartSeek(0x800000 | start_fad, 0x800000 | ((start_fad + sec_count) & 0x7FFFFF), 0, HIRQ_EFLS, false);
      }
     }
     //
@@ -3617,7 +3644,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     else if(CTR.Command == COMMAND_ABORT_FILE) //	= 0x75,
     {
      // TODO: Does tray opening during a file operation trigger HIRQ_EFLS?
-     CDStatusResults();
+     CDStatusResults(false, 0);
 
      FLS.Abort = true;
     }
@@ -4127,11 +4154,11 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
     {
      const uint32_t fad = Filters[FLS.pnum % 0x18].FAD;
 
-     if(RootDirInfo.fad() != fad)
+     if(FileInfoS_fad(&RootDirInfo) != fad)
      {
       for(unsigned i = 0; i < 256; i++)
       {
-       if(FileInfo[i].fad() == fad)
+       if(FileInfoS_fad(&FileInfo[i]) == fad)
        {
         FLS.fiaoffs = i;
         break;
@@ -4156,22 +4183,22 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   for(unsigned i = 0; i < 0x18; i++)
   {
-   auto& p = Partitions[i];
+   __typeof__(Partitions[i]) *p = &Partitions[i];
 
-   if(p.FirstBuf >= NumBuffers && p.FirstBuf != 0xFF)
+   if(p->FirstBuf >= NumBuffers && p->FirstBuf != 0xFF)
     need_reset_buffers = true;
-   else if(p.LastBuf >= NumBuffers && p.LastBuf != 0xFF)
+   else if(p->LastBuf >= NumBuffers && p->LastBuf != 0xFF)
     need_reset_buffers = true;
    //Partitions[i].Count = 0;
   }
 
   for(unsigned i = 0; i < NumBuffers; i++)
   {
-   auto& b = Buffers[i];
+   struct BufferT *b = &Buffers[i];
 
-   if(b.Prev >= NumBuffers && b.Prev != 0xFF)
+   if(b->Prev >= NumBuffers && b->Prev != 0xFF)
     need_reset_buffers = true;
-   else if(b.Next >= NumBuffers && b.Next != 0xFF)
+   else if(b->Next >= NumBuffers && b->Next != 0xFF)
     need_reset_buffers = true;
   }
 
@@ -4207,11 +4234,11 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   //
   for(unsigned i = 0; i < 0x18; i++)
   {
-   auto& f = Filters[i];
-   if(f.TrueConn >= 0x18 && f.TrueConn != 0xFF)
-    f.TrueConn = 0xFF;
-   if(f.FalseConn >= 0x18 && f.FalseConn != 0xFF)
-    f.FalseConn = 0xFF;
+   struct FilterS *f = &Filters[i];
+   if(f->TrueConn >= 0x18 && f->TrueConn != 0xFF)
+    f->TrueConn = 0xFF;
+   if(f->FalseConn >= 0x18 && f->FalseConn != 0xFF)
+    f->FalseConn = 0xFF;
   }
   if(CDDevConn >= 0x18 && CDDevConn != 0xFF)
    CDDevConn = 0xFF;
