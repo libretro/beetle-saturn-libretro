@@ -252,21 +252,28 @@ class SH7095 final
   * Cache_CheckReadIncoherency had an empty body and is gone
   * entirely; macro callsites drop the line.
   *
-  * Cache_WriteDataArray, Cache_ReadDataArray, and Cache_WriteUpdate
-  * keep their T parameter -- those use sizeof(T) for cache-line
-  * byte placement via NE32ASU8_IDX_ADJ. */
+  * Phase-8i: Cache_WriteDataArray, Cache_ReadDataArray, and
+  * Cache_WriteUpdate retired too -- but these DID use sizeof(T)
+  * for the memcpy byte-count and NE32ASU8_IDX_ADJ byte-offset.
+  * Each splits into three named width variants (uint8_t /
+  * uint16_t / uint32_t).  Callers at template instantiation
+  * sites pick the right one via a `sizeof(T)` if-chain that
+  * gcc -O2 folds when T is known at macro-expansion time. */
  void Cache_WriteAddressArray(uint32_t A, uint32_t V);
 
- template<typename T>
- void Cache_WriteDataArray(uint32_t A, T V);
+ void Cache_WriteDataArray_u8 (uint32_t A, uint8_t  V);
+ void Cache_WriteDataArray_u16(uint32_t A, uint16_t V);
+ void Cache_WriteDataArray_u32(uint32_t A, uint32_t V);
 
  uint32_t Cache_ReadAddressArray(uint32_t A);
 
- template<typename T>
- T Cache_ReadDataArray(uint32_t A);
+ uint8_t  Cache_ReadDataArray_u8 (uint32_t A);
+ uint16_t Cache_ReadDataArray_u16(uint32_t A);
+ uint32_t Cache_ReadDataArray_u32(uint32_t A);
 
- template<typename T>
- void Cache_WriteUpdate(uint32_t A, T V);
+ void Cache_WriteUpdate_u8 (uint32_t A, uint8_t  V);
+ void Cache_WriteUpdate_u16(uint32_t A, uint16_t V);
+ void Cache_WriteUpdate_u32(uint32_t A, uint32_t V);
  //
  // End cache stuff
  //

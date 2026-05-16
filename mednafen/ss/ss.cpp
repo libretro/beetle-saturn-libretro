@@ -476,7 +476,7 @@ static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
    {
     for(uint32_t Abase = 0x00000000; Abase < 0x20000000; Abase += 0x08000000)
     {
-     CPU[c].Cache_WriteUpdate<uint8_t>(Abase + A, V);
+     CPU[c].Cache_WriteUpdate_u8(Abase + A, V);
     }
    }
   }

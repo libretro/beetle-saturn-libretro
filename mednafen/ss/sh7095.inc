@@ -2249,22 +2249,105 @@ INLINE int SH7095::Cache_FindWay(CacheEntry* const cent, const uint32_t ATM)
 #endif
 }
 
-template<typename T>
-INLINE void SH7095::Cache_WriteUpdate(uint32_t A, T V)
+/* Phase-8i: 3 Cache helpers detempleted into 9 named width
+ * variants.  Bodies are identical to the previous template
+ * instantiations with T replaced by the concrete width type;
+ * NE32ASU8_IDX_ADJ folds at preprocessor time as before. */
+
+INLINE void SH7095::Cache_WriteUpdate_u8(uint32_t A, uint8_t V)
 {
  const uint32_t ATM = A & (0x7FFFF << 10);
  const unsigned ena = (A >> 4) & 0x3F;
  CacheEntry* cent = &Cache[ena];
  const int way_match = Cache_FindWay(cent, ATM);
 
- if(MDFN_LIKELY(way_match >= 0)) // Cache hit!
+ if(MDFN_LIKELY(way_match >= 0))
  {
   Cache_LRU[ena] = (Cache_LRU[ena] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;
-  /* Host-endian sub-word store into cache line; the BE / LE
-   * dispatch is done by NE32ASU8_IDX_ADJ above, so the actual
-   * write is just a memcpy of sizeof(T) bytes. */
-  memcpy(&cent->Data[way_match][NE32ASU8_IDX_ADJ(T, A & 0x0F)], &V, sizeof(T));	// Ignore CCR OD bit here.
+  memcpy(&cent->Data[way_match][NE32ASU8_IDX_ADJ(uint8_t, A & 0x0F)], &V, sizeof(uint8_t));
  }
+}
+
+INLINE void SH7095::Cache_WriteUpdate_u16(uint32_t A, uint16_t V)
+{
+ const uint32_t ATM = A & (0x7FFFF << 10);
+ const unsigned ena = (A >> 4) & 0x3F;
+ CacheEntry* cent = &Cache[ena];
+ const int way_match = Cache_FindWay(cent, ATM);
+
+ if(MDFN_LIKELY(way_match >= 0))
+ {
+  Cache_LRU[ena] = (Cache_LRU[ena] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;
+  memcpy(&cent->Data[way_match][NE32ASU8_IDX_ADJ(uint16_t, A & 0x0F)], &V, sizeof(uint16_t));
+ }
+}
+
+INLINE void SH7095::Cache_WriteUpdate_u32(uint32_t A, uint32_t V)
+{
+ const uint32_t ATM = A & (0x7FFFF << 10);
+ const unsigned ena = (A >> 4) & 0x3F;
+ CacheEntry* cent = &Cache[ena];
+ const int way_match = Cache_FindWay(cent, ATM);
+
+ if(MDFN_LIKELY(way_match >= 0))
+ {
+  Cache_LRU[ena] = (Cache_LRU[ena] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;
+  memcpy(&cent->Data[way_match][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)], &V, sizeof(uint32_t));
+ }
+}
+
+INLINE void SH7095::Cache_WriteDataArray_u8(uint32_t A, uint8_t V)
+{
+ const unsigned way = (A >> 10) & 0x3;
+ const unsigned ena = (A >> 4) & 0x3F;
+
+ memcpy(&Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint8_t, A & 0x0F)], &V, sizeof(uint8_t));
+}
+
+INLINE void SH7095::Cache_WriteDataArray_u16(uint32_t A, uint16_t V)
+{
+ const unsigned way = (A >> 10) & 0x3;
+ const unsigned ena = (A >> 4) & 0x3F;
+
+ memcpy(&Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint16_t, A & 0x0F)], &V, sizeof(uint16_t));
+}
+
+INLINE void SH7095::Cache_WriteDataArray_u32(uint32_t A, uint32_t V)
+{
+ const unsigned way = (A >> 10) & 0x3;
+ const unsigned ena = (A >> 4) & 0x3F;
+
+ memcpy(&Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)], &V, sizeof(uint32_t));
+}
+
+INLINE uint8_t SH7095::Cache_ReadDataArray_u8(uint32_t A)
+{
+ const unsigned way = (A >> 10) & 0x3;
+ const unsigned ena = (A >> 4) & 0x3F;
+ uint8_t tmp;
+
+ memcpy(&tmp, &Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint8_t, A & 0x0F)], sizeof(uint8_t));
+ return tmp;
+}
+
+INLINE uint16_t SH7095::Cache_ReadDataArray_u16(uint32_t A)
+{
+ const unsigned way = (A >> 10) & 0x3;
+ const unsigned ena = (A >> 4) & 0x3F;
+ uint16_t tmp;
+
+ memcpy(&tmp, &Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint16_t, A & 0x0F)], sizeof(uint16_t));
+ return tmp;
+}
+
+INLINE uint32_t SH7095::Cache_ReadDataArray_u32(uint32_t A)
+{
+ const unsigned way = (A >> 10) & 0x3;
+ const unsigned ena = (A >> 4) & 0x3F;
+ uint32_t tmp;
+
+ memcpy(&tmp, &Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)], sizeof(uint32_t));
+ return tmp;
 }
 
 /* Phase-8h: detempleted -- body never used T. */
@@ -2277,15 +2360,6 @@ INLINE void SH7095::Cache_WriteAddressArray(uint32_t A, uint32_t V)
  Cache_LRU[ena] = (V >> 4) & 0x3F;
 }
 
-template<typename T>
-INLINE void SH7095::Cache_WriteDataArray(uint32_t A, T V)
-{
- const unsigned way = (A >> 10) & 0x3;
- const unsigned ena = (A >> 4) & 0x3F;
-
- memcpy(&Cache[ena].Data[way][NE32ASU8_IDX_ADJ(T, A & 0x0F)], &V, sizeof(T));
-}
-
 /* Phase-8h: detempleted -- body never used T; returns a 32-bit
  * tag value, callers truncate via `retval = (T)...` assignment. */
 INLINE uint32_t SH7095::Cache_ReadAddressArray(uint32_t A)
@@ -2294,17 +2368,6 @@ INLINE uint32_t SH7095::Cache_ReadAddressArray(uint32_t A)
  const unsigned ena = (A >> 4) & 0x3F;
 
  return (Cache[ena].Tag[way] & (0x7FFFF << 10)) | ((~Cache[ena].Tag[way] & 1) << 2) | (Cache_LRU[ena] << 4);
-}
-
-template<typename T>
-INLINE T SH7095::Cache_ReadDataArray(uint32_t A)
-{
- const unsigned way = (A >> 10) & 0x3;
- const unsigned ena = (A >> 4) & 0x3F;
- T tmp;
-
- memcpy(&tmp, &Cache[ena].Data[way][NE32ASU8_IDX_ADJ(T, A & 0x0F)], sizeof(T));
- return tmp;
 }
 
 /* Phase-8h: Cache_CheckReadIncoherency<T> retired -- the body was
@@ -2431,7 +2494,9 @@ INLINE T SH7095::Cache_ReadDataArray(uint32_t A)
 	/*			    */										\
 	/* Direct cache data access */										\
 	/*			    */										\
-	retval = Cache_ReadDataArray<T>(A);									\
+	if(sizeof(T) == 1) retval = Cache_ReadDataArray_u8(A);							\
+	else if(sizeof(T) == 2) retval = Cache_ReadDataArray_u16(A);						\
+	else retval = Cache_ReadDataArray_u32(A);								\
 	goto MemReturn;												\
 														\
   case 7:													\
@@ -2460,7 +2525,9 @@ INLINE T SH7095::Cache_ReadDataArray(uint32_t A)
  {										\
   case 0:									\
 	if(MDFN_LIKELY(CacheEnabled))						\
-	 Cache_WriteUpdate<T>(A, V);						\
+	 if(sizeof(T) == 1) Cache_WriteUpdate_u8(A, V);				\
+	 else if(sizeof(T) == 2) Cache_WriteUpdate_u16(A, V);			\
+	 else Cache_WriteUpdate_u32(A, V);					\
 	/* Fall-through, no break */						\
   case 1:									\
   	if((write_finish_timestamp + 1) > MA_until) MA_until = (write_finish_timestamp + 1);	\
@@ -2493,7 +2560,9 @@ INLINE T SH7095::Cache_ReadDataArray(uint32_t A)
 	/*			    */						\
 	/* Direct cache data access */						\
 	/*			    */						\
-	Cache_WriteDataArray<T>(A, V);						\
+	if(sizeof(T) == 1) Cache_WriteDataArray_u8(A, V);					\
+	else if(sizeof(T) == 2) Cache_WriteDataArray_u16(A, V);					\
+	else Cache_WriteDataArray_u32(A, V);							\
 	break;									\
 										\
   case 7:									\
@@ -2885,7 +2954,7 @@ void SS_DumpOpPairProfile(void)
   Pipe_IF = *(uint16_t*)(SH7095_FastMap[PC >> SH7095_EXT_MAP_GRAN_BITS] + PC);	\
 									\
   if(MDFN_UNLIKELY((int32_t)PC < 0))      /* Mr. Boooones */		\
-   Pipe_IF = Cache_ReadDataArray<uint16_t>(PC);				\
+   Pipe_IF = Cache_ReadDataArray_u16(PC);				\
  }									\
  timestamp++;								\
 }
@@ -2908,7 +2977,7 @@ void SS_DumpOpPairProfile(void)
   Pipe_IF = *(uint16_t*)(SH7095_FastMap[PC >> SH7095_EXT_MAP_GRAN_BITS] + PC);	\
 									\
   if(MDFN_UNLIKELY((int32_t)PC < 0))      /* Mr. Boooones */		\
-   Pipe_IF = Cache_ReadDataArray<uint16_t>(PC);				\
+   Pipe_IF = Cache_ReadDataArray_u16(PC);				\
  }									\
  timestamp++;								\
 }
