@@ -1771,8 +1771,8 @@ static INLINE uint32_t rgb15_to_rgb24(uint16_t src)
 #define MAKE_NBGRBG_PIX(DEST, BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy) \
 do                                                                                                                                          \
 {                                                                                                                                           \
- uint32_t cellx = (ix ^ tf.cellx_xor);                                                                                                      \
- const uint16_t* vrb = &tf.tile_vrb[((cellx * (BPP)) >> 4)];                                                                                \
+ uint32_t cellx = (ix ^ (tf)->cellx_xor);                                                                                                      \
+ const uint16_t* vrb = &(tf)->tile_vrb[((cellx * (BPP)) >> 4)];                                                                                \
 /* */                                                                                                                                       \
 /* */                                                                                                                                       \
 /* */                                                                                                                                       \
@@ -1781,10 +1781,10 @@ do                                                                              
  bool opaque;                                                                                                                               \
                                                                                                                                            \
  if((CCMODE) == 1 || ((CCMODE) == 2 && !(ISRGB)))                                                                                           \
-  pbor |= (tf.scc << PIX_CCE_SHIFT);                                                                                                        \
+  pbor |= ((tf)->scc << PIX_CCE_SHIFT);                                                                                                        \
                                                                                                                                            \
  if((PMODE) == 1 || ((PMODE) == 2 && !(ISRGB)))                                                                                             \
-  pbor |= (tf.spr << PIX_PRIO_SHIFT);                                                                                                       \
+  pbor |= ((tf)->spr << PIX_PRIO_SHIFT);                                                                                                       \
                                                                                                                                            \
  if((ISRGB))                                                                                                                                \
  {                                                                                                                                          \
@@ -1820,7 +1820,7 @@ do                                                                              
                                                                                                                                            \
   opaque = (bool)dcc;                                                                                                                       \
                                                                                                                                            \
-  rgb24 = ColorCache[(tf.pcco + dcc) & 2047];                                                                                               \
+  rgb24 = ColorCache[((tf)->pcco + dcc) & 2047];                                                                                               \
                                                                                                                                            \
   if((CCMODE) == 3)                                                                                                                         \
    pbor |= ((int32_t)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);                                                                                   \
@@ -1907,7 +1907,7 @@ do                                                                              
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
-   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);           \
+   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix, iy);           \
    xc += xcinc;                                                                                                         \
   }                                                                                                                     \
  }                                                                                                                      \
@@ -1929,7 +1929,7 @@ do                                                                              
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
-   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);           \
+   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix, iy);           \
    xc += xcinc;                                                                                                         \
   }                                                                                                                     \
  }                                                                                                                      \
@@ -2327,16 +2327,16 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
 
  for(unsigned i = 0; i < 2; i++)
  {
-  auto& r = LB.rotv[i];
+  struct RotVars* r = &LB.rotv[i];
 
-  r.Xsp = rs[i].Xsp;
-  r.Ysp = rs[i].Ysp;
-  r.Xp = rs[i].Xp;
-  r.Yp = rs[i].Yp;
-  r.dX = rs[i].dX;
-  r.dY = rs[i].dY;
-  r.kx = rs[i].kx;
-  r.ky = rs[i].ky;
+  r->Xsp = rs[i].Xsp;
+  r->Ysp = rs[i].Ysp;
+  r->Xp = rs[i].Xp;
+  r->Yp = rs[i].Yp;
+  r->dX = rs[i].dX;
+  r->dY = rs[i].dY;
+  r->kx = rs[i].kx;
+  r->ky = rs[i].ky;
 
   LB.rotv[i].tf.BMSCC = ((BMPNB >> 4) & 1);
   LB.rotv[i].tf.BMSPR = ((BMPNB >> 5) & 1);
@@ -2429,9 +2429,9 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
   if(RPMD < 2)
   {
    const unsigned ci    = RPMD;
-   const auto&    rsi   = rs[ci];
-   const int32_t    rs_KA = rsi.KAstAccum;
-   const int32_t    rs_DK = rsi.DKAx;
+   const struct VDP2Rend_RotVars* rsi = &rs[ci];
+   const int32_t    rs_KA = rsi->KAstAccum;
+   const int32_t    rs_DK = rsi->DKAx;
    const bool     wr_lc = (KTCTL[ci] & 0x10);
    uint32_t         cur_c = coeff[ci];
 
@@ -2524,16 +2524,16 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                           \
  {                                                                                                                      \
   const unsigned ab = LB.rotabsel[i];                                                                                   \
-  auto& r = LB.rotv[ab];                                                                                                \
-  auto& tf = r.tf;                                                                                                      \
-  uint32_t Xp = r.Xp;                                                                                                   \
-  int32_t kx = r.kx;                                                                                                    \
-  int32_t ky = r.ky;                                                                                                    \
+  struct RotVars*           r  = &LB.rotv[ab];                                                                          \
+  struct TileFetcher_Rot*   tf = &r->tf;                                                                                \
+  uint32_t Xp = r->Xp;                                                                                                  \
+  int32_t kx = r->kx;                                                                                                   \
+  int32_t ky = r->ky;                                                                                                   \
   bool rot_tp = false;                                                                                                  \
                                                                                                                        \
-  if(r.use_coeff)                                                                                                       \
+  if(r->use_coeff)                                                                                                      \
   {                                                                                                                     \
-   const uint32_t coeff = (rn ? r.base_coeff : LB.rotcoeff[i]);                                                         \
+   const uint32_t coeff = (rn ? r->base_coeff : LB.rotcoeff[i]);                                                        \
                                                                                                                        \
    rot_tp = ((int32_t)coeff < 0);                                                                                       \
                                                                                                                        \
@@ -2548,10 +2548,10 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
    }                                                                                                                    \
   }                                                                                                                     \
                                                                                                                        \
-  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r.Xsp + (r.dX * i))) >> 16)) >> 10;                   \
-  const uint32_t iy = (r.Yp + (uint32_t)(((int64_t)ky * (int32_t)(r.Ysp + (r.dY * i))) >> 16)) >> 10;                   \
+  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r->Xsp + (r->dX * i))) >> 16)) >> 10;                 \
+  const uint32_t iy = (r->Yp + (uint32_t)(((int64_t)ky * (int32_t)(r->Ysp + (r->dY * i))) >> 16)) >> 10;                \
                                                                                                                        \
-  rot_tp |= TF_ROT_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                            \
+  rot_tp |= TF_ROT_FETCH(tf, BPP, (BMEN), ix, iy);                                                                            \
                                                                                                                        \
   LB.rotabsel[i] = rot_tp;                                                                                              \
 /* */                                                                                                                   \
@@ -2669,18 +2669,18 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
                                                                                                       \
  MAKE_SFCODE_LUT(PMODE, CCMODE, (rn ? 0 : 4), sfcode_lut);                                              \
                                                                                                       \
- auto& r           = LB.rotv[const_ab];                                                               \
- auto& tf          = r.tf;                                                                            \
- const int32_t  r_Xp     = r.Xp;                                                                        \
- const int32_t  r_Yp     = r.Yp;                                                                        \
- const int32_t  r_Xsp    = r.Xsp;                                                                       \
- const int32_t  r_Ysp    = r.Ysp;                                                                       \
- const int32_t  r_dX     = r.dX;                                                                        \
- const int32_t  r_dY     = r.dY;                                                                        \
- const int32_t  r_kx0    = r.kx;                                                                        \
- const int32_t  r_ky0    = r.ky;                                                                        \
- const bool   r_use_co = r.use_coeff;                                                                 \
- const uint32_t r_base_c = r.base_coeff;                                                                \
+ struct RotVars*         r       = &LB.rotv[const_ab];                                                \
+ struct TileFetcher_Rot* tf      = &r->tf;                                                            \
+ const int32_t  r_Xp     = r->Xp;                                                                       \
+ const int32_t  r_Yp     = r->Yp;                                                                       \
+ const int32_t  r_Xsp    = r->Xsp;                                                                      \
+ const int32_t  r_Ysp    = r->Ysp;                                                                      \
+ const int32_t  r_dX     = r->dX;                                                                       \
+ const int32_t  r_dY     = r->dY;                                                                       \
+ const int32_t  r_kx0    = r->kx;                                                                       \
+ const int32_t  r_ky0    = r->ky;                                                                       \
+ const bool   r_use_co = r->use_coeff;                                                                \
+ const uint32_t r_base_c = r->base_coeff;                                                               \
  const uint8_t  ktctl_md = (KTCTL[const_ab] >> 2) & 0x3;                                                \
                                                                                                       \
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                         \
@@ -2710,7 +2710,7 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
   const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r_Xsp + (r_dX * i))) >> 16)) >> 10;         \
   const uint32_t iy = (r_Yp + (uint32_t)(((int64_t)ky * (int32_t)(r_Ysp + (r_dY * i))) >> 16)) >> 10;         \
                                                                                                       \
-  rot_tp |= TF_ROT_FETCH(&tf, BPP, BMEN, ix, iy);                                                              \
+  rot_tp |= TF_ROT_FETCH(tf, BPP, BMEN, ix, iy);                                                              \
                                                                                                       \
   LB.rotabsel[i] = rot_tp;                                                                            \
   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);\
