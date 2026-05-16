@@ -48,8 +48,13 @@
 #include "cdb.h"     /* CDB_Update */
 #include "sound.h"   /* SOUND_Update */
 #include "cart.h"    /* CART_GetEventHandler */
+#include "stvio.h"   /* STVIO_UpdateInput */
 
 #include "../mempatcher.h"
+#include <mednafen/emuspec.h>
+#include <mednafen/mdfn_gameinfo.h>
+#include "../general.h"           /* MDFN_MidSync */
+#include "../../libretro_settings.h" /* setting_midsync */
 
 /* ===================================================================
  * FastMemMap
@@ -307,4 +312,143 @@ void SS_RequestMLExit(void)
 {
  Running = 0;
  next_event_ts = 0;
+}
+
+/* ===================================================================
+ * Phase-7e: per-frame Emulate() loop + MidSync helper
+ * =================================================================== */
+
+/* Externs into ss.cpp -- promoted to TU-external in phase 7d. */
+extern bool          NeedEmuICache;
+extern int           ActiveCartType;
+extern int64_t       UpdateInputLastBigTS;
+
+/* Externs for the libretro front-end / game-info structs. */
+extern MDFNGI        EmulatedSS;
+extern uint32_t      IBufferCount;
+
+/* C wrappers that ss.cpp publishes for our use (extern "C" defined
+ * there); these forward into the SH7095 class instances and the
+ * template-parameterised RunLoop body that still live in C++.
+ * Each retires once the SH7095 class becomes a C struct. */
+int32_t SS_RunLoop_ICache(struct EmulateSpecStruct* espec);
+int32_t SS_RunLoop_NoICache(struct EmulateSpecStruct* espec);
+void    SS_ForceEventUpdates(int32_t timestamp);
+void    SH7095_M_AdjustTS(int32_t delta);
+void    SH7095_S_AdjustTS(int32_t delta);
+
+/* Frame-scoped state.  espec is the active EmulateSpecStruct
+ * pointer Emulate received this frame -- shared with MidSync via
+ * file-static visibility. AllowMidSync gates whether MidSync's
+ * one-shot mid-frame callback fires (front-end flag); reset on
+ * each frame, cleared on first fire. cur_clock_div is SMPC's
+ * frame-start clock divisor (carried for the per-tick input
+ * elapsed-time conversion). */
+static struct EmulateSpecStruct* espec;
+static bool                      AllowMidSync;
+static int32_t                   cur_clock_div;
+
+static INLINE void UpdateSMPCInput(const sscpu_timestamp_t timestamp)
+{
+ int32_t elapsed_time;
+
+ SMPC_TransformInput();
+
+ elapsed_time = (((int64_t)timestamp * cur_clock_div * 1000 * 1000) - UpdateInputLastBigTS) / (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
+
+ UpdateInputLastBigTS += (int64_t)elapsed_time * (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
+
+ /* ST-V samples gamepad/gun/coin state into its own DataIn buffer on
+  * the same cadence SMPC samples virtual ports. */
+ if(ActiveCartType == CART_STV)
+   STVIO_UpdateInput(elapsed_time);
+
+ SMPC_UpdateInput(elapsed_time);
+}
+
+sscpu_timestamp_t MidSync(const sscpu_timestamp_t timestamp)
+{
+ if(AllowMidSync)
+ {
+    SMPC_UpdateOutput();
+
+    MDFN_MidSync();
+
+    UpdateSMPCInput(timestamp);
+
+    AllowMidSync = false;
+ }
+
+ return SS_EVENT_DISABLED_TS;
+}
+
+void Emulate(struct EmulateSpecStruct* espec_arg)
+{
+ int32_t end_ts;
+ unsigned c;
+
+ espec = espec_arg;
+ AllowMidSync = setting_midsync;
+
+ cur_clock_div = SMPC_StartFrame();
+ UpdateSMPCInput(0);
+ VDP2_StartFrame(espec, cur_clock_div == 61);
+ CART_SetCPUClock(EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1), cur_clock_div);
+ espec->SoundBufSize = 0;
+ espec->MasterCycles = 0;
+
+ if (NeedEmuICache)
+  end_ts = SS_RunLoop_ICache(espec);
+ else
+  end_ts = SS_RunLoop_NoICache(espec);
+ assert(end_ts >= 0);
+
+ SS_ForceEventUpdates(end_ts);
+
+ SMPC_EndFrame(espec, end_ts);
+
+ RebaseTS(end_ts);
+
+ CDB_ResetTS();
+ SOUND_AdjustTS(-end_ts);
+ VDP1_AdjustTS(-end_ts);
+ VDP2_AdjustTS(-end_ts);
+ SMPC_ResetTS();
+ SCU_AdjustTS(-end_ts);
+ CART_AdjustTS(-end_ts);
+
+ UpdateInputLastBigTS -= (int64_t)end_ts * cur_clock_div * 1000 * 1000;
+
+ SH7095_mem_timestamp -= end_ts; /* Update before SH7095 AdjustTS calls. */
+
+ /* CPU[c].AdjustTS(-end_ts) for c in {0,1} via extern "C" wrappers. */
+ SH7095_M_AdjustTS(-end_ts);
+ SH7095_S_AdjustTS(-end_ts);
+ (void)c;
+
+ espec->MasterCycles  = (int64_t)end_ts * cur_clock_div;
+ espec->SoundBufSize += IBufferCount;
+ IBufferCount         = 0;
+
+ SMPC_UpdateOutput();
+
+ /* Backup-RAM and cart-NV dirty tracking.
+  *
+  * Previously this block performed synchronous file I/O from inside
+  * Emulate() (SaveBackupRAM/SaveCartNV under a master-cycle countdown).
+  * That had two big problems for a libretro core:
+  *   1. Run-ahead / rewind / netplay re-emulate frames repeatedly. The
+  *      cycle-counted delay fires identically on each pass, so a single
+  *      real frame could produce two or three full SaveBackupRAM disk
+  *      writes -- visible as stutter and unstable frame pacing.
+  *   2. The save is fully synchronous (FileStream::write+close) on the
+  *      emulation thread, so the duration is unpredictable under load.
+  *
+  * The fix is to keep BackupRAM_Dirty (and the cart-NV dirty bit) as
+  * pure flags here, and let libretro.cpp flush them from retro_run --
+  * outside Emulate, with awareness of RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE
+  * so run-ahead simulation frames don't trigger writes. The frontend
+  * can also manage Backup RAM directly via RETRO_MEMORY_SAVE_RAM. */
+ if(CART_GetClearNVDirty())
+  CartNV_Dirty = true;
 }

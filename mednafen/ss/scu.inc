@@ -385,7 +385,8 @@ int32_t SCU_SetHBVB(int32_t pclocks, bool new_HB_FromVDP2, bool new_VB_FromVDP2)
  return Timer1_Counter ? Timer1_Counter : 0x200;
 }
 
-static void SCU_AdjustTS(const int32_t delta)
+/* Phase-7e: promoted from file-static so ss_init.c’s Emulate can call it. */
+void SCU_AdjustTS(const int32_t delta)
 {
  SCU_DMA_TimeCounter += delta;
  SCU_DMA_RunUntil += delta;

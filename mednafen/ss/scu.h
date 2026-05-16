@@ -103,6 +103,10 @@ void SCU_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
  * LibRetro_StateAction can call it across the C / C++ boundary. */
 void SCU_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
+/* Phase-7e: promoted from file-static so ss_init.c's Emulate
+ * can call it across the C / C++ boundary. */
+void SCU_AdjustTS(const int32_t delta);
+
 #ifdef __cplusplus
 }
 #endif
