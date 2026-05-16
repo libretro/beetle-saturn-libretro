@@ -521,11 +521,29 @@ class SH7095 final
  NO_INLINE void DoIDIF_NI_C1_I0(void) MDFN_HOT;
  NO_INLINE void DoIDIF_NI_C1_I1(void) MDFN_HOT;
 
- template<bool SlavePenalty, typename T, bool BurstHax>
- INLINE T ExtBusRead_INLINE(uint32_t A);
+ /* Phase-8p: ExtBus*_INLINE retired into 12+6 named per-(SP, T, BH)
+  * variants.  See sh7095.inc body comments for source-fold
+  * methodology.  ExtBus*_NI wrappers are file-static (in
+  * sh7095.inc) and not declared here. */
+ INLINE uint8_t  ExtBusRead_INLINE_SP0_u8_BH0 (uint32_t A);
+ INLINE uint8_t  ExtBusRead_INLINE_SP0_u8_BH1 (uint32_t A);
+ INLINE uint16_t ExtBusRead_INLINE_SP0_u16_BH0(uint32_t A);
+ INLINE uint16_t ExtBusRead_INLINE_SP0_u16_BH1(uint32_t A);
+ INLINE uint32_t ExtBusRead_INLINE_SP0_u32_BH0(uint32_t A);
+ INLINE uint32_t ExtBusRead_INLINE_SP0_u32_BH1(uint32_t A);
+ INLINE uint8_t  ExtBusRead_INLINE_SP1_u8_BH0 (uint32_t A);
+ INLINE uint8_t  ExtBusRead_INLINE_SP1_u8_BH1 (uint32_t A);
+ INLINE uint16_t ExtBusRead_INLINE_SP1_u16_BH0(uint32_t A);
+ INLINE uint16_t ExtBusRead_INLINE_SP1_u16_BH1(uint32_t A);
+ INLINE uint32_t ExtBusRead_INLINE_SP1_u32_BH0(uint32_t A);
+ INLINE uint32_t ExtBusRead_INLINE_SP1_u32_BH1(uint32_t A);
 
- template<bool SlavePenalty, typename T>
- INLINE void ExtBusWrite_INLINE(uint32_t A, T V);
+ INLINE void ExtBusWrite_INLINE_SP0_u8 (uint32_t A, uint8_t  V);
+ INLINE void ExtBusWrite_INLINE_SP0_u16(uint32_t A, uint16_t V);
+ INLINE void ExtBusWrite_INLINE_SP0_u32(uint32_t A, uint32_t V);
+ INLINE void ExtBusWrite_INLINE_SP1_u8 (uint32_t A, uint8_t  V);
+ INLINE void ExtBusWrite_INLINE_SP1_u16(uint32_t A, uint16_t V);
+ INLINE void ExtBusWrite_INLINE_SP1_u32(uint32_t A, uint32_t V);
 
  /* Phase-8o: OnChipRegWrite<T> + OnChipRegRead_INLINE<T> retired.
   * Each splits into 3 named width variants; the underlying

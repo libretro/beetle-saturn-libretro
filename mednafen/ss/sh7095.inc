@@ -3421,83 +3421,471 @@ uint32_t INLINE SH7095::BSC_BusRead_u32(uint32_t A, const bool BurstHax, int32_t
  return ret;
 }
 
-template<bool SlavePenalty, typename T, bool BurstHax>
-INLINE T SH7095::ExtBusRead_INLINE(uint32_t A)
+/* Phase-8p: ExtBus{Read,Write}_{INLINE,NI} retired.  4 templates
+ * with (SlavePenalty, T, BurstHax) parameters split into named
+ * variants.  Source-fold methodology (see phase 8o fix-up): each
+ * variant body is built by conditional inclusion of (SP, BH)-
+ * dependent blocks at generation time, NOT by literal `if(true)`/
+ * `if(false)` substitution.
+ *
+ * INLINE variants carry the actual work; NI variants are the
+ * NO_INLINE entry points the macros call into.  The phase-8j
+ * lesson stands: bool->runtime args break the MemReadRT inlining
+ * cascade; named variants preserve the per-callsite constant
+ * folding the previous template form delivered.
+ *
+ * Only the (w, SP) tuples actually invoked by the macros are
+ * emitted: master MemReadRT uses (which, false), slave uses
+ * (1, true).  The (0, true) tuple is never invoked and is not
+ * generated. */
+
+/* === ExtBusRead_INLINE_SP*_u**_BH*  (12 variants) ===
+ * Body folded at source level per (SP, BH) tuple. */
+
+INLINE uint8_t SH7095::ExtBusRead_INLINE_SP0_u8_BH0(uint32_t A)
 {
- T ret;
+ uint8_t ret;
 
  A &= (1U << 27) - 1;
 
  if(timestamp > SH7095_mem_timestamp)
   SH7095_mem_timestamp = timestamp;
 
- //
- if(!BurstHax)
- {
-  DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
- }
- //
- if(SlavePenalty && !BurstHax)
- {
-  if(SH7095_mem_timestamp > (BSC.last_mem_time + 1))
-   SH7095_mem_timestamp += 2;
-  else
-   SH7095_mem_timestamp++;
- }
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
 
- /* Phase-8l: sizeof(T) folds at template instantiation. */
- if(sizeof(T) == 1)      ret = BSC_BusRead_u8 (A, BurstHax, NULL);
- else if(sizeof(T) == 2) ret = BSC_BusRead_u16(A, BurstHax, NULL);
- else                    ret = BSC_BusRead_u32(A, BurstHax, NULL);
-
- if(SlavePenalty && !BurstHax)
- {
-  SH7095_mem_timestamp++;
- }
+ ret = BSC_BusRead_u8(A, false, NULL);
 
  return ret;
 }
 
-template<bool SlavePenalty, typename T>
-INLINE void SH7095::ExtBusWrite_INLINE(uint32_t A, T V)
+INLINE uint8_t SH7095::ExtBusRead_INLINE_SP0_u8_BH1(uint32_t A)
+{
+ uint8_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ ret = BSC_BusRead_u8(A, true, NULL);
+
+ return ret;
+}
+
+INLINE uint16_t SH7095::ExtBusRead_INLINE_SP0_u16_BH0(uint32_t A)
+{
+ uint16_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ ret = BSC_BusRead_u16(A, false, NULL);
+
+ return ret;
+}
+
+INLINE uint16_t SH7095::ExtBusRead_INLINE_SP0_u16_BH1(uint32_t A)
+{
+ uint16_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ ret = BSC_BusRead_u16(A, true, NULL);
+
+ return ret;
+}
+
+INLINE uint32_t SH7095::ExtBusRead_INLINE_SP0_u32_BH0(uint32_t A)
+{
+ uint32_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ ret = BSC_BusRead_u32(A, false, NULL);
+
+ return ret;
+}
+
+INLINE uint32_t SH7095::ExtBusRead_INLINE_SP0_u32_BH1(uint32_t A)
+{
+ uint32_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ ret = BSC_BusRead_u32(A, true, NULL);
+
+ return ret;
+}
+
+INLINE uint8_t SH7095::ExtBusRead_INLINE_SP1_u8_BH0(uint32_t A)
+{
+ uint8_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ if(SH7095_mem_timestamp > (BSC.last_mem_time + 1))
+  SH7095_mem_timestamp += 2;
+ else
+  SH7095_mem_timestamp++;
+
+ ret = BSC_BusRead_u8(A, false, NULL);
+
+ SH7095_mem_timestamp++;
+
+ return ret;
+}
+
+INLINE uint8_t SH7095::ExtBusRead_INLINE_SP1_u8_BH1(uint32_t A)
+{
+ uint8_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ ret = BSC_BusRead_u8(A, true, NULL);
+
+ return ret;
+}
+
+INLINE uint16_t SH7095::ExtBusRead_INLINE_SP1_u16_BH0(uint32_t A)
+{
+ uint16_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ if(SH7095_mem_timestamp > (BSC.last_mem_time + 1))
+  SH7095_mem_timestamp += 2;
+ else
+  SH7095_mem_timestamp++;
+
+ ret = BSC_BusRead_u16(A, false, NULL);
+
+ SH7095_mem_timestamp++;
+
+ return ret;
+}
+
+INLINE uint16_t SH7095::ExtBusRead_INLINE_SP1_u16_BH1(uint32_t A)
+{
+ uint16_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ ret = BSC_BusRead_u16(A, true, NULL);
+
+ return ret;
+}
+
+INLINE uint32_t SH7095::ExtBusRead_INLINE_SP1_u32_BH0(uint32_t A)
+{
+ uint32_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ if(SH7095_mem_timestamp > (BSC.last_mem_time + 1))
+  SH7095_mem_timestamp += 2;
+ else
+  SH7095_mem_timestamp++;
+
+ ret = BSC_BusRead_u32(A, false, NULL);
+
+ SH7095_mem_timestamp++;
+
+ return ret;
+}
+
+INLINE uint32_t SH7095::ExtBusRead_INLINE_SP1_u32_BH1(uint32_t A)
+{
+ uint32_t ret;
+
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ ret = BSC_BusRead_u32(A, true, NULL);
+
+ return ret;
+}
+
+/* === ExtBusWrite_INLINE_SP*_u**  (6 variants) === */
+
+INLINE void SH7095::ExtBusWrite_INLINE_SP0_u8(uint32_t A, uint8_t V)
 {
  A &= (1U << 27) - 1;
 
  if(timestamp > SH7095_mem_timestamp)
   SH7095_mem_timestamp = timestamp;
 
- //
  DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
- //
- if(SlavePenalty)
-  SH7095_mem_timestamp++;
 
- /* Phase-8l: sizeof(T) folds at template instantiation. */
- if(sizeof(T) == 1)      BSC_BusWrite_u8 (A, V, false, NULL);
- else if(sizeof(T) == 2) BSC_BusWrite_u16(A, V, false, NULL);
- else                    BSC_BusWrite_u32(A, V, false, NULL);
-
- if(SlavePenalty)
- {
-  if(SH7095_mem_timestamp < BSC.sdram_finish_time)
-   SH7095_mem_timestamp = BSC.sdram_finish_time;
-
-  SH7095_mem_timestamp++;
- }
+ BSC_BusWrite_u8(A, V, false, NULL);
 
  write_finish_timestamp = SH7095_mem_timestamp;
 }
 
-template<unsigned w, bool SlavePenalty, typename T, bool BurstHax>
-static NO_INLINE MDFN_HOT T ExtBusRead_NI(uint32_t A)
+INLINE void SH7095::ExtBusWrite_INLINE_SP0_u16(uint32_t A, uint16_t V)
 {
- return CPU[w].ExtBusRead_INLINE<SlavePenalty, T, BurstHax>(A);
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ BSC_BusWrite_u16(A, V, false, NULL);
+
+ write_finish_timestamp = SH7095_mem_timestamp;
 }
 
-template<unsigned w, bool SlavePenalty, typename T>
-static NO_INLINE MDFN_HOT void ExtBusWrite_NI(uint32_t A, T V)
+INLINE void SH7095::ExtBusWrite_INLINE_SP0_u32(uint32_t A, uint32_t V)
 {
- CPU[w].ExtBusWrite_INLINE<SlavePenalty, T>(A, V);
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ BSC_BusWrite_u32(A, V, false, NULL);
+
+ write_finish_timestamp = SH7095_mem_timestamp;
+}
+
+INLINE void SH7095::ExtBusWrite_INLINE_SP1_u8(uint32_t A, uint8_t V)
+{
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ SH7095_mem_timestamp++;
+
+ BSC_BusWrite_u8(A, V, false, NULL);
+
+ if(SH7095_mem_timestamp < BSC.sdram_finish_time)
+  SH7095_mem_timestamp = BSC.sdram_finish_time;
+ SH7095_mem_timestamp++;
+
+ write_finish_timestamp = SH7095_mem_timestamp;
+}
+
+INLINE void SH7095::ExtBusWrite_INLINE_SP1_u16(uint32_t A, uint16_t V)
+{
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ SH7095_mem_timestamp++;
+
+ BSC_BusWrite_u16(A, V, false, NULL);
+
+ if(SH7095_mem_timestamp < BSC.sdram_finish_time)
+  SH7095_mem_timestamp = BSC.sdram_finish_time;
+ SH7095_mem_timestamp++;
+
+ write_finish_timestamp = SH7095_mem_timestamp;
+}
+
+INLINE void SH7095::ExtBusWrite_INLINE_SP1_u32(uint32_t A, uint32_t V)
+{
+ A &= (1U << 27) - 1;
+
+ if(timestamp > SH7095_mem_timestamp)
+  SH7095_mem_timestamp = timestamp;
+
+ DMA_PenaltyKludgeAccum += DMA_PenaltyKludgeAmount;
+
+ SH7095_mem_timestamp++;
+
+ BSC_BusWrite_u32(A, V, false, NULL);
+
+ if(SH7095_mem_timestamp < BSC.sdram_finish_time)
+  SH7095_mem_timestamp = BSC.sdram_finish_time;
+ SH7095_mem_timestamp++;
+
+ write_finish_timestamp = SH7095_mem_timestamp;
+}
+
+/* === ExtBusRead_NI_w*_SP*_u**_BH*  (18 variants) ===
+ * Generated only for (w, SP) tuples actually invoked by the
+ * three #define macro contexts. */
+
+static NO_INLINE MDFN_HOT uint8_t ExtBusRead_NI_w0_SP0_u8_BH0(uint32_t A)
+{
+ return CPU[0].ExtBusRead_INLINE_SP0_u8_BH0(A);
+}
+
+static NO_INLINE MDFN_HOT uint8_t ExtBusRead_NI_w0_SP0_u8_BH1(uint32_t A)
+{
+ return CPU[0].ExtBusRead_INLINE_SP0_u8_BH1(A);
+}
+
+static NO_INLINE MDFN_HOT uint16_t ExtBusRead_NI_w0_SP0_u16_BH0(uint32_t A)
+{
+ return CPU[0].ExtBusRead_INLINE_SP0_u16_BH0(A);
+}
+
+static NO_INLINE MDFN_HOT uint16_t ExtBusRead_NI_w0_SP0_u16_BH1(uint32_t A)
+{
+ return CPU[0].ExtBusRead_INLINE_SP0_u16_BH1(A);
+}
+
+static NO_INLINE MDFN_HOT uint32_t ExtBusRead_NI_w0_SP0_u32_BH0(uint32_t A)
+{
+ return CPU[0].ExtBusRead_INLINE_SP0_u32_BH0(A);
+}
+
+static NO_INLINE MDFN_HOT uint32_t ExtBusRead_NI_w0_SP0_u32_BH1(uint32_t A)
+{
+ return CPU[0].ExtBusRead_INLINE_SP0_u32_BH1(A);
+}
+
+static NO_INLINE MDFN_HOT uint8_t ExtBusRead_NI_w1_SP0_u8_BH0(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP0_u8_BH0(A);
+}
+
+static NO_INLINE MDFN_HOT uint8_t ExtBusRead_NI_w1_SP0_u8_BH1(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP0_u8_BH1(A);
+}
+
+static NO_INLINE MDFN_HOT uint16_t ExtBusRead_NI_w1_SP0_u16_BH0(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP0_u16_BH0(A);
+}
+
+static NO_INLINE MDFN_HOT uint16_t ExtBusRead_NI_w1_SP0_u16_BH1(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP0_u16_BH1(A);
+}
+
+static NO_INLINE MDFN_HOT uint32_t ExtBusRead_NI_w1_SP0_u32_BH0(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP0_u32_BH0(A);
+}
+
+static NO_INLINE MDFN_HOT uint32_t ExtBusRead_NI_w1_SP0_u32_BH1(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP0_u32_BH1(A);
+}
+
+static NO_INLINE MDFN_HOT uint8_t ExtBusRead_NI_w1_SP1_u8_BH0(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP1_u8_BH0(A);
+}
+
+static NO_INLINE MDFN_HOT uint8_t ExtBusRead_NI_w1_SP1_u8_BH1(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP1_u8_BH1(A);
+}
+
+static NO_INLINE MDFN_HOT uint16_t ExtBusRead_NI_w1_SP1_u16_BH0(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP1_u16_BH0(A);
+}
+
+static NO_INLINE MDFN_HOT uint16_t ExtBusRead_NI_w1_SP1_u16_BH1(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP1_u16_BH1(A);
+}
+
+static NO_INLINE MDFN_HOT uint32_t ExtBusRead_NI_w1_SP1_u32_BH0(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP1_u32_BH0(A);
+}
+
+static NO_INLINE MDFN_HOT uint32_t ExtBusRead_NI_w1_SP1_u32_BH1(uint32_t A)
+{
+ return CPU[1].ExtBusRead_INLINE_SP1_u32_BH1(A);
+}
+
+/* === ExtBusWrite_NI_w*_SP*_u**  (9 variants) === */
+
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w0_SP0_u8(uint32_t A, uint8_t V)
+{
+ CPU[0].ExtBusWrite_INLINE_SP0_u8(A, V);
+}
+
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w0_SP0_u16(uint32_t A, uint16_t V)
+{
+ CPU[0].ExtBusWrite_INLINE_SP0_u16(A, V);
+}
+
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w0_SP0_u32(uint32_t A, uint32_t V)
+{
+ CPU[0].ExtBusWrite_INLINE_SP0_u32(A, V);
+}
+
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w1_SP0_u8(uint32_t A, uint8_t V)
+{
+ CPU[1].ExtBusWrite_INLINE_SP0_u8(A, V);
+}
+
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w1_SP0_u16(uint32_t A, uint16_t V)
+{
+ CPU[1].ExtBusWrite_INLINE_SP0_u16(A, V);
+}
+
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w1_SP0_u32(uint32_t A, uint32_t V)
+{
+ CPU[1].ExtBusWrite_INLINE_SP0_u32(A, V);
+}
+
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w1_SP1_u8(uint32_t A, uint8_t V)
+{
+ CPU[1].ExtBusWrite_INLINE_SP1_u8(A, V);
+}
+
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w1_SP1_u16(uint32_t A, uint16_t V)
+{
+ CPU[1].ExtBusWrite_INLINE_SP1_u16(A, V);
+}
+
+static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w1_SP1_u32(uint32_t A, uint32_t V)
+{
+ CPU[1].ExtBusWrite_INLINE_SP1_u32(A, V);
 }
 
 /* Phase-8j: OnChipRegRead_NI<unsigned w, typename T> retired.
@@ -3946,8 +4334,23 @@ INLINE uint32_t SH7095::Cache_ReadAddressArray(uint32_t A)
         ( (sizeof(T) == 1) ? (T)OnChipRegRead_INLINE_u8(A)		\
         : (sizeof(T) == 2) ? (T)OnChipRegRead_INLINE_u16(A)		\
                            : (T)OnChipRegRead_INLINE_u32(A) )
-#define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<which, false, T, BurstHax>(A)
-#define ExtBusWrite(T, A, V) ExtBusWrite_NI<which, false, T>(A, V)
+/* Phase-8p: master-CPU dispatch.  `which` is the outer template arg
+ * (compile-time const, 0 or 1), sizeof(T) is concrete at macro
+ * expansion, BurstHax is a literal at every call site -- gcc -O2
+ * folds the ternary chain to a single direct call. */
+#define ExtBusRead(T, BurstHax, A)                                                                                            \
+          ( (sizeof(T) == 1) ? (T)((BurstHax) ? ((which) ? ExtBusRead_NI_w1_SP0_u8_BH1(A)  : ExtBusRead_NI_w0_SP0_u8_BH1(A))   \
+                                              : ((which) ? ExtBusRead_NI_w1_SP0_u8_BH0(A)  : ExtBusRead_NI_w0_SP0_u8_BH0(A)))  \
+          : (sizeof(T) == 2) ? (T)((BurstHax) ? ((which) ? ExtBusRead_NI_w1_SP0_u16_BH1(A) : ExtBusRead_NI_w0_SP0_u16_BH1(A))  \
+                                              : ((which) ? ExtBusRead_NI_w1_SP0_u16_BH0(A) : ExtBusRead_NI_w0_SP0_u16_BH0(A))) \
+                             : (T)((BurstHax) ? ((which) ? ExtBusRead_NI_w1_SP0_u32_BH1(A) : ExtBusRead_NI_w0_SP0_u32_BH1(A))  \
+                                              : ((which) ? ExtBusRead_NI_w1_SP0_u32_BH0(A) : ExtBusRead_NI_w0_SP0_u32_BH0(A))) )
+#define ExtBusWrite(T, A, V)                                                                                       \
+do {                                                                                                                \
+  if(sizeof(T) == 1)      { if(which) ExtBusWrite_NI_w1_SP0_u8 (A, V); else ExtBusWrite_NI_w0_SP0_u8 (A, V); }      \
+  else if(sizeof(T) == 2) { if(which) ExtBusWrite_NI_w1_SP0_u16(A, V); else ExtBusWrite_NI_w0_SP0_u16(A, V); }      \
+  else                    { if(which) ExtBusWrite_NI_w1_SP0_u32(A, V); else ExtBusWrite_NI_w0_SP0_u32(A, V); }      \
+} while(0)
 template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
 INLINE T SH7095::MemReadRT(uint32_t A)
 {
@@ -4542,8 +4945,23 @@ do {										\
         ( (sizeof(T) == 1) ? (T)OnChipRegRead_INLINE_u8(A)		\
         : (sizeof(T) == 2) ? (T)OnChipRegRead_INLINE_u16(A)		\
                            : (T)OnChipRegRead_INLINE_u32(A) )
-#define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<which, false, T, BurstHax>(A)
-#define ExtBusWrite(T, A, V) ExtBusWrite_NI<which, false, T>(A, V)
+/* Phase-8p: master-CPU dispatch.  `which` is the outer template arg
+ * (compile-time const, 0 or 1), sizeof(T) is concrete at macro
+ * expansion, BurstHax is a literal at every call site -- gcc -O2
+ * folds the ternary chain to a single direct call. */
+#define ExtBusRead(T, BurstHax, A)                                                                                            \
+          ( (sizeof(T) == 1) ? (T)((BurstHax) ? ((which) ? ExtBusRead_NI_w1_SP0_u8_BH1(A)  : ExtBusRead_NI_w0_SP0_u8_BH1(A))   \
+                                              : ((which) ? ExtBusRead_NI_w1_SP0_u8_BH0(A)  : ExtBusRead_NI_w0_SP0_u8_BH0(A)))  \
+          : (sizeof(T) == 2) ? (T)((BurstHax) ? ((which) ? ExtBusRead_NI_w1_SP0_u16_BH1(A) : ExtBusRead_NI_w0_SP0_u16_BH1(A))  \
+                                              : ((which) ? ExtBusRead_NI_w1_SP0_u16_BH0(A) : ExtBusRead_NI_w0_SP0_u16_BH0(A))) \
+                             : (T)((BurstHax) ? ((which) ? ExtBusRead_NI_w1_SP0_u32_BH1(A) : ExtBusRead_NI_w0_SP0_u32_BH1(A))  \
+                                              : ((which) ? ExtBusRead_NI_w1_SP0_u32_BH0(A) : ExtBusRead_NI_w0_SP0_u32_BH0(A))) )
+#define ExtBusWrite(T, A, V)                                                                                       \
+do {                                                                                                                \
+  if(sizeof(T) == 1)      { if(which) ExtBusWrite_NI_w1_SP0_u8 (A, V); else ExtBusWrite_NI_w0_SP0_u8 (A, V); }      \
+  else if(sizeof(T) == 2) { if(which) ExtBusWrite_NI_w1_SP0_u16(A, V); else ExtBusWrite_NI_w0_SP0_u16(A, V); }      \
+  else                    { if(which) ExtBusWrite_NI_w1_SP0_u32(A, V); else ExtBusWrite_NI_w0_SP0_u32(A, V); }      \
+} while(0)
 
 #define MemReadInstr(A, outval) { outval = (MRFPI[(A) >> 29](A)); }
 #define MemRead8(A, outval) { outval = (MRFP8[(A) >> 29](A)); }
@@ -4653,8 +5071,17 @@ FORCE_INLINE void SH7095::Step(void)
         ( (sizeof(T) == 1) ? (T)OnChipRegRead_NI_u8(A)				\
         : (sizeof(T) == 2) ? (T)OnChipRegRead_NI_u16(A)				\
                            : (T)OnChipRegRead_NI_u32(A) )
-#define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<1, true, T, BurstHax>(A)
-#define ExtBusWrite(T, A, V) ExtBusWrite_NI<1, true, T>(A, V)
+/* Phase-8p: slave-CPU dispatch (w=1, SP=true fixed). */
+#define ExtBusRead(T, BurstHax, A)                                              \
+          ( (sizeof(T) == 1) ? (T)((BurstHax) ? ExtBusRead_NI_w1_SP1_u8_BH1(A)  : ExtBusRead_NI_w1_SP1_u8_BH0(A))   \
+          : (sizeof(T) == 2) ? (T)((BurstHax) ? ExtBusRead_NI_w1_SP1_u16_BH1(A) : ExtBusRead_NI_w1_SP1_u16_BH0(A))  \
+                             : (T)((BurstHax) ? ExtBusRead_NI_w1_SP1_u32_BH1(A) : ExtBusRead_NI_w1_SP1_u32_BH0(A))  )
+#define ExtBusWrite(T, A, V)                            \
+do {                                                    \
+  if(sizeof(T) == 1)      ExtBusWrite_NI_w1_SP1_u8 (A, V); \
+  else if(sizeof(T) == 2) ExtBusWrite_NI_w1_SP1_u16(A, V); \
+  else                    ExtBusWrite_NI_w1_SP1_u32(A, V); \
+} while(0)
 
 #define MemReadInstr(A, outval) MemRead(true,  uint32_t, ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint32_A, Resume_unmasked_A, Resume_cent, Resume_way_match)
 #define MemRead8(A, outval)	MemRead(false, uint8_t,  ((A) >> 29), (CCR & CCR_CE), (A), outval, /**/ Resume_uint8_A,  Resume_unmasked_A, Resume_cent, Resume_way_match)
