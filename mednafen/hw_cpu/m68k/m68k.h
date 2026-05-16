@@ -413,17 +413,26 @@ class M68K
 
  void EXG(uint32_t* a, uint32_t* b);
 
- template<unsigned cc>
- bool TestCond(void);
+ /* Phase-8c: BCC condition-code family detempleted.
+  *
+  * TestCond / Bxx / DBcc lose their `unsigned cc` template
+  * parameter entirely -- cc moves from a template-time constant
+  * into a runtime first-argument.  Their bodies' switch(cc) used
+  * to fold to a single arm per instantiation; with cc as a
+  * runtime value gcc still emits the switch as a jump table or
+  * branch tree depending on density, and the per-callsite cost
+  * is the same single conditional that the old per-instantiation
+  * folded body produced.
+  *
+  * Scc keeps its T and DAM template parameters (still HAM-locked)
+  * but `cc` moves to a runtime argument too -- one fewer template
+  * dimension, cleaner instr.inc call sites. */
+ bool TestCond(unsigned cc);
+ void Bxx(unsigned cc, uint32_t disp);
+ void DBcc(unsigned cc, const unsigned dr);
 
- template<unsigned cc>
- void Bxx(uint32_t disp);
-
- template<unsigned cc>
- void DBcc(const unsigned dr);
-
- template<unsigned cc, typename T, M68K::AddressMode DAM>
- void Scc(HAM<T, DAM> &dst);
+ template<typename T, M68K::AddressMode DAM>
+ void Scc(unsigned cc, HAM<T, DAM> &dst);
 
  template<typename T, M68K::AddressMode TAM>
  void JSR(HAM<T, TAM> &targ);

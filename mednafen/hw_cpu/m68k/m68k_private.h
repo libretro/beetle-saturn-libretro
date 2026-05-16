@@ -1658,11 +1658,11 @@ INLINE void M68K::EXG(uint32_t* a, uint32_t* b)
 //
 //
 
-template<unsigned cc>
-INLINE bool M68K::TestCond(void)
+/* Phase-8c: TestCond, Bxx, DBcc fully detempleted.  Scc keeps its
+ * T / DAM template parameters (still HAM-locked) but its cc
+ * parameter moved to a runtime first-arg too. */
+INLINE bool M68K::TestCond(unsigned cc)
 {
- static_assert(cc < 0x10, "Invalid CC");
-
  switch(cc)
  {
   case 0x00:	// TRUE
@@ -1713,6 +1713,8 @@ INLINE bool M68K::TestCond(void)
   case 0x0F:	// LE
 	return GetN() != GetV() || GetZ();
  }
+ return false; /* unreachable, but keeps -Wreturn-type happy now
+                * that cc is no longer a static-assert'd template arg */
 }
 
 //
@@ -1720,12 +1722,13 @@ INLINE bool M68K::TestCond(void)
 //
 //  (caller of this function should sign-extend the 8-bit displacement)
 //
-template<unsigned cc>
-INLINE void M68K::Bxx(uint32_t disp)
+INLINE void M68K::Bxx(unsigned cc, uint32_t disp)
 {
  const uint32_t BPC = PC;
 
- if(TestCond<(cc == 0x01) ? 0x00 : cc>())
+ /* cc == 0x01 here means BSR (Branch to Subroutine), not "Bcc-False"
+  * -- override to TRUE so the branch is always taken. */
+ if(TestCond((cc == 0x01) ? 0x00 : cc))
  {
   const uint16_t disp16 = (int16_t)ReadOp();
 
@@ -1749,15 +1752,14 @@ INLINE void M68K::Bxx(uint32_t disp)
  }
 }
 
-template<unsigned cc>
-INLINE void M68K::DBcc(const unsigned dr)
+INLINE void M68K::DBcc(unsigned cc, const unsigned dr)
 {
  const uint32_t BPC = PC;
  uint32_t disp;
 
  disp = (int16_t)ReadOp();
 
- if(!TestCond<cc>())
+ if(!TestCond(cc))
  {
   const uint16_t result = D[dr] - 1;
 
@@ -1777,12 +1779,12 @@ INLINE void M68K::DBcc(const unsigned dr)
 //
 // Scc
 //
-template<unsigned cc, typename T, M68K::AddressMode DAM>
-INLINE void M68K::Scc(HAM<T, DAM> &dst)
+template<typename T, M68K::AddressMode DAM>
+INLINE void M68K::Scc(unsigned cc, HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint8_t>::value, "Wrong type");
 
- T const result = TestCond<cc>() ? ~(T)0 : 0;
+ T const result = TestCond(cc) ? ~(T)0 : 0;
 
  if(DAM == DATA_REG_DIR && result)
   timestamp += 2;
