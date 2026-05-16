@@ -39,6 +39,20 @@ class SS_SCSP
  template<typename T, bool IsWrite>
  void RW(uint32_t A, T& V); //, void (*time_sucker)();
 
+ /* Phase-6b: non-template entry points for the four <T,IsWrite>
+  * instantiations sound.cpp uses.  They forward to the template;
+  * with FORCE_INLINE the call is folded away under -O2, so codegen
+  * matches the template-method form byte for byte.  Returning
+  * the read value (rather than taking T&) keeps the signature
+  * C-compatible -- once sound.cpp becomes sound.c in phase 6c
+  * the four wrappers exposed in sound_glue.cpp can call these
+  * by their non-template names without needing to know the
+  * template syntax. */
+ FORCE_INLINE uint8_t  RW_R8 (uint32_t A) { uint8_t  v; RW<uint8_t,  false>(A, v); return v; }
+ FORCE_INLINE uint16_t RW_R16(uint32_t A) { uint16_t v; RW<uint16_t, false>(A, v); return v; }
+ FORCE_INLINE void     RW_W8 (uint32_t A, uint8_t  v) { RW<uint8_t,  true >(A, v); }
+ FORCE_INLINE void     RW_W16(uint32_t A, uint16_t v) { RW<uint16_t, true >(A, v); }
+
  // Caller must ensure appropriate timing.
  INLINE void WriteMIDI(uint8_t V)
  {
