@@ -2637,20 +2637,47 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
    const int32_t    rs_KA = rsi->KAstAccum;
    const int32_t    rs_DK = rsi->DKAx;
    const bool     wr_lc = (KTCTL[ci] & 0x10);
-   uint32_t         cur_c = coeff[ci];
 
-   for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
+   /* perdot_mask is a loop-invariant 0/~0u toggle.  Per-dot mode
+    * (mask == 0) zeros cur_c every pixel before the optional bank
+    * read, so iterations are independent and the body SLP-packs;
+    * stickiness mode (mask == ~0u) carries cur_c across iterations
+    * on bank misses, a true scalar dep that has to stay scalar.
+    * Unswitching here lets GCC reason about each loop separately
+    * instead of conservatively treating the cur_c flow as dependent
+    * in both. */
+   if(perdot_mask == 0)
    {
-    const uint32_t addr = GetCoeffAddr(ci, rs_KA + (x * rs_DK));
+    for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
+    {
+     const uint32_t addr = GetCoeffAddr(ci, rs_KA + (x * rs_DK));
+     uint32_t cur_c = 0;
 
-    cur_c &= perdot_mask;
-    if(bank_tab[addr >> 16])
-     cur_c = ReadCoeff(ci, addr);
+     if(bank_tab[addr >> 16])
+      cur_c = ReadCoeff(ci, addr);
 
-    if(wr_lc)
-     LB.lc[x] = (cur_c >> 24) & 0x7F;
+     if(wr_lc)
+      LB.lc[x] = (cur_c >> 24) & 0x7F;
 
-    LB.rotcoeff[x] = cur_c;
+     LB.rotcoeff[x] = cur_c;
+    }
+   }
+   else
+   {
+    uint32_t cur_c = coeff[ci];
+
+    for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
+    {
+     const uint32_t addr = GetCoeffAddr(ci, rs_KA + (x * rs_DK));
+
+     if(bank_tab[addr >> 16])
+      cur_c = ReadCoeff(ci, addr);
+
+     if(wr_lc)
+      LB.lc[x] = (cur_c >> 24) & 0x7F;
+
+     LB.rotcoeff[x] = cur_c;
+    }
    }
   }
   else
@@ -3056,14 +3083,30 @@ static void (*DrawRBG_ConstAB[2 /*bitmap enable*/][5 /*col mode*/][2 /*igntp*/][
  *
  * Macro arg `ptr` is bound once to DUB_p, so call-site side effects
  * are single-evaluated; `orig_len` likewise to DUB_len.  do/while(0)
- * so the macro tolerates if/else nesting at the call site. */
+ * so the macro tolerates if/else nesting at the call site.
+ *
+ * Two-pass form (stage to stack scratch, then doubling-store): the
+ * original single-pass walked high-to-low and read DUB_p[i] while
+ * writing DUB_p[2i..2i+1] in the same buffer, which is correct in
+ * sequence but defeats GCC's autovec because the source and dest
+ * pointers alias.  Staging into DUB_src up front gives the doubling
+ * loop a source pointer GCC can prove disjoint from the dest, so it
+ * SLP-packs the read and emits an interleaved store (vst2 on NEON,
+ * unpack+store on amd64).  rbg_w is bounded at 352 by the only
+ * caller chain (vdp2_render line 4035: 320 or 352), and both
+ * elem_t instantiations (uint64_t and uint8_t) at 352 entries are
+ * cheap on the stack (2816 B and 352 B respectively). */
 #define DOUBLEIZE_BODY(elem_t, ptr, orig_len) do {                                 \
  elem_t* DUB_p = (ptr);                                                            \
  const int DUB_len = (orig_len);                                                   \
+ elem_t DUB_src[352];                                                              \
                                                                                    \
- for(int DUB_i = DUB_len - 1; MDFN_LIKELY(DUB_i >= 0); DUB_i--)                    \
+ for(int DUB_i = 0; MDFN_LIKELY(DUB_i < DUB_len); DUB_i++)                         \
+  DUB_src[DUB_i] = DUB_p[DUB_i];                                                   \
+                                                                                   \
+ for(int DUB_i = 0; MDFN_LIKELY(DUB_i < DUB_len); DUB_i++)                         \
  {                                                                                 \
-  const elem_t DUB_tmp = DUB_p[DUB_i];                                             \
+  const elem_t DUB_tmp = DUB_src[DUB_i];                                           \
                                                                                    \
   DUB_p[(DUB_i << 1) + 0] = DUB_tmp;                                               \
   DUB_p[(DUB_i << 1) + 1] = DUB_tmp;                                               \
