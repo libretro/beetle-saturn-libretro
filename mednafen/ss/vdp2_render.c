@@ -37,6 +37,10 @@
 #include <string.h>
 #include <stdatomic.h>
 
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
+
 /* C11 atomic bridge for the SPSC ring-buffer counters.  When this TU
  * was vdp2_render.cpp the same macros switched between std::atomic<>
  * (C++) and _Atomic (C11) via #ifdef __cplusplus; phase 4e renamed
@@ -1835,6 +1839,153 @@ do                                                                              
  (DEST) = pbor | ((uint64_t)rgb24 << PIX_RGB_SHIFT);                                                                                        \
 } while(0)
 
+/* DrawCell8_BPP4: 8 paletted pixels for one BPP=4 cell row, shared by
+ * T_DrawNBG23_BODY (8-px tile body) and T_DrawNBG_BODY's xcinc==0x100
+ * cell-aligned fast path (BPP=4 branch).
+ *
+ * Per-pixel work matches MAKE_NBG23_PIX exactly (and MAKE_NBGRBG_PIX with
+ * BPP=4, ISRGB=0, which has identical semantics for the paletted path):
+ *   dcc    = nibble extracted from (vrb0<<16)|vrb1 in big-endian nibble order
+ *   rgb24  = ColorCache[(pcco + dcc) & 2047]
+ *   if CCMODE==3:               pbor |= ((int32_t)rgb24>>31) & (1<<PIX_CCE_SHIFT)
+ *   if PMODE==2 || CCMODE==2:   pbor &= sfcode_lut[(dcc & 0xE)/2]
+ *   if !IGNTP && dcc==0:        pbor = 0
+ *   out[k] = pbor + ((uint64_t)rgb24 << PIX_RGB_SHIFT)
+ *
+ * Callers must pre-merge CCMODE-1/2 SCC bits and PMODE-1/2 SPR bits into
+ * pbor_in, matching MAKE_NBG23_PIX / MAKE_NBGRBG_PIX's per-pixel OR.
+ *
+ * REV=true is the cellx_xor & 0x7 case: writes out[7]..out[0] instead of
+ * out[0]..out[7].
+ *
+ * aarch64 fast path: 16 ColorCache entries are contiguous when
+ * (pcco & 2047) <= 2032, fitting in 4 q-regs; vqtbl4q_u8 performs all 8
+ * gathers in one TBL.  The wrap case (pcco_m in [2033..2047]) falls back to
+ * scalar.  On amd64 / others the scalar fallback runs unconditionally, which
+ * is codegen-equivalent to the 8 inlined MAKE_NBG{,RBG}_PIX stamps it replaces. */
+/* Phase 4-style detemplated: was a C++ `template<bool IGNTP, unsigned
+ * PMODE, unsigned CCMODE, bool REV>` function.  All call sites pass
+ * compile-time-constant values (from the X-macro dispatch), so with
+ * MDFN_FORCE_INLINE + -O2 the runtime const args fold identically to
+ * the template instantiations. */
+static MDFN_FORCE_INLINE void DrawCell8_BPP4(uint64_t* out,
+                                             uint32_t pcco,
+                                             uint16_t vrb0,
+                                             uint16_t vrb1,
+                                             uint32_t pbor_in,
+                                             const int16_t* sfcode_lut,
+                                             const bool IGNTP,
+                                             const unsigned PMODE,
+                                             const unsigned CCMODE,
+                                             const bool REV)
+{
+ const uint8_t nibbles[8] = {
+  (uint8_t)((vrb0 >> 12) & 0xF),
+  (uint8_t)((vrb0 >>  8) & 0xF),
+  (uint8_t)((vrb0 >>  4) & 0xF),
+  (uint8_t)((vrb0 >>  0) & 0xF),
+  (uint8_t)((vrb1 >> 12) & 0xF),
+  (uint8_t)((vrb1 >>  8) & 0xF),
+  (uint8_t)((vrb1 >>  4) & 0xF),
+  (uint8_t)((vrb1 >>  0) & 0xF),
+ };
+
+#if defined(__aarch64__)
+ const uint32_t pcco_m = pcco & 2047;
+ if(MDFN_LIKELY(pcco_m <= 2032))
+ {
+  const uint8_t* const cc_base = (const uint8_t*)&ColorCache[pcco_m];
+  uint8x16x4_t cc4;
+  cc4.val[0] = vld1q_u8(cc_base +  0);
+  cc4.val[1] = vld1q_u8(cc_base + 16);
+  cc4.val[2] = vld1q_u8(cc_base + 32);
+  cc4.val[3] = vld1q_u8(cc_base + 48);
+
+  /* nv carries the 8 dcc values in output order; for REV the source-order
+   * nibbles vector is reversed once so all downstream lanes are already
+   * indexed by the destination pixel slot. */
+  const uint8x8_t nv_src = vld1_u8(nibbles);
+  const uint8x8_t nv = REV ? vrev64_u8(nv_src) : nv_src;
+
+  /* Build 32 byte indices over two q-regs (4 pixels * 4 bytes per reg).
+   * idx[4*k + j] = nv[k]*4 + j, j in 0..3.  For dcc in 0..15 the maximum
+   * index is 63, within the 64-byte (4 q-reg) vqtbl4q lookup span. */
+  static const uint8x16_t broadcast4_lo = {0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3};
+  static const uint8x16_t broadcast4_hi = {4,4,4,4, 5,5,5,5, 6,6,6,6, 7,7,7,7};
+  static const uint8x16_t byte_off      = {0,1,2,3, 0,1,2,3, 0,1,2,3, 0,1,2,3};
+  const uint8x16_t nv_q  = vcombine_u8(nv, vdup_n_u8(0));
+  const uint8x16_t idx_lo = vaddq_u8(vshlq_n_u8(vqtbl1q_u8(nv_q, broadcast4_lo), 2), byte_off);
+  const uint8x16_t idx_hi = vaddq_u8(vshlq_n_u8(vqtbl1q_u8(nv_q, broadcast4_hi), 2), byte_off);
+
+  const uint32x4_t rgb_lo = vreinterpretq_u32_u8(vqtbl4q_u8(cc4, idx_lo));
+  const uint32x4_t rgb_hi = vreinterpretq_u32_u8(vqtbl4q_u8(cc4, idx_hi));
+
+  uint32x4_t pbor_lo = vdupq_n_u32(pbor_in);
+  uint32x4_t pbor_hi = vdupq_n_u32(pbor_in);
+
+  if(CCMODE == 3)
+  {
+   const int32x4_t sb_lo = vshrq_n_s32(vreinterpretq_s32_u32(rgb_lo), 31);
+   const int32x4_t sb_hi = vshrq_n_s32(vreinterpretq_s32_u32(rgb_hi), 31);
+   const uint32x4_t cc_mask = vdupq_n_u32(1U << PIX_CCE_SHIFT);
+   pbor_lo = vorrq_u32(pbor_lo, vandq_u32(vreinterpretq_u32_s32(sb_lo), cc_mask));
+   pbor_hi = vorrq_u32(pbor_hi, vandq_u32(vreinterpretq_u32_s32(sb_hi), cc_mask));
+  }
+
+  if(PMODE == 2 || CCMODE == 2)
+  {
+   /* 8 small i16 loads from sfcode_lut; SLP-pack into one i32x4 per half. */
+   uint8_t nv_arr[8];
+   uint32_t m[8];
+   vst1_u8(nv_arr, nv);
+   for(unsigned i = 0; i < 8; i++)
+    m[i] = (uint32_t)(int32_t)(*(const int16_t*)((const uint8_t*)sfcode_lut + (nv_arr[i] & 0xE)));
+   pbor_lo = vandq_u32(pbor_lo, vld1q_u32(m));
+   pbor_hi = vandq_u32(pbor_hi, vld1q_u32(m + 4));
+  }
+
+  if(!IGNTP)
+  {
+   /* pbor zeroed where dcc==0.  Build the clear-mask at u32 width directly:
+    * unsigned-widen nv (u8 -> u16 -> u32), then vceqq_u32 against 0 produces
+    * a proper 0xFFFFFFFF / 0x00000000 mask.  The earlier u8-0xFF + unsigned
+    * widening path produced 0x000000FF, which only cleared the low 8 bits and
+    * silently dropped pbor's PRIO/CCE/SWBIT bits on every opaque pixel. */
+   const uint16x8_t nv16    = vmovl_u8(nv);
+   const uint32x4_t nv32_lo = vmovl_u16(vget_low_u16(nv16));
+   const uint32x4_t nv32_hi = vmovl_u16(vget_high_u16(nv16));
+   const uint32x4_t clear_lo = vceqq_u32(nv32_lo, vdupq_n_u32(0));
+   const uint32x4_t clear_hi = vceqq_u32(nv32_hi, vdupq_n_u32(0));
+   pbor_lo = vbicq_u32(pbor_lo, clear_lo);
+   pbor_hi = vbicq_u32(pbor_hi, clear_hi);
+  }
+
+  /* Interleave pbor (low 32) and rgb24 (high 32) into each u64 output. */
+  vst1q_u64(&out[0], vreinterpretq_u64_u32(vzip1q_u32(pbor_lo, rgb_lo)));
+  vst1q_u64(&out[2], vreinterpretq_u64_u32(vzip2q_u32(pbor_lo, rgb_lo)));
+  vst1q_u64(&out[4], vreinterpretq_u64_u32(vzip1q_u32(pbor_hi, rgb_hi)));
+  vst1q_u64(&out[6], vreinterpretq_u64_u32(vzip2q_u32(pbor_hi, rgb_hi)));
+  return;
+ }
+#endif
+
+ /* Scalar fallback (wrap case on aarch64, baseline elsewhere). */
+ for(unsigned k = 0; k < 8; k++)
+ {
+  const unsigned dest = REV ? (7U - k) : k;
+  const uint32_t dcc   = nibbles[k];
+  const uint32_t rgb24 = ColorCache[(pcco + dcc) & 2047];
+  uint32_t pbor = pbor_in;
+  if(CCMODE == 3)
+   pbor |= ((int32_t)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);
+  if(PMODE == 2 || CCMODE == 2)
+   pbor &= *(const int16_t*)((const uint8_t*)sfcode_lut + (dcc & 0xE));
+  if(!IGNTP && !dcc)
+   pbor = 0;
+  out[dest] = pbor + ((uint64_t)rgb24 << PIX_RGB_SHIFT);
+ }
+}
+
 /* T_DrawNBG: was `template<bool TA_bmen, unsigned TA_bpp, bool
  * TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
  * static void T_DrawNBG(const unsigned n, uint64_t* bgbuf,
@@ -1942,14 +2093,31 @@ do                                                                              
   while(i + 8U <= w)                                                                                                    \
   {                                                                                                                     \
    TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                               \
-   MAKE_NBGRBG_PIX(bgbuf[i + 0], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 0, iy);     \
-   MAKE_NBGRBG_PIX(bgbuf[i + 1], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 1, iy);     \
-   MAKE_NBGRBG_PIX(bgbuf[i + 2], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 2, iy);     \
-   MAKE_NBGRBG_PIX(bgbuf[i + 3], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 3, iy);     \
-   MAKE_NBGRBG_PIX(bgbuf[i + 4], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 4, iy);     \
-   MAKE_NBGRBG_PIX(bgbuf[i + 5], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 5, iy);     \
-   MAKE_NBGRBG_PIX(bgbuf[i + 6], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 6, iy);     \
-   MAKE_NBGRBG_PIX(bgbuf[i + 7], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 7, iy);     \
+   if((BPP) == 4)                                                                                                       \
+   {                                                                                                                    \
+/* BPP=4 cell body: dispatch to NEON-TBL helper (shared with T_DrawNBG23).         */                                   \
+/* Pre-merge SCC/SPR bits into pbor here, matching NBG23's per-cell prologue, so   */                                   \
+/* DrawCell8_BPP4 sees the same pbor_in contract.  CCMODE==3 / PMODE==2 / IGNTP==0 */                                   \
+/* are handled inside the helper.                                                  */                                   \
+    uint32_t pbor_pre = pix_base_or;                                                                                    \
+    if((CCMODE) == 1 || (CCMODE) == 2) pbor_pre |= (tf.scc << PIX_CCE_SHIFT);                                           \
+    if((PMODE)  == 1 || (PMODE)  == 2) pbor_pre |= (tf.spr << PIX_PRIO_SHIFT);                                          \
+    if(tf.cellx_xor & 0x7)                                                                                              \
+     DrawCell8_BPP4(&bgbuf[i], tf.pcco, tf.tile_vrb[0], tf.tile_vrb[1], pbor_pre, sfcode_lut, (bool)(IGNTP), (PMODE), (CCMODE), true ); \
+    else                                                                                                                \
+     DrawCell8_BPP4(&bgbuf[i], tf.pcco, tf.tile_vrb[0], tf.tile_vrb[1], pbor_pre, sfcode_lut, (bool)(IGNTP), (PMODE), (CCMODE), false); \
+   }                                                                                                                    \
+   else                                                                                                                 \
+   {                                                                                                                    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 0], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 0, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 1], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 1, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 2], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 2, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 3], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 3, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 4], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 4, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 5], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 5, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 6], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 6, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 7], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 7, iy);    \
+   }                                                                                                                    \
    i += 8U; ix += 8U;                                                                                                   \
   }                                                                                                                     \
   if(i < w)                                                                                                             \
@@ -2226,27 +2394,9 @@ static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
   else                                                                                                                  \
   {                                                                                                                     \
    if(tf.cellx_xor & 0x7)                                                                                               \
-   {                                                                                                                    \
-    MAKE_NBG23_PIX(bgbuf[7], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>  12),       pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[6], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[5], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[4], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[3], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>  12),       pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[2], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[1], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[0], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-   }                                                                                                                    \
+    DrawCell8_BPP4(bgbuf, tf.pcco, tf.tile_vrb[0], tf.tile_vrb[1], pbor, sfcode_lut, (bool)(IGNTP), (PMODE), (CCMODE), true ); \
    else                                                                                                                 \
-   {                                                                                                                    \
-    MAKE_NBG23_PIX(bgbuf[0], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>  12),       pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[1], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[2], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[3], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[4], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>  12),       pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[5], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[6], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[7], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-   }                                                                                                                    \
+    DrawCell8_BPP4(bgbuf, tf.pcco, tf.tile_vrb[0], tf.tile_vrb[1], pbor, sfcode_lut, (bool)(IGNTP), (PMODE), (CCMODE), false); \
   }                                                                                                                     \
                                                                                                                        \
 /* */                                                                                                                   \
