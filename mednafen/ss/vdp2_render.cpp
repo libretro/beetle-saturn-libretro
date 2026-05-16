@@ -1735,72 +1735,105 @@ static INLINE uint32_t rgb15_to_rgb24(uint16_t src)
  return ((((src << 3) & 0xF8) | ((src << 6) & 0xF800) | ((src << 9) & 0xF80000) | ((src << 16) & 0x80000000)));;
 }
 
-template<bool TA_bmen, unsigned TA_bpp, bool TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode, typename T>
-static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const int16_t* sfcode_lut, const uint32_t ix, const uint32_t iy)
-{
- uint32_t cellx = (ix ^ tf.cellx_xor);
- const uint16_t* vrb = &tf.tile_vrb[((cellx * TA_bpp) >> 4)];
- //
- //
- //
- uint32_t pbor = pix_base_or;
- uint32_t rgb24;
- bool opaque;
-
- if(TA_CCMode == 1 || (TA_CCMode == 2 && !TA_isrgb))
-  pbor |= (tf.scc << PIX_CCE_SHIFT);
-
- if(TA_PrioMode == 1 || (TA_PrioMode == 2 && !TA_isrgb))
-  pbor |= (tf.spr << PIX_PRIO_SHIFT);
-
- if(TA_isrgb)
- {
-  if(TA_bpp == 32)
-  {
-   uint32_t tmp = (vrb[0] << 16) | vrb[1];
-
-   rgb24 = tmp & 0xFFFFFF;
-   opaque = (bool)(tmp & 0x80000000);
-  }
-  else
-  {
-   uint32_t tmp = vrb[0];
-
-   rgb24 = rgb15_to_rgb24(tmp & 0x7FFF);
-   opaque = (bool)(tmp & 0x8000);
-  }
-
-  if(TA_CCMode == 3)
-   pbor |= (1 << PIX_CCE_SHIFT);
- }
- else
- {
-  uint32_t dcc;
-  uint32_t tmp = vrb[0]; //charno ^ (charno << 8); //vrb[0];
-
-  if(TA_bpp == 16)
-   dcc = tmp & 0x7FF;
-  else if(TA_bpp == 8)
-   dcc = (tmp >> (((cellx & 1) ^ 1) << 3)) & 0xFF;
-  else
-   dcc = (tmp >> (((cellx & 3) ^ 3) << 2)) & 0x0F;
-
-  opaque = (bool)dcc;
-
-  rgb24 = ColorCache[(tf.pcco + dcc) & 2047];
-
-  if(TA_CCMode == 3)
-   pbor |= ((int32_t)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);
-  //
-  if(TA_PrioMode == 2 || TA_CCMode == 2)
-   pbor &= *(const int16_t*)((const uint8_t*)sfcode_lut + (dcc & 0xE));
- }
-
- if(!TA_igntp && !opaque)
-  pbor = 0;
-
- return pbor | ((uint64_t)rgb24 << PIX_RGB_SHIFT);
-}
+/* MakeNBGRBGPix: was a templated INLINE function with six
+ * non-type template parameters (TA_bmen, TA_bpp, TA_isrgb,
+ * TA_igntp, TA_PrioMode, TA_CCMode) plus a type parameter T
+ * naming the TileFetcher_{Rot,NonRot} struct, returning the
+ * 64-bit composited pixel.  Always called as the body of a
+ * tight per-pixel loop inside T_DrawNBG / T_DrawRBG /
+ * T_DrawRBG_CAB; the INLINE hint coupled with -O2 made the
+ * compiler inline every call site fully, with each spec's
+ * template-arg-dependent branches constant-folded away.
+ *
+ * Replaced here with a do-while macro that takes the same
+ * six non-type args plus the destination lvalue, the tf
+ * struct (any TileFetcher_{Rot,NonRot}), and the tail
+ * arguments.  TA_bmen was an unused parameter in the body
+ * (the bmen state is captured upstream in TileFetcher_*_Fetch
+ * via tf.cellx_xor, tf.tile_vrb, tf.scc, tf.spr, tf.pcco),
+ * but we still accept BMEN in the macro signature so the
+ * call sites read the same as the template-call sites did.
+ *
+ * Outer do { ... } while(0) makes the macro a single
+ * statement and gives the inner locals (cellx, vrb, pbor,
+ * rgb24, opaque, tmp, dcc) their own block scope.  No
+ * variable-name collision with the surrounding T_Draw* body
+ * macros' locals (which use ix, iy, i, bgbuf, pix_base_or,
+ * sfcode_lut, tf -- the latter three are macro args and
+ * resolve to the caller's locals by name-binding).
+ *
+ * Codegen-equivalent to the template-instantiated INLINE
+ * function: each macro expansion sees BPP/ISRGB/IGNTP/PMODE/
+ * CCMODE as 4/0|1/0|1/0|1|2/0|1|2|3 literals, the branches
+ * fold, and the surviving statements get scheduled into the
+ * surrounding loop the same way the inlined function body
+ * was. */
+#define MAKE_NBGRBG_PIX(DEST, BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy) \
+do                                                                                                                                          \
+{                                                                                                                                           \
+ uint32_t cellx = (ix ^ tf.cellx_xor);                                                                                                      \
+ const uint16_t* vrb = &tf.tile_vrb[((cellx * (BPP)) >> 4)];                                                                                \
+/* */                                                                                                                                       \
+/* */                                                                                                                                       \
+/* */                                                                                                                                       \
+ uint32_t pbor = pix_base_or;                                                                                                               \
+ uint32_t rgb24;                                                                                                                            \
+ bool opaque;                                                                                                                               \
+                                                                                                                                           \
+ if((CCMODE) == 1 || ((CCMODE) == 2 && !(ISRGB)))                                                                                           \
+  pbor |= (tf.scc << PIX_CCE_SHIFT);                                                                                                        \
+                                                                                                                                           \
+ if((PMODE) == 1 || ((PMODE) == 2 && !(ISRGB)))                                                                                             \
+  pbor |= (tf.spr << PIX_PRIO_SHIFT);                                                                                                       \
+                                                                                                                                           \
+ if((ISRGB))                                                                                                                                \
+ {                                                                                                                                          \
+  if((BPP) == 32)                                                                                                                           \
+  {                                                                                                                                         \
+   uint32_t tmp = (vrb[0] << 16) | vrb[1];                                                                                                  \
+                                                                                                                                           \
+   rgb24 = tmp & 0xFFFFFF;                                                                                                                  \
+   opaque = (bool)(tmp & 0x80000000);                                                                                                       \
+  }                                                                                                                                         \
+  else                                                                                                                                      \
+  {                                                                                                                                         \
+   uint32_t tmp = vrb[0];                                                                                                                   \
+                                                                                                                                           \
+   rgb24 = rgb15_to_rgb24(tmp & 0x7FFF);                                                                                                    \
+   opaque = (bool)(tmp & 0x8000);                                                                                                           \
+  }                                                                                                                                         \
+                                                                                                                                           \
+  if((CCMODE) == 3)                                                                                                                         \
+   pbor |= (1 << PIX_CCE_SHIFT);                                                                                                            \
+ }                                                                                                                                          \
+ else                                                                                                                                       \
+ {                                                                                                                                          \
+  uint32_t dcc;                                                                                                                             \
+  uint32_t tmp = vrb[0]; /* charno ^ (charno << 8); vrb[0]; */                                                                              \
+                                                                                                                                           \
+  if((BPP) == 16)                                                                                                                           \
+   dcc = tmp & 0x7FF;                                                                                                                       \
+  else if((BPP) == 8)                                                                                                                       \
+   dcc = (tmp >> (((cellx & 1) ^ 1) << 3)) & 0xFF;                                                                                          \
+  else                                                                                                                                      \
+   dcc = (tmp >> (((cellx & 3) ^ 3) << 2)) & 0x0F;                                                                                          \
+                                                                                                                                           \
+  opaque = (bool)dcc;                                                                                                                       \
+                                                                                                                                           \
+  rgb24 = ColorCache[(tf.pcco + dcc) & 2047];                                                                                               \
+                                                                                                                                           \
+  if((CCMODE) == 3)                                                                                                                         \
+   pbor |= ((int32_t)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);                                                                                   \
+/* */                                                                                                                                       \
+  if((PMODE) == 2 || (CCMODE) == 2)                                                                                                         \
+   pbor &= *(const int16_t*)((const uint8_t*)sfcode_lut + (dcc & 0xE));                                                                     \
+ }                                                                                                                                          \
+                                                                                                                                           \
+ if(!(IGNTP) && !opaque)                                                                                                                    \
+  pbor = 0;                                                                                                                                 \
+                                                                                                                                           \
+ (DEST) = pbor | ((uint64_t)rgb24 << PIX_RGB_SHIFT);                                                                                        \
+} while(0)
 
 /* T_DrawNBG: was `template<bool TA_bmen, unsigned TA_bpp, bool
  * TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
@@ -1874,7 +1907,7 @@ static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const in
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
-   bgbuf[i] = MakeNBGRBGPix<(BMEN), (BPP), (ISRGB), (IGNTP), (PMODE), (CCMODE)>(tf, pix_base_or, sfcode_lut, ix, iy);   \
+   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);           \
    xc += xcinc;                                                                                                         \
   }                                                                                                                     \
  }                                                                                                                      \
@@ -1896,7 +1929,7 @@ static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const in
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
-   bgbuf[i] = MakeNBGRBGPix<(BMEN), (BPP), (ISRGB), (IGNTP), (PMODE), (CCMODE)>(tf, pix_base_or, sfcode_lut, ix, iy);   \
+   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);           \
    xc += xcinc;                                                                                                         \
   }                                                                                                                     \
  }                                                                                                                      \
@@ -2524,7 +2557,7 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
-  bgbuf[i] = MakeNBGRBGPix<(BMEN), (BPP), (ISRGB), (IGNTP), (PMODE), (CCMODE)>(tf, pix_base_or, sfcode_lut, ix, iy);    \
+  MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);           \
  }                                                                                                                      \
 }
 
@@ -2680,7 +2713,7 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
   rot_tp |= TF_ROT_FETCH(&tf, BPP, BMEN, ix, iy);                                                              \
                                                                                                       \
   LB.rotabsel[i] = rot_tp;                                                                            \
-  bgbuf[i] = MakeNBGRBGPix<BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE>(tf, pix_base_or, sfcode_lut, ix, iy); \
+  MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);\
  }                                                                                                    \
 }
 
