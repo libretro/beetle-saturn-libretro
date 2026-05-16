@@ -1507,16 +1507,81 @@ static INLINE void DMA_Write(DMALevelS* d, uint32_t DB)
  d->CurByteCount -= sizeof(T);
 }
 
-template<unsigned WriteBus>
-static bool NO_INLINE DMA_Loop(DMALevelS* d)
+/* Phase-8g: DMA_Loop<WriteBus> retired -- three concrete
+ * instantiations (WriteBus = 0 / 1 / 2 for the SCU's A-bus,
+ * B-bus, and "C" / DSP DMA paths), each used exactly once in
+ * the LoopFuncs[] dispatch table.  The 25-line body is dupli-
+ * cated three times below, once per WriteBus value, with the
+ * template parameter inlined as a literal.  DMA_Write<W, T>
+ * stays templated (W is one of 0/1/2 per body; T comes from
+ * the per-byte-width switch).
+ *
+ * Each instance keeps the original's NO_INLINE attribute --
+ * DMA_Loop was deliberately not inlined into UpdateDMAInner
+ * to keep its stack frame separate from the SCU register-RW
+ * hot path, and the function-pointer table use below means
+ * inlining isn't an option anyway. */
+static bool NO_INLINE DMA_Loop_0(DMALevelS* d)
 {
  while(MDFN_LIKELY(d->Active > 0 && SCU_DMA_TimeCounter < SCU_DMA_RunUntil))
  {
   switch(d->WATable->write_size)
   {
-   case 0x1: DMA_Write<WriteBus, uint8_t> (d, DMA_Read<1>(d)); break;
-   case 0x2: DMA_Write<WriteBus, uint16_t>(d, DMA_Read<2>(d)); break;
-   case 0x4: DMA_Write<WriteBus, uint32_t>(d, DMA_Read<4>(d)); break;
+   case 0x1: DMA_Write<0, uint8_t> (d, DMA_Read<1>(d)); break;
+   case 0x2: DMA_Write<0, uint16_t>(d, DMA_Read<2>(d)); break;
+   case 0x4: DMA_Write<0, uint32_t>(d, DMA_Read<4>(d)); break;
+  }
+  d->CurWriteAddr += d->WATable->write_addr_delta;
+
+  if(d->CurByteCount <= (uint32_t)(int8_t)d->WATable->compare)
+   d->WATable++;
+
+  if(MDFN_UNLIKELY(!d->CurByteCount))
+  {
+   SCU_DMA_TimeCounter -= SCU_DMA_ReadOverhead;
+   SCU_DMA_ReadOverhead = 0;
+   return true;
+  }
+ }
+
+ return false;
+}
+
+static bool NO_INLINE DMA_Loop_1(DMALevelS* d)
+{
+ while(MDFN_LIKELY(d->Active > 0 && SCU_DMA_TimeCounter < SCU_DMA_RunUntil))
+ {
+  switch(d->WATable->write_size)
+  {
+   case 0x1: DMA_Write<1, uint8_t> (d, DMA_Read<1>(d)); break;
+   case 0x2: DMA_Write<1, uint16_t>(d, DMA_Read<2>(d)); break;
+   case 0x4: DMA_Write<1, uint32_t>(d, DMA_Read<4>(d)); break;
+  }
+  d->CurWriteAddr += d->WATable->write_addr_delta;
+
+  if(d->CurByteCount <= (uint32_t)(int8_t)d->WATable->compare)
+   d->WATable++;
+
+  if(MDFN_UNLIKELY(!d->CurByteCount))
+  {
+   SCU_DMA_TimeCounter -= SCU_DMA_ReadOverhead;
+   SCU_DMA_ReadOverhead = 0;
+   return true;
+  }
+ }
+
+ return false;
+}
+
+static bool NO_INLINE DMA_Loop_2(DMALevelS* d)
+{
+ while(MDFN_LIKELY(d->Active > 0 && SCU_DMA_TimeCounter < SCU_DMA_RunUntil))
+ {
+  switch(d->WATable->write_size)
+  {
+   case 0x1: DMA_Write<2, uint8_t> (d, DMA_Read<1>(d)); break;
+   case 0x2: DMA_Write<2, uint16_t>(d, DMA_Read<2>(d)); break;
+   case 0x4: DMA_Write<2, uint32_t>(d, DMA_Read<4>(d)); break;
   }
   d->CurWriteAddr += d->WATable->write_addr_delta;
 
@@ -1539,7 +1604,7 @@ static bool NO_INLINE DMA_Loop(DMALevelS* d)
 //
 static INLINE void UpdateDMAInner(DMALevelS* d)
 {
- static bool (*const LoopFuncs[3])(DMALevelS*) = { DMA_Loop<0>, DMA_Loop<1>, DMA_Loop<2> };
+ static bool (*const LoopFuncs[3])(DMALevelS*) = { DMA_Loop_0, DMA_Loop_1, DMA_Loop_2 };
 
  if(MDFN_UNLIKELY(LoopFuncs[d->WriteBus](d)))
  {
