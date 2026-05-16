@@ -564,28 +564,28 @@ static INLINE void TileFetcher_Rot_Start(struct TileFetcher_Rot* self, const uns
 static INLINE void TileFetcher_NonRot_Start(struct TileFetcher_NonRot* self, const unsigned n, const bool bmen, const unsigned map_offset, const uint8_t* map_regs)
  TILEFETCHER_START_BODY(0)
 
-static INLINE bool TileFetcher_Rot_Fetch_4(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_Rot_Fetch_4(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(1, 4)
 
-static INLINE bool TileFetcher_Rot_Fetch_8(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_Rot_Fetch_8(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(1, 8)
 
-static INLINE bool TileFetcher_Rot_Fetch_16(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_Rot_Fetch_16(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(1, 16)
 
-static INLINE bool TileFetcher_Rot_Fetch_32(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_Rot_Fetch_32(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(1, 32)
 
-static INLINE bool TileFetcher_NonRot_Fetch_4(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_4(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(0, 4)
 
-static INLINE bool TileFetcher_NonRot_Fetch_8(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_8(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(0, 8)
 
-static INLINE bool TileFetcher_NonRot_Fetch_16(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_16(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(0, 16)
 
-static INLINE bool TileFetcher_NonRot_Fetch_32(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_32(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(0, 32)
 
 /* Drop the field-redirect aliases so subsequent code (the function-
@@ -1477,20 +1477,24 @@ static void GetWinRotAB(void)
 
   GetCWV(WinControl[WINLAYER_ROTPARAM], xmet, cwv);
 
+  /* Branchless cwv[bool] selection (same idea as ApplyWin's slow
+   * path) so SLP can vectorize: sel_or | (sel_xor & sel_bits). */
+  const uint8_t r_or  = (uint8_t)cwv[0];
+  const uint8_t r_xor = (uint8_t)(cwv[0] ^ cwv[1]);
   if(HRes & 0x2)
   {
    for(; MDFN_LIKELY(x < WinPieces[piece]); x += 2)
-    LB.rotabsel[x >> 1] = cwv[(LB.spr[x] >> PIX_SWBIT_SHIFT) & 1];
+    LB.rotabsel[x >> 1] = r_or ^ (r_xor & (uint8_t)((LB.spr[x] >> PIX_SWBIT_SHIFT) & 1));
   }
   else
   {
    for(; MDFN_LIKELY(x < WinPieces[piece]); x++)
-    LB.rotabsel[x] = cwv[(LB.spr[x] >> PIX_SWBIT_SHIFT) & 1];
+    LB.rotabsel[x] = r_or ^ (r_xor & (uint8_t)((LB.spr[x] >> PIX_SWBIT_SHIFT) & 1));
   }
  }
 }
 
-static void ApplyWin(const unsigned wlayer, uint64_t* buf)
+static void ApplyWin(const unsigned wlayer, uint64_t* __restrict__ buf)
 {
  unsigned x = 0;
 
@@ -1541,9 +1545,20 @@ static void ApplyWin(const unsigned wlayer, uint64_t* buf)
     masks[i] = m;
    }
 
+   /* Branchless mask select: replace masks[bool] gather with
+    * `mor ^ (sel_bits & mxor)` so SLP can vectorize the loop.
+    * Form `sel` via a sign-extending arith shift so we never have
+    * a 1-bit intermediate (GCC's bool-pattern recognizer would
+    * otherwise reconstruct a conditional select and the v2di
+    * conversion path bails with "bit-precision arithmetic not
+    * supported"). */
+   const uint64_t mor  = masks[0];
+   const uint64_t mxor = masks[0] ^ masks[1];
    for(; MDFN_LIKELY(x < WinPieces[piece]); x++)
    {
-    buf[x] &= masks[(LB.spr[x] >> PIX_SWBIT_SHIFT) & 1];
+    const int64_t shifted = (int64_t)(LB.spr[x] << (63 - PIX_SWBIT_SHIFT));
+    const uint64_t sel    = (uint64_t)(shifted >> 63);
+    buf[x] &= mor ^ (sel & mxor);
    }
   }
  }
@@ -3133,7 +3148,7 @@ static INLINE void MakeSpriteCCLUT(void)
  T_DrawSpriteData_##HIRES##_##TPSS##_##SPCTL
 
 #define DEFINE_T_DrawSpriteData(HIRES, TPSS, SPCTL)                                                            \
- static void T_DrawSpriteData_NAME(HIRES, TPSS, SPCTL)(const uint16_t* vdp1sb,                                  \
+ static void T_DrawSpriteData_NAME(HIRES, TPSS, SPCTL)(const uint16_t* __restrict__ vdp1sb,                     \
                                                        const bool vdp1_hires8,                                  \
                                                        unsigned w)                                              \
  T_DrawSpriteData_BODY(HIRES, TPSS, SPCTL)
