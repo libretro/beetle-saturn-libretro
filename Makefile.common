@@ -61,8 +61,7 @@ SOURCES_CXX += \
 	$(CORE_EMU_DIR)/scu_dsp_gen.cpp \
 	$(CORE_EMU_DIR)/scu_dsp_mvi.cpp \
 	$(CORE_EMU_DIR)/scu_dsp_jmp.cpp \
-	$(CORE_EMU_DIR)/scu_dsp_misc.cpp \
-	$(CORE_EMU_DIR)/vdp2_render.cpp
+	$(CORE_EMU_DIR)/scu_dsp_misc.cpp
 
 # db.cpp -> db.c. Dead std:: helpers (DB_GetInternalDB,
 # DB_GetHHDescriptions, FDIDToString) were removed in an earlier
@@ -90,10 +89,32 @@ SOURCES_CXX += \
 # references converted to __typeof__()* pointers.  Two
 # CPU[i].SetExtHaltDMAKludgeFromVDP2 callsites routed through a
 # new SH7095_SetExtHaltDMAKludge proxy in ss.cpp.
+# vdp2_render.cpp -> vdp2_render.c. Five C++ idioms removed in
+# the lead-up to the rename:
+#   - TileFetcher<bool> struct template with templated Fetch method
+#     replaced by two named POD structs (TileFetcher_Rot,
+#     TileFetcher_NonRot) plus 10 free INLINE functions selected
+#     by ##-paste dispatch macros (TF_ROT_FETCH, TF_NR_FETCH).
+#   - MakeNBGRBGPix<...> templated INLINE function replaced by a
+#     do-while macro (MAKE_NBGRBG_PIX) that writes through an
+#     output-lvalue arg.
+#   - The four `auto&` references in SetupRotVars and the two
+#     T_DrawRBG body macros became explicit struct pointers
+#     (struct RotVars*, struct TileFetcher_Rot*) with `->`
+#     field access.
+#   - C++11 `alignas(N)` -> `__attribute__((aligned(N)))` on the
+#     LB.lc backing array, the SPSC ring-buffer atomic counters,
+#     and the ProducerState / ConsumerState struct decls.
+#   - `static constexpr` -> `static const` for the InitOverlay
+#     sprite-type LUTs and `#define` for the BurstBuf size / mask
+#     scalars used as array bounds.
+# Cross-language atomics already brokered via the language-neutral
+# vdp2_atomic_u32 + VDP2_ATOMIC_* macros set up in earlier phases.
 SOURCES_C += $(CORE_EMU_DIR)/db.c \
 		$(CORE_EMU_DIR)/smpc.c \
 		$(CORE_EMU_DIR)/cdb.c \
-		$(CORE_EMU_DIR)/vdp2.c
+		$(CORE_EMU_DIR)/vdp2.c \
+		$(CORE_EMU_DIR)/vdp2_render.c
 
 # The cartridge subsystem, converted from C++ to C. CartInfo was
 # already a plain struct of function pointers (C-style polymorphism),

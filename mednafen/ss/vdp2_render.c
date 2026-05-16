@@ -26,7 +26,8 @@
 
 #include "ss.h"
 #include "ss_memory.h"
-#include <mednafen/mednafen.h>
+#include <mednafen/emuspec.h>
+#include <mednafen/mdfn_gameinfo.h>
 #include "vdp2_common.h"
 #include "vdp2_render.h"
 
@@ -34,48 +35,28 @@
 #include <rthreads/rthreads.h>
 #include <rthreads/rsemaphore.h>
 #include <string.h>
-#ifdef __cplusplus
-#include <atomic>
-#endif
+#include <stdatomic.h>
 
-/* Language-neutral atomic bridge.  vdp2_render is being converted
- * from C++ to C in phases (this file is still .cpp during phase 2;
- * phase 4 renames to .c).  std::atomic<>.load/.store and C11
- * atomic_load_explicit/atomic_store_explicit produce identical
- * machine code for trivially-aligned scalar types -- both map to a
- * raw mov + appropriate memory barrier per the acquire/release
- * semantics requested.  The macros below expose a single spelling
- * that works in both languages so the SPSC queue body doesn't need
- * to be touched in phase 4.
- *
- * NOTE on C++ <-> C11 atomics interop: the C++ standard does not
- * guarantee that <stdatomic.h> works in C++ TUs (it's a separate
- * header from <atomic>), but the implementation choice here keeps
- * each language in its own native API -- the SAME source line picks
- * the C++ path under __cplusplus and the C11 path otherwise.  No
- * header crosses the boundary. */
-#ifdef __cplusplus
- typedef std::atomic<uint_least32_t> vdp2_atomic_u32;
- #define VDP2_ATOMIC_INIT(a, v)        ((a).store((v), std::memory_order_relaxed))
- #define VDP2_ATOMIC_LOAD_ACQ(a)       ((a).load(std::memory_order_acquire))
- #define VDP2_ATOMIC_STORE_REL(a, v)   ((a).store((v), std::memory_order_release))
-#else
- #include <stdatomic.h>
- typedef _Atomic uint_least32_t vdp2_atomic_u32;
- #define VDP2_ATOMIC_INIT(a, v)        atomic_store_explicit(&(a), (v), memory_order_relaxed)
- #define VDP2_ATOMIC_LOAD_ACQ(a)       atomic_load_explicit(&(a), memory_order_acquire)
- #define VDP2_ATOMIC_STORE_REL(a, v)   atomic_store_explicit(&(a), (v), memory_order_release)
-#endif
+/* C11 atomic bridge for the SPSC ring-buffer counters.  When this TU
+ * was vdp2_render.cpp the same macros switched between std::atomic<>
+ * (C++) and _Atomic (C11) via #ifdef __cplusplus; phase 4e renamed
+ * the file to .c and the C++ branch was dropped.  atomic_*_explicit
+ * with the requested acquire/release ordering produces the same raw
+ * mov + memory barrier as the C++ form did, so the SPSC queue body
+ * keeps the same per-counter codegen. */
+typedef _Atomic uint_least32_t vdp2_atomic_u32;
+#define VDP2_ATOMIC_INIT(a, v)        atomic_store_explicit(&(a), (v), memory_order_relaxed)
+#define VDP2_ATOMIC_LOAD_ACQ(a)       atomic_load_explicit(&(a), memory_order_acquire)
+#define VDP2_ATOMIC_STORE_REL(a, v)   atomic_store_explicit(&(a), (v), memory_order_release)
 
-// Improved-mesh-transparency runtime flag, owned by VDP1. Read on
-// MixIt's per-pixel hot path to gate the winprio-capture store, and
-// in DrawLine to gate the mesh-overlay call -- forward-declared here
-// to avoid pulling vdp1_common.h (a VDP1-private header) into the
-// VDP2 translation unit. Set on the emulator main thread; flips only
-// in response to the libretro option-update path, so a relaxed load
-// is sufficient.
-/* VDP1 is now C; MeshImproved is a plain extern with C linkage. */
-extern "C" { MDFN_HIDE extern bool VDP1_MeshImproved; }
+/* Improved-mesh-transparency runtime flag, owned by VDP1. Read on
+ * MixIt's per-pixel hot path to gate the winprio-capture store, and
+ * in DrawLine to gate the mesh-overlay call -- forward-declared here
+ * to avoid pulling vdp1_common.h (a VDP1-private header) into the
+ * VDP2 translation unit. Set on the emulator main thread; flips only
+ * in response to the libretro option-update path, so a relaxed load
+ * is sufficient.  VDP1 is C; plain extern, default C linkage. */
+MDFN_HIDE extern bool VDP1_MeshImproved;
 
 //uint8_t vdp2rend_prepad_bss
 
@@ -675,14 +656,18 @@ static struct
   uint64_t nbg[4][8 + 704 + 8];
   struct
   {
-   uint8_t dummy[sizeof(nbg) / 2];
-   uint16_t vcscr[2][88 + 1 + 1];	// + 1 for fine x scroll != 0, + 1 for pointer shenanigans in FetchVCScroll
+   /* `sizeof(nbg)` here would walk up into the enclosing union, which
+    * the C++ name-lookup rules allow but C name-lookup doesn't.  Spell
+    * the size out literally instead -- both branches stay in lockstep
+    * with the nbg array's declared dimensions above. */
+   uint8_t dummy[sizeof(uint64_t[4][8 + 704 + 8]) / 2];
+   uint16_t vcscr[2][88 + 1 + 1];	/* + 1 for fine x scroll != 0, + 1 for pointer shenanigans in FetchVCScroll */
   };
   struct
   {
-   uint8_t rotdummy[sizeof(nbg) / 4];
-   uint8_t rotabsel[352];	// Also used as a scratch buffer in T_DrawRBG() to handle mosaic-related junk.
-   RotVars rotv[2];
+   uint8_t rotdummy[sizeof(uint64_t[4][8 + 704 + 8]) / 4];
+   uint8_t rotabsel[352];	/* Also used as a scratch buffer in T_DrawRBG() to handle mosaic-related junk. */
+   struct RotVars rotv[2];
    uint32_t rotcoeff[352];
   };
  };
@@ -1580,25 +1565,25 @@ static NO_INLINE void ApplyHMosaic(const unsigned layer, uint64_t* buf, const un
  switch(moz_horiz_param)
  {
   case 0x0: x = moz_wmax; break;
-  case 0x1: for(; x < moz_wmax; x += 0x2) { auto b = buf[x]; buf[x + 1] = b; } break;
-  case 0x2: for(; x < moz_wmax; x += 0x3) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; } break;
-  case 0x3: for(; x < moz_wmax; x += 0x4) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; } break;
-  case 0x4: for(; x < moz_wmax; x += 0x5) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; } break;
-  case 0x5: for(; x < moz_wmax; x += 0x6) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; } break;
-  case 0x6: for(; x < moz_wmax; x += 0x7) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; } break;
-  case 0x7: for(; x < moz_wmax; x += 0x8) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; } break;
-  case 0x8: for(; x < moz_wmax; x += 0x9) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; } break;
-  case 0x9: for(; x < moz_wmax; x += 0xA) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; } break;
-  case 0xA: for(; x < moz_wmax; x += 0xB) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; } break;
-  case 0xB: for(; x < moz_wmax; x += 0xC) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; } break;
-  case 0xC: for(; x < moz_wmax; x += 0xD) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; buf[x + 12] = b; } break;
-  case 0xD: for(; x < moz_wmax; x += 0xE) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; buf[x + 12] = b; buf[x + 13] = b; } break;
-  case 0xE: for(; x < moz_wmax; x += 0xF) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; buf[x + 12] = b; buf[x + 13] = b; buf[x + 14] = b; } break;
-  case 0xF: for(; x < moz_wmax; x += 0x10) { auto b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; buf[x + 12] = b; buf[x + 13] = b; buf[x + 14] = b; buf[x + 15] = b;} break;
+  case 0x1: for(; x < moz_wmax; x += 0x2) { uint64_t b = buf[x]; buf[x + 1] = b; } break;
+  case 0x2: for(; x < moz_wmax; x += 0x3) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; } break;
+  case 0x3: for(; x < moz_wmax; x += 0x4) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; } break;
+  case 0x4: for(; x < moz_wmax; x += 0x5) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; } break;
+  case 0x5: for(; x < moz_wmax; x += 0x6) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; } break;
+  case 0x6: for(; x < moz_wmax; x += 0x7) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; } break;
+  case 0x7: for(; x < moz_wmax; x += 0x8) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; } break;
+  case 0x8: for(; x < moz_wmax; x += 0x9) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; } break;
+  case 0x9: for(; x < moz_wmax; x += 0xA) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; } break;
+  case 0xA: for(; x < moz_wmax; x += 0xB) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; } break;
+  case 0xB: for(; x < moz_wmax; x += 0xC) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; } break;
+  case 0xC: for(; x < moz_wmax; x += 0xD) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; buf[x + 12] = b; } break;
+  case 0xD: for(; x < moz_wmax; x += 0xE) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; buf[x + 12] = b; buf[x + 13] = b; } break;
+  case 0xE: for(; x < moz_wmax; x += 0xF) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; buf[x + 12] = b; buf[x + 13] = b; buf[x + 14] = b; } break;
+  case 0xF: for(; x < moz_wmax; x += 0x10) { uint64_t b = buf[x]; buf[x + 1] = b; buf[x + 2] = b; buf[x + 3] = b; buf[x + 4] = b; buf[x + 5] = b; buf[x + 6] = b; buf[x + 7] = b; buf[x + 8] = b; buf[x + 9] = b; buf[x + 10] = b; buf[x + 11] = b; buf[x + 12] = b; buf[x + 13] = b; buf[x + 14] = b; buf[x + 15] = b;} break;
  }
  assert(x <= w);
 
- for(auto b = buf[x]; x < w; x++)
+ for(uint64_t b = buf[x]; x < w; x++)
   buf[x] = b;
 }
 #if defined(__GNUC__) && !defined(__clang__)
@@ -4449,8 +4434,8 @@ struct __attribute__((aligned(64))) ConsumerState
  uint32_t DrawFinishLocal;  // total DrawLine completions
  uint32_t BurstReadPos;     // cumulative uint16_t words drained from BurstBuf
 };
-static ProducerState Prod;
-static ConsumerState Cons;
+static struct ProducerState Prod;
+static struct ConsumerState Cons;
 static bool DoBusyWait;
 ssem_t* WakeupSem;
 
@@ -4488,7 +4473,7 @@ static INLINE void WWQ(uint16_t command, uint32_t arg32, uint16_t arg16)
    retro_sleep(0);
  }
 
- WQ_Entry* wqe = &WQ[Prod.WritePos];
+ struct WQ_Entry* wqe = &WQ[Prod.WritePos];
 
  wqe->Command = command;
  wqe->Arg16 = arg16;
@@ -4529,7 +4514,7 @@ static void/*int*/ RThreadEntry(void* data)
   //
   //
   //
-  WQ_Entry* wqe = &WQ[Cons.ReadPos];
+  struct WQ_Entry* wqe = &WQ[Cons.ReadPos];
 
   switch(wqe->Command)
   {
@@ -4622,8 +4607,10 @@ void VDP2REND_Init(const bool IsPAL, const uint64_t affinity)
  UserLayerEnableMask = ~0U;
  Clock28M = false;
  //
- Prod = {};
- Cons = {};
+ /* C++ aggregate-init `X = {};` zeroed Prod/Cons in the .cpp form;
+  * use memset for C compatibility.  Both compile to the same code. */
+ memset(&Prod, 0, sizeof(Prod));
+ memset(&Cons, 0, sizeof(Cons));
  VDP2_ATOMIC_STORE_REL(WQ_PushCount, 0);
  VDP2_ATOMIC_STORE_REL(WQ_PopCount, 0);
  VDP2_ATOMIC_STORE_REL(DrawFinishCount, 0);
