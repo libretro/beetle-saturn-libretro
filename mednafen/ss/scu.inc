@@ -775,42 +775,31 @@ static INLINE void SCU_RegRW_DB(uint32_t A, uint32_t* DB)
 }
 
 /* Phase-8q1: BBusRW_DB / ABusRW_DB retired into named
- * per-(T, IsWrite, SH32) variants via constexpr-shadow.
- * Only the (T, IsWrite, SH32) tuples actually invoked
- * via the call graph (concrete and T-parametric callers)
- * are emitted -- the impossible BBusRW_DB read variants
- * with T != uint16_t (excluded by static_assert) are
- * never generated.
+ * per-(T, IsWrite, SH32) variants.  Only the tuples actually
+ * invoked via the call graph (concrete and T-parametric
+ * callers) are emitted -- the impossible BBusRW_DB read
+ * variants with T != uint16_t are never generated.
  *
- * Each variant body is the template body verbatim with
- * local `using T = ...;` typedef and `static constexpr
- * bool IsWrite/SH32 = ...;` declarations at the top.
- * gcc -O2 dead-branches per variant via the constexpr
- * values; source stays clean (uses `if(IsWrite)`,
- * `sizeof(T) == 1` etc., not literal-substituted
- * predicates -- see phase 8o-fixup for context). */
+ * Each variant body is source-folded for its tuple via
+ * tools/fold_source.py (phase 8q1-fold-fixup): template
+ * parameters are substituted to literals, dead branches
+ * eliminated, and `static_assert(...)`s evaluated and
+ * removed.  Each variant carries ONLY the code that runs
+ * for its tuple -- no constexpr-shadow indirection. */
 
 /* === BBusRW_DB variants (6 used tuples) === */
 static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint8_t;
- constexpr bool IsWrite = true;
- constexpr bool SH32 = false;
-
- static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
+ 
 
  if(time_thing != NULL)
  {
-  if(!SH32)
-  {
+  
    *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
-   if(IsWrite)
-   {
     *time_thing += 2;
     BBus_SH2_WriteFinishTS = *time_thing;
-   }
-  }
+
  }
 
  //
@@ -819,25 +808,12 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
  if(A >= 0x05C00000 && A <= 0x05D7FFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 6) : 10;
+   *sh2_dma_time_thing +=  10;
 
   if(dma_time_thing != NULL)
   {
    *dma_time_thing -= 1;
 
-   if(IsWrite)
-   {
-    if(MDFN_UNLIKELY(A >= 0x05D00000))
-    {
-     const bool ignore_write = (A >= 0x5D00004 && SCU_DMA_VDP1WriteIgnoreKludge > 0) | (SCU_DMA_VDP1WriteIgnoreKludge & 0x1);
-
-     SCU_DMA_VDP1WriteIgnoreKludge++;
-     if(ignore_write)
-      return;
-    }
-    else
-     SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   }
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -847,37 +823,18 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? ((A & 0x100000) ? 0 : 1) : 9;
-   else
-   {
+   
     *time_thing += 14;
-   }
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
-   if(time_thing != NULL)
-    VDP1_Write_CheckDrawSlowdown(A, *time_thing);
-   else if(sh2_dma_time_thing != NULL)
-    VDP1_Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
-
-   if(sizeof(T) == 1)
-    VDP1_Write8_DB(A, *DB);
-   else
-    VDP1_Write16_DB(A, *DB);
-  }
-  else
-  {
    if(time_thing != NULL)
     VDP1_Read_CheckDrawSlowdown(A, *time_thing);
    else if(sh2_dma_time_thing != NULL)
     VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
 
    *DB = VDP1_Read16_DB(A);
-  }
 
   return;
  }
@@ -888,7 +845,7 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
  if(A >= 0x05E00000 && A <= 0x05FBFFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 5) : 10;
+   *sh2_dma_time_thing +=  10;
 
   if(dma_time_thing != NULL)
   {
@@ -899,30 +856,12 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 1 : 3;
-   else
-    *time_thing += 20;
+   *time_thing += 20;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
-   uint32_t expenalty;
-
-   if(sizeof(T) == 1)
-    expenalty = VDP2_Write8_DB(A, *DB);
-   else
-    expenalty = VDP2_Write16_DB(A, *DB);
-
-   if(dma_time_thing != NULL)
-    *dma_time_thing -= expenalty;
-  }
-  else
-  {
    *DB = VDP2_Read16_DB(A);
-  }
 
   return;
  }
@@ -942,21 +881,10 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 13 : 17;
-   else
-    *time_thing += 24;
+   *time_thing += 24;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    SOUND_Write8(A & 0x1FFFFF, *DB >> (((A & 1) ^ 1) << 3));
-   else
-    SOUND_Write16(A & 0x1FFFFF, *DB);
-  }
-  else
-   *DB = SOUND_Read16(A & 0x1FFFFF); 
+  *DB = SOUND_Read16(A & 0x1FFFFF); 
 
   return;
  }
@@ -969,30 +897,20 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
  if(dma_time_thing != NULL)
   *dma_time_thing -= 1;
 
- if(!IsWrite)
-  *DB = 0;
 }
 
 static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint16_t;
- constexpr bool IsWrite = true;
- constexpr bool SH32 = false;
-
- static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
+ 
 
  if(time_thing != NULL)
  {
-  if(!SH32)
-  {
+  
    *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
-   if(IsWrite)
-   {
     *time_thing += 2;
     BBus_SH2_WriteFinishTS = *time_thing;
-   }
-  }
+
  }
 
  //
@@ -1001,25 +919,12 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05C00000 && A <= 0x05D7FFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 6) : 10;
+   *sh2_dma_time_thing +=  10;
 
   if(dma_time_thing != NULL)
   {
    *dma_time_thing -= 1;
 
-   if(IsWrite)
-   {
-    if(MDFN_UNLIKELY(A >= 0x05D00000))
-    {
-     const bool ignore_write = (A >= 0x5D00004 && SCU_DMA_VDP1WriteIgnoreKludge > 0) | (SCU_DMA_VDP1WriteIgnoreKludge & 0x1);
-
-     SCU_DMA_VDP1WriteIgnoreKludge++;
-     if(ignore_write)
-      return;
-    }
-    else
-     SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   }
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1029,37 +934,18 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? ((A & 0x100000) ? 0 : 1) : 9;
-   else
-   {
+   
     *time_thing += 14;
-   }
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
-   if(time_thing != NULL)
-    VDP1_Write_CheckDrawSlowdown(A, *time_thing);
-   else if(sh2_dma_time_thing != NULL)
-    VDP1_Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
-
-   if(sizeof(T) == 1)
-    VDP1_Write8_DB(A, *DB);
-   else
-    VDP1_Write16_DB(A, *DB);
-  }
-  else
-  {
    if(time_thing != NULL)
     VDP1_Read_CheckDrawSlowdown(A, *time_thing);
    else if(sh2_dma_time_thing != NULL)
     VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
 
    *DB = VDP1_Read16_DB(A);
-  }
 
   return;
  }
@@ -1070,7 +956,7 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05E00000 && A <= 0x05FBFFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 5) : 10;
+   *sh2_dma_time_thing +=  10;
 
   if(dma_time_thing != NULL)
   {
@@ -1081,30 +967,12 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 1 : 3;
-   else
-    *time_thing += 20;
+   *time_thing += 20;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
-   uint32_t expenalty;
-
-   if(sizeof(T) == 1)
-    expenalty = VDP2_Write8_DB(A, *DB);
-   else
-    expenalty = VDP2_Write16_DB(A, *DB);
-
-   if(dma_time_thing != NULL)
-    *dma_time_thing -= expenalty;
-  }
-  else
-  {
    *DB = VDP2_Read16_DB(A);
-  }
 
   return;
  }
@@ -1124,21 +992,10 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 13 : 17;
-   else
-    *time_thing += 24;
+   *time_thing += 24;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    SOUND_Write8(A & 0x1FFFFF, *DB >> (((A & 1) ^ 1) << 3));
-   else
-    SOUND_Write16(A & 0x1FFFFF, *DB);
-  }
-  else
-   *DB = SOUND_Read16(A & 0x1FFFFF); 
+  *DB = SOUND_Read16(A & 0x1FFFFF); 
 
   return;
  }
@@ -1151,30 +1008,15 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  if(dma_time_thing != NULL)
   *dma_time_thing -= 1;
 
- if(!IsWrite)
-  *DB = 0;
 }
 
 static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint16_t;
- constexpr bool IsWrite = true;
- constexpr bool SH32 = true;
-
- static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
+ 
 
  if(time_thing != NULL)
  {
-  if(!SH32)
-  {
-   *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
-
-   if(IsWrite)
-   {
-    *time_thing += 2;
-    BBus_SH2_WriteFinishTS = *time_thing;
-   }
-  }
+  
  }
 
  //
@@ -1183,14 +1025,12 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05C00000 && A <= 0x05D7FFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 6) : 10;
+   *sh2_dma_time_thing +=  ( 6) ;
 
   if(dma_time_thing != NULL)
   {
    *dma_time_thing -= 1;
 
-   if(IsWrite)
-   {
     if(MDFN_UNLIKELY(A >= 0x05D00000))
     {
      const bool ignore_write = (A >= 0x5D00004 && SCU_DMA_VDP1WriteIgnoreKludge > 0) | (SCU_DMA_VDP1WriteIgnoreKludge & 0x1);
@@ -1201,7 +1041,7 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
     }
     else
      SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   }
+   
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1211,37 +1051,17 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? ((A & 0x100000) ? 0 : 1) : 9;
-   else
-   {
-    *time_thing += 14;
-   }
+   BBus_SH2_WriteFinishTS +=  9;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
    if(time_thing != NULL)
     VDP1_Write_CheckDrawSlowdown(A, *time_thing);
    else if(sh2_dma_time_thing != NULL)
     VDP1_Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
 
-   if(sizeof(T) == 1)
-    VDP1_Write8_DB(A, *DB);
-   else
-    VDP1_Write16_DB(A, *DB);
-  }
-  else
-  {
-   if(time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *time_thing);
-   else if(sh2_dma_time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
-
-   *DB = VDP1_Read16_DB(A);
-  }
+   VDP1_Write16_DB(A, *DB);
 
   return;
  }
@@ -1252,7 +1072,7 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05E00000 && A <= 0x05FBFFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 5) : 10;
+   *sh2_dma_time_thing +=  ( 5) ;
 
   if(dma_time_thing != NULL)
   {
@@ -1263,30 +1083,17 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 1 : 3;
-   else
-    *time_thing += 20;
+   BBus_SH2_WriteFinishTS +=  3;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
    uint32_t expenalty;
 
-   if(sizeof(T) == 1)
-    expenalty = VDP2_Write8_DB(A, *DB);
-   else
-    expenalty = VDP2_Write16_DB(A, *DB);
+   expenalty = VDP2_Write16_DB(A, *DB);
 
    if(dma_time_thing != NULL)
     *dma_time_thing -= expenalty;
-  }
-  else
-  {
-   *DB = VDP2_Read16_DB(A);
-  }
 
   return;
  }
@@ -1306,21 +1113,10 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 13 : 17;
-   else
-    *time_thing += 24;
+   BBus_SH2_WriteFinishTS +=  17;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    SOUND_Write8(A & 0x1FFFFF, *DB >> (((A & 1) ^ 1) << 3));
-   else
-    SOUND_Write16(A & 0x1FFFFF, *DB);
-  }
-  else
-   *DB = SOUND_Read16(A & 0x1FFFFF); 
+   SOUND_Write16(A & 0x1FFFFF, *DB);
 
   return;
  }
@@ -1333,30 +1129,20 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
  if(dma_time_thing != NULL)
   *dma_time_thing -= 1;
 
- if(!IsWrite)
-  *DB = 0;
 }
 
 static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint32_t;
- constexpr bool IsWrite = true;
- constexpr bool SH32 = false;
-
- static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
+ 
 
  if(time_thing != NULL)
  {
-  if(!SH32)
-  {
+  
    *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
-   if(IsWrite)
-   {
     *time_thing += 2;
     BBus_SH2_WriteFinishTS = *time_thing;
-   }
-  }
+
  }
 
  //
@@ -1365,14 +1151,12 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05C00000 && A <= 0x05D7FFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 6) : 10;
+   *sh2_dma_time_thing +=  ( 0 ) ;
 
   if(dma_time_thing != NULL)
   {
    *dma_time_thing -= 1;
 
-   if(IsWrite)
-   {
     if(MDFN_UNLIKELY(A >= 0x05D00000))
     {
      const bool ignore_write = (A >= 0x5D00004 && SCU_DMA_VDP1WriteIgnoreKludge > 0) | (SCU_DMA_VDP1WriteIgnoreKludge & 0x1);
@@ -1383,7 +1167,7 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     }
     else
      SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   }
+   
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1393,37 +1177,17 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? ((A & 0x100000) ? 0 : 1) : 9;
-   else
-   {
-    *time_thing += 14;
-   }
+   BBus_SH2_WriteFinishTS +=  ((A & 0x100000) ? 0 : 1) ;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
    if(time_thing != NULL)
     VDP1_Write_CheckDrawSlowdown(A, *time_thing);
    else if(sh2_dma_time_thing != NULL)
     VDP1_Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
 
-   if(sizeof(T) == 1)
-    VDP1_Write8_DB(A, *DB);
-   else
-    VDP1_Write16_DB(A, *DB);
-  }
-  else
-  {
-   if(time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *time_thing);
-   else if(sh2_dma_time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
-
-   *DB = VDP1_Read16_DB(A);
-  }
+   VDP1_Write16_DB(A, *DB);
 
   return;
  }
@@ -1434,7 +1198,7 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05E00000 && A <= 0x05FBFFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 5) : 10;
+   *sh2_dma_time_thing +=  ( 0 ) ;
 
   if(dma_time_thing != NULL)
   {
@@ -1445,30 +1209,17 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 1 : 3;
-   else
-    *time_thing += 20;
+   BBus_SH2_WriteFinishTS +=  1 ;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
    uint32_t expenalty;
 
-   if(sizeof(T) == 1)
-    expenalty = VDP2_Write8_DB(A, *DB);
-   else
-    expenalty = VDP2_Write16_DB(A, *DB);
+   expenalty = VDP2_Write16_DB(A, *DB);
 
    if(dma_time_thing != NULL)
     *dma_time_thing -= expenalty;
-  }
-  else
-  {
-   *DB = VDP2_Read16_DB(A);
-  }
 
   return;
  }
@@ -1488,21 +1239,10 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 13 : 17;
-   else
-    *time_thing += 24;
+   BBus_SH2_WriteFinishTS +=  13 ;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    SOUND_Write8(A & 0x1FFFFF, *DB >> (((A & 1) ^ 1) << 3));
-   else
-    SOUND_Write16(A & 0x1FFFFF, *DB);
-  }
-  else
-   *DB = SOUND_Read16(A & 0x1FFFFF); 
+   SOUND_Write16(A & 0x1FFFFF, *DB);
 
   return;
  }
@@ -1515,30 +1255,17 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  if(dma_time_thing != NULL)
   *dma_time_thing -= 1;
 
- if(!IsWrite)
-  *DB = 0;
 }
 
 static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint16_t;
- constexpr bool IsWrite = false;
- constexpr bool SH32 = false;
-
- static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
+ 
 
  if(time_thing != NULL)
  {
-  if(!SH32)
-  {
+  
    *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
-   if(IsWrite)
-   {
-    *time_thing += 2;
-    BBus_SH2_WriteFinishTS = *time_thing;
-   }
-  }
  }
 
  //
@@ -1547,14 +1274,12 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05C00000 && A <= 0x05D7FFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 6) : 10;
+   *sh2_dma_time_thing +=  ( 6) ;
 
   if(dma_time_thing != NULL)
   {
    *dma_time_thing -= 1;
 
-   if(IsWrite)
-   {
     if(MDFN_UNLIKELY(A >= 0x05D00000))
     {
      const bool ignore_write = (A >= 0x5D00004 && SCU_DMA_VDP1WriteIgnoreKludge > 0) | (SCU_DMA_VDP1WriteIgnoreKludge & 0x1);
@@ -1565,7 +1290,7 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     }
     else
      SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   }
+   
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1575,37 +1300,17 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? ((A & 0x100000) ? 0 : 1) : 9;
-   else
-   {
-    *time_thing += 14;
-   }
+   BBus_SH2_WriteFinishTS +=  9;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
    if(time_thing != NULL)
     VDP1_Write_CheckDrawSlowdown(A, *time_thing);
    else if(sh2_dma_time_thing != NULL)
     VDP1_Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
 
-   if(sizeof(T) == 1)
-    VDP1_Write8_DB(A, *DB);
-   else
-    VDP1_Write16_DB(A, *DB);
-  }
-  else
-  {
-   if(time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *time_thing);
-   else if(sh2_dma_time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
-
-   *DB = VDP1_Read16_DB(A);
-  }
+   VDP1_Write8_DB(A, *DB);
 
   return;
  }
@@ -1616,7 +1321,7 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05E00000 && A <= 0x05FBFFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 5) : 10;
+   *sh2_dma_time_thing +=  ( 5) ;
 
   if(dma_time_thing != NULL)
   {
@@ -1627,30 +1332,17 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 1 : 3;
-   else
-    *time_thing += 20;
+   BBus_SH2_WriteFinishTS +=  3;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
    uint32_t expenalty;
 
-   if(sizeof(T) == 1)
-    expenalty = VDP2_Write8_DB(A, *DB);
-   else
-    expenalty = VDP2_Write16_DB(A, *DB);
+   expenalty = VDP2_Write8_DB(A, *DB);
 
    if(dma_time_thing != NULL)
     *dma_time_thing -= expenalty;
-  }
-  else
-  {
-   *DB = VDP2_Read16_DB(A);
-  }
 
   return;
  }
@@ -1670,21 +1362,10 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 13 : 17;
-   else
-    *time_thing += 24;
+   BBus_SH2_WriteFinishTS +=  17;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    SOUND_Write8(A & 0x1FFFFF, *DB >> (((A & 1) ^ 1) << 3));
-   else
-    SOUND_Write16(A & 0x1FFFFF, *DB);
-  }
-  else
-   *DB = SOUND_Read16(A & 0x1FFFFF); 
+   SOUND_Write8(A & 0x1FFFFF, *DB >> (((A & 1) ^ 1) << 3));
 
   return;
  }
@@ -1697,30 +1378,16 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  if(dma_time_thing != NULL)
   *dma_time_thing -= 1;
 
- if(!IsWrite)
-  *DB = 0;
+ *DB = 0;
 }
 
 static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint16_t;
- constexpr bool IsWrite = false;
- constexpr bool SH32 = true;
-
- static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
+ 
 
  if(time_thing != NULL)
  {
-  if(!SH32)
-  {
-   *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
-
-   if(IsWrite)
-   {
-    *time_thing += 2;
-    BBus_SH2_WriteFinishTS = *time_thing;
-   }
-  }
+  
  }
 
  //
@@ -1729,14 +1396,12 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05C00000 && A <= 0x05D7FFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 6) : 10;
+   *sh2_dma_time_thing +=  ( 6) ;
 
   if(dma_time_thing != NULL)
   {
    *dma_time_thing -= 1;
 
-   if(IsWrite)
-   {
     if(MDFN_UNLIKELY(A >= 0x05D00000))
     {
      const bool ignore_write = (A >= 0x5D00004 && SCU_DMA_VDP1WriteIgnoreKludge > 0) | (SCU_DMA_VDP1WriteIgnoreKludge & 0x1);
@@ -1747,7 +1412,7 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
     }
     else
      SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   }
+   
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1757,37 +1422,17 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? ((A & 0x100000) ? 0 : 1) : 9;
-   else
-   {
-    *time_thing += 14;
-   }
+   BBus_SH2_WriteFinishTS +=  9;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
    if(time_thing != NULL)
     VDP1_Write_CheckDrawSlowdown(A, *time_thing);
    else if(sh2_dma_time_thing != NULL)
     VDP1_Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
 
-   if(sizeof(T) == 1)
-    VDP1_Write8_DB(A, *DB);
-   else
-    VDP1_Write16_DB(A, *DB);
-  }
-  else
-  {
-   if(time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *time_thing);
-   else if(sh2_dma_time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
-
-   *DB = VDP1_Read16_DB(A);
-  }
+   VDP1_Write16_DB(A, *DB);
 
   return;
  }
@@ -1798,7 +1443,7 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
  if(A >= 0x05E00000 && A <= 0x05FBFFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += IsWrite ? (SH32 ? 0 : 5) : 10;
+   *sh2_dma_time_thing +=  ( 5) ;
 
   if(dma_time_thing != NULL)
   {
@@ -1809,30 +1454,17 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 1 : 3;
-   else
-    *time_thing += 20;
+   BBus_SH2_WriteFinishTS +=  3;
 
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
-  {
    uint32_t expenalty;
 
-   if(sizeof(T) == 1)
-    expenalty = VDP2_Write8_DB(A, *DB);
-   else
-    expenalty = VDP2_Write16_DB(A, *DB);
+   expenalty = VDP2_Write16_DB(A, *DB);
 
    if(dma_time_thing != NULL)
     *dma_time_thing -= expenalty;
-  }
-  else
-  {
-   *DB = VDP2_Read16_DB(A);
-  }
 
   return;
  }
@@ -1852,21 +1484,10 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   if(IsWrite)
-    BBus_SH2_WriteFinishTS += SH32 ? 13 : 17;
-   else
-    *time_thing += 24;
+   BBus_SH2_WriteFinishTS +=  17;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    SOUND_Write8(A & 0x1FFFFF, *DB >> (((A & 1) ^ 1) << 3));
-   else
-    SOUND_Write16(A & 0x1FFFFF, *DB);
-  }
-  else
-   *DB = SOUND_Read16(A & 0x1FFFFF); 
+   SOUND_Write16(A & 0x1FFFFF, *DB);
 
   return;
  }
@@ -1879,18 +1500,13 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
  if(dma_time_thing != NULL)
   *dma_time_thing -= 1;
 
- if(!IsWrite)
-  *DB = 0;
+ *DB = 0;
 }
 
 
 /* === ABusRW_DB variants (5 used tuples) === */
 static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint8_t;
- constexpr bool IsWrite = true;
- constexpr bool SH32 = false;
-
  //
  // A-Bus CS0 and CS1
  //
@@ -1901,15 +1517,15 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
    if(time_thing != NULL)
    {
-    if(!IsWrite && ((buscfg >> 15) & 0x1))
+    if(true && ((buscfg >> 15) & 0x1))
     {
      // TODO/FIXME
      *time_thing += 2;
     }
     else
     {
-     if(!SH32 || !((buscfg >> 2) & 0x3))
-      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     if(false || !((buscfg >> 2) & 0x3))
+      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
      else
       *time_thing += 2 + ((buscfg >> 8) & 0xF);
     }
@@ -1925,19 +1541,11 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
     if((buscfg >> 2) & 0x3)
      *dma_time_thing -= 2 + ((buscfg >> 8) & 0xF);
     else
-     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
    }
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS01_Write8_DB(A, DB);
-   else
-    CART_CS01_Write16_DB(A, DB);
-  }
-  else
-   CART_CS01_Read16_DB(A, DB);
+  CART_CS01_Read16_DB(A, DB);
 
   return;
  }
@@ -1958,7 +1566,6 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
   return;
  }
 
-
  //
  // A-Bus CS2
  //
@@ -1974,38 +1581,21 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
   if(time_thing)
   {
-   if(IsWrite)
-    *time_thing += 8;
-   else
-    *time_thing += 8;
+   *time_thing += 8;
   }
 
   if((A & 0x7FFF) < 0x1000)
   {
    const uint32_t offset = (A & 0x3F) >> 2;
-   const uint32_t mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+   const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
-   if(IsWrite)
-   {
-    CDB_Write_DBM(offset, *DB, mask);
-   }
-   else
-   {
-    if(!SH32 || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
+    if(false || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
      *DB = CDB_Read(offset);
-   }
+   
    return;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS2_Write8_DB(A, DB);
-   else
-    CART_CS2_Write16_DB(A, DB);
-  }
-  else
-   CART_CS2_Read16_DB(A, DB);
+  CART_CS2_Read16_DB(A, DB);
 
   return;
  }
@@ -2019,10 +1609,6 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
 static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint16_t;
- constexpr bool IsWrite = true;
- constexpr bool SH32 = false;
-
  //
  // A-Bus CS0 and CS1
  //
@@ -2033,15 +1619,15 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
    if(time_thing != NULL)
    {
-    if(!IsWrite && ((buscfg >> 15) & 0x1))
+    if(true && ((buscfg >> 15) & 0x1))
     {
      // TODO/FIXME
      *time_thing += 2;
     }
     else
     {
-     if(!SH32 || !((buscfg >> 2) & 0x3))
-      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     if(true || !((buscfg >> 2) & 0x3))
+      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
      else
       *time_thing += 2 + ((buscfg >> 8) & 0xF);
     }
@@ -2057,19 +1643,11 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     if((buscfg >> 2) & 0x3)
      *dma_time_thing -= 2 + ((buscfg >> 8) & 0xF);
     else
-     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
    }
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS01_Write8_DB(A, DB);
-   else
-    CART_CS01_Write16_DB(A, DB);
-  }
-  else
-   CART_CS01_Read16_DB(A, DB);
+  CART_CS01_Read16_DB(A, DB);
 
   return;
  }
@@ -2090,7 +1668,6 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
   return;
  }
 
-
  //
  // A-Bus CS2
  //
@@ -2106,38 +1683,21 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing)
   {
-   if(IsWrite)
-    *time_thing += 8;
-   else
-    *time_thing += 8;
+   *time_thing += 8;
   }
 
   if((A & 0x7FFF) < 0x1000)
   {
    const uint32_t offset = (A & 0x3F) >> 2;
-   const uint32_t mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+   const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
-   if(IsWrite)
-   {
-    CDB_Write_DBM(offset, *DB, mask);
-   }
-   else
-   {
-    if(!SH32 || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
+    if(true || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
      *DB = CDB_Read(offset);
-   }
+   
    return;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS2_Write8_DB(A, DB);
-   else
-    CART_CS2_Write16_DB(A, DB);
-  }
-  else
-   CART_CS2_Read16_DB(A, DB);
+  CART_CS2_Read16_DB(A, DB);
 
   return;
  }
@@ -2151,10 +1711,6 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
 static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint16_t;
- constexpr bool IsWrite = true;
- constexpr bool SH32 = true;
-
  //
  // A-Bus CS0 and CS1
  //
@@ -2165,15 +1721,15 @@ static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
    if(time_thing != NULL)
    {
-    if(!IsWrite && ((buscfg >> 15) & 0x1))
+    if(false && ((buscfg >> 15) & 0x1))
     {
      // TODO/FIXME
      *time_thing += 2;
     }
     else
     {
-     if(!SH32 || !((buscfg >> 2) & 0x3))
-      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     if(false || !((buscfg >> 2) & 0x3))
+      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
      else
       *time_thing += 2 + ((buscfg >> 8) & 0xF);
     }
@@ -2189,19 +1745,11 @@ static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
     if((buscfg >> 2) & 0x3)
      *dma_time_thing -= 2 + ((buscfg >> 8) & 0xF);
     else
-     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
    }
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS01_Write8_DB(A, DB);
-   else
-    CART_CS01_Write16_DB(A, DB);
-  }
-  else
-   CART_CS01_Read16_DB(A, DB);
+   CART_CS01_Write16_DB(A, DB);
 
   return;
  }
@@ -2222,7 +1770,6 @@ static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
   return;
  }
 
-
  //
  // A-Bus CS2
  //
@@ -2238,38 +1785,20 @@ static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing)
   {
-   if(IsWrite)
-    *time_thing += 8;
-   else
-    *time_thing += 8;
+   *time_thing += 8;
   }
 
   if((A & 0x7FFF) < 0x1000)
   {
    const uint32_t offset = (A & 0x3F) >> 2;
-   const uint32_t mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+   const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
-   if(IsWrite)
-   {
     CDB_Write_DBM(offset, *DB, mask);
-   }
-   else
-   {
-    if(!SH32 || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
-     *DB = CDB_Read(offset);
-   }
+   
    return;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS2_Write8_DB(A, DB);
-   else
-    CART_CS2_Write16_DB(A, DB);
-  }
-  else
-   CART_CS2_Read16_DB(A, DB);
+   CART_CS2_Write16_DB(A, DB);
 
   return;
  }
@@ -2283,10 +1812,6 @@ static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
 static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint16_t;
- constexpr bool IsWrite = false;
- constexpr bool SH32 = false;
-
  //
  // A-Bus CS0 and CS1
  //
@@ -2297,15 +1822,15 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
    if(time_thing != NULL)
    {
-    if(!IsWrite && ((buscfg >> 15) & 0x1))
+    if(false && ((buscfg >> 15) & 0x1))
     {
      // TODO/FIXME
      *time_thing += 2;
     }
     else
     {
-     if(!SH32 || !((buscfg >> 2) & 0x3))
-      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     if(true || !((buscfg >> 2) & 0x3))
+      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
      else
       *time_thing += 2 + ((buscfg >> 8) & 0xF);
     }
@@ -2321,19 +1846,11 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     if((buscfg >> 2) & 0x3)
      *dma_time_thing -= 2 + ((buscfg >> 8) & 0xF);
     else
-     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
    }
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS01_Write8_DB(A, DB);
-   else
-    CART_CS01_Write16_DB(A, DB);
-  }
-  else
-   CART_CS01_Read16_DB(A, DB);
+   CART_CS01_Write16_DB(A, DB);
 
   return;
  }
@@ -2354,7 +1871,6 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
   return;
  }
 
-
  //
  // A-Bus CS2
  //
@@ -2370,38 +1886,20 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing)
   {
-   if(IsWrite)
-    *time_thing += 8;
-   else
-    *time_thing += 8;
+   *time_thing += 8;
   }
 
   if((A & 0x7FFF) < 0x1000)
   {
    const uint32_t offset = (A & 0x3F) >> 2;
-   const uint32_t mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+   const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
-   if(IsWrite)
-   {
     CDB_Write_DBM(offset, *DB, mask);
-   }
-   else
-   {
-    if(!SH32 || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
-     *DB = CDB_Read(offset);
-   }
+   
    return;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS2_Write8_DB(A, DB);
-   else
-    CART_CS2_Write16_DB(A, DB);
-  }
-  else
-   CART_CS2_Read16_DB(A, DB);
+   CART_CS2_Write16_DB(A, DB);
 
   return;
  }
@@ -2415,10 +1913,6 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
 static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
- using T = uint16_t;
- constexpr bool IsWrite = false;
- constexpr bool SH32 = true;
-
  //
  // A-Bus CS0 and CS1
  //
@@ -2429,15 +1923,15 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
    if(time_thing != NULL)
    {
-    if(!IsWrite && ((buscfg >> 15) & 0x1))
+    if(false && ((buscfg >> 15) & 0x1))
     {
      // TODO/FIXME
      *time_thing += 2;
     }
     else
     {
-     if(!SH32 || !((buscfg >> 2) & 0x3))
-      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     if(true || !((buscfg >> 2) & 0x3))
+      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
      else
       *time_thing += 2 + ((buscfg >> 8) & 0xF);
     }
@@ -2453,19 +1947,11 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
     if((buscfg >> 2) & 0x3)
      *dma_time_thing -= 2 + ((buscfg >> 8) & 0xF);
     else
-     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + IsWrite)) & 1);
+     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
    }
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS01_Write8_DB(A, DB);
-   else
-    CART_CS01_Write16_DB(A, DB);
-  }
-  else
-   CART_CS01_Read16_DB(A, DB);
+   CART_CS01_Write8_DB(A, DB);
 
   return;
  }
@@ -2486,7 +1972,6 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
   return;
  }
 
-
  //
  // A-Bus CS2
  //
@@ -2502,38 +1987,20 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing)
   {
-   if(IsWrite)
-    *time_thing += 8;
-   else
-    *time_thing += 8;
+   *time_thing += 8;
   }
 
   if((A & 0x7FFF) < 0x1000)
   {
    const uint32_t offset = (A & 0x3F) >> 2;
-   const uint32_t mask = (sizeof(T) == 2) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+   const uint32_t mask = (false) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
-   if(IsWrite)
-   {
     CDB_Write_DBM(offset, *DB, mask);
-   }
-   else
-   {
-    if(!SH32 || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
-     *DB = CDB_Read(offset);
-   }
+   
    return;
   }
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 1)
-    CART_CS2_Write8_DB(A, DB);
-   else
-    CART_CS2_Write16_DB(A, DB);
-  }
-  else
-   CART_CS2_Read16_DB(A, DB);
+   CART_CS2_Write8_DB(A, DB);
 
   return;
  }
