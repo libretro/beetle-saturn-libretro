@@ -2360,17 +2360,29 @@ static void (*DrawRBG_ConstAB[2 /*bitmap enable*/][5 /*col mode*/][2 /*igntp*/][
 #undef T_DrawRBG_CAB_NAME
 #undef T_DrawRBG_CAB_BODY
 
-template<typename T>
-static INLINE void Doubleize(T* ptr, const int orig_len)
-{
- for(int i = orig_len - 1; MDFN_LIKELY(i >= 0); i--)
- {
-  auto tmp = *(ptr + i);
-
-  *(ptr + (i << 1) + 0) = tmp;
-  *(ptr + (i << 1) + 1) = tmp;
- }
-}
+/* Doubleize: was `template<typename T> static INLINE void Doubleize(T* ptr,
+ * const int orig_len)`.  Walks the array high-to-low and writes each
+ * source element to two adjacent destination slots, expanding a length-N
+ * region to length-2N in place.  The two call sites pass uint64_t* and
+ * uint8_t* respectively; __typeof__(*(ptr)) gives the right element type
+ * at each macro invocation, matching the template's auto deduction.
+ *
+ * Macro arg `ptr` is mentioned once in evaluated context (the bind to
+ * DUB_p) and twice in __typeof__ which is unevaluated -- side-effect
+ * safe.  do/while(0) so the macro behaves as a single statement and
+ * tolerates if/else nesting. */
+#define DOUBLEIZE(ptr, orig_len) do {                                              \
+ __typeof__(*(ptr)) *DUB_p = (ptr);                                                \
+ const int DUB_len = (orig_len);                                                   \
+                                                                                   \
+ for(int DUB_i = DUB_len - 1; MDFN_LIKELY(DUB_i >= 0); DUB_i--)                    \
+ {                                                                                 \
+  const __typeof__(*(ptr)) DUB_tmp = DUB_p[DUB_i];                                 \
+                                                                                   \
+  DUB_p[(DUB_i << 1) + 0] = DUB_tmp;                                               \
+  DUB_p[(DUB_i << 1) + 1] = DUB_tmp;                                               \
+ }                                                                                 \
+} while(0)
 
 static void RBGPP(const unsigned layer, uint64_t* buf, const unsigned rbg_w)
 {
@@ -2387,7 +2399,7 @@ static void RBGPP(const unsigned layer, uint64_t* buf, const unsigned rbg_w)
  }
 
  if(HRes & 0x2)
-  Doubleize(buf, rbg_w);
+  DOUBLEIZE(buf, rbg_w);
 
  ApplyWin(layer, buf);
 }
@@ -3424,7 +3436,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
    // the Sega Rally vertical-line regression cause.
    LB_clean_nbg[1] = false;
    if(LineColorEn && (HRes & 0x2) && ((KTCTL[0] | KTCTL[1]) & 0x10))
-    Doubleize(LB.lc, rbg_w);
+    DOUBLEIZE(LB.lc, rbg_w);
 
    // RBG0
    if(MDFN_LIKELY(BGON & UserLayerEnableMask & 0x10))
