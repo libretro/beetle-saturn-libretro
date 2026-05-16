@@ -1164,17 +1164,25 @@ void SH7095::SCI_Reset(void)
 //
 // Misaligned/wrong-sized accesses aren't handled correctly, it's a mess, but probably doesn't matter.
 //
-template<typename T>
-NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32_t A, uint32_t V)
+/* Phase-8o: OnChipRegWrite<T> retired -- 3 named NO_INLINE
+ * width variants below.  Body identical to the previous
+ * template form with `sizeof(T)` folded to the per-variant
+ * literal width; gcc -O2 dead-branches the inactive arms.
+ * Three concrete-T callsites (the macro at line ~2788 in
+ * MemWriteRT, two macro definitions) dispatched via a
+ * sizeof(T) ladder that folds at outer-template-
+ * instantiation time. */
+
+NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u8(uint32_t A, uint32_t V)
 {
  if(A & 0x100)
  {
-  if(sizeof(T) == 2)
+  if(1 == 2)
    A &= 0xFE;
   else
    A &= 0xFC;
 
-  if(sizeof(T) == 1)
+  if(1 == 1)
   {
    SetPEX(PEX_CPUADDR);
    V |= (uint8_t)V << 8;
@@ -1283,49 +1291,49 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32_t A, uint32_t V)
    // BSC registers
    //
    case 0xE0:	// BCR1
-	if(sizeof(T) == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.BCR1 = (BSC.BCR1 & 0x8000) | (V & 0x1FF7);
 	}
 	break;
 
    case 0xE4:	// BCR2
-	if(sizeof(T) == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.BCR2 = V & 0xFC;
 	}
 	break;
 
    case 0xE8:	// WCR
-	if(sizeof(T) == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.WCR = V & 0xFFFF;
 	}
 	break;
 
    case 0xEC:	// MCR
-	if(sizeof(T) == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.MCR = V & 0xFEFC;
 	}
 	break;
 
    case 0xF0:	// RTCSR
-	if(sizeof(T) == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.RTCSR = (V & 0x78) | (BSC.RTCSR & 0x80 & (V | ~BSC.RTCSRM));
 	}
 	break;
 
    case 0xF4:	// RTCNT
-	if(sizeof(T) == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.RTCNT = V & 0xFF;
 	}
 	break;
 
    case 0xF8: // RTCOR
-	if(sizeof(T) == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.RTCOR = V & 0xFF;
 	}
@@ -1337,16 +1345,16 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32_t A, uint32_t V)
   unsigned mask = 0xFFFF;
   unsigned shift = 0;
 
-  if(sizeof(T) != 2)
+  if(1 != 2)
   {
    shift = ((A & 1) ^ 1) << 3;
    mask = 0xFF << shift;
 
-   if(sizeof(T) == 4)
+   if(1 == 4)
     shift ^= 8;
   }
 
-  if(sizeof(T) == 4)
+  if(1 == 4)
    SetPEX(PEX_CPUADDR);
 
   switch(A & 0xFF)
@@ -1437,7 +1445,7 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32_t A, uint32_t V)
    case 0x80:
    case 0x88:
 	FRT_WDT_Update();
-	if(sizeof(T) == 2)
+	if(1 == 2)
 	{
 	 if((V & 0xFF00) == 0x5A00)
 	 {
@@ -1465,7 +1473,7 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32_t A, uint32_t V)
    case 0x82:
    case 0x8A:
 	FRT_WDT_Update();
-	if(sizeof(T) == 2)
+	if(1 == 2)
 	{
 	 if(V == 0xA500)
 	 {
@@ -1559,8 +1567,802 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite(uint32_t A, uint32_t V)
  }
 }
 
-template<typename T>
-INLINE T SH7095::OnChipRegRead_INLINE(uint32_t A)
+NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u16(uint32_t A, uint32_t V)
+{
+ if(A & 0x100)
+ {
+  if(2 == 2)
+   A &= 0xFE;
+  else
+   A &= 0xFC;
+
+  if(2 == 1)
+  {
+   SetPEX(PEX_CPUADDR);
+   V |= (uint8_t)V << 8;
+  }
+
+  switch(A)
+  {
+   default:
+	break;
+
+   //
+   // Division Unit registers
+   // 
+   case 0x20:
+   case 0x00:
+	DVSR = V;
+	break;
+
+   case 0x24:
+   case 0x04:
+	DVDNT = V;
+	DVDNTL = V;
+	DVDNTH = (int32_t)V >> 31;
+	DIVU_S32_S32();
+	break;
+
+   case 0x28:
+   case 0x08:
+	DVCR = V & 0x3;
+	break;
+
+   case 0x2C:
+   case 0x0C:
+	VCRDIV = V;
+	break;
+
+   case 0x30:
+   case 0x10:
+	DVDNTH = V;
+	break;
+
+   case 0x34:
+   case 0x14:
+	DVDNTL = V;
+	DIVU_S64_S32();
+	break;
+
+   // ?
+   case 0x38:
+   case 0x18:
+	DVDNTH_Shadow = V;
+	break;
+
+   case 0x3C:
+   case 0x1C:
+	DVDNTL_Shadow = V;
+	break;
+   //
+   //
+   //
+
+   //
+   // DMA registers
+   //
+   case 0x80:
+   case 0x90:
+	DMACH[(A >> 4) & 1].SAR = V;
+	break;
+
+   case 0x84:
+   case 0x94:
+	DMACH[(A >> 4) & 1].DAR = V;
+	break;
+
+   case 0x88:
+   case 0x98:
+	DMACH[(A >> 4) & 1].TCR = V & 0xFFFFFF;
+	break;
+
+   case 0x8C:
+   case 0x9C:
+	DMA_Update(SH7095_mem_timestamp);
+	{
+	 const unsigned ch = (A >> 4) & 1;
+
+	 DMACH[ch].CHCR = (V & ~2) | (DMACH[ch].CHCR & (V | DMACH[ch].CHCRM) & 2);
+	}
+	DMA_RecalcRunning();
+	DMA_StartSG();
+	RecalcPendingIntPEX();
+	break;
+
+   case 0xA0:
+   case 0xA8:
+	DMACH[(A >> 3) & 1].VCR = V;
+	break;
+
+   case 0xB0:
+	DMA_Update(SH7095_mem_timestamp);
+	DMAOR = (V & 0x9) | (DMAOR & (V | DMAORM) & 0x6);
+	DMA_RecalcRunning();
+	DMA_StartSG();
+	break;
+
+   //
+   // BSC registers
+   //
+   case 0xE0:	// BCR1
+	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.BCR1 = (BSC.BCR1 & 0x8000) | (V & 0x1FF7);
+	}
+	break;
+
+   case 0xE4:	// BCR2
+	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.BCR2 = V & 0xFC;
+	}
+	break;
+
+   case 0xE8:	// WCR
+	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.WCR = V & 0xFFFF;
+	}
+	break;
+
+   case 0xEC:	// MCR
+	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.MCR = V & 0xFEFC;
+	}
+	break;
+
+   case 0xF0:	// RTCSR
+	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.RTCSR = (V & 0x78) | (BSC.RTCSR & 0x80 & (V | ~BSC.RTCSRM));
+	}
+	break;
+
+   case 0xF4:	// RTCNT
+	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.RTCNT = V & 0xFF;
+	}
+	break;
+
+   case 0xF8: // RTCOR
+	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.RTCOR = V & 0xFF;
+	}
+	break;
+  }
+ }
+ else
+ {
+  unsigned mask = 0xFFFF;
+  unsigned shift = 0;
+
+  if(2 != 2)
+  {
+   shift = ((A & 1) ^ 1) << 3;
+   mask = 0xFF << shift;
+
+   if(2 == 4)
+    shift ^= 8;
+  }
+
+  if(2 == 4)
+   SetPEX(PEX_CPUADDR);
+
+  switch(A & 0xFF)
+  {
+   default:
+	break;
+
+   //
+   // Free-running timer registers.
+   //
+   //
+   // TIER
+   case 0x10:
+	FRT_WDT_Update();
+	//
+	FRT.TIER = V;
+	RecalcPendingIntPEX();
+	break;
+
+   // FTCSR
+   case 0x11:
+	FRT_WDT_Update();
+	//
+	FRT.FTCSR = (FRT.FTCSR & (FRT.FTCSRM | V) & 0x8E) | (V & 0x01);
+	RecalcPendingIntPEX();
+	FRT_CheckOCR();
+	break;
+
+   // FRCH
+   case 0x12:
+	FRT.RW_Temp = V;
+	break;
+
+   // FRCL
+   case 0x13:
+	FRT_WDT_Update();
+	//
+	FRT.FRC = (FRT.RW_Temp << 8) | (V & 0xFF);
+	FRT_CheckOCR();
+	FRT_WDT_Recalc_NET();
+	break;
+
+   // OCRA/B H
+   case 0x14:
+	FRT.RW_Temp = V;
+	break;
+
+   // OCRA/B L
+   case 0x15:
+	FRT_WDT_Update();
+	//
+	FRT.OCR[(FRT.TOCR >> 4) & 1] = (FRT.RW_Temp << 8) | V;
+	FRT_CheckOCR();
+	FRT_WDT_Recalc_NET();
+	break;
+
+   // TCR
+   case 0x16:
+	{
+	 FRT_WDT_Update();
+	 //
+	 //const uint8_t old_TCR = FRT.TCR;
+ 	 FRT.TCR = V;
+	 //
+	 //
+	 //
+	 FRT_WDT_Recalc_NET();
+	}
+	break;
+
+   // TOCR
+   case 0x17:
+	FRT.TOCR = V & 0x1F;
+	break;
+
+   //
+   //
+   //
+   case 0x71:
+   case 0x72:
+	DMACH[(A & 1) ^ 1].DRCR = V & 0x3;
+	break;
+
+
+   //
+   // WDT registers
+   //
+   case 0x80:
+   case 0x88:
+	FRT_WDT_Update();
+	if(2 == 2)
+	{
+	 if((V & 0xFF00) == 0x5A00)
+	 {
+	  if(WDT.WTCSR & 0x20)
+	   WDT.WTCNT = V;
+	 }
+	 else if((V & 0xFF00) == 0xA500)
+	 {
+	  WDT.WTCSR = (WDT.WTCSR & (WDT.WTCSRM | V) & 0x80) | (V & 0x67);
+
+	  if(WDT.WTCSR & 0x20)
+	   SBYCR &= 0x7F;
+	  else
+	  {
+	   WDT.WTCSR &= ~0x80;	// Seemingly undocumented...
+	   WDT.WTCNT = 0;
+	  }
+	 }
+	}
+	WDT.RSTCSRM = 0;
+	FRT_WDT_Recalc_NET();
+	RecalcPendingIntPEX();
+	break;
+
+   case 0x82:
+   case 0x8A:
+	FRT_WDT_Update();
+	if(2 == 2)
+	{
+	 if(V == 0xA500)
+	 {
+	  // Clear OVF bit
+	  WDT.RSTCSR &= ~WDT.RSTCSRM;
+	 }
+	 else if((V & 0xFF00) == 0x5A00)
+	 {
+	  // Write RSTE and RSTS bits
+	  WDT.RSTCSR = (WDT.RSTCSR & 0x80) | (V & 0x60);
+	 }
+	}
+	WDT.RSTCSRM = 0;
+	break;
+
+   case 0x81:
+   case 0x83:
+   case 0x84:
+   case 0x85:
+   case 0x86:
+   case 0x87:
+   case 0x89:
+   case 0x8B:
+   case 0x8C:
+   case 0x8D:
+   case 0x8E:
+   case 0x8F:
+	WDT.RSTCSRM = 0;
+	break;
+
+   //
+   //
+   //
+   case 0x91:
+	SBYCR = V;
+
+	if(WDT.WTCSR & 0x20)
+	 SBYCR &= 0x7F;
+
+	break;
+
+   case 0x92:	// No 0x93...0x9F mirrors for writes.
+	SetCCR(V);
+	break;
+   //
+   //
+   //
+   case 0x60:
+   case 0x61:
+	IPRB = (IPRB &~ mask) | ((V << shift) & mask & 0xFF00);
+	RecalcPendingIntPEX();
+	break;
+
+   case 0x62:
+   case 0x63:
+	VCRA = (VCRA &~ mask) | ((V << shift) & mask & 0x7F7F);
+	break;
+
+   case 0x64:
+   case 0x65:
+	VCRB = (VCRB &~ mask) | ((V << shift) & mask & 0x7F7F);
+	break;
+
+   case 0x66:
+   case 0x67:
+	VCRC = (VCRC &~ mask) | ((V << shift) & mask & 0x7F7F);
+	break;
+
+   case 0x68:
+   case 0x69:
+	VCRD = (VCRD &~ mask) | ((V << shift) & mask & 0x7F00);
+	break;
+
+   case 0xE0:
+   case 0xE1:
+	ICR = (ICR &~ mask) | ((V << shift) & mask & 0x0101);
+	RecalcPendingIntPEX();
+	break;
+
+   case 0xE2:
+   case 0xE3:
+	IPRA = (IPRA &~ mask) | ((V << shift) & mask & 0xFFF0);
+	RecalcPendingIntPEX();
+	break;
+
+   case 0xE4:
+   case 0xE5:
+	VCRWDT = (VCRWDT &~ mask) | ((V << shift) & mask & 0x7F7F);
+	break;
+  }
+ }
+}
+
+NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u32(uint32_t A, uint32_t V)
+{
+ if(A & 0x100)
+ {
+  if(4 == 2)
+   A &= 0xFE;
+  else
+   A &= 0xFC;
+
+  if(4 == 1)
+  {
+   SetPEX(PEX_CPUADDR);
+   V |= (uint8_t)V << 8;
+  }
+
+  switch(A)
+  {
+   default:
+	break;
+
+   //
+   // Division Unit registers
+   // 
+   case 0x20:
+   case 0x00:
+	DVSR = V;
+	break;
+
+   case 0x24:
+   case 0x04:
+	DVDNT = V;
+	DVDNTL = V;
+	DVDNTH = (int32_t)V >> 31;
+	DIVU_S32_S32();
+	break;
+
+   case 0x28:
+   case 0x08:
+	DVCR = V & 0x3;
+	break;
+
+   case 0x2C:
+   case 0x0C:
+	VCRDIV = V;
+	break;
+
+   case 0x30:
+   case 0x10:
+	DVDNTH = V;
+	break;
+
+   case 0x34:
+   case 0x14:
+	DVDNTL = V;
+	DIVU_S64_S32();
+	break;
+
+   // ?
+   case 0x38:
+   case 0x18:
+	DVDNTH_Shadow = V;
+	break;
+
+   case 0x3C:
+   case 0x1C:
+	DVDNTL_Shadow = V;
+	break;
+   //
+   //
+   //
+
+   //
+   // DMA registers
+   //
+   case 0x80:
+   case 0x90:
+	DMACH[(A >> 4) & 1].SAR = V;
+	break;
+
+   case 0x84:
+   case 0x94:
+	DMACH[(A >> 4) & 1].DAR = V;
+	break;
+
+   case 0x88:
+   case 0x98:
+	DMACH[(A >> 4) & 1].TCR = V & 0xFFFFFF;
+	break;
+
+   case 0x8C:
+   case 0x9C:
+	DMA_Update(SH7095_mem_timestamp);
+	{
+	 const unsigned ch = (A >> 4) & 1;
+
+	 DMACH[ch].CHCR = (V & ~2) | (DMACH[ch].CHCR & (V | DMACH[ch].CHCRM) & 2);
+	}
+	DMA_RecalcRunning();
+	DMA_StartSG();
+	RecalcPendingIntPEX();
+	break;
+
+   case 0xA0:
+   case 0xA8:
+	DMACH[(A >> 3) & 1].VCR = V;
+	break;
+
+   case 0xB0:
+	DMA_Update(SH7095_mem_timestamp);
+	DMAOR = (V & 0x9) | (DMAOR & (V | DMAORM) & 0x6);
+	DMA_RecalcRunning();
+	DMA_StartSG();
+	break;
+
+   //
+   // BSC registers
+   //
+   case 0xE0:	// BCR1
+	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.BCR1 = (BSC.BCR1 & 0x8000) | (V & 0x1FF7);
+	}
+	break;
+
+   case 0xE4:	// BCR2
+	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.BCR2 = V & 0xFC;
+	}
+	break;
+
+   case 0xE8:	// WCR
+	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.WCR = V & 0xFFFF;
+	}
+	break;
+
+   case 0xEC:	// MCR
+	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.MCR = V & 0xFEFC;
+	}
+	break;
+
+   case 0xF0:	// RTCSR
+	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.RTCSR = (V & 0x78) | (BSC.RTCSR & 0x80 & (V | ~BSC.RTCSRM));
+	}
+	break;
+
+   case 0xF4:	// RTCNT
+	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.RTCNT = V & 0xFF;
+	}
+	break;
+
+   case 0xF8: // RTCOR
+	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	{
+ 	 BSC.RTCOR = V & 0xFF;
+	}
+	break;
+  }
+ }
+ else
+ {
+  unsigned mask = 0xFFFF;
+  unsigned shift = 0;
+
+  if(4 != 2)
+  {
+   shift = ((A & 1) ^ 1) << 3;
+   mask = 0xFF << shift;
+
+   if(4 == 4)
+    shift ^= 8;
+  }
+
+  if(4 == 4)
+   SetPEX(PEX_CPUADDR);
+
+  switch(A & 0xFF)
+  {
+   default:
+	break;
+
+   //
+   // Free-running timer registers.
+   //
+   //
+   // TIER
+   case 0x10:
+	FRT_WDT_Update();
+	//
+	FRT.TIER = V;
+	RecalcPendingIntPEX();
+	break;
+
+   // FTCSR
+   case 0x11:
+	FRT_WDT_Update();
+	//
+	FRT.FTCSR = (FRT.FTCSR & (FRT.FTCSRM | V) & 0x8E) | (V & 0x01);
+	RecalcPendingIntPEX();
+	FRT_CheckOCR();
+	break;
+
+   // FRCH
+   case 0x12:
+	FRT.RW_Temp = V;
+	break;
+
+   // FRCL
+   case 0x13:
+	FRT_WDT_Update();
+	//
+	FRT.FRC = (FRT.RW_Temp << 8) | (V & 0xFF);
+	FRT_CheckOCR();
+	FRT_WDT_Recalc_NET();
+	break;
+
+   // OCRA/B H
+   case 0x14:
+	FRT.RW_Temp = V;
+	break;
+
+   // OCRA/B L
+   case 0x15:
+	FRT_WDT_Update();
+	//
+	FRT.OCR[(FRT.TOCR >> 4) & 1] = (FRT.RW_Temp << 8) | V;
+	FRT_CheckOCR();
+	FRT_WDT_Recalc_NET();
+	break;
+
+   // TCR
+   case 0x16:
+	{
+	 FRT_WDT_Update();
+	 //
+	 //const uint8_t old_TCR = FRT.TCR;
+ 	 FRT.TCR = V;
+	 //
+	 //
+	 //
+	 FRT_WDT_Recalc_NET();
+	}
+	break;
+
+   // TOCR
+   case 0x17:
+	FRT.TOCR = V & 0x1F;
+	break;
+
+   //
+   //
+   //
+   case 0x71:
+   case 0x72:
+	DMACH[(A & 1) ^ 1].DRCR = V & 0x3;
+	break;
+
+
+   //
+   // WDT registers
+   //
+   case 0x80:
+   case 0x88:
+	FRT_WDT_Update();
+	if(4 == 2)
+	{
+	 if((V & 0xFF00) == 0x5A00)
+	 {
+	  if(WDT.WTCSR & 0x20)
+	   WDT.WTCNT = V;
+	 }
+	 else if((V & 0xFF00) == 0xA500)
+	 {
+	  WDT.WTCSR = (WDT.WTCSR & (WDT.WTCSRM | V) & 0x80) | (V & 0x67);
+
+	  if(WDT.WTCSR & 0x20)
+	   SBYCR &= 0x7F;
+	  else
+	  {
+	   WDT.WTCSR &= ~0x80;	// Seemingly undocumented...
+	   WDT.WTCNT = 0;
+	  }
+	 }
+	}
+	WDT.RSTCSRM = 0;
+	FRT_WDT_Recalc_NET();
+	RecalcPendingIntPEX();
+	break;
+
+   case 0x82:
+   case 0x8A:
+	FRT_WDT_Update();
+	if(4 == 2)
+	{
+	 if(V == 0xA500)
+	 {
+	  // Clear OVF bit
+	  WDT.RSTCSR &= ~WDT.RSTCSRM;
+	 }
+	 else if((V & 0xFF00) == 0x5A00)
+	 {
+	  // Write RSTE and RSTS bits
+	  WDT.RSTCSR = (WDT.RSTCSR & 0x80) | (V & 0x60);
+	 }
+	}
+	WDT.RSTCSRM = 0;
+	break;
+
+   case 0x81:
+   case 0x83:
+   case 0x84:
+   case 0x85:
+   case 0x86:
+   case 0x87:
+   case 0x89:
+   case 0x8B:
+   case 0x8C:
+   case 0x8D:
+   case 0x8E:
+   case 0x8F:
+	WDT.RSTCSRM = 0;
+	break;
+
+   //
+   //
+   //
+   case 0x91:
+	SBYCR = V;
+
+	if(WDT.WTCSR & 0x20)
+	 SBYCR &= 0x7F;
+
+	break;
+
+   case 0x92:	// No 0x93...0x9F mirrors for writes.
+	SetCCR(V);
+	break;
+   //
+   //
+   //
+   case 0x60:
+   case 0x61:
+	IPRB = (IPRB &~ mask) | ((V << shift) & mask & 0xFF00);
+	RecalcPendingIntPEX();
+	break;
+
+   case 0x62:
+   case 0x63:
+	VCRA = (VCRA &~ mask) | ((V << shift) & mask & 0x7F7F);
+	break;
+
+   case 0x64:
+   case 0x65:
+	VCRB = (VCRB &~ mask) | ((V << shift) & mask & 0x7F7F);
+	break;
+
+   case 0x66:
+   case 0x67:
+	VCRC = (VCRC &~ mask) | ((V << shift) & mask & 0x7F7F);
+	break;
+
+   case 0x68:
+   case 0x69:
+	VCRD = (VCRD &~ mask) | ((V << shift) & mask & 0x7F00);
+	break;
+
+   case 0xE0:
+   case 0xE1:
+	ICR = (ICR &~ mask) | ((V << shift) & mask & 0x0101);
+	RecalcPendingIntPEX();
+	break;
+
+   case 0xE2:
+   case 0xE3:
+	IPRA = (IPRA &~ mask) | ((V << shift) & mask & 0xFFF0);
+	RecalcPendingIntPEX();
+	break;
+
+   case 0xE4:
+   case 0xE5:
+	VCRWDT = (VCRWDT &~ mask) | ((V << shift) & mask & 0x7F7F);
+	break;
+  }
+ }
+}
+
+/* Phase-8o: OnChipRegRead_INLINE<T> retired -- 3 named INLINE
+ * width variants below.  Each carries the previous template
+ * body with `sizeof(T)` folded per width and the return type
+ * concretised.  Used by the OnChipRegRead_NI_uN forwarders
+ * (phase 8j) and the OnChipRegRead macros, which now
+ * dispatch by sizeof(T) at the call site. */
+
+INLINE uint8_t SH7095::OnChipRegRead_INLINE_u8(uint32_t A)
 {
  if(A & 0x100)
  {
@@ -1568,12 +2370,12 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32_t A)
 
   MA_until++;
 
-  if(sizeof(T) == 2)
+  if(1 == 2)
    A &= 0xFE;
   else
    A &= 0xFC;
 
-  if(sizeof(T) == 1)
+  if(1 == 1)
    SetPEX(PEX_CPUADDR);
 
   switch(A)
@@ -1732,7 +2534,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32_t A)
 	break;
   }
 
-  if(sizeof(T) == 1)
+  if(1 == 1)
    ret >>= ((A & 1) ^ 1) << 3;
 
   return ret;
@@ -1740,7 +2542,7 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32_t A)
  else
  {
   const unsigned Am = (uint8_t)A;
-  const unsigned shift = ((sizeof(T) != 2) ? (((A & 1) ^ 1) << 3) : 0);
+  const unsigned shift = ((1 != 2) ? (((A & 1) ^ 1) << 3) : 0);
   uint16_t ret = 0;
 
   if(Am < 0x20)
@@ -1750,7 +2552,745 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32_t A)
   else
    MA_until += 1;
 
-  if(sizeof(T) == 4)
+  if(1 == 4)
+   SetPEX(PEX_CPUADDR);
+
+  else switch(Am)
+  {
+   default:
+	break;
+
+   //
+   // FRT registers.  Some weirdness with 16-bit reads duplicating the lower 8 bits in the upper 8-bits, but the upper 8-bits are masked
+   // with the last data written to the FRT area or something...not emulated here.
+   //
+   case 0x10:
+	ret = FRT.TIER | 1;
+	break;
+
+   case 0x11:
+	FRT_WDT_Update();
+	//
+	ret = FRT.FTCSR;
+	FRT.FTCSRM = 0x00;
+	break;
+
+   case 0x12:
+	FRT_WDT_Update();
+	//
+	FRT.RW_Temp = FRT.FRC;
+	ret = FRT.FRC >> 8;
+	break;
+
+   case 0x13:
+	ret = FRT.RW_Temp;
+	break;
+
+   case 0x14:
+	ret = FRT.OCR[(FRT.TOCR >> 4) & 1] >> 8;
+	break;
+
+   case 0x15:
+	ret = FRT.OCR[(FRT.TOCR >> 4) & 1] & 0xFF;
+	break;
+
+   case 0x16:
+	ret = FRT.TCR;
+	break;
+
+   case 0x17:
+	ret = FRT.TOCR | 0xE0;
+	break;
+
+   case 0x18:
+	FRT.RW_Temp = FRT.FICR;
+	ret = FRT.FICR >> 8;
+	break;
+
+   case 0x19:
+	ret = FRT.RW_Temp;
+	break;
+
+   //
+   //
+   //
+   case 0x71:
+   case 0x72:
+	ret = DMACH[(A & 1) ^ 1].DRCR;
+	break;
+
+
+   //
+   // WDT registers
+   //
+   case 0x80:
+   case 0x88:
+	FRT_WDT_Update();
+	ret = WDT.WTCSR | 0x18;
+	WDT.WTCSRM = 0x00;
+	break;
+
+   case 0x81:
+   case 0x89:
+	FRT_WDT_Update();
+	ret = WDT.WTCNT;
+	break;
+
+   case 0x82:
+   case 0x85:
+   case 0x86:
+   case 0x87:
+   case 0x8A:
+   case 0x8D:
+   case 0x8E:
+   case 0x8F:
+	ret = 0xFF;
+	break;
+
+   case 0x83:
+   case 0x8B:
+	FRT_WDT_Update();
+	ret = WDT.RSTCSR | 0x1F;
+	WDT.RSTCSRM = (WDT.RSTCSR & 0x80);
+	break;
+
+   // FIXME: WDT open bus of a sort.
+   // case 0x84:
+   // case 0x8C:
+
+   //
+   //
+   //
+
+   case 0x91:
+	ret = SBYCR;
+	break;
+
+   case 0x92 ... 0x9F:
+	//
+	// TODO: Emulate jankiness of 16-bit reads from mirror addresses.
+	//
+	ret = CCR | (CCR << 8);
+	break;
+   //
+   //
+   //
+   case 0x60:
+   case 0x61:
+	ret = IPRB >> shift;
+	break;
+
+   case 0x62:
+   case 0x63:
+	ret = VCRA >> shift;
+	break;
+
+   case 0x64:
+   case 0x65:
+	ret = VCRB >> shift;
+	break;
+
+   case 0x66:
+   case 0x67:
+	ret = VCRC >> shift;
+	break;
+
+   case 0x68:
+   case 0x69:
+	ret = VCRD >> shift;
+	break;
+
+   case 0x6A: case 0x6B: case 0x6C: case 0x6D: case 0x6E: case 0x6F:
+	ret = 0xFFFF >> shift;
+	break;
+
+   case 0xE0:
+   case 0xE1:
+	ret = (ICR | (NMILevel << 15)) >> shift;
+	break;
+
+   case 0xE2:
+   case 0xE3:
+	ret = IPRA >> shift;
+	break;
+
+   case 0xE4:
+   case 0xE5:
+	ret = VCRWDT >> shift;
+	break;
+
+   case 0xE6: case 0xE7:
+   case 0xE8: case 0xE9: case 0xEA: case 0xEB: case 0xEC: case 0xED: case 0xEE: case 0xEF:
+   case 0xF0: case 0xF1: case 0xF2: case 0xF3: case 0xF4: case 0xF5: case 0xF6: case 0xF7:
+   case 0xF8: case 0xF9: case 0xFA: case 0xFB: case 0xFC: case 0xFD: case 0xFE: case 0xFF:
+	ret = 0xFFFF >> shift;
+	break;
+  }
+
+  return ret;
+ }
+}
+
+INLINE uint16_t SH7095::OnChipRegRead_INLINE_u16(uint32_t A)
+{
+ if(A & 0x100)
+ {
+  uint32_t ret = 0;
+
+  MA_until++;
+
+  if(2 == 2)
+   A &= 0xFE;
+  else
+   A &= 0xFC;
+
+  if(2 == 1)
+   SetPEX(PEX_CPUADDR);
+
+  switch(A)
+  {
+   default:
+	break;
+
+   //
+   // Division Unit registers
+   // 
+   case 0x20:
+   case 0x22:
+   case 0x00:
+   case 0x02:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVSR;
+	break;
+
+   case 0x24:
+   case 0x26:
+   case 0x04:
+   case 0x06:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNT;
+	break;
+
+   case 0x28:
+   case 0x2A:
+   case 0x08:
+   case 0x0A:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVCR;
+	break;
+
+   case 0x2C:
+   case 0x2E:
+   case 0x0C:
+   case 0x0E:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = VCRDIV;
+	break;
+
+   case 0x30:
+   case 0x32:
+   case 0x10:
+   case 0x12:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNTH;
+	break;
+
+   case 0x34:
+   case 0x36:
+   case 0x14:
+   case 0x16:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNTL;
+	break;
+
+   // ?
+   case 0x38:
+   case 0x3A:
+   case 0x18:
+   case 0x1A:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNTH_Shadow;
+	break;
+
+   case 0x3C:
+   case 0x3E:
+   case 0x1C:
+   case 0x1E:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNTL_Shadow;
+	break;
+   //
+   //
+   //
+
+   //
+   // DMA registers
+   //
+   case 0x80:
+   case 0x90:
+	ret = DMACH[(A >> 4) & 1].SAR;
+	break;
+
+   case 0x84:
+   case 0x94:
+	ret = DMACH[(A >> 4) & 1].DAR;
+	break;
+
+   case 0x88:
+   case 0x98:
+	ret = DMACH[(A >> 4) & 1].TCR;
+	break;
+
+   case 0x8C:
+   case 0x9C:
+	{
+	 const unsigned ch = (A >> 4) & 1;
+
+	 ret = DMACH[ch].CHCR;
+	 DMACH[ch].CHCRM = 0;
+	}
+	break;
+
+   case 0xA0:
+   case 0xA8:
+	ret = DMACH[(A >> 3) & 1].VCR;
+	break;
+
+   case 0xB0:
+	ret = DMAOR;
+	DMAORM = 0;
+	break;
+
+   //
+   // BSC registers
+   //
+   case 0xE0:	// BCR1
+   case 0xE2:
+	ret = BSC.BCR1;
+	break;
+
+   case 0xE4:	// BCR2
+   case 0xE6:
+	ret = BSC.BCR2;
+	break;
+
+   case 0xE8:	// WCR
+   case 0xEA:
+	ret = BSC.WCR;
+	break;
+
+   case 0xEC:	// MCR
+   case 0xEE:
+	ret = BSC.MCR;
+	break;
+
+   case 0xF0:	// RTCSR
+   case 0xF2:
+	ret = BSC.RTCSR;
+	BSC.RTCSRM = BSC.RTCSR & 0x80;
+
+	break;
+
+   case 0xF4:	// RTCNT
+   case 0xF6:
+	ret = BSC.RTCNT;
+
+	break;
+
+   case 0xF8:	// RTCOR
+   case 0xFA:
+	ret = BSC.RTCOR;
+	break;
+  }
+
+  if(2 == 1)
+   ret >>= ((A & 1) ^ 1) << 3;
+
+  return ret;
+ }
+ else
+ {
+  const unsigned Am = (uint8_t)A;
+  const unsigned shift = ((2 != 2) ? (((A & 1) ^ 1) << 3) : 0);
+  uint16_t ret = 0;
+
+  if(Am < 0x20)
+   MA_until = (MA_until + 11) &~ 1; // FIXME: not quite right. //3;
+  else if((Am >= 0x60 && Am < 0xA0) || Am >= 0xE0)
+   MA_until += 3;
+  else
+   MA_until += 1;
+
+  if(2 == 4)
+   SetPEX(PEX_CPUADDR);
+
+  else switch(Am)
+  {
+   default:
+	break;
+
+   //
+   // FRT registers.  Some weirdness with 16-bit reads duplicating the lower 8 bits in the upper 8-bits, but the upper 8-bits are masked
+   // with the last data written to the FRT area or something...not emulated here.
+   //
+   case 0x10:
+	ret = FRT.TIER | 1;
+	break;
+
+   case 0x11:
+	FRT_WDT_Update();
+	//
+	ret = FRT.FTCSR;
+	FRT.FTCSRM = 0x00;
+	break;
+
+   case 0x12:
+	FRT_WDT_Update();
+	//
+	FRT.RW_Temp = FRT.FRC;
+	ret = FRT.FRC >> 8;
+	break;
+
+   case 0x13:
+	ret = FRT.RW_Temp;
+	break;
+
+   case 0x14:
+	ret = FRT.OCR[(FRT.TOCR >> 4) & 1] >> 8;
+	break;
+
+   case 0x15:
+	ret = FRT.OCR[(FRT.TOCR >> 4) & 1] & 0xFF;
+	break;
+
+   case 0x16:
+	ret = FRT.TCR;
+	break;
+
+   case 0x17:
+	ret = FRT.TOCR | 0xE0;
+	break;
+
+   case 0x18:
+	FRT.RW_Temp = FRT.FICR;
+	ret = FRT.FICR >> 8;
+	break;
+
+   case 0x19:
+	ret = FRT.RW_Temp;
+	break;
+
+   //
+   //
+   //
+   case 0x71:
+   case 0x72:
+	ret = DMACH[(A & 1) ^ 1].DRCR;
+	break;
+
+
+   //
+   // WDT registers
+   //
+   case 0x80:
+   case 0x88:
+	FRT_WDT_Update();
+	ret = WDT.WTCSR | 0x18;
+	WDT.WTCSRM = 0x00;
+	break;
+
+   case 0x81:
+   case 0x89:
+	FRT_WDT_Update();
+	ret = WDT.WTCNT;
+	break;
+
+   case 0x82:
+   case 0x85:
+   case 0x86:
+   case 0x87:
+   case 0x8A:
+   case 0x8D:
+   case 0x8E:
+   case 0x8F:
+	ret = 0xFF;
+	break;
+
+   case 0x83:
+   case 0x8B:
+	FRT_WDT_Update();
+	ret = WDT.RSTCSR | 0x1F;
+	WDT.RSTCSRM = (WDT.RSTCSR & 0x80);
+	break;
+
+   // FIXME: WDT open bus of a sort.
+   // case 0x84:
+   // case 0x8C:
+
+   //
+   //
+   //
+
+   case 0x91:
+	ret = SBYCR;
+	break;
+
+   case 0x92 ... 0x9F:
+	//
+	// TODO: Emulate jankiness of 16-bit reads from mirror addresses.
+	//
+	ret = CCR | (CCR << 8);
+	break;
+   //
+   //
+   //
+   case 0x60:
+   case 0x61:
+	ret = IPRB >> shift;
+	break;
+
+   case 0x62:
+   case 0x63:
+	ret = VCRA >> shift;
+	break;
+
+   case 0x64:
+   case 0x65:
+	ret = VCRB >> shift;
+	break;
+
+   case 0x66:
+   case 0x67:
+	ret = VCRC >> shift;
+	break;
+
+   case 0x68:
+   case 0x69:
+	ret = VCRD >> shift;
+	break;
+
+   case 0x6A: case 0x6B: case 0x6C: case 0x6D: case 0x6E: case 0x6F:
+	ret = 0xFFFF >> shift;
+	break;
+
+   case 0xE0:
+   case 0xE1:
+	ret = (ICR | (NMILevel << 15)) >> shift;
+	break;
+
+   case 0xE2:
+   case 0xE3:
+	ret = IPRA >> shift;
+	break;
+
+   case 0xE4:
+   case 0xE5:
+	ret = VCRWDT >> shift;
+	break;
+
+   case 0xE6: case 0xE7:
+   case 0xE8: case 0xE9: case 0xEA: case 0xEB: case 0xEC: case 0xED: case 0xEE: case 0xEF:
+   case 0xF0: case 0xF1: case 0xF2: case 0xF3: case 0xF4: case 0xF5: case 0xF6: case 0xF7:
+   case 0xF8: case 0xF9: case 0xFA: case 0xFB: case 0xFC: case 0xFD: case 0xFE: case 0xFF:
+	ret = 0xFFFF >> shift;
+	break;
+  }
+
+  return ret;
+ }
+}
+
+INLINE uint32_t SH7095::OnChipRegRead_INLINE_u32(uint32_t A)
+{
+ if(A & 0x100)
+ {
+  uint32_t ret = 0;
+
+  MA_until++;
+
+  if(4 == 2)
+   A &= 0xFE;
+  else
+   A &= 0xFC;
+
+  if(4 == 1)
+   SetPEX(PEX_CPUADDR);
+
+  switch(A)
+  {
+   default:
+	break;
+
+   //
+   // Division Unit registers
+   // 
+   case 0x20:
+   case 0x22:
+   case 0x00:
+   case 0x02:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVSR;
+	break;
+
+   case 0x24:
+   case 0x26:
+   case 0x04:
+   case 0x06:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNT;
+	break;
+
+   case 0x28:
+   case 0x2A:
+   case 0x08:
+   case 0x0A:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVCR;
+	break;
+
+   case 0x2C:
+   case 0x2E:
+   case 0x0C:
+   case 0x0E:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = VCRDIV;
+	break;
+
+   case 0x30:
+   case 0x32:
+   case 0x10:
+   case 0x12:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNTH;
+	break;
+
+   case 0x34:
+   case 0x36:
+   case 0x14:
+   case 0x16:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNTL;
+	break;
+
+   // ?
+   case 0x38:
+   case 0x3A:
+   case 0x18:
+   case 0x1A:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNTH_Shadow;
+	break;
+
+   case 0x3C:
+   case 0x3E:
+   case 0x1C:
+   case 0x1E:
+	if((divide_finish_timestamp) > MA_until) MA_until = (divide_finish_timestamp);
+	ret = DVDNTL_Shadow;
+	break;
+   //
+   //
+   //
+
+   //
+   // DMA registers
+   //
+   case 0x80:
+   case 0x90:
+	ret = DMACH[(A >> 4) & 1].SAR;
+	break;
+
+   case 0x84:
+   case 0x94:
+	ret = DMACH[(A >> 4) & 1].DAR;
+	break;
+
+   case 0x88:
+   case 0x98:
+	ret = DMACH[(A >> 4) & 1].TCR;
+	break;
+
+   case 0x8C:
+   case 0x9C:
+	{
+	 const unsigned ch = (A >> 4) & 1;
+
+	 ret = DMACH[ch].CHCR;
+	 DMACH[ch].CHCRM = 0;
+	}
+	break;
+
+   case 0xA0:
+   case 0xA8:
+	ret = DMACH[(A >> 3) & 1].VCR;
+	break;
+
+   case 0xB0:
+	ret = DMAOR;
+	DMAORM = 0;
+	break;
+
+   //
+   // BSC registers
+   //
+   case 0xE0:	// BCR1
+   case 0xE2:
+	ret = BSC.BCR1;
+	break;
+
+   case 0xE4:	// BCR2
+   case 0xE6:
+	ret = BSC.BCR2;
+	break;
+
+   case 0xE8:	// WCR
+   case 0xEA:
+	ret = BSC.WCR;
+	break;
+
+   case 0xEC:	// MCR
+   case 0xEE:
+	ret = BSC.MCR;
+	break;
+
+   case 0xF0:	// RTCSR
+   case 0xF2:
+	ret = BSC.RTCSR;
+	BSC.RTCSRM = BSC.RTCSR & 0x80;
+
+	break;
+
+   case 0xF4:	// RTCNT
+   case 0xF6:
+	ret = BSC.RTCNT;
+
+	break;
+
+   case 0xF8:	// RTCOR
+   case 0xFA:
+	ret = BSC.RTCOR;
+	break;
+  }
+
+  if(4 == 1)
+   ret >>= ((A & 1) ^ 1) << 3;
+
+  return ret;
+ }
+ else
+ {
+  const unsigned Am = (uint8_t)A;
+  const unsigned shift = ((4 != 2) ? (((A & 1) ^ 1) << 3) : 0);
+  uint16_t ret = 0;
+
+  if(Am < 0x20)
+   MA_until = (MA_until + 11) &~ 1; // FIXME: not quite right. //3;
+  else if((Am >= 0x60 && Am < 0xA0) || Am >= 0xE0)
+   MA_until += 3;
+  else
+   MA_until += 1;
+
+  if(4 == 4)
    SetPEX(PEX_CPUADDR);
 
   else switch(Am)
@@ -2364,17 +3904,17 @@ static NO_INLINE MDFN_HOT void ExtBusWrite_NI(uint32_t A, T V)
  * the sizeof chain to a single arm). */
 static NO_INLINE MDFN_HOT uint8_t OnChipRegRead_NI_u8(uint32_t A)
 {
- return CPU[1].OnChipRegRead_INLINE<uint8_t>(A);
+ return CPU[1].OnChipRegRead_INLINE_u8(A);
 }
 
 static NO_INLINE MDFN_HOT uint16_t OnChipRegRead_NI_u16(uint32_t A)
 {
- return CPU[1].OnChipRegRead_INLINE<uint16_t>(A);
+ return CPU[1].OnChipRegRead_INLINE_u16(A);
 }
 
 static NO_INLINE MDFN_HOT uint32_t OnChipRegRead_NI_u32(uint32_t A)
 {
- return CPU[1].OnChipRegRead_INLINE<uint32_t>(A);
+ return CPU[1].OnChipRegRead_INLINE_u32(A);
 }
 
 //
@@ -2785,13 +4325,18 @@ INLINE uint32_t SH7095::Cache_ReadAddressArray(uint32_t A)
 	break;									\
 										\
   case 7:									\
-	OnChipRegWrite<T>(unmasked_A, V);					\
+	if(sizeof(T) == 1)      OnChipRegWrite_u8 (unmasked_A, V);	\
+	else if(sizeof(T) == 2) OnChipRegWrite_u16(unmasked_A, V);	\
+	else                    OnChipRegWrite_u32(unmasked_A, V);	\
 	break;									\
  }										\
 }
 
 #define CHECK_EXIT_RESUME() { if(NeedSlaveCall > 0) CPU[1].RunSlaveUntil(timestamp); if(NeedSlaveCall < 0) CPU[1].RunSlaveUntil_Debug(timestamp); }
-#define OnChipRegRead(T, A) OnChipRegRead_INLINE<T>(A)
+#define OnChipRegRead(T, A)							\
+        ( (sizeof(T) == 1) ? (T)OnChipRegRead_INLINE_u8(A)		\
+        : (sizeof(T) == 2) ? (T)OnChipRegRead_INLINE_u16(A)		\
+                           : (T)OnChipRegRead_INLINE_u32(A) )
 #define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<which, false, T, BurstHax>(A)
 #define ExtBusWrite(T, A, V) ExtBusWrite_NI<which, false, T>(A, V)
 template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
@@ -3390,7 +4935,10 @@ do {										\
  }										\
 } while(0)
 
-#define OnChipRegRead(T, A) OnChipRegRead_INLINE<T>(A)
+#define OnChipRegRead(T, A)							\
+        ( (sizeof(T) == 1) ? (T)OnChipRegRead_INLINE_u8(A)		\
+        : (sizeof(T) == 2) ? (T)OnChipRegRead_INLINE_u16(A)		\
+                           : (T)OnChipRegRead_INLINE_u32(A) )
 #define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<which, false, T, BurstHax>(A)
 #define ExtBusWrite(T, A, V) ExtBusWrite_NI<which, false, T>(A, V)
 

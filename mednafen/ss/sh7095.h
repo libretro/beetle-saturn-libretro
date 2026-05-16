@@ -527,11 +527,22 @@ class SH7095 final
  template<bool SlavePenalty, typename T>
  INLINE void ExtBusWrite_INLINE(uint32_t A, T V);
 
- template<typename T>
- NO_INLINE void OnChipRegWrite(uint32_t A, uint32_t V) MDFN_HOT;
+ /* Phase-8o: OnChipRegWrite<T> + OnChipRegRead_INLINE<T> retired.
+  * Each splits into 3 named width variants; the underlying
+  * register-handler bodies are duplicated per width with the
+  * `sizeof(T)` chain folded to literal width.  gcc -O2 dead-
+  * branches the inactive arms, producing the same instruction
+  * stream the previous per-T template instantiations did.
+  * The MemReadRT / MemWriteRT macro callsites dispatch by
+  * sizeof(T) at template-instantiation time; the OnChipRegRead_NI
+  * forwarders (phase 8j) hard-code to the matching named variant. */
+ NO_INLINE void OnChipRegWrite_u8 (uint32_t A, uint32_t V) MDFN_HOT;
+ NO_INLINE void OnChipRegWrite_u16(uint32_t A, uint32_t V) MDFN_HOT;
+ NO_INLINE void OnChipRegWrite_u32(uint32_t A, uint32_t V) MDFN_HOT;
 
- template<typename T>
- INLINE T OnChipRegRead_INLINE(uint32_t A);
+ INLINE uint8_t  OnChipRegRead_INLINE_u8 (uint32_t A);
+ INLINE uint16_t OnChipRegRead_INLINE_u16(uint32_t A);
+ INLINE uint32_t OnChipRegRead_INLINE_u32(uint32_t A);
 
  template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
  INLINE T MemReadRT(uint32_t A);
