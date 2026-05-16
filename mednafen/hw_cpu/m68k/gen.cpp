@@ -423,7 +423,7 @@ static std::string Instr4(const unsigned instr)
    if(decode_ea(AMA_CONTROL | AMA_ALTERABLE, 2 << sz, instr_adj, "dst", &tmp))
    {
     assert(ret.size() == 0);
-    ret += s("%s; %s; MOVEM_to_MEM<%s>(reglist, dst);", rls.c_str(), tmp.c_str(), pseudo_predec ? "true" : "false");
+    ret += s("%s; %s; MOVEM_to_MEM(%s, reglist, dst);",  rls.c_str(), tmp.c_str(), pseudo_predec ? "true" : "false");
    }
   }
   else
@@ -439,7 +439,7 @@ static std::string Instr4(const unsigned instr)
    if(decode_ea(AMA_CONTROL, 2 << sz, instr_adj, "src", &tmp))
    {
     assert(ret.size() == 0);
-    ret += s("%s; %s; MOVEM_to_REGS<%s>(src, reglist);", rls.c_str(), tmp.c_str(), pseudo_postinc ? "true" : "false");
+    ret += s("%s; %s; MOVEM_to_REGS(%s, src, reglist);", rls.c_str(), tmp.c_str(), pseudo_postinc ? "true" : "false");
    }
   }
  }

@@ -60788,25 +60788,25 @@ case 0x4e5f:
 
 case 0x48b9:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_LONG> dst(this); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_LONG> dst(this); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
 case 0x4cb9:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_LONG> src(this); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_LONG> src(this); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
 case 0x48b8:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_SHORT> dst(this); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_SHORT> dst(this); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
 case 0x4cb8:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_SHORT> src(this); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_SHORT> src(this); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
@@ -60819,7 +60819,7 @@ case 0x4895:
 case 0x4896:
 case 0x4897:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
@@ -60832,7 +60832,7 @@ case 0x48a5:
 case 0x48a6:
 case 0x48a7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM<true>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(true, reglist, dst);
 	}
 	break;
 
@@ -60845,7 +60845,7 @@ case 0x4c95:
 case 0x4c96:
 case 0x4c97:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
@@ -60858,7 +60858,7 @@ case 0x4c9d:
 case 0x4c9e:
 case 0x4c9f:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS<true>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(true, src, reglist);
 	}
 	break;
 
@@ -60871,7 +60871,7 @@ case 0x48ad:
 case 0x48ae:
 case 0x48af:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
@@ -60884,7 +60884,7 @@ case 0x4cad:
 case 0x4cae:
 case 0x4caf:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
@@ -60897,7 +60897,7 @@ case 0x48b5:
 case 0x48b6:
 case 0x48b7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
@@ -60910,43 +60910,43 @@ case 0x4cb5:
 case 0x4cb6:
 case 0x4cb7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
 case 0x4cba:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, PC_DISP> src(this); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, PC_DISP> src(this); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
 case 0x4cbb:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, PC_INDEX> src(this); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint16_t, PC_INDEX> src(this); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
 case 0x48f9:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_LONG> dst(this); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_LONG> dst(this); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
 case 0x4cf9:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_LONG> src(this); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_LONG> src(this); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
 case 0x48f8:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_SHORT> dst(this); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_SHORT> dst(this); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
 case 0x4cf8:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_SHORT> src(this); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_SHORT> src(this); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
@@ -60959,7 +60959,7 @@ case 0x48d5:
 case 0x48d6:
 case 0x48d7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
@@ -60972,7 +60972,7 @@ case 0x48e5:
 case 0x48e6:
 case 0x48e7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM<true>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(true, reglist, dst);
 	}
 	break;
 
@@ -60985,7 +60985,7 @@ case 0x4cd5:
 case 0x4cd6:
 case 0x4cd7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
@@ -60998,7 +60998,7 @@ case 0x4cdd:
 case 0x4cde:
 case 0x4cdf:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS<true>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(true, src, reglist);
 	}
 	break;
 
@@ -61011,7 +61011,7 @@ case 0x48ed:
 case 0x48ee:
 case 0x48ef:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
@@ -61024,7 +61024,7 @@ case 0x4ced:
 case 0x4cee:
 case 0x4cef:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
@@ -61037,7 +61037,7 @@ case 0x48f5:
 case 0x48f6:
 case 0x48f7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVEM_to_MEM<false>(reglist, dst);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVEM_to_MEM(false, reglist, dst);
 	}
 	break;
 
@@ -61050,19 +61050,19 @@ case 0x4cf5:
 case 0x4cf6:
 case 0x4cf7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
 case 0x4cfa:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, PC_DISP> src(this); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, PC_DISP> src(this); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 
 case 0x4cfb:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, PC_INDEX> src(this); MOVEM_to_REGS<false>(src, reglist);
+	 const uint16_t reglist = ReadOp(); HAM<uint32_t, PC_INDEX> src(this); MOVEM_to_REGS(false, src, reglist);
 	}
 	break;
 

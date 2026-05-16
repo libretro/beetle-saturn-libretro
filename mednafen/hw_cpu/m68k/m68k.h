@@ -112,17 +112,15 @@ class M68K
  //private:
  void RecalcInt(void);
 
- /* Phase-8a: M68K's width-template family is being detemplated.
+ /* Phase-8a: M68K's width-template family.  Read<T> / Write<T,
+  * long_dec> stay as 1-line dispatchers for the 2 T-parametric
+  * call sites still in HAM<T, AM>::Read / ::Write (and Read<T>
+  * also in MOVEM_to_REGS' body).  Their bodies forward to the
+  * named uX variants below.  Both retire when HAM detemplates.
   *
-  * - Read<T> / Write<T, long_dec> stay as 1-line dispatchers for the
-  *   4 T-parametric call sites in HAM<T, AM>, Scc<cc, T, DAM>, and
-  *   MOVEM_to_MEM<pseudo_predec, T, DAM>; their bodies now forward
-  *   to the named uX variants below.  Those four templates retire
-  *   together when HAM/Scc/MOVEM also detemplate (later phase).
-  *
-  * - Push<T> / Pull<T> are gone -- every caller used a concrete
-  *   uint16_t / uint32_t at the call site, so the 4 named variants
-  *   below replace them outright.
+  * Push<T> / Pull<T> are gone -- every caller used a concrete
+  * uint16_t / uint32_t at the call site, so the 4 named variants
+  * below replace them outright.
   */
  uint8_t  Read_u8(uint32_t addr);
  uint16_t Read_u16(uint32_t addr);
@@ -272,8 +270,10 @@ class M68K
  template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
  void ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
- template<bool X_form, typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
- DT Subtract(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
+ /* Phase-8e: Subtract's `bool X_form` template parameter moved to
+  * a runtime first-arg.  T, DT, SAM, DAM stay HAM-locked. */
+ template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ DT Subtract(bool X_form, HAM<T, SAM> &src, HAM<DT, DAM> &dst);
 
  template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
  void SUB(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
@@ -366,14 +366,23 @@ class M68K
  template<typename T, M68K::AddressMode SAM>
  void MOVEA(HAM<T, SAM> &src, const unsigned ar);
 
- template<bool pseudo_predec, typename T, M68K::AddressMode DAM>
- void MOVEM_to_MEM(const uint16_t reglist, HAM<T, DAM> &dst);
+ /* Phase-8e: MOVEM_to_MEM's `bool pseudo_predec` moved to runtime. */
+ template<typename T, M68K::AddressMode DAM>
+ void MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T, DAM> &dst);
 
- template<bool pseudo_postinc, typename T, M68K::AddressMode SAM>
- void MOVEM_to_REGS(HAM<T, SAM> &src, const uint16_t reglist);
+ /* Phase-8e: MOVEM_to_REGS's `bool pseudo_postinc` moved to runtime. */
+ template<typename T, M68K::AddressMode SAM>
+ void MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uint16_t reglist);
 
- template<typename T, M68K::AddressMode TAM, bool Arithmetic, bool ShiftLeft>
- void ShiftBase(HAM<T, TAM> &targ, unsigned count);
+ /* Phase-8e: ShiftBase's `bool Arithmetic, bool ShiftLeft` moved
+  * to runtime first-args.  The four ASL/ASR/LSL/LSR wrappers
+  * (kept as templates because they take HAM<T, TAM>&) now pass
+  * the booleans by runtime constants -- gcc -O2 inlines them
+  * and constprops the bools, so callsites generate identical
+  * instruction streams to the previous template-instantiation
+  * form. */
+ template<typename T, M68K::AddressMode TAM>
+ void ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count);
 
  template<typename T, M68K::AddressMode TAM>
  void ASL(HAM<T, TAM> &targ, unsigned count);
@@ -387,8 +396,10 @@ class M68K
  template<typename T, M68K::AddressMode TAM>
  void LSR(HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode TAM, bool X_Form, bool ShiftLeft>
- void RotateBase(HAM<T, TAM> &targ, unsigned count);
+ /* Phase-8e: RotateBase's `bool X_Form, bool ShiftLeft` moved
+  * to runtime first-args.  Same shape as ShiftBase. */
+ template<typename T, M68K::AddressMode TAM>
+ void RotateBase(bool X_Form, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count);
 
  template<typename T, M68K::AddressMode TAM>
  void ROL(HAM<T, TAM> &targ, unsigned count);

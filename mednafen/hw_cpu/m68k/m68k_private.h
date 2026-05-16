@@ -13,10 +13,11 @@ INLINE void M68K::RecalcInt(void)
 }
 
 /* Phase-8a: named width-typed Read methods.  The Read<T> template
- * below is kept as a thin dispatcher only for the four T-parametric
- * call sites still in m68k_private.h (HAM<T, AM>::Read,
- * Scc<cc, T, DAM>, and a couple of internal helpers).  When those
- * detemplate too, the wrapper retires. */
+ * below is kept as a thin dispatcher for the two T-parametric
+ * call sites that remain in m68k_private.h after phase 8e:
+ *   - HAM<T, AM>::Read   (the addressing-mode helper)
+ *   - MOVEM_to_REGS body (T from its template param)
+ * Both retire when the HAM cascade lands. */
 INLINE uint8_t M68K::Read_u8(uint32_t addr)
 {
  return BusRead8(addr);
@@ -59,10 +60,10 @@ INLINE uint16_t M68K::ReadOp(void)
 }
 
 /* Phase-8a: named width-typed Write methods.  The Write<T, long_dec>
- * template below is kept as a thin dispatcher for the two
- * T-parametric call sites still in m68k_private.h (HAM<T, AM>::Write,
- * MOVEM_to_MEM<pseudo_predec, T, DAM>).  When those detemplate too,
- * the wrapper retires.
+ * template below is kept as a thin dispatcher for the one remaining
+ * T-parametric call site (HAM<T, AM>::Write); phase 8e dropped
+ * MOVEM_to_MEM's usage of it by inlining the width-dispatch
+ * directly.  Retires when HAM detemplates.
  *
  * The two 32-bit variants differ only in bus-write ordering:
  *  - Write_u32          : high half first (default for non-predec)
@@ -587,11 +588,22 @@ INLINE void M68K::ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 //
 // Used to implement SUB, SUBA, SUBX, NEG, NEGX
 //
-template<bool X_form, typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
-INLINE DT M68K::Subtract(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
+// Phase-8e: `bool X_form` template parameter moved to runtime
+// first-arg.  Three places used the template-time X_form:
+//   1. static_assert -- dropped (the dispatch table is the
+//      real safety net; SUBX-style m,m never gets generated
+//      with X_form=false, and SUB-style register modes are
+//      already constrained by the dispatch).
+//   2. (X_form ? GetX() : 0) -- works identically at runtime.
+//   3. CalcZN<DT, X_form>(result) -- replaced with a runtime
+//      branch selecting between CalcZN<DT, true> (the
+//      Z-only-clears form) and CalcZN<DT, false> (the
+//      full-Z form).
+//
+template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+INLINE DT M68K::Subtract(bool X_form, HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 {
  static_assert(DAM == ADDR_REG_DIR || std::is_same<T, DT>::value, "Type mismatch");
- static_assert(DAM == ADDR_REG_DIR || DAM == DATA_REG_DIR || DAM == IMMEDIATE || SAM == ADDR_REG_DIR || SAM == DATA_REG_DIR || SAM == IMMEDIATE || X_form, "Wrong addressing modes.");
 
  uint32_t const src_data = (DT)static_cast<typename std::make_signed<T>::type>(src.read());
  uint32_t const dst_data = dst.read();
@@ -629,7 +641,10 @@ INLINE DT M68K::Subtract(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 
  if(DAM != ADDR_REG_DIR)
  {
-  CalcZN<DT, X_form>(result);
+  if(X_form)
+   CalcZN<DT, true>(result);
+  else
+   CalcZN<DT, false>(result);
   SetCX((result >> (sizeof(DT) * 8)) & 1);
   Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
  }
@@ -644,7 +659,7 @@ INLINE DT M68K::Subtract(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
 INLINE void M68K::SUB(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 {
- dst.write(Subtract<false>(src, dst));
+ dst.write(Subtract(false, src, dst));
 }
 
 
@@ -654,7 +669,7 @@ INLINE void M68K::SUB(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
 INLINE void M68K::SUBX(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 {
- dst.write(Subtract<true>(src, dst));
+ dst.write(Subtract(true, src, dst));
 }
 
 
@@ -666,7 +681,7 @@ INLINE void M68K::NEG(HAM<DT, DAM> &dst)
 {
  HAM<DT, IMMEDIATE> dummy_zero(this, 0);
 
- dst.write(Subtract<false>(dst, dummy_zero));
+ dst.write(Subtract(false, dst, dummy_zero));
 }
 
 
@@ -678,7 +693,7 @@ INLINE void M68K::NEGX(HAM<DT, DAM> &dst)
 {
  HAM<DT, IMMEDIATE> dummy_zero(this, 0);
 
- dst.write(Subtract<true>(dst, dummy_zero));
+ dst.write(Subtract(true, dst, dummy_zero));
 }
 
 
@@ -1370,11 +1385,19 @@ INLINE void M68K::MOVEA(HAM<T, SAM> &src, const unsigned ar)
 //
 // MOVEM to memory
 //
-template<bool pseudo_predec, typename T, M68K::AddressMode DAM>
-INLINE void M68K::MOVEM_to_MEM(const uint16_t reglist, HAM<T, DAM> &dst)
+// Phase-8e: `bool pseudo_predec` moved to runtime first-arg.
+// The `Write<T, pseudo_predec>` call inside the loop expanded
+// to one of the named width-typed writes (Write_u8, Write_u16,
+// Write_u32 / Write_u32_longdec).  We inline that dispatch
+// directly so we don't need to go through the Write<T, bool>
+// dispatcher template (whose long_dec parameter would still
+// need to be compile-time).  T stays a template parameter so
+// the sizeof(T) ladder folds.
+//
+template<typename T, M68K::AddressMode DAM>
+INLINE void M68K::MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T, DAM> &dst)
 {
  static_assert(DAM != ADDR_REG_INDIR_PRE && DAM != ADDR_REG_INDIR_POST, "Wrong address mode.");
- static_assert(!pseudo_predec || DAM == ADDR_REG_INDIR, "Wrong address mode.");
 
  uint32_t ea = dst.getea();
 
@@ -1385,7 +1408,19 @@ INLINE void M68K::MOVEM_to_MEM(const uint16_t reglist, HAM<T, DAM> &dst)
    if(pseudo_predec)
     ea -= sizeof(T);
 
-   Write<T, pseudo_predec>(ea, DA[(pseudo_predec ? (15 - i) : i)]);
+   const T val = DA[pseudo_predec ? (15 - i) : i];
+
+   if(sizeof(T) == 4)
+   {
+    if(pseudo_predec)
+     Write_u32_longdec(ea, val);
+    else
+     Write_u32(ea, val);
+   }
+   else if(sizeof(T) == 2)
+    Write_u16(ea, val);
+   else
+    Write_u8(ea, val);
 
    if(!pseudo_predec)
     ea += sizeof(T);
@@ -1400,11 +1435,12 @@ INLINE void M68K::MOVEM_to_MEM(const uint16_t reglist, HAM<T, DAM> &dst)
 //
 // MOVEM to regs(from memory)
 //
-template<bool pseudo_postinc, typename T, M68K::AddressMode SAM>
-INLINE void M68K::MOVEM_to_REGS(HAM<T, SAM> &src, const uint16_t reglist)
+// Phase-8e: `bool pseudo_postinc` moved to runtime first-arg.
+//
+template<typename T, M68K::AddressMode SAM>
+INLINE void M68K::MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uint16_t reglist)
 {
  static_assert(SAM != ADDR_REG_INDIR_PRE && SAM != ADDR_REG_INDIR_POST, "Wrong address mode.");
- static_assert(!pseudo_postinc || SAM == ADDR_REG_INDIR, "Wrong address mode.");
 
  uint32_t ea = src.getea();
 
@@ -1427,8 +1463,19 @@ INLINE void M68K::MOVEM_to_REGS(HAM<T, SAM> &src, const uint16_t reglist)
 }
 
 
-template<typename T, M68K::AddressMode TAM, bool Arithmetic, bool ShiftLeft>
-INLINE void M68K::ShiftBase(HAM<T, TAM> &targ, unsigned count)
+//
+// Phase-8e: ShiftBase's `bool Arithmetic, bool ShiftLeft` template
+// parameters moved to runtime first-args.  The 4 ASL/ASR/LSL/LSR
+// wrappers pass them as concrete `true`/`false` literals, so gcc
+// -O2 still constprops the bools at every callsite -- the
+// instruction stream emitted for each wrapper is identical to
+// what the previous 4-instantiation template form produced
+// (verified by per-TU `size` diff: zero text delta on the
+// m68k_split0 TU which holds the bulk of the shift/rotate
+// dispatch).
+//
+template<typename T, M68K::AddressMode TAM>
+INLINE void M68K::ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count)
 {
  T vchange = 0;
  T result = targ.read();
@@ -1490,29 +1537,33 @@ INLINE void M68K::ShiftBase(HAM<T, TAM> &targ, unsigned count)
 template<typename T, M68K::AddressMode TAM>
 INLINE void M68K::ASL(HAM<T, TAM> &targ, unsigned count)
 {
- ShiftBase<T, TAM, true, true>(targ, count);
+ ShiftBase(true, true, targ, count);
 }
 
 template<typename T, M68K::AddressMode TAM>
 INLINE void M68K::ASR(HAM<T, TAM> &targ, unsigned count)
 {
- ShiftBase<T, TAM, true, false>(targ, count);
+ ShiftBase(true, false, targ, count);
 }
 
 template<typename T, M68K::AddressMode TAM>
 INLINE void M68K::LSL(HAM<T, TAM> &targ, unsigned count)
 {
- ShiftBase<T, TAM, false, true>(targ, count);
+ ShiftBase(false, true, targ, count);
 }
 
 template<typename T, M68K::AddressMode TAM>
 INLINE void M68K::LSR(HAM<T, TAM> &targ, unsigned count)
 {
- ShiftBase<T, TAM, false, false>(targ, count);
+ ShiftBase(false, false, targ, count);
 }
 
-template<typename T, M68K::AddressMode TAM, bool X_Form, bool ShiftLeft>
-INLINE void M68K::RotateBase(HAM<T, TAM> &targ, unsigned count)
+//
+// Phase-8e: RotateBase's `bool X_Form, bool ShiftLeft` template
+// parameters moved to runtime first-args.  Same shape as ShiftBase.
+//
+template<typename T, M68K::AddressMode TAM>
+INLINE void M68K::RotateBase(bool X_Form, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count)
 {
  T result = targ.read();
  count &= 0x3F;
@@ -1566,25 +1617,25 @@ INLINE void M68K::RotateBase(HAM<T, TAM> &targ, unsigned count)
 template<typename T, M68K::AddressMode TAM>
 INLINE void M68K::ROL(HAM<T, TAM> &targ, unsigned count)
 {
- RotateBase<T, TAM, false, true>(targ, count);
+ RotateBase(false, true, targ, count);
 }
 
 template<typename T, M68K::AddressMode TAM>
 INLINE void M68K::ROR(HAM<T, TAM> &targ, unsigned count)
 {
- RotateBase<T, TAM, false, false>(targ, count);
+ RotateBase(false, false, targ, count);
 }
 
 template<typename T, M68K::AddressMode TAM>
 INLINE void M68K::ROXL(HAM<T, TAM> &targ, unsigned count)
 {
- RotateBase<T, TAM, true, true>(targ, count);
+ RotateBase(true, true, targ, count);
 }
 
 template<typename T, M68K::AddressMode TAM>
 INLINE void M68K::ROXR(HAM<T, TAM> &targ, unsigned count)
 {
- RotateBase<T, TAM, true, false>(targ, count);
+ RotateBase(true, false, targ, count);
 }
 
 //
