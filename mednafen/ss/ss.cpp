@@ -48,6 +48,13 @@ extern uint32_t IBufferCount;
 #include "db.h"
 #include "stvio.h"
 
+/* Phase-7c: FastMemMap + SH-2 event system moved to ss_init.c.
+ * The cross-TU plumbing (externs for SH7095_FastMap, FMIsWriteable,
+ * events, event_handlers, next_event_ts, Running plus the
+ * function prototypes ss.cpp's ForceEventUpdates / CheatMemWrite
+ * still need from C) lives in this header. */
+#include "ss_init.h"
+
 
 // Libretro-specific
 #ifndef RETRO_SLASH
@@ -63,7 +70,8 @@ extern uint32_t IBufferCount;
 extern bool is_pal;
 extern char retro_base_directory[4096];
 
-static sscpu_timestamp_t MidSync(const sscpu_timestamp_t timestamp);
+/* MidSync forward decl removed (phase 7c): the canonical extern decl
+ * lives in ss_init.h now, and MidSync's definition below is non-static. */
 
 uint32_t ss_horrible_hacks;
 
@@ -81,7 +89,8 @@ static bool NeedEmuICache;
 static uint8_t SCU_MSH2VectorFetch(void);
 static uint8_t SCU_SSH2VectorFetch(void);
 
-static void CheckEventsByMemTS(void);
+/* CheckEventsByMemTS forward decl removed (phase 7c): canonical
+ * decl in ss_init.h; definition lives in ss_init.c. */
 
 SH7095 CPU[2]{ {"SH2-M", SS_EVENT_SH2_M_DMA, SCU_MSH2VectorFetch}, {"SH2-S", SS_EVENT_SH2_S_DMA, SCU_SSH2VectorFetch}};
 
@@ -131,44 +140,22 @@ static uint8_t BackupRAM_StateHelper[32768];
 bool BackupRAM_Dirty;
 bool CartNV_Dirty;
 
-#define SH7095_EXT_MAP_GRAN_BITS 16
-static uintptr_t SH7095_FastMap[1U << (32 - SH7095_EXT_MAP_GRAN_BITS)];
+/* SH7095_FastMap definition moved to ss_init.c (phase 7c).
+ * SH7095_EXT_MAP_GRAN_BITS lives in ss_init.h now. */
 
 int32_t SH7095_mem_timestamp;
-static uint32_t SH7095_BusLock;
+/* SH7095_BusLock is read from ss_init.c's SH_DMA_EventHandler -- promoted
+ * from file-static to TU-external in phase 7c. */
+uint32_t SH7095_BusLock;
 static uint32_t SH7095_DB;
 
 #include "scu.inc"
 
 static sha256_digest BIOS_SHA256;   // SHA-256 hash of the currently-loaded BIOS; used for save state sanity checks.
 static int ActiveCartType;		// Used in save states.
-/* Was std::bitset<1U << (27 - SH7095_EXT_MAP_GRAN_BITS)>. With
- * SH7095_EXT_MAP_GRAN_BITS == 16 that is 1 << 11 == 2048 bits; a
- * plain uint32_t[64] packed bitfield with three inline accessors
- * replaces it. Only ever indexed one bit at a time, set, or fully
- * cleared. */
-#define FMISWRITEABLE_BITS (1U << (27 - SH7095_EXT_MAP_GRAN_BITS))
-static uint32_t FMIsWriteable[FMISWRITEABLE_BITS / 32];
-
-static INLINE bool FMIsWriteable_get(uint32_t i)
-{
- return (FMIsWriteable[i >> 5] >> (i & 31)) & 1;
-}
-
-static INLINE void FMIsWriteable_set(uint32_t i, bool v)
-{
- const uint32_t mask = (uint32_t)1 << (i & 31);
- if(v)
-  FMIsWriteable[i >> 5] |= mask;
- else
-  FMIsWriteable[i >> 5] &= ~mask;
-}
-
-static INLINE void FMIsWriteable_reset(void)
-{
- memset(FMIsWriteable, 0, sizeof(FMIsWriteable));
-}
-static uint16_t fmap_dummy[(1U << SH7095_EXT_MAP_GRAN_BITS) / sizeof(uint16_t)];
+/* FMIsWriteable + accessors + fmap_dummy moved to ss_init.c (phase 7c).
+ * FMIsWriteable_get/set/reset are inline functions in ss_init.h
+ * so ss.cpp callers (CheatMemWrite still here) keep their codegen. */
 
 /*
  SH-2 external bus address map:
@@ -457,18 +444,9 @@ static INLINE void BusRW_DB_CS3(const uint32_t A, uint32_t& DB, const bool Burst
 //
 //
 //
-static MDFN_COLD uint8_t CheatMemRead(uint32_t A)
-{
- A &= (1U << 27) - 1;
-
- /* ne16_rbo_be<uint8_t>(base, A) folded - byte read from BE bus
-  * over uint16_t fast-map slot. */
-#ifdef MSB_FIRST
- return ((const uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A];
-#else
- return ((const uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A ^ 1];
-#endif
-}
+/* CheatMemRead moved to ss_init.c (phase 7c).  Mednafen patches
+ * (MDFNMP_RegSearchable) take its address by name; the extern decl is
+ * in ss_init.h. */
 
 static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
 {
@@ -498,196 +476,38 @@ static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
 //
 //
 //
-static void SetFastMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable)
-{
- const uint64_t Abound = (uint64_t)Aend + 1;
- assert((Astart & ((1U << SH7095_EXT_MAP_GRAN_BITS) - 1)) == 0);
- assert((Abound & ((1U << SH7095_EXT_MAP_GRAN_BITS) - 1)) == 0);
- assert((length & ((1U << SH7095_EXT_MAP_GRAN_BITS) - 1)) == 0);
- assert(length > 0);
- assert(length <= (Abound - Astart));
-
- for(uint64_t A = Astart; A < Abound; A += (1U << SH7095_EXT_MAP_GRAN_BITS))
- {
-  uintptr_t tmp = (uintptr_t)ptr + ((A - Astart) % length);
-
-  if(A < (1U << 27))
-   FMIsWriteable_set(A >> SH7095_EXT_MAP_GRAN_BITS, is_writeable);
-
-  SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS] = tmp - A;
- }
-}
-
-static MDFN_COLD bool InitFastMemMap(void)
-{
- for(unsigned i = 0; i < sizeof(fmap_dummy) / sizeof(fmap_dummy[0]); i++)
- {
-  fmap_dummy[i] = 0;
- }
-
- FMIsWriteable_reset();
- /* MDFNMP_Init returns false on RAMPtrs calloc failure; the rest of
-  * InitFastMemMap and InitCommon downstream (MDFNMP_RegSearchable,
-  * MDFNMP_AddRAM, the cheat search machinery) assume RAMPtrs is a
-  * live array, so a NULL there would crash on the first patch /
-  * cheat install.  Propagate the failure instead. */
- if(!MDFNMP_Init(1ULL << SH7095_EXT_MAP_GRAN_BITS, (1ULL << 27) / (1ULL << SH7095_EXT_MAP_GRAN_BITS)))
-  return false;
-
- for(uint64_t A = 0; A < 1ULL << 32; A += (1U << SH7095_EXT_MAP_GRAN_BITS))
- {
-  SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS] = (uintptr_t)fmap_dummy - A;
- }
-
- return true;
-}
-
-void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable)
-{
- assert(Astart < 0x20000000);
- assert(Aend < 0x20000000);
-
- if(!ptr)
- {
-  ptr = fmap_dummy;
-  length = sizeof(fmap_dummy);
- }
-
- for(uint32_t Abase = 0; Abase < 0x40000000; Abase += 0x20000000)
-  SetFastMemMap(Astart + Abase, Aend + Abase, ptr, length, is_writeable);
-}
+/* SetFastMemMap (file-static), InitFastMemMap, and SS_SetPhysMemMap
+ * moved to ss_init.c (phase 7c). */
 
 #include "sh7095.inc"
 
-//
-// Running is:
-//   0 at end of (emulation) frame
-//
-//   1 during normal execution
-//
-//  -1 when we need to temporarily break out of the execution loop to
-//     e.g. handle turning the slave CPU on or off, which we can't
-//     safely do from an event handler due to the event handler
-//     potentially being called from deep within the memory read/write
-//     functions.
-//
-int Running;
-alignas(16) event_list_entry events[SS_EVENT__SIMD_COUNT];
-static ss_event_handler event_handlers[SS_EVENT__COUNT];
+/* Phase-7c: the SH-2 event ring + dispatch machinery (Running,
+ * events[], event_handlers[], next_event_ts, FindNextEventTS,
+ * SH_DMA_EventHandler_M/_S, InitEvents, RebaseTS, SS_SetEventNT,
+ * EventHandler, CheckEventsByMemTS{_Sub}, SS_RequestEHLExit,
+ * SS_RequestMLExit) moved to ss_init.c.  ss.cpp drives the loop
+ * via the externs declared in ss_init.h and provides the two
+ * extern "C" SH7095_{M,S}_DMA_Update helpers below that wrap the
+ * C++-only CPU[c].DMA_Update(et) method dispatch. */
 
-static sscpu_timestamp_t next_event_ts;
+extern "C" int32_t SH7095_M_DMA_Update(int32_t et) { return CPU[0].DMA_Update(et); }
+extern "C" int32_t SH7095_S_DMA_Update(int32_t et) { return CPU[1].DMA_Update(et); }
 
-// NO_INLINE keeps the body out of RunLoop's no-unroll pragma scope so -O2
-// auto-vectorizes the reduction (smin/sminv on aarch64).
-static NO_INLINE sscpu_timestamp_t FindNextEventTS(void)
-{
- sscpu_timestamp_t m = SS_EVENT_DISABLED_TS;
- for(unsigned i = 0; i < SS_EVENT__SIMD_COUNT; i++)
-  m = ((m) < (events[i].event_time) ? (m) : (events[i].event_time));
- return m;
-}
-
-/* Phase-7a: was `template<unsigned c> static sscpu_timestamp_t
- * SH_DMA_EventHandler(sscpu_timestamp_t et)` with c instantiated
- * to 0 (master SH-2) and 1 (slave SH-2).  The body only varies in
- * which CPU[c] is dispatched to, so the two specs collapse to a
- * pair of named functions emitted from one body macro.  Cleared
- * for the upcoming ss.cpp -> C migration: the call-site syntax
- * `&SH_DMA_EventHandler<0>` and `&SH_DMA_EventHandler<1>` doesn't
- * carry over to C, while plain function names do. */
-#define SH_DMA_EVENT_HANDLER_BODY(CPU_IDX)                                                         \
-{                                                                                                  \
- if(et < SH7095_mem_timestamp)                                                                     \
-  return SH7095_mem_timestamp;                                                                     \
-                                                                                                   \
- /* Must come after the (et < SH7095_mem_timestamp) check. */                                      \
- if(MDFN_UNLIKELY(SH7095_BusLock))                                                                 \
-  return et + 1;                                                                                   \
-                                                                                                   \
- return CPU[CPU_IDX].DMA_Update(et);                                                               \
-}
-
-static sscpu_timestamp_t SH_DMA_EventHandler_M(sscpu_timestamp_t et) SH_DMA_EVENT_HANDLER_BODY(0)
-static sscpu_timestamp_t SH_DMA_EventHandler_S(sscpu_timestamp_t et) SH_DMA_EVENT_HANDLER_BODY(1)
-
-#undef SH_DMA_EVENT_HANDLER_BODY
-
-//
-//
-//
-
-static MDFN_COLD void InitEvents(void)
-{
- // SYNFIRST/SYNLAST and padding slots stay disabled so the min-reduction
- // ignores them; only [SYNFIRST+1, SYNLAST) hold real events.
- for(unsigned i = 0; i < SS_EVENT__SIMD_COUNT; i++)
- {
-  if(i == SS_EVENT__SYNFIRST || i == SS_EVENT__SYNLAST || i >= SS_EVENT__COUNT)
-   events[i].event_time = SS_EVENT_DISABLED_TS;
-  else
-   events[i].event_time = 0;
- }
-
- for(unsigned i = 0; i < SS_EVENT__COUNT; i++)
-  event_handlers[i] = NULL;
-
- event_handlers[SS_EVENT_SH2_M_DMA] = &SH_DMA_EventHandler_M;
- event_handlers[SS_EVENT_SH2_S_DMA] = &SH_DMA_EventHandler_S;
-
- event_handlers[SS_EVENT_SCU_DMA] = SCU_UpdateDMA;
- event_handlers[SS_EVENT_SCU_DSP] = SCU_UpdateDSP;
-/*event_handlers[SS_EVENT_SCU_INT] = SCU_UpdateInt;*/
-
- event_handlers[SS_EVENT_SMPC] = SMPC_Update;
-
- event_handlers[SS_EVENT_VDP1] = VDP1_Update;
- event_handlers[SS_EVENT_VDP2] = VDP2_Update;
-
- event_handlers[SS_EVENT_CDB] = CDB_Update;
-
- event_handlers[SS_EVENT_SOUND] = SOUND_Update;
-
- event_handlers[SS_EVENT_CART] = CART_GetEventHandler();
-
- event_handlers[SS_EVENT_MIDSYNC] = MidSync;
- //
- //
- SS_SetEventNT(&events[SS_EVENT_MIDSYNC], SS_EVENT_DISABLED_TS);
-}
-
-static void RebaseTS(const sscpu_timestamp_t timestamp)
-{
- for(unsigned i = SS_EVENT__SYNFIRST + 1; i < SS_EVENT__SYNLAST; i++)
- {
-  assert(events[i].event_time > timestamp);
-
-  if(events[i].event_time != SS_EVENT_DISABLED_TS)
-   events[i].event_time -= timestamp;
- }
-
- next_event_ts = FindNextEventTS();
-}
-
-void SS_SetEventNT(event_list_entry* e, const sscpu_timestamp_t next_timestamp)
-{
- const sscpu_timestamp_t old_t = e->event_time;
- e->event_time = next_timestamp;
-
- if(MDFN_UNLIKELY(Running <= 0))
-  next_event_ts = 0;
- else if(old_t == next_event_ts)
-  next_event_ts = FindNextEventTS();
- else if(next_timestamp < next_event_ts)
-  next_event_ts = next_timestamp;
-}
-
-// Called from debug.cpp too.
+/* ForceEventUpdates stays in ss.cpp -- the first loop dispatches into
+ * CPU[c].ForceInternalEventUpdates(), which is an SH7095 class method
+ * and not yet a C-callable wrapper.  After the SH7095 class -> struct
+ * conversion (later phase) this function migrates to ss_init.c too.
+ *
+ * Called from RunLoop and (commented out) debug.cpp.  Touches the
+ * event ring via the externs declared in ss_init.h. */
 static void ForceEventUpdates(const sscpu_timestamp_t timestamp)
 {
- for(unsigned c = 0; c < 2; c++)
+ unsigned c;
+ unsigned evnum;
+ for(c = 0; c < 2; c++)
   CPU[c].ForceInternalEventUpdates();
 
- for(unsigned evnum = SS_EVENT__SYNFIRST + 1; evnum < SS_EVENT__SYNLAST; evnum++)
+ for(evnum = SS_EVENT__SYNFIRST + 1; evnum < SS_EVENT__SYNLAST; evnum++)
  {
   if(events[evnum].event_time != SS_EVENT_DISABLED_TS)
    events[evnum].event_time = event_handlers[evnum](timestamp);
@@ -696,53 +516,6 @@ static void ForceEventUpdates(const sscpu_timestamp_t timestamp)
  next_event_ts = (Running > 0) ? FindNextEventTS() : 0;
 }
 
-static INLINE bool EventHandler(const sscpu_timestamp_t timestamp)
-{
- // next_event_ts is forced to 0 (sentinel) when Running <= 0 to make
- // CheckEventsByMemTS trip and unwind RunLoop. Don't enter the dispatch loop
- // in that state best_t = 0 wouldn't match any events[i].event_time and
- // the inner scan would walk off the end.
- if(MDFN_UNLIKELY(Running <= 0))
-  return false;
- sscpu_timestamp_t best_t = next_event_ts;
- while(best_t <= timestamp)
- {
-  unsigned best_i = SS_EVENT__SYNFIRST + 1;
-  while(events[best_i].event_time != best_t)
-   best_i++;
-  events[best_i].event_time = event_handlers[best_i](best_t);
-  best_t = FindNextEventTS();
- }
-
- next_event_ts = (Running > 0) ? best_t : 0;
- return Running > 0;
-}
-
-static void CheckEventsByMemTS_Sub(void)
-{
- EventHandler(SH7095_mem_timestamp);
-}
-
-static void CheckEventsByMemTS(void)
-{
- if(MDFN_UNLIKELY(SH7095_mem_timestamp >= next_event_ts))
-  CheckEventsByMemTS_Sub();
-}
-
-void SS_RequestEHLExit(void)
-{
- if(Running)
- {
-  Running = -1;
-  next_event_ts = 0;
- }
-}
-
-void SS_RequestMLExit(void)
-{
- Running = 0;
- next_event_ts = 0;
-}
 
 #if defined(__GNUC__) && !defined(__clang__)
  #pragma GCC push_options
@@ -852,7 +625,10 @@ static INLINE void UpdateSMPCInput(const sscpu_timestamp_t timestamp)
  SMPC_UpdateInput(elapsed_time);
 }
 
-static sscpu_timestamp_t MidSync(const sscpu_timestamp_t timestamp)
+/* MidSync was static; promoted to TU-external in phase 7c so
+ * ss_init.c's InitEvents can take its address for the event
+ * handler table without a forwarding shim. */
+sscpu_timestamp_t MidSync(const sscpu_timestamp_t timestamp)
 {
  if(AllowMidSync)
  {
