@@ -67,10 +67,10 @@ switch(Pipe_ID >> 24)
    WB_EX_CHECK(0)									\
    alu_set_t_expr;									\
    PC += 2;										\
-   DoIDIF_INLINE<EmulateICache, false>();						\
+   { if(EmulateICache) DoIDIF_INLINE_C1_I0(); else DoIDIF_INLINE_C0_I0(); }						\
    PC += 2;										\
    if(EmulateICache) { UCRead_IF_Kludge = false; }					\
-   DoIDIF_INLINE<EmulateICache, false>();						\
+   { if(EmulateICache) DoIDIF_INLINE_C1_I0(); else DoIDIF_INLINE_C0_I0(); }						\
    if(EmulateICache) { timestamp -= UCRead_IF_Kludge; }					\
    CondRelBranch((br_cond_expr), (uint32_t)(int8_t)br_instr << 1);				\
   }

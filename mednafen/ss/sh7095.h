@@ -65,9 +65,12 @@ class SH7095 final
   ExtHaltDMA = (ExtHaltDMA & ~2) | (state << 1);
  }
 
- // When entering Step(), EmulateICache must match what was passed to Init()
- template<unsigned which, bool EmulateICache>
- void Step(void);
+ /* Phase-8p2: Step<which, EmulateICache> retired into 3 named
+  * variants (only the (w, C) tuples invoked by ss.cpp's RunLoop).
+  * EmulateICache must still match what was passed to Init(). */
+ void Step_w0_C0(void);  // master CPU, no ICache emulation
+ void Step_w0_C1(void);  // master CPU, ICache emulation
+ void Step_w1_C0(void);  // slave  CPU, no ICache emulation
 
  // Slave only
  NO_CLONE NO_INLINE void RunSlaveUntil(sscpu_timestamp_t bound_timestamp) MDFN_HOT;
@@ -502,20 +505,19 @@ class SH7095 final
  uint8_t GetPendingInt(uint8_t*);
  void RecalcPendingIntPEX(void);
 
- template<bool EmulateICache, bool IntPreventNext>
- INLINE void DoIDIF_INLINE(void);
-
  /* Phase-8n: DoIDIF_NI<EmulateICache, IntPreventNext> retired
-  * into 4 named NO_INLINE variants (one per bool-pair: C0/I0,
-  * C0/I1, C1/I0, C1/I1).  Each variant forwards to the still-
-  * templated DoIDIF_INLINE with concrete bool template args;
-  * gcc -O2 produces the same instruction stream the previous
-  * template instantiations did.  DoIDIF_INLINE stays templated
-  * because its body has macro-expanded code paths that
-  * reference EmulateICache by name (the FetchIF / DoID macros
-  * pull EmulateICache out of the enclosing scope), and the
-  * named-variant pattern would require redefining those
-  * macros or shadowing names -- a separate, bigger phase. */
+  * into 4 named NO_INLINE variants (one per bool-pair).
+  * Phase-8p2: DoIDIF_INLINE<EmulateICache, IntPreventNext>
+  * likewise retired into 4 named variants.  Each shadows
+  * `EmulateICache` as a local constexpr bool so the macro
+  * expansions (FetchIF / DoID reference EmulateICache by name)
+  * resolve cleanly without the previous template-parameter
+  * name lookup. */
+ INLINE void DoIDIF_INLINE_C0_I0(void);
+ INLINE void DoIDIF_INLINE_C0_I1(void);
+ INLINE void DoIDIF_INLINE_C1_I0(void);
+ INLINE void DoIDIF_INLINE_C1_I1(void);
+
  NO_INLINE void DoIDIF_NI_C0_I0(void) MDFN_HOT;
  NO_INLINE void DoIDIF_NI_C0_I1(void) MDFN_HOT;
  NO_INLINE void DoIDIF_NI_C1_I0(void) MDFN_HOT;

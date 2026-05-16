@@ -4977,10 +4977,36 @@ do {                                                                            
 #define CONST_VAR(T, n) const T n
 #define RESUME_VAR(T, n) T n
 
-template<bool EmulateICache, bool IntPreventNext>
-INLINE void SH7095::DoIDIF_INLINE(void)
+/* Phase-8p2: DoIDIF_INLINE<EmulateICache, IntPreventNext> retired
+ * into 4 named variants.  Each variant shadows EmulateICache as
+ * a local `constexpr bool` so the DoIDIF_MACRO expansion (which
+ * pulls in FetchIF / DoID -- those reference EmulateICache by
+ * name in their bodies) resolves cleanly without the previous
+ * template-parameter name lookup.  IntPreventNext is passed as
+ * a concrete literal to DoIDIF_MACRO.  gcc -O2 dead-branches
+ * the macro's `if(EmulateICache)` arm per-variant. */
+INLINE void SH7095::DoIDIF_INLINE_C0_I0(void)
 {
- DoIDIF_MACRO(IntPreventNext);
+ constexpr bool EmulateICache = false;
+ DoIDIF_MACRO(false);
+}
+
+INLINE void SH7095::DoIDIF_INLINE_C0_I1(void)
+{
+ constexpr bool EmulateICache = false;
+ DoIDIF_MACRO(true);
+}
+
+INLINE void SH7095::DoIDIF_INLINE_C1_I0(void)
+{
+ constexpr bool EmulateICache = true;
+ DoIDIF_MACRO(false);
+}
+
+INLINE void SH7095::DoIDIF_INLINE_C1_I1(void)
+{
+ constexpr bool EmulateICache = true;
+ DoIDIF_MACRO(true);
 }
 
 /* Phase-8n: DoIDIF_NI retired -- 4 named NO_INLINE variants
@@ -4994,27 +5020,40 @@ INLINE void SH7095::DoIDIF_INLINE(void)
  * stays templated for now. */
 NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI_C0_I0(void)
 {
- DoIDIF_INLINE<false, false>();
+ DoIDIF_INLINE_C0_I0();
 }
 
 NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI_C0_I1(void)
 {
- DoIDIF_INLINE<false, true>();
+ DoIDIF_INLINE_C0_I1();
 }
 
 NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI_C1_I0(void)
 {
- DoIDIF_INLINE<true, false>();
+ DoIDIF_INLINE_C1_I0();
 }
 
 NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI_C1_I1(void)
 {
- DoIDIF_INLINE<true, true>();
+ DoIDIF_INLINE_C1_I1();
 }
 
-template<unsigned which, bool EmulateICache>
-FORCE_INLINE void SH7095::Step(void)
+/* Phase-8p2: Step<which, EmulateICache> retired into 3 named
+ * variants (only the (w, C) tuples actually invoked by
+ * ss.cpp's RunLoop are generated: (0,false), (0,true), (1,false);
+ * the (1,true) tuple is never instantiated and is omitted).
+ *
+ * Each variant shadows `which` and `EmulateICache` as local
+ * `constexpr` constants so the body's downstream macro
+ * expansions (OP_PAIR_TICK uses `which`, CHECK_EXIT_RESUME and
+ * sh7095_ops.inc reference `EmulateICache`) resolve cleanly
+ * without the previous template-parameter name lookup.
+ * gcc -O2 dead-branches per variant; codegen identical to the
+ * previous template form. */
+FORCE_INLINE void SH7095::Step_w0_C0(void)
 {
+ constexpr unsigned which = 0;
+ constexpr bool EmulateICache = false;
  //
  // Ideally, we would place SPEPRecover: after the FRT event check, but doing
  // so causes gcc(multiple versions) to produce inconceivably awful code under certain conditions
@@ -5033,6 +5072,48 @@ FORCE_INLINE void SH7095::Step(void)
  const unsigned instr_nyb1 = (instr >> 4) & 0xF;
  const unsigned instr_nyb2 = (instr >> 8) & 0xF;
 // asm volatile("":: "a"(instr_nyb1), "d"(instr_nyb2));
+ OP_PAIR_TICK(which);
+ //
+ #include "sh7095_ops.inc"
+ //
+}
+
+FORCE_INLINE void SH7095::Step_w0_C1(void)
+{
+ constexpr unsigned which = 0;
+ constexpr bool EmulateICache = true;
+ SPEPRecover:;
+
+ if(MDFN_UNLIKELY(timestamp >= FRT_WDT_NextTS))
+ {
+  FRT_WDT_Update();
+  FRT_WDT_Recalc_NET();
+ }
+
+ const uint32_t instr = (uint16_t)Pipe_ID;
+ const unsigned instr_nyb1 = (instr >> 4) & 0xF;
+ const unsigned instr_nyb2 = (instr >> 8) & 0xF;
+ OP_PAIR_TICK(which);
+ //
+ #include "sh7095_ops.inc"
+ //
+}
+
+FORCE_INLINE void SH7095::Step_w1_C0(void)
+{
+ constexpr unsigned which = 1;
+ constexpr bool EmulateICache = false;
+ SPEPRecover:;
+
+ if(MDFN_UNLIKELY(timestamp >= FRT_WDT_NextTS))
+ {
+  FRT_WDT_Update();
+  FRT_WDT_Recalc_NET();
+ }
+
+ const uint32_t instr = (uint16_t)Pipe_ID;
+ const unsigned instr_nyb1 = (instr >> 4) & 0xF;
+ const unsigned instr_nyb2 = (instr >> 8) & 0xF;
  OP_PAIR_TICK(which);
  //
  #include "sh7095_ops.inc"

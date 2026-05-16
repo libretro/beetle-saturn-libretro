@@ -546,7 +546,11 @@ static NO_INLINE MDFN_HOT int32_t RunLoop(EmulateSpecStruct* espec)
   {
    do
    {
-    CPU[0].Step<0, EmulateICache>();
+    /* Phase-8p2: master Step dispatch.  RunLoop is templated on
+     * EmulateICache so this folds to one direct call per
+     * instantiation. */
+    if(EmulateICache) CPU[0].Step_w0_C1();
+    else              CPU[0].Step_w0_C0();
     CPU[0].DMA_BusTimingKludge();
 
     if(EmulateICache)
@@ -557,7 +561,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop(EmulateSpecStruct* espec)
     {
      while(MDFN_LIKELY(CPU[0].timestamp > CPU[1].timestamp))
      {
-      CPU[1].Step<1, false>();
+      CPU[1].Step_w1_C0();
      }
     }
 
