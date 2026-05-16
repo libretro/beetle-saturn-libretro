@@ -1547,26 +1547,36 @@ static void FetchVCScroll(const unsigned w)
  }
 }
 
-template<unsigned TA_PrioMode, unsigned TA_CCMode>
-static INLINE void MakeSFCodeLUT(const unsigned layer, int16_t* const sfcode_lut)
-{
- const uint8_t code = SFCODE >> (((SFSEL >> layer) & 1) << 3);
-
- for(unsigned i = 0; i < 8; i++)
- {
-  uint16_t tmp = 0xFFFF;
-
-  if(!((code >> i) & 1))
-  {
-   if(TA_PrioMode & 2)
-    tmp &= ~(1U << PIX_PRIO_SHIFT);
-
-   if(TA_CCMode == 2)
-    tmp &= ~(1U << PIX_CCE_SHIFT);
-  }
-
-  sfcode_lut[i] = tmp;
- }
+/* MakeSFCodeLUT: was a `template<unsigned TA_PrioMode, unsigned TA_CCMode>`
+ * INLINE helper.  Body branches on (TA_PrioMode & 2) and (TA_CCMode == 2)
+ * which the compiler folds per instantiation, so the template produced
+ * one specialized loop per (PrioMode, CCMode) combination.  Macro form
+ * does the same -- the compiler sees the branch conditions as constant
+ * expressions from the macro argument substitution and folds them at
+ * the call site.  Yields byte-identical .o vs the template version.
+ *
+ * Note: macro emits a `{ ... }` block, so call sites that wrote
+ * `MAKE_SFCODE_LUT(a, b, c, d);` become `MAKE_SFCODE_LUT(a, b, c, d);` --
+ * the trailing `;` becomes an empty statement after the block. */
+#define MAKE_SFCODE_LUT(TA_PrioMode, TA_CCMode, layer, sfcode_lut)                                    \
+{                                                                                                     \
+ const uint8_t MK_SF_code = SFCODE >> (((SFSEL >> (layer)) & 1) << 3);                                \
+                                                                                                      \
+ for(unsigned MK_SF_i = 0; MK_SF_i < 8; MK_SF_i++)                                                    \
+ {                                                                                                    \
+  uint16_t MK_SF_tmp = 0xFFFF;                                                                        \
+                                                                                                      \
+  if(!((MK_SF_code >> MK_SF_i) & 1))                                                                  \
+  {                                                                                                   \
+   if((TA_PrioMode) & 2)                                                                              \
+    MK_SF_tmp &= ~(1U << PIX_PRIO_SHIFT);                                                             \
+                                                                                                      \
+   if((TA_CCMode) == 2)                                                                               \
+    MK_SF_tmp &= ~(1U << PIX_CCE_SHIFT);                                                              \
+  }                                                                                                   \
+                                                                                                      \
+  (sfcode_lut)[MK_SF_i] = MK_SF_tmp;                                                                  \
+ }                                                                                                    \
 }
 
 static INLINE uint32_t rgb15_to_rgb24(uint16_t src)
@@ -1670,7 +1680,7 @@ static void T_DrawNBG(const unsigned n, uint64_t* bgbuf, const unsigned w, const
  //
  tf.Start(n, TA_bmen, (MPOFN >> (n << 2)) & 0x7, MapRegs[n]);
 
- MakeSFCodeLUT<TA_PrioMode, TA_CCMode>(n, sfcode_lut);
+ MAKE_SFCODE_LUT(TA_PrioMode, TA_CCMode, n, sfcode_lut);
 
  xc = CurXScrollIF[n];
  iy = (CurYScrollIF[n] + MosEff_YCoordAccum[n]) >> 8;
@@ -1782,7 +1792,7 @@ static void T_DrawNBG23(const unsigned n, uint64_t* bgbuf, const unsigned w, con
  //
  tf.Start(n, false, (MPOFN >> (n << 2)) & 0x7, MapRegs[n]);
 
- MakeSFCodeLUT<TA_PrioMode, TA_CCMode>(n, sfcode_lut);
+ MAKE_SFCODE_LUT(TA_PrioMode, TA_CCMode, n, sfcode_lut);
 
  bgbuf -= xscr & 0x7;
  tx = xscr >> 3;
@@ -2130,7 +2140,7 @@ static void T_DrawRBG(const bool rn, uint64_t* bgbuf, const unsigned w, const ui
  //
  int16_t sfcode_lut[8];
 
- MakeSFCodeLUT<TA_PrioMode, TA_CCMode>((rn ? 0 : 4), sfcode_lut);
+ MAKE_SFCODE_LUT(TA_PrioMode, TA_CCMode, (rn ? 0 : 4), sfcode_lut);
 
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
  {
@@ -2223,7 +2233,7 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
 {                                                                                                     \
  int16_t sfcode_lut[8];                                                                                 \
                                                                                                       \
- MakeSFCodeLUT<PMODE, CCMODE>((rn ? 0 : 4), sfcode_lut);                                              \
+ MAKE_SFCODE_LUT(PMODE, CCMODE, (rn ? 0 : 4), sfcode_lut);                                              \
                                                                                                       \
  auto& r           = LB.rotv[const_ab];                                                               \
  auto& tf          = r.tf;                                                                            \
