@@ -404,18 +404,71 @@ INLINE void M68K::SetCX(bool val)
 //
 // Z_OnlyClear should be true for ADDX, SUBX, NEGX, ABCD, SBCD, NBCD.
 //
+// Phase-8b: the previous template<typename T, bool Z_OnlyClear>
+// CalcZN body splits into six named methods (three widths, two
+// Z behaviours).  The CalcZN<T, Z_OnlyClear> template below stays
+// as a one-line dispatcher for the 15+ T-parametric call sites
+// in ADD/SUB/etc. -- those retire when their parent templates
+// detemplate (post-HAM phases).
+//
+
+INLINE void M68K::CalcZN_u8(const uint8_t val)
+{
+ Flag_Z = (val == 0);
+ Flag_N = ((int8_t)val < 0);
+}
+
+INLINE void M68K::CalcZN_u8_clear(const uint8_t val)
+{
+ if(val != 0)
+  Flag_Z = false;
+ Flag_N = ((int8_t)val < 0);
+}
+
+INLINE void M68K::CalcZN_u16(const uint16_t val)
+{
+ Flag_Z = (val == 0);
+ Flag_N = ((int16_t)val < 0);
+}
+
+INLINE void M68K::CalcZN_u16_clear(const uint16_t val)
+{
+ if(val != 0)
+  Flag_Z = false;
+ Flag_N = ((int16_t)val < 0);
+}
+
+INLINE void M68K::CalcZN_u32(const uint32_t val)
+{
+ Flag_Z = (val == 0);
+ Flag_N = ((int32_t)val < 0);
+}
+
+INLINE void M68K::CalcZN_u32_clear(const uint32_t val)
+{
+ if(val != 0)
+  Flag_Z = false;
+ Flag_N = ((int32_t)val < 0);
+}
+
 template<typename T, bool Z_OnlyClear>
 INLINE void M68K::CalcZN(const T val)
 {
- if(Z_OnlyClear)
+ if(sizeof(T) == 4)
  {
-  if(val != 0)
-   Flag_Z = false;
+  if(Z_OnlyClear) CalcZN_u32_clear(val);
+  else            CalcZN_u32(val);
+ }
+ else if(sizeof(T) == 2)
+ {
+  if(Z_OnlyClear) CalcZN_u16_clear(val);
+  else            CalcZN_u16(val);
  }
  else
-  Flag_Z = (val == 0);
-
- Flag_N  = (static_cast<typename std::make_signed<T>::type>(val) < 0);
+ {
+  if(Z_OnlyClear) CalcZN_u8_clear(val);
+  else            CalcZN_u8(val);
+ }
 }
 
 INLINE uint8_t M68K::GetCCR(void)
@@ -879,7 +932,7 @@ INLINE void M68K::MULU(HAM<T, SAM> &src, const unsigned dr)
  for(uint32_t tmp = src_data; tmp; tmp &= tmp - 1)
   timestamp += 2;
 
- CalcZN<uint32_t>(result);
+ CalcZN_u32(result);
  Flag_C = false;
  Flag_V = false;
 
@@ -904,7 +957,7 @@ INLINE void M68K::MULS(HAM<T, SAM> &src, const unsigned dr)
  for(uint32_t tmp = src_data << 1, i = 0; i < 16; tmp >>= 1, i++)
   timestamp += (tmp ^ (tmp << 1)) & 2;
 
- CalcZN<uint32_t>(result);
+ CalcZN_u32(result);
  Flag_C = false;
  Flag_V = false;
 
@@ -912,14 +965,17 @@ INLINE void M68K::MULS(HAM<T, SAM> &src, const unsigned dr)
 }
 
 
-template<bool sdiv>
-INLINE void M68K::Divide(uint16_t divisor, const unsigned dr)
+/* Phase-8b: Divide<sdiv> retired.  The previous template body's
+ * `if(sdiv)` branches fold per-instantiation, so the two named
+ * methods below are bit-equivalent to the original template's two
+ * instantiations (sdiv=false -> Divide_u for DIVU, sdiv=true ->
+ * Divide_s for DIVS). */
+INLINE void M68K::Divide_u(uint16_t divisor, const unsigned dr)
 {
  uint32_t dividend = D[dr];
  uint32_t tmp;
- bool neg_quotient = false;
- bool neg_remainder = false;
  bool oflow = false;
+ int i;
 
  if(!divisor)
  {
@@ -927,22 +983,9 @@ INLINE void M68K::Divide(uint16_t divisor, const unsigned dr)
   return;
  }
 
- if(sdiv)
- {
-  neg_quotient = (dividend >> 31) ^ (divisor >> 15);
-  if(dividend & 0x80000000)
-  {
-   dividend = -dividend;
-   neg_remainder = true;
-  }
-
-  if(divisor & 0x8000)
-   divisor = -divisor;
- }
-
  tmp = dividend;
 
- for(int i = 0; i < 16; i++)
+ for(i = 0; i < 16; i++)
  {
   bool lb = false;
   bool ob;
@@ -957,22 +1000,73 @@ INLINE void M68K::Divide(uint16_t divisor, const unsigned dr)
   tmp = (tmp << 1) | lb;
 
   if(ob)
-  {
-   oflow = true;
-   //break;
-  }
- }
-
- if(sdiv)
- {
-  if((tmp & 0xFFFF) > (uint32_t)(0x7FFF + neg_quotient))
    oflow = true;
  }
 
  if((uint32_t)(tmp >> 16) >= divisor)
   oflow = true;
 
- if(sdiv && !oflow)
+ /* Doesn't affect X flag */
+ CalcZN_u16((uint16_t)tmp);
+ Flag_C = false;
+ Flag_V = oflow;
+
+ if(!oflow)
+  D[dr] = tmp;
+}
+
+INLINE void M68K::Divide_s(uint16_t divisor, const unsigned dr)
+{
+ uint32_t dividend = D[dr];
+ uint32_t tmp;
+ bool neg_quotient = false;
+ bool neg_remainder = false;
+ bool oflow = false;
+ int i;
+
+ if(!divisor)
+ {
+  Exception(EXCEPTION_ZERO_DIVIDE, VECNUM_ZERO_DIVIDE);
+  return;
+ }
+
+ neg_quotient = (dividend >> 31) ^ (divisor >> 15);
+ if(dividend & 0x80000000)
+ {
+  dividend = -dividend;
+  neg_remainder = true;
+ }
+
+ if(divisor & 0x8000)
+  divisor = -divisor;
+
+ tmp = dividend;
+
+ for(i = 0; i < 16; i++)
+ {
+  bool lb = false;
+  bool ob;
+
+  if(tmp >= ((uint32_t)divisor << 15))
+  {
+   tmp -= divisor << 15;
+   lb = true;
+  }
+
+  ob = tmp >> 31;
+  tmp = (tmp << 1) | lb;
+
+  if(ob)
+   oflow = true;
+ }
+
+ if((tmp & 0xFFFF) > (uint32_t)(0x7FFF + neg_quotient))
+  oflow = true;
+
+ if((uint32_t)(tmp >> 16) >= divisor)
+  oflow = true;
+
+ if(!oflow)
  {
   if(neg_quotient)
    tmp = ((-tmp) & 0xFFFF) | (tmp & 0xFFFF0000);
@@ -981,10 +1075,8 @@ INLINE void M68K::Divide(uint16_t divisor, const unsigned dr)
    tmp = (((-(tmp >> 16)) << 16) & 0xFFFF0000) | (tmp & 0xFFFF);
  }
 
- //
- // Doesn't affect X flag
- //
- CalcZN<uint16_t>(tmp);
+ /* Doesn't affect X flag */
+ CalcZN_u16((uint16_t)tmp);
  Flag_C = false;
  Flag_V = oflow;
 
@@ -1003,7 +1095,7 @@ INLINE void M68K::DIVU(HAM<T, SAM> &src, const unsigned dr)
 
  T const src_data = src.read();
 
- Divide<false>(src_data, dr);
+ Divide_u(src_data, dr);
 }
 
 
@@ -1018,7 +1110,7 @@ INLINE void M68K::DIVS(HAM<T, SAM> &src, const unsigned dr)
 
  T const src_data = src.read();
 
- Divide<true>(src_data, dr);
+ Divide_s(src_data, dr);
 }
 
 
@@ -1051,7 +1143,7 @@ INLINE void M68K::ABCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)	// ...XYZ, now I know
   V |= ((~prev_tmp & 0x80) & (tmp & 0x80));
  }
 
- CalcZN<uint8_t, true>(tmp);
+ CalcZN_u8_clear(tmp);
  SetCX((bool)(tmp >> 8));
  Flag_V = V;
 
@@ -1089,7 +1181,7 @@ INLINE uint8_t M68K::DecimalSubtractX(const uint8_t src_data, const uint8_t dst_
  }
 
  Flag_V = V;
- CalcZN<uint8_t, true>(tmp);
+ CalcZN_u8_clear(tmp);
  SetCX((bool)(tmp >> 8));
 
  return tmp;
@@ -1546,7 +1638,7 @@ INLINE void M68K::SWAP(const unsigned dr)
 {
  D[dr] = (D[dr] << 16) | (D[dr] >> 16);
 
- CalcZN<uint32_t>(D[dr]);
+ CalcZN_u32(D[dr]);
  Flag_C = false;
  Flag_V = false;
 }

@@ -227,7 +227,7 @@ void NO_INLINE M68K::Exception(unsigned which, unsigned vecnum)
 //
 MDFN_FASTCALL uint8_t TAS_Callback(M68K* zptr, uint8_t data)
 {
- zptr->CalcZN<uint8_t>(data);
+ zptr->CalcZN_u8(data);
  zptr->Flag_C = false;
  zptr->Flag_V = false;
 

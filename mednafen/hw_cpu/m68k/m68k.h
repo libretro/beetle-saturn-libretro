@@ -198,6 +198,20 @@ class M68K
 
  void SetCX(bool val);
 
+ /* Phase-8b: named width-typed CalcZN variants.  The CalcZN<T,
+  * Z_OnlyClear> template below is kept as a thin dispatcher for
+  * the 15+ T-parametric call sites inside ADD/ADDX/SUB/SUBX/etc.
+  * templates that still take a T parameter; concrete-type call
+  * sites use the named methods directly.  The dispatcher retires
+  * when those parent templates also detemplate (much later
+  * phases -- they're all locked behind HAM detempleting). */
+ void CalcZN_u8       (const uint8_t  val);
+ void CalcZN_u8_clear (const uint8_t  val);
+ void CalcZN_u16      (const uint16_t val);
+ void CalcZN_u16_clear(const uint16_t val);
+ void CalcZN_u32      (const uint32_t val);
+ void CalcZN_u32_clear(const uint32_t val);
+
  template<typename T, bool Z_OnlyClear = false>
  void CalcZN(const T val);
 
@@ -301,8 +315,10 @@ class M68K
  template<typename T, M68K::AddressMode SAM>
  void MULS(HAM<T, SAM> &src, const unsigned dr);
 
- template<bool sdiv>
- void Divide(uint16_t divisor, const unsigned dr);
+ /* Phase-8b: Divide<sdiv> retired -- two callers (DIVU, DIVS) each
+  * with a concrete `sdiv` value, no T-parametric dispatch needed. */
+ void Divide_u(uint16_t divisor, const unsigned dr);
+ void Divide_s(uint16_t divisor, const unsigned dr);
 
  template<typename T, M68K::AddressMode SAM>
  void DIVU(HAM<T, SAM> &src, const unsigned dr);
