@@ -53,21 +53,27 @@ union DSPR48
  uint64_t T;	// Upper 16 bits may be non-zero "garbage", so don't assume they're zero in code that reads from this variable.
 };
 
+/* Phase-5d: hoisted out of `struct DSPS` so bare-name access works
+ * identically under both C and C++ -- C++'s struct-scoped member
+ * enumerators require `DSPS::STATE_MASK_EXECUTE`, C scopes them to
+ * the enclosing namespace (file scope here) and accepts only the
+ * bare form.  Moving them out lets every TU (scu.inc / scu_dsp_misc
+ * .cpp / future scu_dsp_misc.c) use the same spelling. */
+enum
+{
+ /* No execute = 0x00000000		<= 0 */
+ /* Paused + No execute = 0x80000000	<= 0 */
+ /* Paused + Execute = 0x80000001	<= 0 */
+ /* Execute = 0x00000001	> 0 */
+ STATE_MASK_PAUSE = 0x80000000,
+ STATE_MASK_EXECUTE = 0x00000001
+};
+
 struct DSPS
 {
  sscpu_timestamp_t LastTS;
  int32_t CycleCounter;
  int32_t T0_Until;
- //
- enum
- {
-  // No execute = 0x00000000		<= 0
-  // Paused + No execute = 0x80000000	<= 0
-  // Paused + Execute = 0x80000001	<= 0
-  // Execute = 0x00000001	> 0
-  STATE_MASK_PAUSE = 0x80000000,
-  STATE_MASK_EXECUTE = 0x00000001,
- };
  int32_t State;
 
  uint64_t NextInstr;

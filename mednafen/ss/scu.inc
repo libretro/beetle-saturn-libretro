@@ -615,18 +615,18 @@ static INLINE void SCU_RegRW_DB(uint32_t A, uint32_t* DB)
 	SCU_UpdateDSP(SH7095_mem_timestamp);
 
 	if(*DB & (1U << 25))	// Pause start
-	 DSP.State |= DSPS::STATE_MASK_PAUSE;
+	 DSP.State |= STATE_MASK_PAUSE;
 	else if(*DB & (1U << 26))	// Pause stop
-	 DSP.State &= ~DSPS::STATE_MASK_PAUSE;
+	 DSP.State &= ~STATE_MASK_PAUSE;
 	else
 	{
 	 if(*DB & (1U << 16))	// Execute
-	  DSP.State |= DSPS::STATE_MASK_EXECUTE;
+	  DSP.State |= STATE_MASK_EXECUTE;
 	 else if(!(*DB & (1U << 16)))	// Execute stop
 	 {
-	  if(DSP.State & DSPS::STATE_MASK_EXECUTE)
+	  if(DSP.State & STATE_MASK_EXECUTE)
 	  {
-	   DSP.State &= ~DSPS::STATE_MASK_EXECUTE;
+	   DSP.State &= ~STATE_MASK_EXECUTE;
 
 	   if(DSP.CycleCounter < 0)
 	    DSP.CycleCounter = 0;
@@ -1748,208 +1748,249 @@ void DSP_FinishPRAMDMA(void)
  DSP.NextInstr = DSP_DecodeInstruction(0, false);
 }
 
-template<bool looped, bool hold, bool format, bool dir, unsigned drw>
-static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
-{
- const uint32_t instr = DSP_InstrPre(dsp, looped);
- const unsigned add_mode = (instr >> 15) & 0x7;
- uint8_t count;	// 0 = 256
+/* Phase-5d: was `template<bool looped, bool hold, bool format, bool dir,
+ * unsigned drw> static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)` --
+ * 2 x 2 x 2 x 2 x 8 = 128 instantiations (no hand-dedup in
+ * scu_dsp_dmatab.inc; every slot has its own unique template-arg
+ * tuple).  Monomorphized via X-macro into 128 named functions,
+ * extending the phase 5b / 5c / 5d-GenInstr pattern one more axis. */
 
- if(dsp->T0_Until < dsp->CycleCounter)
- {
-  // TODO: Rework how DSP DMA is handled if this condition occurs with the same data RAM bank in any games.
-
-  dsp->CycleCounter = dsp->T0_Until &~ 1;
- }
-
- dsp->T0_Until = dsp->CycleCounter;
-
- if(format)
- {
-  const unsigned crw = instr & 0x3;
-  const bool ctinc = instr & 0x4;
-
-  count = dsp->DataRAM[crw][dsp->CT[crw]] & 0xFF;
-  dsp->CT[crw] = (dsp->CT[crw] + ctinc) & 0x3F;
- }
- else
-  count = instr & 0xFF;
-
- // do { } while(0) lets bus-error paths "break" out so we still
- // fall through to DSP_TailDispatch at the end (the original
- // dispatcher would re-enter on the next loop iteration).
- do {
- if(dir)
- {
-  const uint32_t addr_add_amount = (1 << add_mode) &~ 1;
-  uint32_t addr = (dsp->WAO << 2) & 0x07FFFFFF;
-  const int WriteBus = AddressToBus(addr);
-
-  if(MDFN_UNLIKELY(WriteBus == -1))
-  {
-   break;
-  }
-
-  // Fast path: a contiguous run of 16-bit writes landing entirely within the
-  // VDP2 register/RAM window. Collapse the per-halfword renderer-queue pushes
-  // (the hot part of DSP DMA) into a single burst command; the SH2-side array
-  // writes and their VRAM-bank access penalties still happen per halfword.
-  {
-   const unsigned words = count ? count : 256;
-   const unsigned n16 = words << 1;
-
-   if(WriteBus == 1 && addr >= 0x05E00000 &&
-      (uint64_t)addr + (uint64_t)(n16 - 1) * addr_add_amount <= 0x05FBFFFF)
-   {
-    uint16_t burstbuf[512];
-    unsigned k = 0;
-
-    do
-    {
-     uint32_t DB;
-
-     if(drw & 0x4)
-      DB = 0xFFFFFFFF;
-     else
-     {
-      DB = dsp->DataRAM[drw][dsp->CT[drw]];
-      dsp->CT[drw] = (dsp->CT[drw] + 1) & 0x3F;
-     }
-
-     burstbuf[k++] = DB >> 16;
-     burstbuf[k++] = DB & 0xFFFF;
-    } while(--count);
-
-    dsp->T0_Until -= (int32_t)n16;
-    dsp->T0_Until -= (int32_t)VDP2_Write16Burst_DB(addr, n16, add_mode, burstbuf);
-    addr += n16 * addr_add_amount;
-
-    if(!hold)
-     dsp->WAO = (addr + 2) >> 2;
-
-    break;
-   }
-  }
-
-  // Read from data RAM, write to external bus
-  do
-  {
-   uint32_t DB;
-
-   if(drw & 0x4)
-    DB = 0xFFFFFFFF;
-   else
-   {
-    DB = dsp->DataRAM[drw][dsp->CT[drw]];
-    dsp->CT[drw] = (dsp->CT[drw] + 1) & 0x3F;
-   }
-
-   if(WriteBus == 2)
-   {
-    /* ne16_wbo_be<uint32_t>(WorkRAMH, byte_off, DB) folded. */
-    const uint32_t idx_ = (addr & 0xFFFFC) >> 1;
-    WorkRAMH[idx_ + 0] = DB >> 16;
-    WorkRAMH[idx_ + 1] = DB;
-    addr += addr_add_amount;
-    dsp->T0_Until -= 2;
-   }
-   else if(WriteBus == 1)
-   {
-    uint16_t DB16;
-
-    DB16 = DB >> 16;
-    BBusRW_DB<uint16_t, true>(addr, &DB16, NULL, &dsp->T0_Until);
-
-    addr += addr_add_amount;
-
-    DB16 = DB;
-    BBusRW_DB<uint16_t, true, true>(addr, &DB16, NULL, &dsp->T0_Until);
-
-    addr += addr_add_amount;
-   }
-   else if(WriteBus == 0)
-   {
-    ABus_Write_DB32<uint32_t>(addr, DB, NULL, &dsp->T0_Until);
-
-    addr += addr_add_amount;
-   }
-  } while(--count);
-
-  if(!hold)
-   dsp->WAO = (addr + 2) >> 2;
- }
- else
- {
-  const uint32_t addr_add_amount = (1 << (add_mode & 0x2)) &~ 1;
-  uint32_t addr = (dsp->RAO << 2) & 0x07FFFFFF;
-  const int ReadBus = AddressToBus(addr);
-
-  if(MDFN_UNLIKELY(ReadBus == -1))
-  {
-   break;
-  }
-
-  dsp->PRAMDMABufCount = 0;
-
-  // Read from external bus, write to data RAM or program RAM
-  do
-  {
-   uint32_t DB = 0;
-
-   if(ReadBus == 2)
-   {
-    /* ne16_rbo_be<uint32_t>(WorkRAMH, byte_off) folded. */
-    const uint32_t idx_ = (addr & 0xFFFFF) >> 1;
-    DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
-    dsp->T0_Until -= 2;
-
-    addr += addr_add_amount;
-   }
-   else if(ReadBus == 1)
-   {
-    uint16_t tmp = 0;
-
-    BBusRW_DB<uint16_t, false>(addr | 0, &tmp, NULL, &dsp->T0_Until);
-    DB = tmp << 16;
-
-    BBusRW_DB<uint16_t, false, true>(addr | 2, &tmp, NULL, &dsp->T0_Until);
-    DB |= tmp << 0;
-
-    addr += 4;
-   }
-   else if(ReadBus == 0)
-   {
-    DB = ABus_Read(addr, NULL, &dsp->T0_Until);
-
-    addr += addr_add_amount;
-   }
-
-   if(drw & 0x4)
-   {
-    if(!(drw & 0x3))
-    {
-     dsp->PRAMDMABuf[dsp->PRAMDMABufCount++ & 0xFF] = DB;
-    }
-   }
-   else
-   {
-    dsp->DataRAM[drw][dsp->CT[drw]] = DB;
-    dsp->CT[drw] = (dsp->CT[drw] + 1) & 0x3F;
-   }
-  } while(--count);
-
-  if(!hold)
-   dsp->RAO = addr >> 2;
- }
- } while(0);
-
- DSP_TailDispatch(dsp);
+#define DMAInstr_BODY(LOOPED, HOLD, FORMAT, DIR, DRW)                                              \
+{                                                                                                  \
+ const uint32_t instr = DSP_InstrPre(dsp, LOOPED);                                                 \
+ const unsigned add_mode = (instr >> 15) & 0x7;                                                    \
+ uint8_t count;	/* 0 = 256 */                                                                      \
+                                                                                                   \
+ if(dsp->T0_Until < dsp->CycleCounter)                                                             \
+ {                                                                                                 \
+  /* TODO: Rework how DSP DMA is handled if this condition occurs                                  \
+   * with the same data RAM bank in any games. */                                                  \
+  dsp->CycleCounter = dsp->T0_Until &~ 1;                                                          \
+ }                                                                                                 \
+                                                                                                   \
+ dsp->T0_Until = dsp->CycleCounter;                                                                \
+                                                                                                   \
+ if(FORMAT)                                                                                        \
+ {                                                                                                 \
+  const unsigned crw = instr & 0x3;                                                                \
+  const bool ctinc = instr & 0x4;                                                                  \
+                                                                                                   \
+  count = dsp->DataRAM[crw][dsp->CT[crw]] & 0xFF;                                                  \
+  dsp->CT[crw] = (dsp->CT[crw] + ctinc) & 0x3F;                                                    \
+ }                                                                                                 \
+ else                                                                                              \
+  count = instr & 0xFF;                                                                            \
+                                                                                                   \
+ /* do { } while(0) lets bus-error paths "break" out so we still                                   \
+  * fall through to DSP_TailDispatch at the end (the original                                      \
+  * dispatcher would re-enter on the next loop iteration). */                                      \
+ do {                                                                                              \
+ if(DIR)                                                                                           \
+ {                                                                                                 \
+  const uint32_t addr_add_amount = (1 << add_mode) &~ 1;                                           \
+  uint32_t addr = (dsp->WAO << 2) & 0x07FFFFFF;                                                    \
+  const int WriteBus = AddressToBus(addr);                                                         \
+                                                                                                   \
+  if(MDFN_UNLIKELY(WriteBus == -1))                                                                \
+  {                                                                                                \
+   break;                                                                                          \
+  }                                                                                                \
+                                                                                                   \
+  /* Fast path: a contiguous run of 16-bit writes landing entirely within the                      \
+   * VDP2 register/RAM window. Collapse the per-halfword renderer-queue pushes                     \
+   * (the hot part of DSP DMA) into a single burst command; the SH2-side array                     \
+   * writes and their VRAM-bank access penalties still happen per halfword. */                     \
+  {                                                                                                \
+   const unsigned words = count ? count : 256;                                                     \
+   const unsigned n16 = words << 1;                                                                \
+                                                                                                   \
+   if(WriteBus == 1 && addr >= 0x05E00000 &&                                                       \
+      (uint64_t)addr + (uint64_t)(n16 - 1) * addr_add_amount <= 0x05FBFFFF)                        \
+   {                                                                                               \
+    uint16_t burstbuf[512];                                                                        \
+    unsigned k = 0;                                                                                \
+                                                                                                   \
+    do                                                                                             \
+    {                                                                                              \
+     uint32_t DB;                                                                                  \
+                                                                                                   \
+     if((DRW) & 0x4)                                                                               \
+      DB = 0xFFFFFFFF;                                                                             \
+     else                                                                                          \
+     {                                                                                             \
+      DB = dsp->DataRAM[DRW][dsp->CT[DRW]];                                                        \
+      dsp->CT[DRW] = (dsp->CT[DRW] + 1) & 0x3F;                                                    \
+     }                                                                                             \
+                                                                                                   \
+     burstbuf[k++] = DB >> 16;                                                                     \
+     burstbuf[k++] = DB & 0xFFFF;                                                                  \
+    } while(--count);                                                                              \
+                                                                                                   \
+    dsp->T0_Until -= (int32_t)n16;                                                                 \
+    dsp->T0_Until -= (int32_t)VDP2_Write16Burst_DB(addr, n16, add_mode, burstbuf);                 \
+    addr += n16 * addr_add_amount;                                                                 \
+                                                                                                   \
+    if(!(HOLD))                                                                                    \
+     dsp->WAO = (addr + 2) >> 2;                                                                   \
+                                                                                                   \
+    break;                                                                                         \
+   }                                                                                               \
+  }                                                                                                \
+                                                                                                   \
+  /* Read from data RAM, write to external bus */                                                  \
+  do                                                                                               \
+  {                                                                                                \
+   uint32_t DB;                                                                                    \
+                                                                                                   \
+   if((DRW) & 0x4)                                                                                 \
+    DB = 0xFFFFFFFF;                                                                               \
+   else                                                                                            \
+   {                                                                                               \
+    DB = dsp->DataRAM[DRW][dsp->CT[DRW]];                                                          \
+    dsp->CT[DRW] = (dsp->CT[DRW] + 1) & 0x3F;                                                      \
+   }                                                                                               \
+                                                                                                   \
+   if(WriteBus == 2)                                                                               \
+   {                                                                                               \
+    /* ne16_wbo_be<uint32_t>(WorkRAMH, byte_off, DB) folded. */                                    \
+    const uint32_t idx_ = (addr & 0xFFFFC) >> 1;                                                   \
+    WorkRAMH[idx_ + 0] = DB >> 16;                                                                 \
+    WorkRAMH[idx_ + 1] = DB;                                                                       \
+    addr += addr_add_amount;                                                                       \
+    dsp->T0_Until -= 2;                                                                            \
+   }                                                                                               \
+   else if(WriteBus == 1)                                                                          \
+   {                                                                                               \
+    uint16_t DB16;                                                                                 \
+                                                                                                   \
+    DB16 = DB >> 16;                                                                               \
+    BBusRW_DB<uint16_t, true>(addr, &DB16, NULL, &dsp->T0_Until);                                  \
+                                                                                                   \
+    addr += addr_add_amount;                                                                       \
+                                                                                                   \
+    DB16 = DB;                                                                                     \
+    BBusRW_DB<uint16_t, true, true>(addr, &DB16, NULL, &dsp->T0_Until);                            \
+                                                                                                   \
+    addr += addr_add_amount;                                                                       \
+   }                                                                                               \
+   else if(WriteBus == 0)                                                                          \
+   {                                                                                               \
+    ABus_Write_DB32<uint32_t>(addr, DB, NULL, &dsp->T0_Until);                                     \
+                                                                                                   \
+    addr += addr_add_amount;                                                                       \
+   }                                                                                               \
+  } while(--count);                                                                                \
+                                                                                                   \
+  if(!(HOLD))                                                                                      \
+   dsp->WAO = (addr + 2) >> 2;                                                                     \
+ }                                                                                                 \
+ else                                                                                              \
+ {                                                                                                 \
+  const uint32_t addr_add_amount = (1 << (add_mode & 0x2)) &~ 1;                                   \
+  uint32_t addr = (dsp->RAO << 2) & 0x07FFFFFF;                                                    \
+  const int ReadBus = AddressToBus(addr);                                                          \
+                                                                                                   \
+  if(MDFN_UNLIKELY(ReadBus == -1))                                                                 \
+  {                                                                                                \
+   break;                                                                                          \
+  }                                                                                                \
+                                                                                                   \
+  dsp->PRAMDMABufCount = 0;                                                                        \
+                                                                                                   \
+  /* Read from external bus, write to data RAM or program RAM */                                   \
+  do                                                                                               \
+  {                                                                                                \
+   uint32_t DB = 0;                                                                                \
+                                                                                                   \
+   if(ReadBus == 2)                                                                                \
+   {                                                                                               \
+    /* ne16_rbo_be<uint32_t>(WorkRAMH, byte_off) folded. */                                        \
+    const uint32_t idx_ = (addr & 0xFFFFF) >> 1;                                                   \
+    DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];                                    \
+    dsp->T0_Until -= 2;                                                                            \
+                                                                                                   \
+    addr += addr_add_amount;                                                                       \
+   }                                                                                               \
+   else if(ReadBus == 1)                                                                           \
+   {                                                                                               \
+    uint16_t tmp = 0;                                                                              \
+                                                                                                   \
+    BBusRW_DB<uint16_t, false>(addr | 0, &tmp, NULL, &dsp->T0_Until);                              \
+    DB = tmp << 16;                                                                                \
+                                                                                                   \
+    BBusRW_DB<uint16_t, false, true>(addr | 2, &tmp, NULL, &dsp->T0_Until);                        \
+    DB |= tmp << 0;                                                                                \
+                                                                                                   \
+    addr += 4;                                                                                     \
+   }                                                                                               \
+   else if(ReadBus == 0)                                                                           \
+   {                                                                                               \
+    DB = ABus_Read(addr, NULL, &dsp->T0_Until);                                                    \
+                                                                                                   \
+    addr += addr_add_amount;                                                                       \
+   }                                                                                               \
+                                                                                                   \
+   if((DRW) & 0x4)                                                                                 \
+   {                                                                                               \
+    if(!((DRW) & 0x3))                                                                             \
+    {                                                                                              \
+     dsp->PRAMDMABuf[dsp->PRAMDMABufCount++ & 0xFF] = DB;                                          \
+    }                                                                                              \
+   }                                                                                               \
+   else                                                                                            \
+   {                                                                                               \
+    dsp->DataRAM[DRW][dsp->CT[DRW]] = DB;                                                          \
+    dsp->CT[DRW] = (dsp->CT[DRW] + 1) & 0x3F;                                                      \
+   }                                                                                               \
+  } while(--count);                                                                                \
+                                                                                                   \
+  if(!(HOLD))                                                                                      \
+   dsp->RAO = addr >> 2;                                                                           \
+ }                                                                                                 \
+ } while(0);                                                                                       \
+                                                                                                   \
+ DSP_TailDispatch(dsp);                                                                            \
 }
 
-MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(DSPS*) =
+#define DMAInstr_NAME(LOOPED, HOLD, FORMAT, DIR, DRW) \
+ DMAInstr_##LOOPED##_##HOLD##_##FORMAT##_##DIR##_##DRW
+
+#define DEFINE_DMAInstr(LOOPED, HOLD, FORMAT, DIR, DRW)                                            \
+ static NO_INLINE NO_CLONE void DMAInstr_NAME(LOOPED, HOLD, FORMAT, DIR, DRW)(struct DSPS* dsp)    \
+ DMAInstr_BODY(LOOPED, HOLD, FORMAT, DIR, DRW)
+
+/* Nested enumerators: DRW (0..7) -> DIR (0..1) -> FORMAT (0..1) -> HOLD (0..1) -> LOOPED (0..1) */
+#define DDMA_FOR_EACH_DRW(M, LOOPED, HOLD, FORMAT, DIR)                                            \
+ M(LOOPED, HOLD, FORMAT, DIR, 0x00) M(LOOPED, HOLD, FORMAT, DIR, 0x01)                             \
+ M(LOOPED, HOLD, FORMAT, DIR, 0x02) M(LOOPED, HOLD, FORMAT, DIR, 0x03)                             \
+ M(LOOPED, HOLD, FORMAT, DIR, 0x04) M(LOOPED, HOLD, FORMAT, DIR, 0x05)                             \
+ M(LOOPED, HOLD, FORMAT, DIR, 0x06) M(LOOPED, HOLD, FORMAT, DIR, 0x07)
+
+#define DDMA_FOR_EACH_DIR(M, LOOPED, HOLD, FORMAT)                                                 \
+ DDMA_FOR_EACH_DRW(M, LOOPED, HOLD, FORMAT, 0x0) DDMA_FOR_EACH_DRW(M, LOOPED, HOLD, FORMAT, 0x1)
+
+#define DDMA_FOR_EACH_FORMAT(M, LOOPED, HOLD)                                                      \
+ DDMA_FOR_EACH_DIR(M, LOOPED, HOLD, 0x0) DDMA_FOR_EACH_DIR(M, LOOPED, HOLD, 0x1)
+
+#define DDMA_FOR_EACH_HOLD(M, LOOPED)                                                              \
+ DDMA_FOR_EACH_FORMAT(M, LOOPED, 0x0) DDMA_FOR_EACH_FORMAT(M, LOOPED, 0x1)
+
+DDMA_FOR_EACH_HOLD(DEFINE_DMAInstr, 0)
+DDMA_FOR_EACH_HOLD(DEFINE_DMAInstr, 1)
+
+#undef DEFINE_DMAInstr
+#undef DDMA_FOR_EACH_HOLD
+#undef DDMA_FOR_EACH_FORMAT
+#undef DDMA_FOR_EACH_DIR
+#undef DDMA_FOR_EACH_DRW
+
+MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(struct DSPS*) =
 {
  #include "scu_dsp_dmatab.inc"
 };
+
+#undef DMAInstr_NAME
+#undef DMAInstr_BODY
 
 //
 //
@@ -2376,11 +2417,11 @@ uint32_t SCU_GetRegister(const unsigned id, char* const special, const uint32_t 
 	break;
 
   case SCU_GSREG_DSP_EXEC:
-	ret = (bool)(DSP.State & DSPS::STATE_MASK_EXECUTE);
+	ret = (bool)(DSP.State & STATE_MASK_EXECUTE);
 	break;
 
   case SCU_GSREG_DSP_PAUSE:
-	ret = (bool)(DSP.State & DSPS::STATE_MASK_PAUSE);
+	ret = (bool)(DSP.State & STATE_MASK_PAUSE);
 	break;
 
   case SCU_GSREG_DSP_PC:
