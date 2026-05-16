@@ -263,243 +263,394 @@ static uint8_t ColorOffsSel;
 
 static int32_t ColorOffs[2][3];	// [A,B] [R << 0, G << 8, B << 16]
 
-template<bool IsRot>
-struct TileFetcher
+/* TileFetcher: phase 4a -- struct template `template<bool IsRot>
+ * struct TileFetcher` with nested templated method
+ * `template<unsigned TA_bpp> Fetch<>(...)` and INLINE Start(...)
+ * is replaced here with two named structs plus free functions.
+ *
+ * The original struct had adj_map_regs[IsRot ? 16 : 4] -- the
+ * array dimension was the only IsRot-dependent layout difference,
+ * so we split into:
+ *   struct TileFetcher_Rot     -- adj_map_regs[16]
+ *   struct TileFetcher_NonRot  -- adj_map_regs[4]
+ * with all other fields identical (declared via shared field-list
+ * macros, which both structs include).  The methods become free
+ * functions: TileFetcher_Rot_Start / TileFetcher_NonRot_Start, and
+ * eight Fetch variants (per IsRot, per BPP in {4, 8, 16, 32}).
+ *
+ * The method bodies share source text via two body macros, each
+ * parameterized on IS_ROT (0 or 1) and (for Fetch) TA_BPP (literal
+ * 4, 8, 16, 32).  Field access inside the bodies uses the bare
+ * field name (`pcco = 0;` instead of `this->pcco = 0;`); a block
+ * of #define-then-#undef field-redirect macros bracketing the
+ * function definitions translates each bare name to `self->NAME`.
+ * The bracket is tight -- the redirects are #undef'd before any
+ * code that accesses the same names via `tf.NAME` syntax, which
+ * the existing function-table BODY macros do.
+ *
+ * Codegen impact: each TileFetcher<X>::Method spec produced by the
+ * template is matched 1:1 by a free function with IS_ROT (and BPP
+ * for Fetch) substituted as literal constants.  Dead branches in
+ * the Start body (`if(IsRot)`, `(IsRot ? 16 : 4)`) fold identically.
+ *
+ * Call-site dispatch through TF_ROT_FETCH / TF_NR_FETCH macros uses
+ * `##` token pasting to select the matching Fetch_N variant at
+ * preprocessing time: the call sites inside the body macros pass
+ * BPP bare (`TF_NR_FETCH(&tf, BPP, ...)`), and BPP is a literal
+ * 4/8/16/32 at body-macro expansion, so the paste yields a single
+ * direct call -- byte-equivalent to the template-instantiated
+ * `tf.Fetch<BPP>(...)`. */
+
+/* Field declarations split into a head block (before adj_map_regs)
+ * and a tail block (after), so the two named structs can differ
+ * only in the array dimension and share everything else. */
+#define TILEFETCHER_FIELDS_PREARR \
+ unsigned        CRAOffs; \
+ bool            BMSCC; \
+ bool            BMSPR; \
+ unsigned        BMPalNo; \
+ unsigned        BMSize; \
+ unsigned        PlaneSize; \
+ unsigned        PlaneOver; \
+ uint16_t        PlaneOverChar; \
+ bool            PNDSize; \
+ bool            CharSize; \
+ bool            AuxMode; \
+ unsigned        Supp; \
+ unsigned        BMOffset; \
+ unsigned        BMWShift; \
+ unsigned        BMWMask; \
+ unsigned        BMHMask
+
+#define TILEFETCHER_FIELDS_POSTARR \
+ uint32_t        doxm; \
+ uint32_t        doym; \
+ bool            nt_ok[4]; \
+ bool            cg_ok[4]; \
+ uint32_t        pcco; \
+ bool            spr; \
+ bool            scc; \
+ const uint16_t* tile_vrb; \
+ uint32_t        cellx_xor
+
+struct TileFetcher_Rot
 {
- unsigned CRAOffs;
-
- bool BMSCC;
- bool BMSPR;
- unsigned BMPalNo;
- unsigned BMSize;
-
- unsigned PlaneSize;
- unsigned PlaneOver;
- uint16_t PlaneOverChar;
- bool PNDSize;
- bool CharSize;
- bool AuxMode;
- unsigned Supp;
-
- //
- //
- //
- unsigned BMOffset;
- unsigned BMWShift;
- unsigned BMWMask;
- unsigned BMHMask;
-
- uint32_t adj_map_regs[IsRot ? 16 : 4];
- uint32_t doxm, doym;
-
- bool nt_ok[4];
- bool cg_ok[4];
-
- // n=0...3, NBG0...3
- // n=4, RBG0
- // n=5, RBG1
- INLINE void Start(const unsigned n, const bool bmen, const unsigned map_offset, const uint8_t* map_regs)
- {
-  BMOffset = map_offset << 16;
-  BMWShift = ((BMSize & 2) ? 10 : 9);
-  BMWMask = (1U << BMWShift) - 8;
-  BMHMask = (BMSize & 1) ? 0x1FF : 0xFF;
-
-  const unsigned psshift = (13 - PNDSize - (CharSize << 1));
-
-  for(unsigned i = 0; i < (IsRot ? 16 : 4); i++)
-  {
-   adj_map_regs[i] = ((map_offset << 6) + (map_regs[i] &~ PlaneSize)) << psshift;
-  }
-
-  if(IsRot)
-  {
-   if(bmen)
-   {
-    doxm = ~(BMWMask + 7);
-    doym = ~BMHMask;
-   }
-   else
-   {
-    doxm = ~((1U << ((9 + (bool)(PlaneSize & 0x1)) + (IsRot ? 2 : 1))) - 1);
-    doym = ~((1U << ((9 + (bool)(PlaneSize & 0x2)) + (IsRot ? 2 : 1))) - 1);
-   }
-
-   if(PlaneOver == 0)
-    doxm = doym = 0;
-   else if(PlaneOver == 3)
-    doxm = doym = ~511;
-  }
-
-  // Kludgeyness:
-  for(unsigned bank = 0; bank < 4; bank++)
-  {
-   const unsigned esb = bank & (2 | ((VRAM_Mode >> (bank >> 1)) & 1));
-   const uint8_t rdbs = (RDBS_Mode >> (esb << 1)) & 0x3;
-
-   if(IsRot)
-   {
-    if(!(BGON & 0x20) || n == 4)
-    {
-     nt_ok[bank] = (rdbs == RDBS_NAME) && (bank < 2 || !(BGON & 0x20));
-     cg_ok[bank] = (rdbs == RDBS_CHAR) && (bank < 2 || !(BGON & 0x20));
-    }
-    else
-    {
-     nt_ok[bank] = (bank == 3);
-     cg_ok[bank] = (bank == 2);
-    }
-   }
-   else
-   {
-    nt_ok[bank] = false;
-    cg_ok[bank] = false;
-
-    if((BGON & 0x20) && (bank & 0x2)) { }
-    else if(!(BGON & 0x10) || rdbs == RDBS_UNUSED)
-    {
-     for(unsigned ac = 0; ac < ((HRes & 0x6) ? 4 : 8); ac++)
-     {
-      if(VCPRegs[esb][ac] == (VCP_NBG0_CG + n))
-       cg_ok[bank] = true;
-
-      if(VCPRegs[esb][ac] == (VCP_NBG0_NT + n))
-       nt_ok[bank] = true;
-     }
-    }
-   }
-  }
-
-  pcco = 0;
-  spr = false;
-  scc = false;
-  tile_vrb = NULL;
-  cellx_xor = 0;
- }
-
- //
- //
- //
- uint32_t pcco;
- bool spr;
- bool scc;
- const uint16_t* tile_vrb;
- uint32_t cellx_xor;
-
- template<unsigned TA_bpp>
- INLINE bool Fetch(const bool bmen, const uint32_t ix, const uint32_t iy)
- {
-  size_t cg_addr;
-  uint32_t palno;
-  bool is_outside = false;
-
-  if(IsRot)
-   is_outside = (ix & doxm) | (iy & doym);
-
-  if(bmen)
-  {
-   palno = BMPalNo;
-   spr = BMSPR;
-   scc = BMSCC;
-   cellx_xor = (ix &~ 0x7);
-   cg_addr = (BMOffset + ((((ix & BMWMask) + ((iy & BMHMask) << BMWShift)) * TA_bpp) >> 4)) & 0x3FFFF;
-  }
-  else
-  {
-   bool vflip, hflip;
-   uint16_t charno;
-   uint32_t mapidx, planeidx, planeoffs, pageoffs;
-   const uint16_t* pnd;
-   uint32_t celly;
-   size_t nt_addr;
-
-   if(IsRot)
-    mapidx = ((ix >> (9 + (bool)(PlaneSize & 0x1))) & 0x3) | ((iy >> (9 + (bool)(PlaneSize & 0x2) - 2)) & 0xC);
-   else
-    mapidx = ((ix >> (9 + (bool)(PlaneSize & 0x1))) & 0x1) | ((iy >> (9 + (bool)(PlaneSize & 0x2) - 1)) & 0x2);
-
-   planeidx = ((ix >> 9) & PlaneSize & 0x1) | ((iy >> (9 - 1)) & PlaneSize & 0x2);
-   planeoffs = planeidx << (13 - PNDSize - (CharSize << 1));
-   pageoffs = ((((ix >> 3) & 0x3F) >> CharSize) + ((((iy >> 3) & 0x3F) >> CharSize) << (6 - CharSize))) << (1 - PNDSize);
-   nt_addr = (adj_map_regs[mapidx] + planeoffs + pageoffs) & 0x3FFFF;
-
-   pnd = &VRAM[nt_addr];
-   if(!nt_ok[nt_addr >> 16])
-    pnd = DummyTileNT;
-
-   if(IsRot && is_outside && PlaneOver == 1)
-   {
-    pnd = &PlaneOverChar;
-    goto OverCharCase;
-   }
-
-   if(!PNDSize)
-   {
-    uint16_t tmp = pnd[0];
-
-    palno = tmp & 0x7F;
-    vflip = (bool)(tmp & 0x8000);
-    hflip = (bool)(tmp & 0x4000);
-    spr = (bool)(tmp & 0x2000);
-    scc = (bool)(tmp & 0x1000);
-    charno = pnd[1] & 0x7FFF;
-   }
-   else
-   {
-    OverCharCase:;
-    uint16_t tmp = pnd[0];
-
-    if(TA_bpp >= 8)
-     palno = ((tmp >> 12) & 0x7) << 4;
-    else
-     palno = ((tmp >> 12) & 0xF) | (((Supp >> 5) & 0x7) << 4);
-    spr = (bool)(Supp & 0x200);
-    scc = (bool)(Supp & 0x100);
-
-    if(!AuxMode)
-    {
-     vflip = (bool)(tmp & 0x800);
-     hflip = (bool)(tmp & 0x400);
-
-     if(CharSize)
-      charno = ((tmp & 0x3FF) << 2) + ((Supp & 0x1C) << 10) + (Supp & 0x3);
-     else
-      charno = (tmp & 0x3FF) + ((Supp & 0x1F) << 10);
-    }
-    else
-    {
-     hflip = vflip = false;
-
-     if(CharSize)
-      charno = ((tmp & 0xFFF) << 2) + ((Supp & 0x10) << 10) + (Supp & 0x3);
-     else
-      charno = (tmp & 0xFFF) + ((Supp & 0x1C) << 10);
-    }
-   }
-
-   if(CharSize)
-   {
-    uint32_t cidx = (((ix >> 3) ^ hflip) & 0x1) + (((iy >> 2) ^ (vflip << 1)) & 0x2);
-    charno = (charno + cidx * (TA_bpp >> 2)) & 0x7FFF;
-   }
-
-   cellx_xor = (ix &~ 0x7) | (hflip ? 0x7 : 0x0);
-   celly = (iy & 0x7) ^ (vflip ? 0x7 : 0);
-   cg_addr = ((charno << 4) + ((celly * TA_bpp) >> 1)) & 0x3FFFF;
-  }
-  tile_vrb = &VRAM[cg_addr];
-
-  if(!cg_ok[cg_addr >> 16])
-   tile_vrb = DummyTileNT;
-
-  //
-  //
-  //
-  pcco = ((palno << 4) &~ ((1U << (TA_bpp & 0x1F)) - 1)) + CRAOffs;
-
-  return IsRot && is_outside && (PlaneOver & 2);
- }
+ TILEFETCHER_FIELDS_PREARR;
+ uint32_t adj_map_regs[16];
+ TILEFETCHER_FIELDS_POSTARR;
 };
+
+struct TileFetcher_NonRot
+{
+ TILEFETCHER_FIELDS_PREARR;
+ uint32_t adj_map_regs[4];
+ TILEFETCHER_FIELDS_POSTARR;
+};
+
+/* Field-redirect block: bare field-name tokens (`pcco`, `BMOffset`,
+ * ..., 22 names) are aliased to `(self->NAME)` so the body macros
+ * below can keep the original method-source-style field-access
+ * syntax.  The bracket pairs are tight; outside this region the
+ * function-table BODY macros use `tf.NAME` syntax, which doesn't
+ * trigger these aliases. */
+#define CRAOffs         (self->CRAOffs)
+#define BMSCC           (self->BMSCC)
+#define BMSPR           (self->BMSPR)
+#define BMPalNo         (self->BMPalNo)
+#define BMSize          (self->BMSize)
+#define PlaneSize       (self->PlaneSize)
+#define PlaneOver       (self->PlaneOver)
+#define PlaneOverChar   (self->PlaneOverChar)
+#define PNDSize         (self->PNDSize)
+#define CharSize        (self->CharSize)
+#define AuxMode         (self->AuxMode)
+#define Supp            (self->Supp)
+#define BMOffset        (self->BMOffset)
+#define BMWShift        (self->BMWShift)
+#define BMWMask         (self->BMWMask)
+#define BMHMask         (self->BMHMask)
+#define adj_map_regs    (self->adj_map_regs)
+#define doxm            (self->doxm)
+#define doym            (self->doym)
+#define nt_ok           (self->nt_ok)
+#define cg_ok           (self->cg_ok)
+#define pcco            (self->pcco)
+#define spr             (self->spr)
+#define scc             (self->scc)
+#define tile_vrb        (self->tile_vrb)
+#define cellx_xor       (self->cellx_xor)
+
+/* Shared Start body.  IS_ROT is a 0/1 literal at expansion time;
+ * `if((IS_ROT))` and `((IS_ROT) ? 16 : 4)` fold to constants. */
+#define TILEFETCHER_START_BODY(IS_ROT) \
+ {                                                                                                                      \
+  BMOffset = map_offset << 16;                                                                                          \
+  BMWShift = ((BMSize & 2) ? 10 : 9);                                                                                   \
+  BMWMask = (1U << BMWShift) - 8;                                                                                       \
+  BMHMask = (BMSize & 1) ? 0x1FF : 0xFF;                                                                                \
+                                                                                                                       \
+  const unsigned psshift = (13 - PNDSize - (CharSize << 1));                                                            \
+                                                                                                                       \
+  for(unsigned i = 0; i < ((IS_ROT) ? 16 : 4); i++)                                                                     \
+  {                                                                                                                     \
+   adj_map_regs[i] = ((map_offset << 6) + (map_regs[i] &~ PlaneSize)) << psshift;                                       \
+  }                                                                                                                     \
+                                                                                                                       \
+  if((IS_ROT))                                                                                                          \
+  {                                                                                                                     \
+   if(bmen)                                                                                                             \
+   {                                                                                                                    \
+    doxm = ~(BMWMask + 7);                                                                                              \
+    doym = ~BMHMask;                                                                                                    \
+   }                                                                                                                    \
+   else                                                                                                                 \
+   {                                                                                                                    \
+    doxm = ~((1U << ((9 + (bool)(PlaneSize & 0x1)) + ((IS_ROT) ? 2 : 1))) - 1);                                         \
+    doym = ~((1U << ((9 + (bool)(PlaneSize & 0x2)) + ((IS_ROT) ? 2 : 1))) - 1);                                         \
+   }                                                                                                                    \
+                                                                                                                       \
+   if(PlaneOver == 0)                                                                                                   \
+    doxm = doym = 0;                                                                                                    \
+   else if(PlaneOver == 3)                                                                                              \
+    doxm = doym = ~511;                                                                                                 \
+  }                                                                                                                     \
+                                                                                                                       \
+/* Kludgeyness: */                                                                                                      \
+  for(unsigned bank = 0; bank < 4; bank++)                                                                              \
+  {                                                                                                                     \
+   const unsigned esb = bank & (2 | ((VRAM_Mode >> (bank >> 1)) & 1));                                                  \
+   const uint8_t rdbs = (RDBS_Mode >> (esb << 1)) & 0x3;                                                                \
+                                                                                                                       \
+   if((IS_ROT))                                                                                                         \
+   {                                                                                                                    \
+    if(!(BGON & 0x20) || n == 4)                                                                                        \
+    {                                                                                                                   \
+     nt_ok[bank] = (rdbs == RDBS_NAME) && (bank < 2 || !(BGON & 0x20));                                                 \
+     cg_ok[bank] = (rdbs == RDBS_CHAR) && (bank < 2 || !(BGON & 0x20));                                                 \
+    }                                                                                                                   \
+    else                                                                                                                \
+    {                                                                                                                   \
+     nt_ok[bank] = (bank == 3);                                                                                         \
+     cg_ok[bank] = (bank == 2);                                                                                         \
+    }                                                                                                                   \
+   }                                                                                                                    \
+   else                                                                                                                 \
+   {                                                                                                                    \
+    nt_ok[bank] = false;                                                                                                \
+    cg_ok[bank] = false;                                                                                                \
+                                                                                                                       \
+    if((BGON & 0x20) && (bank & 0x2)) { }                                                                               \
+    else if(!(BGON & 0x10) || rdbs == RDBS_UNUSED)                                                                      \
+    {                                                                                                                   \
+     for(unsigned ac = 0; ac < ((HRes & 0x6) ? 4 : 8); ac++)                                                            \
+     {                                                                                                                  \
+      if(VCPRegs[esb][ac] == (VCP_NBG0_CG + n))                                                                         \
+       cg_ok[bank] = true;                                                                                              \
+                                                                                                                       \
+      if(VCPRegs[esb][ac] == (VCP_NBG0_NT + n))                                                                         \
+       nt_ok[bank] = true;                                                                                              \
+     }                                                                                                                  \
+    }                                                                                                                   \
+   }                                                                                                                    \
+  }                                                                                                                     \
+                                                                                                                       \
+  pcco = 0;                                                                                                             \
+  spr = false;                                                                                                          \
+  scc = false;                                                                                                          \
+  tile_vrb = NULL;                                                                                                      \
+  cellx_xor = 0;                                                                                                        \
+ }
+
+/* Shared Fetch body.  Same as Start but also parameterized on
+ * TA_BPP, a literal 4/8/16/32 at expansion time -- `if(TA_BPP >= 8)`
+ * and similar branches fold per-instantiation. */
+#define TILEFETCHER_FETCH_BODY(IS_ROT, TA_BPP) \
+ {                                                                                                                      \
+  size_t cg_addr;                                                                                                       \
+  uint32_t palno;                                                                                                       \
+  bool is_outside = false;                                                                                              \
+                                                                                                                       \
+  if((IS_ROT))                                                                                                          \
+   is_outside = (ix & doxm) | (iy & doym);                                                                              \
+                                                                                                                       \
+  if(bmen)                                                                                                              \
+  {                                                                                                                     \
+   palno = BMPalNo;                                                                                                     \
+   spr = BMSPR;                                                                                                         \
+   scc = BMSCC;                                                                                                         \
+   cellx_xor = (ix &~ 0x7);                                                                                             \
+   cg_addr = (BMOffset + ((((ix & BMWMask) + ((iy & BMHMask) << BMWShift)) * (TA_BPP)) >> 4)) & 0x3FFFF;                \
+  }                                                                                                                     \
+  else                                                                                                                  \
+  {                                                                                                                     \
+   bool vflip, hflip;                                                                                                   \
+   uint16_t charno;                                                                                                     \
+   uint32_t mapidx, planeidx, planeoffs, pageoffs;                                                                      \
+   const uint16_t* pnd;                                                                                                 \
+   uint32_t celly;                                                                                                      \
+   size_t nt_addr;                                                                                                      \
+                                                                                                                       \
+   if((IS_ROT))                                                                                                         \
+    mapidx = ((ix >> (9 + (bool)(PlaneSize & 0x1))) & 0x3) | ((iy >> (9 + (bool)(PlaneSize & 0x2) - 2)) & 0xC);         \
+   else                                                                                                                 \
+    mapidx = ((ix >> (9 + (bool)(PlaneSize & 0x1))) & 0x1) | ((iy >> (9 + (bool)(PlaneSize & 0x2) - 1)) & 0x2);         \
+                                                                                                                       \
+   planeidx = ((ix >> 9) & PlaneSize & 0x1) | ((iy >> (9 - 1)) & PlaneSize & 0x2);                                      \
+   planeoffs = planeidx << (13 - PNDSize - (CharSize << 1));                                                            \
+   pageoffs = ((((ix >> 3) & 0x3F) >> CharSize) + ((((iy >> 3) & 0x3F) >> CharSize) << (6 - CharSize))) << (1 - PNDSize);\
+   nt_addr = (adj_map_regs[mapidx] + planeoffs + pageoffs) & 0x3FFFF;                                                   \
+                                                                                                                       \
+   pnd = &VRAM[nt_addr];                                                                                                \
+   if(!nt_ok[nt_addr >> 16])                                                                                            \
+    pnd = DummyTileNT;                                                                                                  \
+                                                                                                                       \
+   if((IS_ROT) && is_outside && PlaneOver == 1)                                                                         \
+   {                                                                                                                    \
+    pnd = &PlaneOverChar;                                                                                               \
+    goto OverCharCase;                                                                                                  \
+   }                                                                                                                    \
+                                                                                                                       \
+   if(!PNDSize)                                                                                                         \
+   {                                                                                                                    \
+    uint16_t tmp = pnd[0];                                                                                              \
+                                                                                                                       \
+    palno = tmp & 0x7F;                                                                                                 \
+    vflip = (bool)(tmp & 0x8000);                                                                                       \
+    hflip = (bool)(tmp & 0x4000);                                                                                       \
+    spr = (bool)(tmp & 0x2000);                                                                                         \
+    scc = (bool)(tmp & 0x1000);                                                                                         \
+    charno = pnd[1] & 0x7FFF;                                                                                           \
+   }                                                                                                                    \
+   else                                                                                                                 \
+   {                                                                                                                    \
+    OverCharCase:;                                                                                                      \
+    uint16_t tmp = pnd[0];                                                                                              \
+                                                                                                                       \
+    if((TA_BPP) >= 8)                                                                                                   \
+     palno = ((tmp >> 12) & 0x7) << 4;                                                                                  \
+    else                                                                                                                \
+     palno = ((tmp >> 12) & 0xF) | (((Supp >> 5) & 0x7) << 4);                                                          \
+    spr = (bool)(Supp & 0x200);                                                                                         \
+    scc = (bool)(Supp & 0x100);                                                                                         \
+                                                                                                                       \
+    if(!AuxMode)                                                                                                        \
+    {                                                                                                                   \
+     vflip = (bool)(tmp & 0x800);                                                                                       \
+     hflip = (bool)(tmp & 0x400);                                                                                       \
+                                                                                                                       \
+     if(CharSize)                                                                                                       \
+      charno = ((tmp & 0x3FF) << 2) + ((Supp & 0x1C) << 10) + (Supp & 0x3);                                             \
+     else                                                                                                               \
+      charno = (tmp & 0x3FF) + ((Supp & 0x1F) << 10);                                                                   \
+    }                                                                                                                   \
+    else                                                                                                                \
+    {                                                                                                                   \
+     hflip = vflip = false;                                                                                             \
+                                                                                                                       \
+     if(CharSize)                                                                                                       \
+      charno = ((tmp & 0xFFF) << 2) + ((Supp & 0x10) << 10) + (Supp & 0x3);                                             \
+     else                                                                                                               \
+      charno = (tmp & 0xFFF) + ((Supp & 0x1C) << 10);                                                                   \
+    }                                                                                                                   \
+   }                                                                                                                    \
+                                                                                                                       \
+   if(CharSize)                                                                                                         \
+   {                                                                                                                    \
+    uint32_t cidx = (((ix >> 3) ^ hflip) & 0x1) + (((iy >> 2) ^ (vflip << 1)) & 0x2);                                   \
+    charno = (charno + cidx * ((TA_BPP) >> 2)) & 0x7FFF;                                                                \
+   }                                                                                                                    \
+                                                                                                                       \
+   cellx_xor = (ix &~ 0x7) | (hflip ? 0x7 : 0x0);                                                                       \
+   celly = (iy & 0x7) ^ (vflip ? 0x7 : 0);                                                                              \
+   cg_addr = ((charno << 4) + ((celly * (TA_BPP)) >> 1)) & 0x3FFFF;                                                     \
+  }                                                                                                                     \
+  tile_vrb = &VRAM[cg_addr];                                                                                            \
+                                                                                                                       \
+  if(!cg_ok[cg_addr >> 16])                                                                                             \
+   tile_vrb = DummyTileNT;                                                                                              \
+                                                                                                                       \
+/* */                                                                                                                   \
+/* */                                                                                                                   \
+/* */                                                                                                                   \
+  pcco = ((palno << 4) &~ ((1U << ((TA_BPP) & 0x1F)) - 1)) + CRAOffs;                                                   \
+                                                                                                                       \
+  return (IS_ROT) && is_outside && (PlaneOver & 2);                                                                     \
+ }
+
+static INLINE void TileFetcher_Rot_Start(struct TileFetcher_Rot* self, const unsigned n, const bool bmen, const unsigned map_offset, const uint8_t* map_regs)
+ TILEFETCHER_START_BODY(1)
+
+static INLINE void TileFetcher_NonRot_Start(struct TileFetcher_NonRot* self, const unsigned n, const bool bmen, const unsigned map_offset, const uint8_t* map_regs)
+ TILEFETCHER_START_BODY(0)
+
+static INLINE bool TileFetcher_Rot_Fetch_4(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+ TILEFETCHER_FETCH_BODY(1, 4)
+
+static INLINE bool TileFetcher_Rot_Fetch_8(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+ TILEFETCHER_FETCH_BODY(1, 8)
+
+static INLINE bool TileFetcher_Rot_Fetch_16(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+ TILEFETCHER_FETCH_BODY(1, 16)
+
+static INLINE bool TileFetcher_Rot_Fetch_32(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+ TILEFETCHER_FETCH_BODY(1, 32)
+
+static INLINE bool TileFetcher_NonRot_Fetch_4(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+ TILEFETCHER_FETCH_BODY(0, 4)
+
+static INLINE bool TileFetcher_NonRot_Fetch_8(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+ TILEFETCHER_FETCH_BODY(0, 8)
+
+static INLINE bool TileFetcher_NonRot_Fetch_16(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+ TILEFETCHER_FETCH_BODY(0, 16)
+
+static INLINE bool TileFetcher_NonRot_Fetch_32(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+ TILEFETCHER_FETCH_BODY(0, 32)
+
+/* Drop the field-redirect aliases so subsequent code (the function-
+ * table BODY macros that follow) can use plain `tf.NAME` field
+ * access without the alias mangling the dot-expression. */
+#undef CRAOffs
+#undef BMSCC
+#undef BMSPR
+#undef BMPalNo
+#undef BMSize
+#undef PlaneSize
+#undef PlaneOver
+#undef PlaneOverChar
+#undef PNDSize
+#undef CharSize
+#undef AuxMode
+#undef Supp
+#undef BMOffset
+#undef BMWShift
+#undef BMWMask
+#undef BMHMask
+#undef adj_map_regs
+#undef doxm
+#undef doym
+#undef nt_ok
+#undef cg_ok
+#undef pcco
+#undef spr
+#undef scc
+#undef tile_vrb
+#undef cellx_xor
+
+#undef TILEFETCHER_FETCH_BODY
+#undef TILEFETCHER_START_BODY
+
+/* Compile-time-folded BPP dispatch for Fetch, used inside the
+ * function-table BODY macros.  At -O2 the compiler folds the ?:
+ * chain and emits a direct call to the matching Fetch_N variant.
+ * The macros take a TileFetcher_{Rot,NonRot}* `self_p` rather than
+ * an object; call sites that currently have an `auto& tf` C++
+ * reference pass `&tf`, which decays to the right pointer type. */
+#define TF_ROT_FETCH(self_p, bpp, bmen, ix, iy) \
+ TileFetcher_Rot_Fetch_##bpp((self_p), (bmen), (ix), (iy))
+
+#define TF_NR_FETCH(self_p, bpp, bmen, ix, iy) \
+ TileFetcher_NonRot_Fetch_##bpp((self_p), (bmen), (ix), (iy))
 
 struct RotVars
 {
@@ -512,7 +663,7 @@ struct RotVars
  bool use_coeff;
  uint32_t base_coeff;
 
- TileFetcher<true> tf;
+ struct TileFetcher_Rot tf;
 };
 
 static struct
@@ -1665,10 +1816,10 @@ static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const in
  * the (BPP, ISRGB) pairs.  Function-name suffix uses CM, not
  * (BPP, ISRGB), matching the T_DrawRBG_CAB convention.
  *
- * Body still calls tf.Start(), tf.Fetch<BPP>() and
- * MakeNBGRBGPix<...>() -- those stay templated through phase 3,
- * converted as part of phase 4 when the .cpp -> .c rename forces
- * struct methods and templates out entirely.
+ * Body's `tf.Start()` and `tf.Fetch<BPP>(...)` calls were converted
+ * to TileFetcher_NonRot_Start / TF_NR_FETCH by phase 4a; the body
+ * now references the new struct `TileFetcher_NonRot`.  MakeNBGRBGPix
+ * is still a template, converted next as phase 4b.
  *
  * Line-comments rewritten as block-comments for line-spliced macro
  * safety, same as T_DrawNBG23_BODY and the existing T_DrawRBG_CAB. */
@@ -1679,7 +1830,7 @@ static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const in
 /* */                                                                                                                   \
  const bool VCSEn = ((SCRCTL >> (n << 3)) & 0x1) && !(MZCTL & (1U << n));                                               \
 /* */                                                                                                                   \
- TileFetcher<false> tf;                                                                                                 \
+ struct TileFetcher_NonRot tf;                                                                                                         \
  uint32_t xcinc;                                                                                                        \
  uint32_t xc;                                                                                                           \
  uint32_t iy;                                                                                                           \
@@ -1698,7 +1849,7 @@ static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const in
  tf.AuxMode = (PNCN[n] >> 14) & 1;                                                                                      \
  tf.Supp = (PNCN[n] & 0x3FF); /* Supplement bits when PNDSize == 1 */                                                   \
 /* */                                                                                                                   \
- tf.Start(n, (BMEN), (MPOFN >> (n << 2)) & 0x7, MapRegs[n]);                                                            \
+ TileFetcher_NonRot_Start(&tf, n, (BMEN), (MPOFN >> (n << 2)) & 0x7, MapRegs[n]);                                                            \
                                                                                                                        \
  MAKE_SFCODE_LUT((PMODE), (CCMODE), n, sfcode_lut);                                                                     \
                                                                                                                        \
@@ -1719,7 +1870,7 @@ static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const in
   {                                                                                                                     \
    const uint32_t ix = xc >> 8;                                                                                         \
    iy = LB.vcscr[n][i >> 3];                                                                                            \
-   tf.Fetch<(BPP)>((BMEN), ix, iy);                                                                                     \
+   TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                                     \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
@@ -1740,7 +1891,7 @@ static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const in
     if(VCSEn)                                                                                                           \
      iy = LB.vcscr[n][(i + 7) >> 3];                                                                                    \
                                                                                                                        \
-    tf.Fetch<(BPP)>((BMEN), ix, iy);                                                                                    \
+    TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                                    \
    }                                                                                                                    \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
@@ -1880,16 +2031,15 @@ static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
  * nested [2][2][3][4] table initializer with the same function-
  * pointer ordering as the previous template-instantiated table.
  *
- * Body still references TileFetcher<false> and tf.Fetch<BPP>(...).
- * Those stay templated through phase 3 -- TileFetcher conversion
- * lands in phase 4 alongside the .cpp -> .c rename.
+ * Body's `tf.Fetch<BPP>(...)` calls were converted to TF_NR_FETCH
+ * by phase 4a (which retired the TileFetcher<bool> struct template).
  *
  * Line-comments inside the body are rewritten as block-comments
  * because line-spliced macros eat line-comments past the splice. */
 #define T_DrawNBG23_BODY(BPP, IGNTP, PMODE, CCMODE) \
 {                                                                                                                       \
  assert(n >= 2);                                                                                                        \
- TileFetcher<false> tf;                                                                                                 \
+ struct TileFetcher_NonRot tf;                                                                                                         \
  int16_t sfcode_lut[8];                                                                                                 \
  unsigned tc = 1 + (w >> 3);                                                                                            \
  const unsigned xscr = XScrollI[n];                                                                                     \
@@ -1904,7 +2054,7 @@ static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
  tf.AuxMode = (PNCN[n] >> 14) & 1;                                                                                      \
  tf.Supp = (PNCN[n] & 0x3FF); /* Supplement bits when PNDSize == 1 */                                                   \
 /* */                                                                                                                   \
- tf.Start(n, false, (MPOFN >> (n << 2)) & 0x7, MapRegs[n]);                                                             \
+ TileFetcher_NonRot_Start(&tf, n, false, (MPOFN >> (n << 2)) & 0x7, MapRegs[n]);                                                             \
                                                                                                                        \
  MAKE_SFCODE_LUT((PMODE), (CCMODE), n, sfcode_lut);                                                                     \
                                                                                                                        \
@@ -1954,7 +2104,7 @@ static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
  {                                                                                                                      \
   uint32_t pbor = pix_base_or;                                                                                          \
                                                                                                                        \
-  tf.Fetch<(BPP)>(false, tx << 3, yscr);                                                                                \
+  TF_NR_FETCH(&tf, BPP, false, tx << 3, yscr);                                                                                \
                                                                                                                        \
   if((CCMODE) == 1 || (CCMODE) == 2)                                                                                    \
    pbor |= (tf.scc << PIX_CCE_SHIFT);                                                                                   \
@@ -2185,7 +2335,7 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
   LB.rotv[i].tf.PlaneSize = (PLSZ >> ( 8 + (i << 2))) & 0x3;
   LB.rotv[i].tf.PlaneOver = (PLSZ >> (10 + (i << 2))) & 0x3;
   LB.rotv[i].tf.PlaneOverChar = OVPNR[i];
-  LB.rotv[i].tf.Start(4 + i, !i && ((CHCTLB >> 9) & 1), (MPOFR >> (i << 2)) & 0x7, RotMapRegs[i]);
+  TileFetcher_Rot_Start(&LB.rotv[i].tf, 4 + i, !i && ((CHCTLB >> 9) & 1), (MPOFR >> (i << 2)) & 0x7, RotMapRegs[i]);
  }
 
  //
@@ -2314,10 +2464,9 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
  * T_DrawRBG_CAB / T_DrawNBG convention -- so e.g. CM=3 means
  * BPP=16 ISRGB=1.
  *
- * Body still uses `auto& r`, `auto& tf` for ergonomic field
- * access plus calls tf.Fetch<BPP>() and MakeNBGRBGPix<...>().
- * All of those stay through phase 3; phase 4's .cpp -> .c rename
- * is where they convert.
+ * Body uses `auto& r` (a RotVars&), then takes `auto& tf = r.tf;`
+ * (a TileFetcher_Rot&); pixels are produced via TF_ROT_FETCH and
+ * MakeNBGRBGPix<...>().
  *
  * The existing T_DrawRBG_CAB block below uses identical macro
  * names (DRBG_ENUM_*, DRBG_FN_AT_*, DRBG_TBL_AT_*).  We #undef
@@ -2369,7 +2518,7 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
   const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r.Xsp + (r.dX * i))) >> 16)) >> 10;                   \
   const uint32_t iy = (r.Yp + (uint32_t)(((int64_t)ky * (int32_t)(r.Ysp + (r.dY * i))) >> 16)) >> 10;                   \
                                                                                                                        \
-  rot_tp |= tf.Fetch<(BPP)>((BMEN), ix, iy);                                                                            \
+  rot_tp |= TF_ROT_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                            \
                                                                                                                        \
   LB.rotabsel[i] = rot_tp;                                                                                              \
 /* */                                                                                                                   \
@@ -2528,7 +2677,7 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
   const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r_Xsp + (r_dX * i))) >> 16)) >> 10;         \
   const uint32_t iy = (r_Yp + (uint32_t)(((int64_t)ky * (int32_t)(r_Ysp + (r_dY * i))) >> 16)) >> 10;         \
                                                                                                       \
-  rot_tp |= tf.Fetch<BPP>(BMEN, ix, iy);                                                              \
+  rot_tp |= TF_ROT_FETCH(&tf, BPP, BMEN, ix, iy);                                                              \
                                                                                                       \
   LB.rotabsel[i] = rot_tp;                                                                            \
   bgbuf[i] = MakeNBGRBGPix<BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE>(tf, pix_base_or, sfcode_lut, ix, iy); \
