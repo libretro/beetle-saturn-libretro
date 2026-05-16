@@ -505,8 +505,21 @@ class SH7095 final
  template<bool EmulateICache, bool IntPreventNext>
  INLINE void DoIDIF_INLINE(void);
 
- template<bool EmulateICache, bool IntPreventNext>
- NO_INLINE void DoIDIF_NI(void) MDFN_HOT;
+ /* Phase-8n: DoIDIF_NI<EmulateICache, IntPreventNext> retired
+  * into 4 named NO_INLINE variants (one per bool-pair: C0/I0,
+  * C0/I1, C1/I0, C1/I1).  Each variant forwards to the still-
+  * templated DoIDIF_INLINE with concrete bool template args;
+  * gcc -O2 produces the same instruction stream the previous
+  * template instantiations did.  DoIDIF_INLINE stays templated
+  * because its body has macro-expanded code paths that
+  * reference EmulateICache by name (the FetchIF / DoID macros
+  * pull EmulateICache out of the enclosing scope), and the
+  * named-variant pattern would require redefining those
+  * macros or shadowing names -- a separate, bigger phase. */
+ NO_INLINE void DoIDIF_NI_C0_I0(void) MDFN_HOT;
+ NO_INLINE void DoIDIF_NI_C0_I1(void) MDFN_HOT;
+ NO_INLINE void DoIDIF_NI_C1_I0(void) MDFN_HOT;
+ NO_INLINE void DoIDIF_NI_C1_I1(void) MDFN_HOT;
 
  template<bool SlavePenalty, typename T, bool BurstHax>
  INLINE T ExtBusRead_INLINE(uint32_t A);

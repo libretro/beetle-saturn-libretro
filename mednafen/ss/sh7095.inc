@@ -3370,7 +3370,25 @@ void SS_DumpOpPairProfile(void)
 
 */
 
-#define DoIDIF(IntPreventNext) DoIDIF_NI<EmulateICache, IntPreventNext>()
+/* Phase-8n: DoIDIF macro dispatches to one of 4 named
+ * NO_INLINE variants based on (EmulateICache, IntPreventNext).
+ * Both bools are compile-time at macro expansion (EmulateICache
+ * is the enclosing Step/RunLoop template arg, IntPreventNext
+ * is a macro arg passed as a literal at every callsite), so
+ * gcc -O2 folds the 4-way if-chain to a single call. */
+#define DoIDIF(IntPreventNext)							\
+do {										\
+ if(EmulateICache)								\
+ {										\
+  if(IntPreventNext) DoIDIF_NI_C1_I1();						\
+  else               DoIDIF_NI_C1_I0();						\
+ }										\
+ else										\
+ {										\
+  if(IntPreventNext) DoIDIF_NI_C0_I1();						\
+  else               DoIDIF_NI_C0_I0();						\
+ }										\
+} while(0)
 
 #define OnChipRegRead(T, A) OnChipRegRead_INLINE<T>(A)
 #define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<which, false, T, BurstHax>(A)
@@ -3396,10 +3414,33 @@ INLINE void SH7095::DoIDIF_INLINE(void)
  DoIDIF_MACRO(IntPreventNext);
 }
 
-template<bool EmulateICache, bool IntPreventNext>
-NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI(void)
+/* Phase-8n: DoIDIF_NI retired -- 4 named NO_INLINE variants
+ * below carry the previous template's (EmulateICache,
+ * IntPreventNext) tuple instantiations.  Each just forwards
+ * to the still-templated DoIDIF_INLINE with literal bools,
+ * so the instruction stream is identical to what the
+ * template form produced.  Per the phase-8j lesson:
+ * detempleting NO_INLINE forwarders is safe (no inlining
+ * cascade); the underlying INLINE that does the work
+ * stays templated for now. */
+NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI_C0_I0(void)
 {
- DoIDIF_INLINE<EmulateICache, IntPreventNext>();
+ DoIDIF_INLINE<false, false>();
+}
+
+NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI_C0_I1(void)
+{
+ DoIDIF_INLINE<false, true>();
+}
+
+NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI_C1_I0(void)
+{
+ DoIDIF_INLINE<true, false>();
+}
+
+NO_INLINE MDFN_HOT void SH7095::DoIDIF_NI_C1_I1(void)
+{
+ DoIDIF_INLINE<true, true>();
 }
 
 template<unsigned which, bool EmulateICache>
