@@ -75,7 +75,7 @@ extern char retro_base_directory[4096];
 
 uint32_t ss_horrible_hacks;
 
-static bool NeedEmuICache;
+bool NeedEmuICache;
 /* BRAM_Init_Data moved to ss_state.c (phase 7b). */
 
 /* Phase-7b: the eight file-I/O functions and BRAM_Init_Data
@@ -128,15 +128,15 @@ extern "C" void SH7095_SetExtHaltDMAKludge(int cpu, bool state)
 static uint16_t BIOSROM[524288 / sizeof(uint16_t)];
 uint8_t WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
 // Effectively 32-bit in reality, but 16-bit here because of CPU interpreter design(regarding fastmap).
-static uint16_t* WorkRAML = (uint16_t*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*0));
-static uint16_t* WorkRAMH = (uint16_t*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*1));
+uint16_t* WorkRAML = (uint16_t*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*0));
+uint16_t* WorkRAMH = (uint16_t*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*1));
 // BackupRAM is exposed (no longer file-static) so libretro.cpp can hand a
 // pointer to the frontend via retro_get_memory_data(RETRO_MEMORY_SAVE_RAM).
 // BackupRAM_Dirty and CartNV_Dirty are sticky flags maintained here and
 // drained by libretro.cpp from outside Emulate() -- see comment in
 // Emulate() above. The old master-cycle delay variables are gone.
 uint8_t BackupRAM[32768];
-static uint8_t BackupRAM_StateHelper[32768];
+uint8_t BackupRAM_StateHelper[32768];
 bool BackupRAM_Dirty;
 bool CartNV_Dirty;
 
@@ -147,12 +147,12 @@ int32_t SH7095_mem_timestamp;
 /* SH7095_BusLock is read from ss_init.c's SH_DMA_EventHandler -- promoted
  * from file-static to TU-external in phase 7c. */
 uint32_t SH7095_BusLock;
-static uint32_t SH7095_DB;
+uint32_t SH7095_DB;
 
 #include "scu.inc"
 
-static sha256_digest BIOS_SHA256;   // SHA-256 hash of the currently-loaded BIOS; used for save state sanity checks.
-static int ActiveCartType;		// Used in save states.
+sha256_digest BIOS_SHA256;   // SHA-256 hash of the currently-loaded BIOS; used for save state sanity checks.
+int ActiveCartType;		// Used in save states.
 /* FMIsWriteable + accessors + fmap_dummy moved to ss_init.c (phase 7c).
  * FMIsWriteable_get/set/reset are inline functions in ss_init.h
  * so ss.cpp callers (CheatMemWrite still here) keep their codegen. */
@@ -608,7 +608,7 @@ static EmulateSpecStruct* espec;
 static bool AllowMidSync;
 static int32_t cur_clock_div;
 
-static int64_t UpdateInputLastBigTS;
+int64_t UpdateInputLastBigTS;
 static INLINE void UpdateSMPCInput(const sscpu_timestamp_t timestamp)
 {
  SMPC_TransformInput();
@@ -1054,201 +1054,33 @@ void MDFN_BackupSavFile(const uint8_t max_backup_count, const char* sav_ext)
  * bodies forward into the new C TU via the extern "C" decls
  * in ss_state.h. */
 
-struct EventsPacker
+/* Phase-7d: EventsPacker struct + Save/Restore method bodies
+ * moved to ss_state.c as a plain C struct (EventsPacker) + two
+ * free functions (EventsPacker_Save / EventsPacker_Restore). */
+
+/* Phase-7d: LibRetro_StateAction moved to ss_state.c.  The
+ * four CPU class-method dispatch sites it used are exposed
+ * through extern "C" wrappers below; those wrappers retire
+ * when the SH7095 class becomes a C struct. */
+
+extern "C" void SH7095_M_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
 {
- enum : size_t { eventcopy_first = SS_EVENT__SYNFIRST + 1 };
- enum : size_t { eventcopy_bound = SS_EVENT__SYNLAST };
-
- bool Restore(const unsigned state_version);
- void Save(void);
-
- int32_t event_times[eventcopy_bound - eventcopy_first];
- uint8_t event_order[eventcopy_bound - eventcopy_first];
-};
-
-INLINE void EventsPacker::Save(void)
-{
- for(size_t i = 0; i < eventcopy_bound - eventcopy_first; i++)
- {
-  event_times[i] = events[eventcopy_first + i].event_time;
-  event_order[i] = (uint8_t)(eventcopy_first + i);
- }
-
- // event_order is the schedule order Restore() validates; equal times tie-break by index.
- // Was std::stable_sort with a lambda comparator. The array is tiny
- // (SS_EVENT__SYNLAST - SS_EVENT__SYNFIRST - 1 entries) and insertion
- // sort is stable, so equal event_times keep their original index
- // order -- the same tie-break std::stable_sort gave.
- {
-  size_t i, j;
-  const size_t n = eventcopy_bound - eventcopy_first;
-  for(i = 1; i < n; i++)
-  {
-   const uint8_t key = event_order[i];
-   j = i;
-   while(j > 0 && events[event_order[j - 1]].event_time > events[key].event_time)
-   {
-    event_order[j] = event_order[j - 1];
-    j--;
-   }
-   event_order[j] = key;
-  }
- }
+ CPU[0].StateAction(sm, load, data_only, sname);
 }
 
-INLINE bool EventsPacker::Restore(const unsigned state_version)
+extern "C" void SH7095_S_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
 {
- bool used[SS_EVENT__COUNT] = { 0 };
-
- for(size_t i = 0; i < eventcopy_bound - eventcopy_first; i++)
- {
-  int32_t et = event_times[i];
-  uint8_t eo = event_order[i];
-
-  if(state_version < 0x00102600 && et >= 0x40000000)
-  {
-   et = SS_EVENT_DISABLED_TS;
-  }
-
-  /*
-     if(state_version < 0x00102800 && i == SS_EVENT_SCU_INT)
-     {
-     eo = i;
-     et = SS_EVENT_DISABLED_TS;
-     }
-   */
-
-  if(eo < eventcopy_first || eo >= eventcopy_bound)
-   return false;
-
-  if(used[eo])
-   return false;
-
-  used[eo] = true;
-
-  if(et < 0)
-   return false;
-
-  events[eventcopy_first + i].event_time = et;
- }
-
- // Reject malformed save states whose event_order isn't non-decreasing.
- for(size_t i = 1; i < eventcopy_bound - eventcopy_first; i++)
- {
-  if(events[event_order[i]].event_time < events[event_order[i - 1]].event_time)
-   return false;
- }
-
- return true;
+ CPU[1].StateAction(sm, load, data_only, sname);
 }
 
-extern "C" MDFN_COLD int LibRetro_StateAction( StateMem* sm, const unsigned load)
+extern "C" void SH7095_M_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache)
 {
-   {
-      sha256_digest sr_dig = BIOS_SHA256;
-      int cart_type = ActiveCartType;
+ CPU[0].PostStateLoad(load, prev_NeedEmuICache, current_NeedEmuICache);
+}
 
-      SFORMAT SRDStateRegs[] =
-      {
-         SFPTR8( sr_dig.b, sizeof(sr_dig.b) ),
-         SFVAR(cart_type),
-         SFEND
-      };
-
-      if (MDFNSS_StateAction( sm, load, false, SRDStateRegs, "BIOS_HASH", true ) == 0)
-         return 0;
-
-      if ( load )
-      {
-		 if ( !sha256_digest_eq(&sr_dig, &BIOS_SHA256) ) {
-           log_cb( RETRO_LOG_WARN, "BIOS hash mismatch(save state created under a different BIOS)!\n" );
-           return 0;
-         }
-         if ( cart_type != ActiveCartType ) {
-           log_cb( RETRO_LOG_WARN, "Cart type mismatch(save state created with a different cart)!\n" );
-           return 0;
-         }
-      }
-   }
- //
- //
- //
- bool RecordedNeedEmuICache = load ? false : NeedEmuICache;
- EventsPacker ep;
- ep.Save();
-
- SFORMAT StateRegs[] =
- {
-  // cur_clock_div
-  SFVAR(UpdateInputLastBigTS),
-
-  SFVAR(next_event_ts),
-  SFPTR32N(ep.event_times, sizeof(ep.event_times) / sizeof(ep.event_times[0]), "event_times"),
-  SFPTR8N(ep.event_order, sizeof(ep.event_order) / sizeof(ep.event_order[0]), "event_order"),
-/*
-  SFPTR32N(ep.event_times, 11, "event_times"),
-  SFPTR8N(ep.event_order, 11, "event_order"),
-  SFVARN(ep.event_times[11], "event_times[11]"),
-  SFVARN(ep.event_order[11], "event_order[11]"),
-*/
-
-  SFVAR(SH7095_mem_timestamp),
-  SFVAR(SH7095_BusLock),
-  SFVAR(SH7095_DB),
-
-  SFPTR16(WorkRAML, WORKRAM_BANK_SIZE_BYTES / sizeof(uint16_t)),
-  SFPTR16(WorkRAMH, WORKRAM_BANK_SIZE_BYTES / sizeof(uint16_t)),
-  SFPTR8(BackupRAM, sizeof(BackupRAM) / sizeof(BackupRAM[0])),
-
-  SFVAR(RecordedNeedEmuICache),
-
-  SFEND
- };
-
- CPU[0].StateAction(sm, load, false, "SH2-M");
- CPU[1].StateAction(sm, load, false, "SH2-S");
- SCU_StateAction(sm, load, false);
- SMPC_StateAction(sm, load, false);
-
- CDB_StateAction(sm, load, false);
- VDP1_StateAction(sm, load, false);
- VDP2_StateAction(sm, load, false);
-
- SOUND_StateAction(sm, load, false);
- CART_StateAction(sm, load, false);
-
-
- if(load)
-  memcpy(BackupRAM_StateHelper, BackupRAM, sizeof(BackupRAM));
- //
- //
-   if (MDFNSS_StateAction(sm, load, false, StateRegs, "MAIN", false) == 0)
-   {
-      log_cb( RETRO_LOG_ERROR, "Failed to load MAIN state objects.\n" );
-      return 0;
-   }
-
-   if (input_StateAction( sm, load, false ) == 0)
-      log_cb( RETRO_LOG_WARN, "Input state failed.\n" );
-
-   if ( load )
-   {
-      if(memcmp(BackupRAM_StateHelper, BackupRAM, sizeof(BackupRAM)))
-         BackupRAM_Dirty = true;
-
-      if ( !ep.Restore(load) )
-      {
-         log_cb( RETRO_LOG_WARN, "Bad state events data.\n" );
-         InitEvents();
-      }
-
-         
-      CPU[0].PostStateLoad(load, RecordedNeedEmuICache, NeedEmuICache);
-      CPU[1].PostStateLoad(load, RecordedNeedEmuICache, NeedEmuICache);
-   }
-
-   // Success!
-   return 1;
+extern "C" void SH7095_S_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache)
+{
+ CPU[1].PostStateLoad(load, prev_NeedEmuICache, current_NeedEmuICache);
 }
 
 static const MDFNSetting_EnumList RTCLang_List[] =

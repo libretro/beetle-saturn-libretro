@@ -31,13 +31,22 @@
 #include <string.h>
 
 #include <mednafen/mednafen-types.h>
+#include <mednafen/state.h>
+#include <mednafen/hash/sha256.h>
 #include "ss.h"
 #include "ss_state.h"
+#include "ss_init.h"     /* events[], next_event_ts, InitEvents */
 #include "smpc.h"
 #include "cart.h"
+#include "scu.h"
+#include "cdb.h"
+#include "vdp1.h"
+#include "vdp2.h"
+#include "sound.h"
 
 #include "../general.h"
 #include "../cdstream.h"
+#include "../../input.h"   /* input_StateAction */
 
 #include <streams/file_stream.h>
 #include <libretro.h>
@@ -263,4 +272,244 @@ bool SS_FlushCartNV(void)
 {
  SS_SaveCartNV();
  return true;
+}
+
+/* ===================================================================
+ * Phase-7d: emulator-state save/load
+ * ===================================================================
+ *
+ * EventsPacker is the SH-2 event ring's save-state packer.  Was a
+ * C++ struct with Save / Restore member methods + a size_t-scoped
+ * enum-as-named-constant pair; rewritten as a plain C struct with
+ * two free functions taking EventsPacker*.  The enum's two named
+ * constants become file-scope #defines so they're usable in the
+ * sizing array bounds inside the struct.
+ *
+ * LibRetro_StateAction is the libretro-level state-action entry
+ * point.  Reaches into ss.cpp's globals (NeedEmuICache, BIOS_SHA256,
+ * ActiveCartType, BackupRAM_StateHelper, WorkRAML/H, SH7095_DB,
+ * UpdateInputLastBigTS -- all promoted to TU-external in this
+ * phase) and dispatches into the SH7095 cores through the four
+ * extern "C" SH7095_{M,S}_{StateAction,PostStateLoad} wrappers
+ * added to ss.cpp.  Those wrappers retire once the SH7095 class
+ * itself becomes a C struct (later phase).
+ */
+
+#define EVENTCOPY_FIRST  (SS_EVENT__SYNFIRST + 1)
+#define EVENTCOPY_BOUND  SS_EVENT__SYNLAST
+
+typedef struct {
+ int32_t event_times[EVENTCOPY_BOUND - EVENTCOPY_FIRST];
+ uint8_t event_order[EVENTCOPY_BOUND - EVENTCOPY_FIRST];
+} EventsPacker;
+
+static INLINE void EventsPacker_Save(EventsPacker* ep)
+{
+ size_t i, j;
+ const size_t n = EVENTCOPY_BOUND - EVENTCOPY_FIRST;
+
+ for(i = 0; i < n; i++)
+ {
+  ep->event_times[i] = events[EVENTCOPY_FIRST + i].event_time;
+  ep->event_order[i] = (uint8_t)(EVENTCOPY_FIRST + i);
+ }
+
+ /* event_order is the schedule order Restore() validates; equal
+  * times tie-break by index.  Was std::stable_sort with a lambda
+  * comparator.  Insertion sort is stable, so equal event_times
+  * keep their original index order -- the same tie-break
+  * std::stable_sort gave. */
+ for(i = 1; i < n; i++)
+ {
+  const uint8_t key = ep->event_order[i];
+  j = i;
+  while(j > 0 && events[ep->event_order[j - 1]].event_time > events[key].event_time)
+  {
+   ep->event_order[j] = ep->event_order[j - 1];
+   j--;
+  }
+  ep->event_order[j] = key;
+ }
+}
+
+static INLINE bool EventsPacker_Restore(EventsPacker* ep, const unsigned state_version)
+{
+ bool used[SS_EVENT__COUNT] = { 0 };
+ size_t i;
+
+ for(i = 0; i < (size_t)(EVENTCOPY_BOUND - EVENTCOPY_FIRST); i++)
+ {
+  int32_t et = ep->event_times[i];
+  uint8_t eo = ep->event_order[i];
+
+  if(state_version < 0x00102600 && et >= 0x40000000)
+  {
+   et = SS_EVENT_DISABLED_TS;
+  }
+
+  if(eo < EVENTCOPY_FIRST || eo >= EVENTCOPY_BOUND)
+   return false;
+
+  if(used[eo])
+   return false;
+
+  used[eo] = true;
+
+  if(et < 0)
+   return false;
+
+  events[EVENTCOPY_FIRST + i].event_time = et;
+ }
+
+ /* Reject malformed save states whose event_order isn't non-decreasing. */
+ for(i = 1; i < (size_t)(EVENTCOPY_BOUND - EVENTCOPY_FIRST); i++)
+ {
+  if(events[ep->event_order[i]].event_time < events[ep->event_order[i - 1]].event_time)
+   return false;
+ }
+
+ return true;
+}
+
+/* Externs into ss.cpp -- the ss.cpp globals these touch are
+ * promoted to TU-external in phase 7d.  Declared here rather
+ * than in ss_state.h because they're internal to the save-state
+ * machinery; nobody else needs them. */
+extern bool          NeedEmuICache;
+extern sha256_digest BIOS_SHA256;
+extern int           ActiveCartType;
+extern uint8_t       BackupRAM_StateHelper[32768];
+extern uint16_t*     WorkRAML;
+extern uint16_t*     WorkRAMH;
+extern uint32_t      SH7095_DB;
+extern int64_t       UpdateInputLastBigTS;
+/* SH7095_mem_timestamp + SH7095_BusLock come via ss_init.h.  The
+ * SH7095 C++-class state-action / post-state-load entry points are
+ * extern "C" wrappers defined in ss.cpp. */
+extern int32_t       SH7095_mem_timestamp;
+extern uint32_t      SH7095_BusLock;
+void SH7095_M_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
+void SH7095_S_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
+void SH7095_M_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache);
+void SH7095_S_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache);
+
+int LibRetro_StateAction(StateMem* sm, const unsigned load)
+{
+   bool RecordedNeedEmuICache;
+   EventsPacker ep;
+   SFORMAT StateRegs[14];   /* sized below; using a fixed buffer keeps
+                             * the C version's table layout matching
+                             * the C++ original's brace-initialiser. */
+   unsigned sridx = 0;
+
+   {
+      sha256_digest sr_dig = BIOS_SHA256;
+      int cart_type = ActiveCartType;
+
+      SFORMAT SRDStateRegs[] =
+      {
+         SFPTR8( sr_dig.b, sizeof(sr_dig.b) ),
+         SFVAR(cart_type),
+         SFEND
+      };
+
+      if (MDFNSS_StateAction( sm, load, false, SRDStateRegs, "BIOS_HASH", true ) == 0)
+         return 0;
+
+      if ( load )
+      {
+         if ( !sha256_digest_eq(&sr_dig, &BIOS_SHA256) ) {
+           log_cb( RETRO_LOG_WARN, "BIOS hash mismatch(save state created under a different BIOS)!\n" );
+           return 0;
+         }
+         if ( cart_type != ActiveCartType ) {
+           log_cb( RETRO_LOG_WARN, "Cart type mismatch(save state created with a different cart)!\n" );
+           return 0;
+         }
+      }
+   }
+
+   RecordedNeedEmuICache = load ? false : NeedEmuICache;
+   EventsPacker_Save(&ep);
+
+   /* SFORMAT brace-initialiser table -- one slot per save-state
+    * variable.  Indices laid out so the resulting table content is
+    * the same shape and order as the C++ original's. */
+   {
+      SFORMAT t0  = SFVAR(UpdateInputLastBigTS);            StateRegs[sridx++] = t0;
+      SFORMAT t1  = SFVAR(next_event_ts);                   StateRegs[sridx++] = t1;
+      {
+         SFORMAT t2 = SFPTR32N(ep.event_times, sizeof(ep.event_times) / sizeof(ep.event_times[0]), "event_times");
+         StateRegs[sridx++] = t2;
+      }
+      {
+         SFORMAT t3 = SFPTR8N(ep.event_order, sizeof(ep.event_order) / sizeof(ep.event_order[0]), "event_order");
+         StateRegs[sridx++] = t3;
+      }
+      {
+         SFORMAT t4 = SFVAR(SH7095_mem_timestamp); StateRegs[sridx++] = t4;
+      }
+      {
+         SFORMAT t5 = SFVAR(SH7095_BusLock); StateRegs[sridx++] = t5;
+      }
+      {
+         SFORMAT t6 = SFVAR(SH7095_DB);  StateRegs[sridx++] = t6;
+      }
+      {
+         SFORMAT t7 = SFPTR16(WorkRAML, WORKRAM_BANK_SIZE_BYTES / sizeof(uint16_t)); StateRegs[sridx++] = t7;
+      }
+      {
+         SFORMAT t8 = SFPTR16(WorkRAMH, WORKRAM_BANK_SIZE_BYTES / sizeof(uint16_t)); StateRegs[sridx++] = t8;
+      }
+      {
+         SFORMAT t9 = SFPTR8(BackupRAM, sizeof(BackupRAM) / sizeof(BackupRAM[0])); StateRegs[sridx++] = t9;
+      }
+      {
+         SFORMAT t10 = SFVAR(RecordedNeedEmuICache); StateRegs[sridx++] = t10;
+      }
+      {
+         SFORMAT te = SFEND; StateRegs[sridx++] = te;
+      }
+   }
+
+   SH7095_M_StateAction(sm, load, false, "SH2-M");
+   SH7095_S_StateAction(sm, load, false, "SH2-S");
+   SCU_StateAction(sm, load, false);
+   SMPC_StateAction(sm, load, false);
+
+   CDB_StateAction(sm, load, false);
+   VDP1_StateAction(sm, load, false);
+   VDP2_StateAction(sm, load, false);
+
+   SOUND_StateAction(sm, load, false);
+   CART_StateAction(sm, load, false);
+
+   if(load)
+      memcpy(BackupRAM_StateHelper, BackupRAM, sizeof(BackupRAM));
+
+   if (MDFNSS_StateAction(sm, load, false, StateRegs, "MAIN", false) == 0)
+   {
+      log_cb( RETRO_LOG_ERROR, "Failed to load MAIN state objects.\n" );
+      return 0;
+   }
+
+   if (input_StateAction( sm, load, false ) == 0)
+      log_cb( RETRO_LOG_WARN, "Input state failed.\n" );
+
+   if ( load )
+   {
+      if(memcmp(BackupRAM_StateHelper, BackupRAM, sizeof(BackupRAM)))
+         BackupRAM_Dirty = true;
+
+      if ( !EventsPacker_Restore(&ep, load) )
+      {
+         log_cb( RETRO_LOG_WARN, "Bad state events data.\n" );
+         InitEvents();
+      }
+
+      SH7095_M_PostStateLoad(load, RecordedNeedEmuICache, NeedEmuICache);
+      SH7095_S_PostStateLoad(load, RecordedNeedEmuICache, NeedEmuICache);
+   }
+
+   return 1;
 }

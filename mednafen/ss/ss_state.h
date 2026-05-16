@@ -53,6 +53,16 @@ void SS_LoadRTC(void)         MDFN_COLD;
 void SS_BackupBackupRAM(void) MDFN_COLD;
 void SS_BackupCartNV(void)    MDFN_COLD;
 
+/* Phase-7d additions: emulator state save/load orchestration.
+ * LibRetro_StateAction reaches into ss.cpp globals (NeedEmuICache,
+ * BIOS_SHA256, ActiveCartType, BackupRAM_StateHelper, WorkRAML/H,
+ * UpdateInputLastBigTS, SH7095_DB) and dispatches to SH7095's
+ * StateAction / PostStateLoad methods through the extern "C"
+ * SH7095_{M,S}_StateAction / SH7095_{M,S}_PostStateLoad wrappers
+ * defined in ss.cpp.  All those state symbols are now TU-external
+ * so this header doesn't need to wrap them. */
+int LibRetro_StateAction(StateMem* sm, const unsigned load) MDFN_COLD;
+
 #ifdef __cplusplus
 }
 #endif

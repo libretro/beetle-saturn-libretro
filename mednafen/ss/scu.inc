@@ -2095,7 +2095,8 @@ void SCU_Reset(bool powering_up)
  CPU[0].SetIRL(ILevel);
 }
 
-static MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool data_only)
+/* Phase-7d: promoted from file-static -- ss_state.c calls this. */
+MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {
  uint32_t DSP_ProgRAM[256];
  uint32_t DSP_NextInstr;

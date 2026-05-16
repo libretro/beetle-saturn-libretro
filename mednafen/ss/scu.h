@@ -35,6 +35,8 @@
 /* MDFN_COLD attribute macro.  C++ TUs got it transitively via ss.h /
  * mednafen.h; C consumers need it directly. */
 #include "../mednafen-types.h"
+/* StateMem typedef for the SCU_StateAction prototype below.  Phase-7d. */
+#include <mednafen/state.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -96,6 +98,10 @@ enum
 
 uint32_t SCU_GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
 void SCU_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
+
+/* Phase-7d: promoted from file-static so ss_state.c's
+ * LibRetro_StateAction can call it across the C / C++ boundary. */
+void SCU_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
 #ifdef __cplusplus
 }
