@@ -1749,24 +1749,43 @@ static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
  }
 };
 
-template<bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
-static INLINE uint64_t MakeNBG23Pix(uint32_t dcc, uint32_t pbor, const int16_t* sfcode_lut, uint32_t colcacheoffs)
-{
- uint32_t rgb24;
-
- rgb24 = ColorCache[(colcacheoffs + dcc) & 2047];
-
- if(TA_CCMode == 3)
-  pbor |= ((int32_t)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);
-
- if(TA_PrioMode == 2 || TA_CCMode == 2)
-  pbor &= *(const int16_t*)((const uint8_t*)sfcode_lut + (dcc & 0xE));
-
- if(!TA_igntp && !dcc)
-  pbor = 0;
-
- return pbor + ((uint64_t)rgb24 << PIX_RGB_SHIFT);
-}
+/* MakeNBG23Pix: was `template<bool TA_igntp, unsigned TA_PrioMode,
+ * unsigned TA_CCMode> static INLINE uint64_t MakeNBG23Pix(uint32_t dcc,
+ * uint32_t pbor, const int16_t* sfcode_lut, uint32_t colcacheoffs)`.
+ * Called 16x per inner loop iteration in T_DrawNBG23 (8 per cellx_xor
+ * branch x 2 bpp paths).  Template caller cached the specialization
+ * in an `mbp` function pointer; macro form stamps the body directly
+ * at each call site, removing the per-pixel indirection.
+ *
+ * Block macro form (writes to caller-supplied out_var) -- avoids the
+ * GCC statement-expression extension so the construct stays valid
+ * under MSVC and any other standard-C99/C11 compiler.  Codegen is
+ * equivalent: the final pbor + (rgb24<<...) is assigned to out_var
+ * inside the do/while block, exactly where the template's `return`
+ * was, leaving the optimiser the same lvalue to write to.  Three
+ * branches all on macro-arg constants (folded per stamp).  Call-site
+ * args bound to local temporaries on entry, so call-site arithmetic
+ * (e.g. (uint8_t)(tf.tile_vrb[0] >> 8)) is single-evaluated. */
+#define MAKE_NBG23_PIX(out_var, TA_igntp, TA_PrioMode, TA_CCMode,                        \
+                       dcc, pbor, sfcode_lut, colcacheoffs)                              \
+ do {                                                                                    \
+  const uint32_t MK_NBG23_dcc   = (dcc);                                                 \
+  uint32_t       MK_NBG23_pbor  = (pbor);                                                \
+  const uint32_t MK_NBG23_cco   = (colcacheoffs);                                        \
+  const int16_t* const MK_NBG23_lut = (sfcode_lut);                                      \
+  const uint32_t MK_NBG23_rgb24 = ColorCache[(MK_NBG23_cco + MK_NBG23_dcc) & 2047];      \
+                                                                                         \
+  if((TA_CCMode) == 3)                                                                   \
+   MK_NBG23_pbor |= ((int32_t)MK_NBG23_rgb24 >> 31) & (1 << PIX_CCE_SHIFT);              \
+                                                                                         \
+  if((TA_PrioMode) == 2 || (TA_CCMode) == 2)                                             \
+   MK_NBG23_pbor &= *(const int16_t*)((const uint8_t*)MK_NBG23_lut + (MK_NBG23_dcc & 0xE)); \
+                                                                                         \
+  if(!(TA_igntp) && !MK_NBG23_dcc)                                                       \
+   MK_NBG23_pbor = 0;                                                                    \
+                                                                                         \
+  (out_var) = MK_NBG23_pbor + ((uint64_t)MK_NBG23_rgb24 << PIX_RGB_SHIFT);               \
+ } while(0)
 
 //
 // CCMode will be forced to 0 in the effective instantiation if corresponding NBG CCE bit in CCCTL is 0.
@@ -1848,57 +1867,58 @@ static void T_DrawNBG23(const unsigned n, uint64_t* bgbuf, const unsigned w, con
   if(TA_PrioMode == 1 || TA_PrioMode == 2)
    pbor |= (tf.spr << PIX_PRIO_SHIFT);
   //
+  // (MakeNBG23Pix template's `auto* const mbp = ...;` function-pointer
+  // cache removed in favor of direct MAKE_NBG23_PIX macro stamps; same
+  // codegen, one fewer per-pixel indirection in the worst case.)
   //
-  auto* const mbp = MakeNBG23Pix<TA_igntp, TA_PrioMode, TA_CCMode>;
-
   if(TA_bpp == 8)
   {
    if(tf.cellx_xor & 0x7)
    {
-    bgbuf[7] = mbp((uint8_t)(tf.tile_vrb[0] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[6] = mbp((uint8_t)(tf.tile_vrb[0] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[5] = mbp((uint8_t)(tf.tile_vrb[1] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[4] = mbp((uint8_t)(tf.tile_vrb[1] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[3] = mbp((uint8_t)(tf.tile_vrb[2] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[2] = mbp((uint8_t)(tf.tile_vrb[2] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[1] = mbp((uint8_t)(tf.tile_vrb[3] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[0] = mbp((uint8_t)(tf.tile_vrb[3] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[7], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[0] >>  8), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[6], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[0] >>  0), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[5], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[1] >>  8), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[4], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[1] >>  0), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[3], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[2] >>  8), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[2], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[2] >>  0), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[1], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[3] >>  8), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[0], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[3] >>  0), pbor, sfcode_lut, tf.pcco);
    }
    else
    {
-    bgbuf[0] = mbp((uint8_t)(tf.tile_vrb[0] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[1] = mbp((uint8_t)(tf.tile_vrb[0] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[2] = mbp((uint8_t)(tf.tile_vrb[1] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[3] = mbp((uint8_t)(tf.tile_vrb[1] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[4] = mbp((uint8_t)(tf.tile_vrb[2] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[5] = mbp((uint8_t)(tf.tile_vrb[2] >>  0), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[6] = mbp((uint8_t)(tf.tile_vrb[3] >>  8), /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[7] = mbp((uint8_t)(tf.tile_vrb[3] >>  0), /**/pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[0], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[0] >>  8), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[1], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[0] >>  0), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[2], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[1] >>  8), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[3], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[1] >>  0), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[4], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[2] >>  8), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[5], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[2] >>  0), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[6], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[3] >>  8), pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[7], TA_igntp, TA_PrioMode, TA_CCMode, (uint8_t)(tf.tile_vrb[3] >>  0), pbor, sfcode_lut, tf.pcco);
    }
   }
   else
   {
    if(tf.cellx_xor & 0x7)
    {
-    bgbuf[7] = mbp((tf.tile_vrb[0] >>  12),       /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[6] = mbp((tf.tile_vrb[0] >>   8) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[5] = mbp((tf.tile_vrb[0] >>   4) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[4] = mbp((tf.tile_vrb[0] >>   0) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[3] = mbp((tf.tile_vrb[1] >>  12),       /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[2] = mbp((tf.tile_vrb[1] >>   8) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[1] = mbp((tf.tile_vrb[1] >>   4) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[0] = mbp((tf.tile_vrb[1] >>   0) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[7], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[0] >>  12),       pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[6], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[0] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[5], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[0] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[4], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[0] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[3], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[1] >>  12),       pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[2], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[1] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[1], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[1] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[0], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[1] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);
    }
    else
    {
-    bgbuf[0] = mbp((tf.tile_vrb[0] >>  12),       /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[1] = mbp((tf.tile_vrb[0] >>   8) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[2] = mbp((tf.tile_vrb[0] >>   4) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[3] = mbp((tf.tile_vrb[0] >>   0) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[4] = mbp((tf.tile_vrb[1] >>  12),       /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[5] = mbp((tf.tile_vrb[1] >>   8) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[6] = mbp((tf.tile_vrb[1] >>   4) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
-    bgbuf[7] = mbp((tf.tile_vrb[1] >>   0) & 0xF, /**/pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[0], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[0] >>  12),       pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[1], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[0] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[2], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[0] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[3], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[0] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[4], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[1] >>  12),       pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[5], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[1] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[6], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[1] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);
+    MAKE_NBG23_PIX(bgbuf[7], TA_igntp, TA_PrioMode, TA_CCMode, (tf.tile_vrb[1] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);
    }
   }
 
