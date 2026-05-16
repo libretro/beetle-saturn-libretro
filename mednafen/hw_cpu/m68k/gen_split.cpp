@@ -183,7 +183,15 @@ static std::string Instr0(const unsigned i)
    assert(ret.size() == 0);
    const char* sn = (i & 0x40) ? "uint32_t" : "uint16_t";
 
-   ret += s("MOVEP<%s, %s>(instr_b2_b0, instr_b11_b9);", sn, (i & 0x80) ? "true" : "false");
+   /* Phase-8d: emit named MOVEP variants instead of template form. */
+   {
+    const bool is_l    = (i & 0x40) != 0;
+    const bool to_mem  = (i & 0x80) != 0;
+    const char* fname  = is_l
+                          ? (to_mem ? "MOVEP_l_reg_to_mem" : "MOVEP_l_mem_to_reg")
+                          : (to_mem ? "MOVEP_w_reg_to_mem" : "MOVEP_w_mem_to_reg");
+    ret += s("%s(instr_b2_b0, instr_b11_b9);", fname);
+   }
   } 
  }
  else
@@ -639,7 +647,7 @@ static std::string Instr4(const unsigned instr)
  if((instr & 0xFF0) == 0xE60)
  {
   assert(ret.size() == 0);
-  ret += s("MOVE_USP<%d>(instr_b2_b0);", (bool)(instr & 0x8));
+  ret += s("MOVE_USP(%s, instr_b2_b0);", (instr & 0x8) ? "true" : "false");
   PrivilegeWrap(&ret);
  }
 

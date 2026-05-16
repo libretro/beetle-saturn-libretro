@@ -337,8 +337,16 @@ class M68K
  template<typename T, M68K::AddressMode DAM>
  void NBCD(HAM<T, DAM> &dst);
 
- template<typename T, bool reg_to_mem>
- void MOVEP(const unsigned ar, const unsigned dr);
+ /* Phase-8d: MOVEP<T, reg_to_mem> retired.  Only 4 instantiations
+  * (T = uint16_t / uint32_t cross-product with reg_to_mem = false /
+  * true), and the body's `if(reg_to_mem)` branch and the loop's
+  * sizeof(T) are both compile-time folded by the template form;
+  * the 4 named methods below carry the post-folding bodies
+  * directly. */
+ void MOVEP_w_mem_to_reg(const unsigned ar, const unsigned dr);
+ void MOVEP_l_mem_to_reg(const unsigned ar, const unsigned dr);
+ void MOVEP_w_reg_to_mem(const unsigned ar, const unsigned dr);
+ void MOVEP_l_reg_to_mem(const unsigned ar, const unsigned dr);
 
  template<typename T, M68K::AddressMode TAM>
  void BTST(HAM<T, TAM> &targ, unsigned wb);
@@ -449,8 +457,12 @@ class M68K
  template<typename T, M68K::AddressMode SAM>
  void MOVE_to_SR(HAM<T, SAM> &src);
 
- template<bool direction>
- void MOVE_USP(const unsigned ar);
+ /* Phase-8d: MOVE_USP bool template parameter -> runtime arg.
+  * Just two callers per build (the two MOVE-USP-direction
+  * combinations privileged supervisor mode permits); the body
+  * is a 3-line ternary that doesn't benefit from compile-time
+  * folding the bool.  Cleaner as a runtime first-arg. */
+ void MOVE_USP(bool direction, const unsigned ar);
 
  template<typename T, M68K::AddressMode SAM>
  void LEA(HAM<T, SAM> &src, const unsigned ar);

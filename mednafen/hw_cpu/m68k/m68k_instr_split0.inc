@@ -302,7 +302,7 @@ case 0x010d:
 case 0x010e:
 case 0x010f:
 	{
-	 MOVEP<uint16_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -423,7 +423,7 @@ case 0x014d:
 case 0x014e:
 case 0x014f:
 	{
-	 MOVEP<uint32_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -526,7 +526,7 @@ case 0x018d:
 case 0x018e:
 case 0x018f:
 	{
-	 MOVEP<uint16_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -629,7 +629,7 @@ case 0x01cd:
 case 0x01ce:
 case 0x01cf:
 	{
-	 MOVEP<uint32_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -1014,7 +1014,7 @@ case 0x030d:
 case 0x030e:
 case 0x030f:
 	{
-	 MOVEP<uint16_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -1135,7 +1135,7 @@ case 0x034d:
 case 0x034e:
 case 0x034f:
 	{
-	 MOVEP<uint32_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -1238,7 +1238,7 @@ case 0x038d:
 case 0x038e:
 case 0x038f:
 	{
-	 MOVEP<uint16_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -1341,7 +1341,7 @@ case 0x03cd:
 case 0x03ce:
 case 0x03cf:
 	{
-	 MOVEP<uint32_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -1714,7 +1714,7 @@ case 0x050d:
 case 0x050e:
 case 0x050f:
 	{
-	 MOVEP<uint16_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -1835,7 +1835,7 @@ case 0x054d:
 case 0x054e:
 case 0x054f:
 	{
-	 MOVEP<uint32_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -1938,7 +1938,7 @@ case 0x058d:
 case 0x058e:
 case 0x058f:
 	{
-	 MOVEP<uint16_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -2041,7 +2041,7 @@ case 0x05cd:
 case 0x05ce:
 case 0x05cf:
 	{
-	 MOVEP<uint32_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -2414,7 +2414,7 @@ case 0x070d:
 case 0x070e:
 case 0x070f:
 	{
-	 MOVEP<uint16_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -2535,7 +2535,7 @@ case 0x074d:
 case 0x074e:
 case 0x074f:
 	{
-	 MOVEP<uint32_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -2638,7 +2638,7 @@ case 0x078d:
 case 0x078e:
 case 0x078f:
 	{
-	 MOVEP<uint16_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -2741,7 +2741,7 @@ case 0x07cd:
 case 0x07ce:
 case 0x07cf:
 	{
-	 MOVEP<uint32_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -3216,7 +3216,7 @@ case 0x090d:
 case 0x090e:
 case 0x090f:
 	{
-	 MOVEP<uint16_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -3337,7 +3337,7 @@ case 0x094d:
 case 0x094e:
 case 0x094f:
 	{
-	 MOVEP<uint32_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -3440,7 +3440,7 @@ case 0x098d:
 case 0x098e:
 case 0x098f:
 	{
-	 MOVEP<uint16_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -3543,7 +3543,7 @@ case 0x09cd:
 case 0x09ce:
 case 0x09cf:
 	{
-	 MOVEP<uint32_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -3928,7 +3928,7 @@ case 0x0b0d:
 case 0x0b0e:
 case 0x0b0f:
 	{
-	 MOVEP<uint16_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -4049,7 +4049,7 @@ case 0x0b4d:
 case 0x0b4e:
 case 0x0b4f:
 	{
-	 MOVEP<uint32_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -4152,7 +4152,7 @@ case 0x0b8d:
 case 0x0b8e:
 case 0x0b8f:
 	{
-	 MOVEP<uint16_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -4255,7 +4255,7 @@ case 0x0bcd:
 case 0x0bce:
 case 0x0bcf:
 	{
-	 MOVEP<uint32_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -4628,7 +4628,7 @@ case 0x0d0d:
 case 0x0d0e:
 case 0x0d0f:
 	{
-	 MOVEP<uint16_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -4749,7 +4749,7 @@ case 0x0d4d:
 case 0x0d4e:
 case 0x0d4f:
 	{
-	 MOVEP<uint32_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -4852,7 +4852,7 @@ case 0x0d8d:
 case 0x0d8e:
 case 0x0d8f:
 	{
-	 MOVEP<uint16_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -4955,7 +4955,7 @@ case 0x0dcd:
 case 0x0dce:
 case 0x0dcf:
 	{
-	 MOVEP<uint32_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -5058,7 +5058,7 @@ case 0x0f0d:
 case 0x0f0e:
 case 0x0f0f:
 	{
-	 MOVEP<uint16_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -5179,7 +5179,7 @@ case 0x0f4d:
 case 0x0f4e:
 case 0x0f4f:
 	{
-	 MOVEP<uint32_t, false>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_mem_to_reg(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -5282,7 +5282,7 @@ case 0x0f8d:
 case 0x0f8e:
 case 0x0f8f:
 	{
-	 MOVEP<uint16_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -5385,7 +5385,7 @@ case 0x0fcd:
 case 0x0fce:
 case 0x0fcf:
 	{
-	 MOVEP<uint32_t, true>(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_reg_to_mem(instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -28373,7 +28373,7 @@ case 0x4e65:
 case 0x4e66:
 case 0x4e67:
 	{
-	 if(CheckPrivilege()) { MOVE_USP<0>(instr_b2_b0); }
+	 if(CheckPrivilege()) { MOVE_USP(false, instr_b2_b0); }
 	}
 	break;
 
@@ -28386,7 +28386,7 @@ case 0x4e6d:
 case 0x4e6e:
 case 0x4e6f:
 	{
-	 if(CheckPrivilege()) { MOVE_USP<1>(instr_b2_b0); }
+	 if(CheckPrivilege()) { MOVE_USP(true, instr_b2_b0); }
 	}
 	break;
 

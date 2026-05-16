@@ -1223,22 +1223,73 @@ INLINE void M68K::NBCD(HAM<T, DAM> &dst)
 //
 // MOVEP
 //
-template<typename T, bool reg_to_mem>
-INLINE void M68K::MOVEP(const unsigned ar, const unsigned dr)
+// Phase-8d: was `template<typename T, bool reg_to_mem> M68K::MOVEP`;
+// the 4 named bodies below are the post-folding result of the four
+// template instantiations.  sizeof(T) was 2 or 4 (T = uint16_t /
+// uint32_t), giving 2- or 4-iteration loops with shift = 8 or 24
+// initial.  reg_to_mem picked between byte-out-to-bus and
+// byte-in-from-bus over the same EA/shift schedule.
+//
+
+/* MOVEP.W (Dn -> mem):  upper-half-of-Dn[15:8], Dn[7:0]
+ * written into (An+disp), (An+disp+2). */
+INLINE void M68K::MOVEP_w_reg_to_mem(const unsigned ar, const unsigned dr)
 {
  const int16_t ext = ReadOp();
  uint32_t ea = A[ar] + (int16_t)ext;
- unsigned shift = (sizeof(T) - 1) << 3;
+ unsigned shift = 8; /* (sizeof(uint16_t) - 1) << 3 */
 
- for(unsigned i = 0; i < sizeof(T); i++)
+ Write_u8(ea, D[dr] >> shift);
+ ea += 2;
+ shift -= 8;
+ Write_u8(ea, D[dr] >> shift);
+}
+
+/* MOVEP.W (mem -> Dn):  two bytes from (An+disp), (An+disp+2)
+ * packed back into Dn[15:0]. */
+INLINE void M68K::MOVEP_w_mem_to_reg(const unsigned ar, const unsigned dr)
+{
+ const int16_t ext = ReadOp();
+ uint32_t ea = A[ar] + (int16_t)ext;
+ unsigned shift = 8;
+
+ D[dr] &= ~(0xFF << shift);
+ D[dr] |= Read_u8(ea) << shift;
+ ea += 2;
+ shift -= 8;
+ D[dr] &= ~(0xFF << shift);
+ D[dr] |= Read_u8(ea) << shift;
+}
+
+/* MOVEP.L (Dn -> mem):  four bytes from Dn[31:24..7:0] written
+ * into (An+disp), (An+disp+2), (An+disp+4), (An+disp+6). */
+INLINE void M68K::MOVEP_l_reg_to_mem(const unsigned ar, const unsigned dr)
+{
+ const int16_t ext = ReadOp();
+ uint32_t ea = A[ar] + (int16_t)ext;
+ unsigned shift = 24; /* (sizeof(uint32_t) - 1) << 3 */
+ unsigned i;
+
+ for(i = 0; i < 4; i++)
  {
-  if(reg_to_mem)
-   Write_u8(ea, D[dr] >> shift);
-  else
-  {
-   D[dr] &= ~(0xFF << shift);
-   D[dr] |= Read_u8(ea) << shift;
-  }
+  Write_u8(ea, D[dr] >> shift);
+  ea += 2;
+  shift -= 8;
+ }
+}
+
+/* MOVEP.L (mem -> Dn):  four bytes packed back into Dn[31:0]. */
+INLINE void M68K::MOVEP_l_mem_to_reg(const unsigned ar, const unsigned dr)
+{
+ const int16_t ext = ReadOp();
+ uint32_t ea = A[ar] + (int16_t)ext;
+ unsigned shift = 24;
+ unsigned i;
+
+ for(i = 0; i < 4; i++)
+ {
+  D[dr] &= ~(0xFF << shift);
+  D[dr] |= Read_u8(ea) << shift;
   ea += 2;
   shift -= 8;
  }
@@ -1861,8 +1912,7 @@ INLINE void M68K::MOVE_to_SR(HAM<T, SAM> &src)
 //
 // MOVE to/from USP
 //
-template<bool direction>
-INLINE void M68K::MOVE_USP(const unsigned ar)
+INLINE void M68K::MOVE_USP(bool direction, const unsigned ar)
 {
  if(!direction)
   SP_Inactive = A[ar];
