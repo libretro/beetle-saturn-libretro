@@ -1651,103 +1651,179 @@ static INLINE uint64_t MakeNBGRBGPix(T& tf, const uint32_t pix_base_or, const in
  return pbor | ((uint64_t)rgb24 << PIX_RGB_SHIFT);
 }
 
-template<bool TA_bmen, unsigned TA_bpp, bool TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
-static void T_DrawNBG(const unsigned n, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or)
-{
- assert(n < 2);
- //
- //
- const bool VCSEn = ((SCRCTL >> (n << 3)) & 0x1) && !(MZCTL & (1U << n));
- //
- TileFetcher<false> tf;
- uint32_t xcinc;
- uint32_t xc;
- uint32_t iy;
- int16_t sfcode_lut[8];
-
- tf.CRAOffs = CRAMAddrOffs_NBG[n] << 8;
- //
- tf.BMSCC = ((BMPNA >> (4 + (n << 3))) & 1);
- tf.BMSPR = ((BMPNA >> (5 + (n << 3))) & 1);
- tf.BMPalNo = ((BMPNA >> (0 + (n << 3))) & 0x7) << 4;
- tf.BMSize = ((CHCTLA >> (2 + (n << 3))) & 0x3);
- //
- tf.PlaneSize = (PLSZ >> (n << 1)) & 0x3;
- tf.PNDSize = (PNCN[n] >> 15) & 1;	// 0 = 2 words, 1 = 1 word
- tf.CharSize = ((CHCTLA >> (0 + (n << 3))) & 1);
- tf.AuxMode = (PNCN[n] >> 14) & 1;
- tf.Supp = (PNCN[n] & 0x3FF); // Supplement bits when PNDSize == 1
- //
- tf.Start(n, TA_bmen, (MPOFN >> (n << 2)) & 0x7, MapRegs[n]);
-
- MAKE_SFCODE_LUT(TA_PrioMode, TA_CCMode, n, sfcode_lut);
-
- xc = CurXScrollIF[n];
- iy = (CurYScrollIF[n] + MosEff_YCoordAccum[n]) >> 8;
- xcinc = CurXCoordInc[n];
-
- // Map: 2x2 planes
- // Plane: 1x1, 2x1, or 2x2 pages
- // Page: 64x64 cells
- // Character: 1x1, 2x2 cells
- // Cell: 8x8 dots
- uint32_t prev_ix = ~0U;
-
- if(((ZMCTL >> (n << 3)) & 0x3) && VCSEn)
- {
-  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
-  {
-   const uint32_t ix = xc >> 8;
-   iy = LB.vcscr[n][i >> 3];
-   tf.Fetch<TA_bpp>(TA_bmen, ix, iy);
-   //
-   //
-   //
-   bgbuf[i] = MakeNBGRBGPix<TA_bmen, TA_bpp, TA_isrgb, TA_igntp, TA_PrioMode, TA_CCMode>(tf, pix_base_or, sfcode_lut, ix, iy);
-   xc += xcinc;
-  }
- }
- else
- {
-  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
-  {
-   const uint32_t ix = xc >> 8;
-
-   if((ix >> 3) != prev_ix)
-   {
-    prev_ix = ix >> 3;
-    //
-    if(VCSEn)
-     iy = LB.vcscr[n][(i + 7) >> 3];
-
-    tf.Fetch<TA_bpp>(TA_bmen, ix, iy);
-   }
-   //
-   //
-   //
-   bgbuf[i] = MakeNBGRBGPix<TA_bmen, TA_bpp, TA_isrgb, TA_igntp, TA_PrioMode, TA_CCMode>(tf, pix_base_or, sfcode_lut, ix, iy);
-   xc += xcinc;
-  }
- }
+/* T_DrawNBG: was `template<bool TA_bmen, unsigned TA_bpp, bool
+ * TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
+ * static void T_DrawNBG(const unsigned n, uint64_t* bgbuf,
+ * const unsigned w, const uint32_t pix_base_or)`.  240 specs:
+ * bmen in {0,1}, color-mode in 0..4 ((BPP, ISRGB) is one of
+ * (4,0), (8,0), (16,0), (16,1), (32,1)), igntp in {0,1},
+ * PrioMode in {0..2}, CCMode in {0..3}.
+ *
+ * Converted via the same X-macro pattern as T_DrawRBG_ConstAB
+ * (existing precedent in this file).  Five-dimensional descent:
+ * BMEN -> CM -> IGNTP -> PMODE -> CCMODE, with CM enumerating
+ * the (BPP, ISRGB) pairs.  Function-name suffix uses CM, not
+ * (BPP, ISRGB), matching the T_DrawRBG_CAB convention.
+ *
+ * Body still calls tf.Start(), tf.Fetch<BPP>() and
+ * MakeNBGRBGPix<...>() -- those stay templated through phase 3,
+ * converted as part of phase 4 when the .cpp -> .c rename forces
+ * struct methods and templates out entirely.
+ *
+ * Line-comments rewritten as block-comments for line-spliced macro
+ * safety, same as T_DrawNBG23_BODY and the existing T_DrawRBG_CAB. */
+#define T_DrawNBG_BODY(BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE) \
+{                                                                                                                       \
+ assert(n < 2);                                                                                                         \
+/* */                                                                                                                   \
+/* */                                                                                                                   \
+ const bool VCSEn = ((SCRCTL >> (n << 3)) & 0x1) && !(MZCTL & (1U << n));                                               \
+/* */                                                                                                                   \
+ TileFetcher<false> tf;                                                                                                 \
+ uint32_t xcinc;                                                                                                        \
+ uint32_t xc;                                                                                                           \
+ uint32_t iy;                                                                                                           \
+ int16_t sfcode_lut[8];                                                                                                 \
+                                                                                                                       \
+ tf.CRAOffs = CRAMAddrOffs_NBG[n] << 8;                                                                                 \
+/* */                                                                                                                   \
+ tf.BMSCC = ((BMPNA >> (4 + (n << 3))) & 1);                                                                            \
+ tf.BMSPR = ((BMPNA >> (5 + (n << 3))) & 1);                                                                            \
+ tf.BMPalNo = ((BMPNA >> (0 + (n << 3))) & 0x7) << 4;                                                                   \
+ tf.BMSize = ((CHCTLA >> (2 + (n << 3))) & 0x3);                                                                        \
+/* */                                                                                                                   \
+ tf.PlaneSize = (PLSZ >> (n << 1)) & 0x3;                                                                               \
+ tf.PNDSize = (PNCN[n] >> 15) & 1; /* 0 = 2 words, 1 = 1 word */                                                        \
+ tf.CharSize = ((CHCTLA >> (0 + (n << 3))) & 1);                                                                        \
+ tf.AuxMode = (PNCN[n] >> 14) & 1;                                                                                      \
+ tf.Supp = (PNCN[n] & 0x3FF); /* Supplement bits when PNDSize == 1 */                                                   \
+/* */                                                                                                                   \
+ tf.Start(n, (BMEN), (MPOFN >> (n << 2)) & 0x7, MapRegs[n]);                                                            \
+                                                                                                                       \
+ MAKE_SFCODE_LUT((PMODE), (CCMODE), n, sfcode_lut);                                                                     \
+                                                                                                                       \
+ xc = CurXScrollIF[n];                                                                                                  \
+ iy = (CurYScrollIF[n] + MosEff_YCoordAccum[n]) >> 8;                                                                   \
+ xcinc = CurXCoordInc[n];                                                                                               \
+                                                                                                                       \
+/* Map: 2x2 planes */                                                                                                   \
+/* Plane: 1x1, 2x1, or 2x2 pages */                                                                                     \
+/* Page: 64x64 cells */                                                                                                 \
+/* Character: 1x1, 2x2 cells */                                                                                         \
+/* Cell: 8x8 dots */                                                                                                    \
+ uint32_t prev_ix = ~0U;                                                                                                \
+                                                                                                                       \
+ if(((ZMCTL >> (n << 3)) & 0x3) && VCSEn)                                                                               \
+ {                                                                                                                      \
+  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                          \
+  {                                                                                                                     \
+   const uint32_t ix = xc >> 8;                                                                                         \
+   iy = LB.vcscr[n][i >> 3];                                                                                            \
+   tf.Fetch<(BPP)>((BMEN), ix, iy);                                                                                     \
+/* */                                                                                                                   \
+/* */                                                                                                                   \
+/* */                                                                                                                   \
+   bgbuf[i] = MakeNBGRBGPix<(BMEN), (BPP), (ISRGB), (IGNTP), (PMODE), (CCMODE)>(tf, pix_base_or, sfcode_lut, ix, iy);   \
+   xc += xcinc;                                                                                                         \
+  }                                                                                                                     \
+ }                                                                                                                      \
+ else                                                                                                                   \
+ {                                                                                                                      \
+  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                          \
+  {                                                                                                                     \
+   const uint32_t ix = xc >> 8;                                                                                         \
+                                                                                                                       \
+   if((ix >> 3) != prev_ix)                                                                                             \
+   {                                                                                                                    \
+    prev_ix = ix >> 3;                                                                                                  \
+/* */                                                                                                                   \
+    if(VCSEn)                                                                                                           \
+     iy = LB.vcscr[n][(i + 7) >> 3];                                                                                    \
+                                                                                                                       \
+    tf.Fetch<(BPP)>((BMEN), ix, iy);                                                                                    \
+   }                                                                                                                    \
+/* */                                                                                                                   \
+/* */                                                                                                                   \
+/* */                                                                                                                   \
+   bgbuf[i] = MakeNBGRBGPix<(BMEN), (BPP), (ISRGB), (IGNTP), (PMODE), (CCMODE)>(tf, pix_base_or, sfcode_lut, ix, iy);   \
+   xc += xcinc;                                                                                                         \
+  }                                                                                                                     \
+ }                                                                                                                      \
 }
+
+#define T_DrawNBG_NAME(BMEN, CM, IGNTP, PMODE, CCMODE) \
+ T_DrawNBG_##BMEN##_##CM##_##IGNTP##_##PMODE##_##CCMODE
+
+#define DEFINE_T_DrawNBG(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, CCMODE)                              \
+ static void T_DrawNBG_NAME(BMEN, CM, IGNTP, PMODE, CCMODE)(const unsigned n, uint64_t* bgbuf,    \
+                                                            const unsigned w,                     \
+                                                            const uint32_t pix_base_or)           \
+ T_DrawNBG_BODY(BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE)
+
+/* One-level enumerators.  Match the DRBG_ENUM_* shape pioneered for
+ * T_DrawRBG_ConstAB. */
+#define DNBG_ENUM_CC(M, BMEN, CM, BPP, ISRGB, IGNTP, PMODE) \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 0)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 1)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 2)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 3)
+
+#define DNBG_ENUM_PM(M, BMEN, CM, BPP, ISRGB, IGNTP) \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, 0)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, 1)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, 2)
+
+#define DNBG_ENUM_IG(M, BMEN, CM, BPP, ISRGB) \
+ M(BMEN, CM, BPP, ISRGB, 0)                   \
+ M(BMEN, CM, BPP, ISRGB, 1)
+
+#define DNBG_ENUM_CM(M, BMEN) \
+ M(BMEN, 0, 4,  0)            \
+ M(BMEN, 1, 8,  0)            \
+ M(BMEN, 2, 16, 0)            \
+ M(BMEN, 3, 16, 1)            \
+ M(BMEN, 4, 32, 1)
+
+/* Function-definition composition: descend through every level,
+ * invoking DEFINE_T_DrawNBG at the leaf. */
+#define DNBG_FN_AT_PM(BMEN, CM, BPP, ISRGB, IGNTP, PMODE) DNBG_ENUM_CC(DEFINE_T_DrawNBG, BMEN, CM, BPP, ISRGB, IGNTP, PMODE)
+#define DNBG_FN_AT_IG(BMEN, CM, BPP, ISRGB, IGNTP)        DNBG_ENUM_PM(DNBG_FN_AT_PM, BMEN, CM, BPP, ISRGB, IGNTP)
+#define DNBG_FN_AT_CM(BMEN, CM, BPP, ISRGB)               DNBG_ENUM_IG(DNBG_FN_AT_IG, BMEN, CM, BPP, ISRGB)
+#define DNBG_FN_AT_BM(BMEN)                               DNBG_ENUM_CM(DNBG_FN_AT_CM, BMEN)
+
+DNBG_FN_AT_BM(0)
+DNBG_FN_AT_BM(1)
+
+/* Table composition: same descent but each non-leaf wraps its inner
+ * expansion in braces, producing the nested [2][5][2][3][4] initializer. */
+#define DNBG_TBL_AT_CC(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, CCMODE) T_DrawNBG_NAME(BMEN, CM, IGNTP, PMODE, CCMODE),
+#define DNBG_TBL_AT_PM(BMEN, CM, BPP, ISRGB, IGNTP, PMODE) { DNBG_ENUM_CC(DNBG_TBL_AT_CC, BMEN, CM, BPP, ISRGB, IGNTP, PMODE) },
+#define DNBG_TBL_AT_IG(BMEN, CM, BPP, ISRGB, IGNTP)        { DNBG_ENUM_PM(DNBG_TBL_AT_PM, BMEN, CM, BPP, ISRGB, IGNTP) },
+#define DNBG_TBL_AT_CM(BMEN, CM, BPP, ISRGB)               { DNBG_ENUM_IG(DNBG_TBL_AT_IG, BMEN, CM, BPP, ISRGB) },
+#define DNBG_TBL_AT_BM(BMEN)                               { DNBG_ENUM_CM(DNBG_TBL_AT_CM, BMEN) },
 
 static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(const unsigned n, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or) =
 {
- {
-  {  {  { T_DrawNBG<0, 4, 0, 0, 0, 0>, T_DrawNBG<0, 4, 0, 0, 0, 1>, T_DrawNBG<0, 4, 0, 0, 0, 2>, T_DrawNBG<0, 4, 0, 0, 0, 3>,  },  { T_DrawNBG<0, 4, 0, 0, 1, 0>, T_DrawNBG<0, 4, 0, 0, 1, 1>, T_DrawNBG<0, 4, 0, 0, 1, 2>, T_DrawNBG<0, 4, 0, 0, 1, 3>,  },  { T_DrawNBG<0, 4, 0, 0, 2, 0>, T_DrawNBG<0, 4, 0, 0, 2, 1>, T_DrawNBG<0, 4, 0, 0, 2, 2>, T_DrawNBG<0, 4, 0, 0, 2, 3>,  },  },  {  { T_DrawNBG<0, 4, 0, 1, 0, 0>, T_DrawNBG<0, 4, 0, 1, 0, 1>, T_DrawNBG<0, 4, 0, 1, 0, 2>, T_DrawNBG<0, 4, 0, 1, 0, 3>,  },  { T_DrawNBG<0, 4, 0, 1, 1, 0>, T_DrawNBG<0, 4, 0, 1, 1, 1>, T_DrawNBG<0, 4, 0, 1, 1, 2>, T_DrawNBG<0, 4, 0, 1, 1, 3>,  },  { T_DrawNBG<0, 4, 0, 1, 2, 0>, T_DrawNBG<0, 4, 0, 1, 2, 1>, T_DrawNBG<0, 4, 0, 1, 2, 2>, T_DrawNBG<0, 4, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawNBG<0, 8, 0, 0, 0, 0>, T_DrawNBG<0, 8, 0, 0, 0, 1>, T_DrawNBG<0, 8, 0, 0, 0, 2>, T_DrawNBG<0, 8, 0, 0, 0, 3>,  },  { T_DrawNBG<0, 8, 0, 0, 1, 0>, T_DrawNBG<0, 8, 0, 0, 1, 1>, T_DrawNBG<0, 8, 0, 0, 1, 2>, T_DrawNBG<0, 8, 0, 0, 1, 3>,  },  { T_DrawNBG<0, 8, 0, 0, 2, 0>, T_DrawNBG<0, 8, 0, 0, 2, 1>, T_DrawNBG<0, 8, 0, 0, 2, 2>, T_DrawNBG<0, 8, 0, 0, 2, 3>,  },  },  {  { T_DrawNBG<0, 8, 0, 1, 0, 0>, T_DrawNBG<0, 8, 0, 1, 0, 1>, T_DrawNBG<0, 8, 0, 1, 0, 2>, T_DrawNBG<0, 8, 0, 1, 0, 3>,  },  { T_DrawNBG<0, 8, 0, 1, 1, 0>, T_DrawNBG<0, 8, 0, 1, 1, 1>, T_DrawNBG<0, 8, 0, 1, 1, 2>, T_DrawNBG<0, 8, 0, 1, 1, 3>,  },  { T_DrawNBG<0, 8, 0, 1, 2, 0>, T_DrawNBG<0, 8, 0, 1, 2, 1>, T_DrawNBG<0, 8, 0, 1, 2, 2>, T_DrawNBG<0, 8, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawNBG<0, 16, 0, 0, 0, 0>, T_DrawNBG<0, 16, 0, 0, 0, 1>, T_DrawNBG<0, 16, 0, 0, 0, 2>, T_DrawNBG<0, 16, 0, 0, 0, 3>,  },  { T_DrawNBG<0, 16, 0, 0, 1, 0>, T_DrawNBG<0, 16, 0, 0, 1, 1>, T_DrawNBG<0, 16, 0, 0, 1, 2>, T_DrawNBG<0, 16, 0, 0, 1, 3>,  },  { T_DrawNBG<0, 16, 0, 0, 2, 0>, T_DrawNBG<0, 16, 0, 0, 2, 1>, T_DrawNBG<0, 16, 0, 0, 2, 2>, T_DrawNBG<0, 16, 0, 0, 2, 3>,  },  },  {  { T_DrawNBG<0, 16, 0, 1, 0, 0>, T_DrawNBG<0, 16, 0, 1, 0, 1>, T_DrawNBG<0, 16, 0, 1, 0, 2>, T_DrawNBG<0, 16, 0, 1, 0, 3>,  },  { T_DrawNBG<0, 16, 0, 1, 1, 0>, T_DrawNBG<0, 16, 0, 1, 1, 1>, T_DrawNBG<0, 16, 0, 1, 1, 2>, T_DrawNBG<0, 16, 0, 1, 1, 3>,  },  { T_DrawNBG<0, 16, 0, 1, 2, 0>, T_DrawNBG<0, 16, 0, 1, 2, 1>, T_DrawNBG<0, 16, 0, 1, 2, 2>, T_DrawNBG<0, 16, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawNBG<0, 16, 1, 0, 0, 0>, T_DrawNBG<0, 16, 1, 0, 0, 1>, T_DrawNBG<0, 16, 1, 0, 0, 2>, T_DrawNBG<0, 16, 1, 0, 0, 3>,  },  { T_DrawNBG<0, 16, 1, 0, 1, 0>, T_DrawNBG<0, 16, 1, 0, 1, 1>, T_DrawNBG<0, 16, 1, 0, 1, 2>, T_DrawNBG<0, 16, 1, 0, 1, 3>,  },  { T_DrawNBG<0, 16, 1, 0, 2, 0>, T_DrawNBG<0, 16, 1, 0, 2, 1>, T_DrawNBG<0, 16, 1, 0, 2, 2>, T_DrawNBG<0, 16, 1, 0, 2, 3>,  },  },  {  { T_DrawNBG<0, 16, 1, 1, 0, 0>, T_DrawNBG<0, 16, 1, 1, 0, 1>, T_DrawNBG<0, 16, 1, 1, 0, 2>, T_DrawNBG<0, 16, 1, 1, 0, 3>,  },  { T_DrawNBG<0, 16, 1, 1, 1, 0>, T_DrawNBG<0, 16, 1, 1, 1, 1>, T_DrawNBG<0, 16, 1, 1, 1, 2>, T_DrawNBG<0, 16, 1, 1, 1, 3>,  },  { T_DrawNBG<0, 16, 1, 1, 2, 0>, T_DrawNBG<0, 16, 1, 1, 2, 1>, T_DrawNBG<0, 16, 1, 1, 2, 2>, T_DrawNBG<0, 16, 1, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawNBG<0, 32, 1, 0, 0, 0>, T_DrawNBG<0, 32, 1, 0, 0, 1>, T_DrawNBG<0, 32, 1, 0, 0, 2>, T_DrawNBG<0, 32, 1, 0, 0, 3>,  },  { T_DrawNBG<0, 32, 1, 0, 1, 0>, T_DrawNBG<0, 32, 1, 0, 1, 1>, T_DrawNBG<0, 32, 1, 0, 1, 2>, T_DrawNBG<0, 32, 1, 0, 1, 3>,  },  { T_DrawNBG<0, 32, 1, 0, 2, 0>, T_DrawNBG<0, 32, 1, 0, 2, 1>, T_DrawNBG<0, 32, 1, 0, 2, 2>, T_DrawNBG<0, 32, 1, 0, 2, 3>,  },  },  {  { T_DrawNBG<0, 32, 1, 1, 0, 0>, T_DrawNBG<0, 32, 1, 1, 0, 1>, T_DrawNBG<0, 32, 1, 1, 0, 2>, T_DrawNBG<0, 32, 1, 1, 0, 3>,  },  { T_DrawNBG<0, 32, 1, 1, 1, 0>, T_DrawNBG<0, 32, 1, 1, 1, 1>, T_DrawNBG<0, 32, 1, 1, 1, 2>, T_DrawNBG<0, 32, 1, 1, 1, 3>,  },  { T_DrawNBG<0, 32, 1, 1, 2, 0>, T_DrawNBG<0, 32, 1, 1, 2, 1>, T_DrawNBG<0, 32, 1, 1, 2, 2>, T_DrawNBG<0, 32, 1, 1, 2, 3>,  },  },  },
- },
- {
-  {  {  { T_DrawNBG<1, 4, 0, 0, 0, 0>, T_DrawNBG<1, 4, 0, 0, 0, 1>, T_DrawNBG<1, 4, 0, 0, 0, 2>, T_DrawNBG<1, 4, 0, 0, 0, 3>,  },  { T_DrawNBG<1, 4, 0, 0, 1, 0>, T_DrawNBG<1, 4, 0, 0, 1, 1>, T_DrawNBG<1, 4, 0, 0, 1, 2>, T_DrawNBG<1, 4, 0, 0, 1, 3>,  },  { T_DrawNBG<1, 4, 0, 0, 2, 0>, T_DrawNBG<1, 4, 0, 0, 2, 1>, T_DrawNBG<1, 4, 0, 0, 2, 2>, T_DrawNBG<1, 4, 0, 0, 2, 3>,  },  },  {  { T_DrawNBG<1, 4, 0, 1, 0, 0>, T_DrawNBG<1, 4, 0, 1, 0, 1>, T_DrawNBG<1, 4, 0, 1, 0, 2>, T_DrawNBG<1, 4, 0, 1, 0, 3>,  },  { T_DrawNBG<1, 4, 0, 1, 1, 0>, T_DrawNBG<1, 4, 0, 1, 1, 1>, T_DrawNBG<1, 4, 0, 1, 1, 2>, T_DrawNBG<1, 4, 0, 1, 1, 3>,  },  { T_DrawNBG<1, 4, 0, 1, 2, 0>, T_DrawNBG<1, 4, 0, 1, 2, 1>, T_DrawNBG<1, 4, 0, 1, 2, 2>, T_DrawNBG<1, 4, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawNBG<1, 8, 0, 0, 0, 0>, T_DrawNBG<1, 8, 0, 0, 0, 1>, T_DrawNBG<1, 8, 0, 0, 0, 2>, T_DrawNBG<1, 8, 0, 0, 0, 3>,  },  { T_DrawNBG<1, 8, 0, 0, 1, 0>, T_DrawNBG<1, 8, 0, 0, 1, 1>, T_DrawNBG<1, 8, 0, 0, 1, 2>, T_DrawNBG<1, 8, 0, 0, 1, 3>,  },  { T_DrawNBG<1, 8, 0, 0, 2, 0>, T_DrawNBG<1, 8, 0, 0, 2, 1>, T_DrawNBG<1, 8, 0, 0, 2, 2>, T_DrawNBG<1, 8, 0, 0, 2, 3>,  },  },  {  { T_DrawNBG<1, 8, 0, 1, 0, 0>, T_DrawNBG<1, 8, 0, 1, 0, 1>, T_DrawNBG<1, 8, 0, 1, 0, 2>, T_DrawNBG<1, 8, 0, 1, 0, 3>,  },  { T_DrawNBG<1, 8, 0, 1, 1, 0>, T_DrawNBG<1, 8, 0, 1, 1, 1>, T_DrawNBG<1, 8, 0, 1, 1, 2>, T_DrawNBG<1, 8, 0, 1, 1, 3>,  },  { T_DrawNBG<1, 8, 0, 1, 2, 0>, T_DrawNBG<1, 8, 0, 1, 2, 1>, T_DrawNBG<1, 8, 0, 1, 2, 2>, T_DrawNBG<1, 8, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawNBG<1, 16, 0, 0, 0, 0>, T_DrawNBG<1, 16, 0, 0, 0, 1>, T_DrawNBG<1, 16, 0, 0, 0, 2>, T_DrawNBG<1, 16, 0, 0, 0, 3>,  },  { T_DrawNBG<1, 16, 0, 0, 1, 0>, T_DrawNBG<1, 16, 0, 0, 1, 1>, T_DrawNBG<1, 16, 0, 0, 1, 2>, T_DrawNBG<1, 16, 0, 0, 1, 3>,  },  { T_DrawNBG<1, 16, 0, 0, 2, 0>, T_DrawNBG<1, 16, 0, 0, 2, 1>, T_DrawNBG<1, 16, 0, 0, 2, 2>, T_DrawNBG<1, 16, 0, 0, 2, 3>,  },  },  {  { T_DrawNBG<1, 16, 0, 1, 0, 0>, T_DrawNBG<1, 16, 0, 1, 0, 1>, T_DrawNBG<1, 16, 0, 1, 0, 2>, T_DrawNBG<1, 16, 0, 1, 0, 3>,  },  { T_DrawNBG<1, 16, 0, 1, 1, 0>, T_DrawNBG<1, 16, 0, 1, 1, 1>, T_DrawNBG<1, 16, 0, 1, 1, 2>, T_DrawNBG<1, 16, 0, 1, 1, 3>,  },  { T_DrawNBG<1, 16, 0, 1, 2, 0>, T_DrawNBG<1, 16, 0, 1, 2, 1>, T_DrawNBG<1, 16, 0, 1, 2, 2>, T_DrawNBG<1, 16, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawNBG<1, 16, 1, 0, 0, 0>, T_DrawNBG<1, 16, 1, 0, 0, 1>, T_DrawNBG<1, 16, 1, 0, 0, 2>, T_DrawNBG<1, 16, 1, 0, 0, 3>,  },  { T_DrawNBG<1, 16, 1, 0, 1, 0>, T_DrawNBG<1, 16, 1, 0, 1, 1>, T_DrawNBG<1, 16, 1, 0, 1, 2>, T_DrawNBG<1, 16, 1, 0, 1, 3>,  },  { T_DrawNBG<1, 16, 1, 0, 2, 0>, T_DrawNBG<1, 16, 1, 0, 2, 1>, T_DrawNBG<1, 16, 1, 0, 2, 2>, T_DrawNBG<1, 16, 1, 0, 2, 3>,  },  },  {  { T_DrawNBG<1, 16, 1, 1, 0, 0>, T_DrawNBG<1, 16, 1, 1, 0, 1>, T_DrawNBG<1, 16, 1, 1, 0, 2>, T_DrawNBG<1, 16, 1, 1, 0, 3>,  },  { T_DrawNBG<1, 16, 1, 1, 1, 0>, T_DrawNBG<1, 16, 1, 1, 1, 1>, T_DrawNBG<1, 16, 1, 1, 1, 2>, T_DrawNBG<1, 16, 1, 1, 1, 3>,  },  { T_DrawNBG<1, 16, 1, 1, 2, 0>, T_DrawNBG<1, 16, 1, 1, 2, 1>, T_DrawNBG<1, 16, 1, 1, 2, 2>, T_DrawNBG<1, 16, 1, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawNBG<1, 32, 1, 0, 0, 0>, T_DrawNBG<1, 32, 1, 0, 0, 1>, T_DrawNBG<1, 32, 1, 0, 0, 2>, T_DrawNBG<1, 32, 1, 0, 0, 3>,  },  { T_DrawNBG<1, 32, 1, 0, 1, 0>, T_DrawNBG<1, 32, 1, 0, 1, 1>, T_DrawNBG<1, 32, 1, 0, 1, 2>, T_DrawNBG<1, 32, 1, 0, 1, 3>,  },  { T_DrawNBG<1, 32, 1, 0, 2, 0>, T_DrawNBG<1, 32, 1, 0, 2, 1>, T_DrawNBG<1, 32, 1, 0, 2, 2>, T_DrawNBG<1, 32, 1, 0, 2, 3>,  },  },  {  { T_DrawNBG<1, 32, 1, 1, 0, 0>, T_DrawNBG<1, 32, 1, 1, 0, 1>, T_DrawNBG<1, 32, 1, 1, 0, 2>, T_DrawNBG<1, 32, 1, 1, 0, 3>,  },  { T_DrawNBG<1, 32, 1, 1, 1, 0>, T_DrawNBG<1, 32, 1, 1, 1, 1>, T_DrawNBG<1, 32, 1, 1, 1, 2>, T_DrawNBG<1, 32, 1, 1, 1, 3>,  },  { T_DrawNBG<1, 32, 1, 1, 2, 0>, T_DrawNBG<1, 32, 1, 1, 2, 1>, T_DrawNBG<1, 32, 1, 1, 2, 2>, T_DrawNBG<1, 32, 1, 1, 2, 3>,  },  },  },
- }
+ DNBG_TBL_AT_BM(0)
+ DNBG_TBL_AT_BM(1)
 };
+
+#undef DNBG_TBL_AT_BM
+#undef DNBG_TBL_AT_CM
+#undef DNBG_TBL_AT_IG
+#undef DNBG_TBL_AT_PM
+#undef DNBG_TBL_AT_CC
+#undef DNBG_FN_AT_BM
+#undef DNBG_FN_AT_CM
+#undef DNBG_FN_AT_IG
+#undef DNBG_FN_AT_PM
+#undef DNBG_ENUM_CM
+#undef DNBG_ENUM_IG
+#undef DNBG_ENUM_PM
+#undef DNBG_ENUM_CC
+#undef DEFINE_T_DrawNBG
+#undef T_DrawNBG_NAME
+#undef T_DrawNBG_BODY
 
 /* MakeNBG23Pix: was `template<bool TA_igntp, unsigned TA_PrioMode,
  * unsigned TA_CCMode> static INLINE uint64_t MakeNBG23Pix(uint32_t dcc,
