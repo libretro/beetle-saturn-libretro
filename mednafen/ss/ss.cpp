@@ -591,18 +591,30 @@ static NO_INLINE sscpu_timestamp_t FindNextEventTS(void)
  return m;
 }
 
-template<unsigned c>
-static sscpu_timestamp_t SH_DMA_EventHandler(sscpu_timestamp_t et)
-{
- if(et < SH7095_mem_timestamp)
-  return SH7095_mem_timestamp;
-
- // Must come after the (et < SH7095_mem_timestamp) check.
- if(MDFN_UNLIKELY(SH7095_BusLock))
-  return et + 1;
-
- return CPU[c].DMA_Update(et);
+/* Phase-7a: was `template<unsigned c> static sscpu_timestamp_t
+ * SH_DMA_EventHandler(sscpu_timestamp_t et)` with c instantiated
+ * to 0 (master SH-2) and 1 (slave SH-2).  The body only varies in
+ * which CPU[c] is dispatched to, so the two specs collapse to a
+ * pair of named functions emitted from one body macro.  Cleared
+ * for the upcoming ss.cpp -> C migration: the call-site syntax
+ * `&SH_DMA_EventHandler<0>` and `&SH_DMA_EventHandler<1>` doesn't
+ * carry over to C, while plain function names do. */
+#define SH_DMA_EVENT_HANDLER_BODY(CPU_IDX)                                                         \
+{                                                                                                  \
+ if(et < SH7095_mem_timestamp)                                                                     \
+  return SH7095_mem_timestamp;                                                                     \
+                                                                                                   \
+ /* Must come after the (et < SH7095_mem_timestamp) check. */                                      \
+ if(MDFN_UNLIKELY(SH7095_BusLock))                                                                 \
+  return et + 1;                                                                                   \
+                                                                                                   \
+ return CPU[CPU_IDX].DMA_Update(et);                                                               \
 }
+
+static sscpu_timestamp_t SH_DMA_EventHandler_M(sscpu_timestamp_t et) SH_DMA_EVENT_HANDLER_BODY(0)
+static sscpu_timestamp_t SH_DMA_EventHandler_S(sscpu_timestamp_t et) SH_DMA_EVENT_HANDLER_BODY(1)
+
+#undef SH_DMA_EVENT_HANDLER_BODY
 
 //
 //
@@ -623,8 +635,8 @@ static MDFN_COLD void InitEvents(void)
  for(unsigned i = 0; i < SS_EVENT__COUNT; i++)
   event_handlers[i] = NULL;
 
- event_handlers[SS_EVENT_SH2_M_DMA] = &SH_DMA_EventHandler<0>;
- event_handlers[SS_EVENT_SH2_S_DMA] = &SH_DMA_EventHandler<1>;
+ event_handlers[SS_EVENT_SH2_M_DMA] = &SH_DMA_EventHandler_M;
+ event_handlers[SS_EVENT_SH2_S_DMA] = &SH_DMA_EventHandler_S;
 
  event_handlers[SS_EVENT_SCU_DMA] = SCU_UpdateDMA;
  event_handlers[SS_EVENT_SCU_DSP] = SCU_UpdateDSP;
