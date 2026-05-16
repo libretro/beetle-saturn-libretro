@@ -1713,25 +1713,30 @@ static void FetchVCScroll(const unsigned w)
  * Note: macro emits a `{ ... }` block, so call sites that wrote
  * `MAKE_SFCODE_LUT(a, b, c, d);` become `MAKE_SFCODE_LUT(a, b, c, d);` --
  * the trailing `;` becomes an empty statement after the block. */
+/* Explicit-unroll SLP-friendly form: the original `for(i=0;i<8;i++)` body
+ * carried a variable shift `(MK_SF_code >> i)` per iteration, which kept
+ * GCC from packing the eight uint16_t stores.  Computing the lane mask via
+ * `-((c>>i)&1)` against a precomputed flip-pattern lets each of the eight
+ * stores share the same shape with a constant shift -- SLP packs them into
+ * one (or two) 128-bit stores.  When the spec collapses MK_SF_off to
+ * 0xFFFF (the common PrioMode/CCMode pairing where neither bit clears)
+ * the whole block folds to a single broadcast/store. */
 #define MAKE_SFCODE_LUT(TA_PrioMode, TA_CCMode, layer, sfcode_lut)                                    \
 {                                                                                                     \
- const uint8_t MK_SF_code = SFCODE >> (((SFSEL >> (layer)) & 1) << 3);                                \
+ const uint32_t MK_SF_off  = 0xFFFFu                                                                  \
+                            & ~(((TA_PrioMode) & 2) ? (1U << PIX_PRIO_SHIFT) : 0u)                    \
+                            & ~(((TA_CCMode) == 2)  ? (1U << PIX_CCE_SHIFT)  : 0u);                   \
+ const uint32_t MK_SF_flip = 0xFFFFu ^ MK_SF_off;                                                     \
+ const uint32_t MK_SF_c    = SFCODE >> (((SFSEL >> (layer)) & 1) << 3);                               \
                                                                                                       \
- for(unsigned MK_SF_i = 0; MK_SF_i < 8; MK_SF_i++)                                                    \
- {                                                                                                    \
-  uint16_t MK_SF_tmp = 0xFFFF;                                                                        \
-                                                                                                      \
-  if(!((MK_SF_code >> MK_SF_i) & 1))                                                                  \
-  {                                                                                                   \
-   if((TA_PrioMode) & 2)                                                                              \
-    MK_SF_tmp &= ~(1U << PIX_PRIO_SHIFT);                                                             \
-                                                                                                      \
-   if((TA_CCMode) == 2)                                                                               \
-    MK_SF_tmp &= ~(1U << PIX_CCE_SHIFT);                                                              \
-  }                                                                                                   \
-                                                                                                      \
-  (sfcode_lut)[MK_SF_i] = MK_SF_tmp;                                                                  \
- }                                                                                                    \
+ (sfcode_lut)[0] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 0) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[1] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 1) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[2] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 2) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[3] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 3) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[4] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 4) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[5] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 5) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[6] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 6) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[7] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 7) & 1u)) & MK_SF_flip));                \
 }
 
 static INLINE uint32_t rgb15_to_rgb24(uint16_t src)
@@ -2901,6 +2906,19 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
  uint32_t prev_cellj    = ~0u;                                                                         \
  bool     prev_rot_tp_f = false;                                                                       \
                                                                                                       \
+ /* Strength-reduce the per-pixel (r_dX * i) / (r_dY * i) into running                                  \
+  * unsigned-modular adds; this matches the original                                                  \
+  *   (int32_t)((uint32_t)r_Xsp + (uint32_t)r_dX * (uint32_t)i)                                       \
+  * wrap behavior exactly (uint32 add wraps at 2^32, then the int32 cast                              \
+  * reinterprets bits).  Saves the inner MUL per pixel; the outer SMULL                               \
+  * stays because the full (int64)kx * (Xsp + dX*N) accumulator would                                 \
+  * disagree with the original at the int32 overflow boundary (extreme                                \
+  * zoom-in: |dX*N| can exceed 2^31). */                                                              \
+ uint32_t arg_x_u = (uint32_t)r_Xsp;                                                                   \
+ uint32_t arg_y_u = (uint32_t)r_Ysp;                                                                   \
+ const uint32_t r_dX_u = (uint32_t)r_dX;                                                               \
+ const uint32_t r_dY_u = (uint32_t)r_dY;                                                               \
+                                                                                                      \
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                         \
  {                                                                                                    \
   uint32_t Xp = r_Xp;                                                                                   \
@@ -2925,8 +2943,11 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
    }                                                                                                  \
   }                                                                                                   \
                                                                                                       \
-  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r_Xsp + (r_dX * i))) >> 16)) >> 10;         \
-  const uint32_t iy = (r_Yp + (uint32_t)(((int64_t)ky * (int32_t)(r_Ysp + (r_dY * i))) >> 16)) >> 10;         \
+  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)arg_x_u) >> 16)) >> 10;               \
+  const uint32_t iy = (r_Yp + (uint32_t)(((int64_t)ky * (int32_t)arg_y_u) >> 16)) >> 10;               \
+                                                                                                      \
+  arg_x_u += r_dX_u;                                                                                  \
+  arg_y_u += r_dY_u;                                                                                  \
                                                                                                       \
   const uint32_t celli = ix >> 3;                                                                     \
   const uint32_t cellj = iy >> 3;                                                                     \
@@ -3410,6 +3431,89 @@ enum
 #define MIXIT_TO_SURFACE(v) (__builtin_bswap32((uint32_t)(v)) >> 8)
 #endif
 
+/* Per-pixel RGB24 channel kernels used by T_MixIt's color-calc and
+ * color-offset stages.  Each takes scalar uint32_t RGB inputs (R in byte 0,
+ * G in byte 1, B in byte 2) and returns scalar uint32_t RGB.  On aarch64
+ * the body uses NEON byte ops to do the three channels in one shot; on
+ * other targets it falls back to the original scalar per-channel expression
+ * (preserves amd64 codegen byte-identical to before this change). */
+
+static MDFN_FORCE_INLINE uint32_t MixIt_satadd_rgb24(uint32_t fore_rgb, uint32_t sec_rgb)
+{
+#if defined(__aarch64__)
+ const uint8x8_t f = vreinterpret_u8_u32(vdup_n_u32(fore_rgb));
+ const uint8x8_t s = vreinterpret_u8_u32(vdup_n_u32(sec_rgb));
+ const uint8x8_t r = vqadd_u8(f, s);
+ return vget_lane_u32(vreinterpret_u32_u8(r), 0) & 0xFFFFFFu;
+#else
+ uint32_t r;
+ r  = ((unsigned)(0x0000FF) < (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)) ? (unsigned)(0x0000FF) : (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)));
+ r |= ((unsigned)(0x00FF00) < (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)) ? (unsigned)(0x00FF00) : (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)));
+ r |= ((unsigned)(0xFF0000) < (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)) ? (unsigned)(0xFF0000) : (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)));
+ return r;
+#endif
+}
+
+/* fore_ratio + sec_ratio is always 0x20, ratio inputs are in [0, 0x1F].  Per-
+ * channel max product fits in 13 bits, so the uint8*uint8 widening (UMULL +
+ * UMLAL) sums never overflow u16, and the post-shift right by 5 narrows back
+ * to a byte. */
+static MDFN_FORCE_INLINE uint32_t MixIt_blend_rgb24(uint32_t fore_rgb, uint32_t sec_rgb,
+                                                    unsigned fore_ratio, unsigned sec_ratio)
+{
+#if defined(__aarch64__)
+ const uint8x8_t f = vreinterpret_u8_u32(vdup_n_u32(fore_rgb));
+ const uint8x8_t s = vreinterpret_u8_u32(vdup_n_u32(sec_rgb));
+ uint16x8_t prod = vmull_u8(f, vdup_n_u8((uint8_t)fore_ratio));
+ prod = vmlal_u8(prod, s, vdup_n_u8((uint8_t)sec_ratio));
+ const uint8x8_t narrow = vshrn_n_u16(prod, 5);
+ return vget_lane_u32(vreinterpret_u32_u8(narrow), 0) & 0xFFFFFFu;
+#else
+ uint32_t r;
+ r  = ((((fore_rgb & 0x0000FF) * fore_ratio) + ((sec_rgb & 0x0000FF) * sec_ratio)) >> 5);
+ r |= ((((fore_rgb & 0x00FF00) * fore_ratio) + ((sec_rgb & 0x00FF00) * sec_ratio)) >> 5) & 0x00FF00;
+ r |= ((((fore_rgb & 0xFF0000) * fore_ratio) + ((sec_rgb & 0xFF0000) * sec_ratio)) >> 5) & 0xFF0000;
+ return r;
+#endif
+}
+
+/* off_r is a sign-extended 9-bit offset in the low bits; off_g_shifted is
+ * already pre-shifted by 8 (so it occupies bits 0..16, range [-0xFF00,
+ * +0xFF00]); off_b_shifted by 16.  We reverse those shifts to recover a
+ * per-channel int16 offset, then do one 4-lane signed add + saturated narrow
+ * to u8. */
+static MDFN_FORCE_INLINE uint32_t MixIt_coloroffs_rgb24(uint32_t rgb_tmp,
+                                                        int32_t off_r,
+                                                        int32_t off_g_shifted,
+                                                        int32_t off_b_shifted)
+{
+#if defined(__aarch64__)
+ const int16x4_t offs = {
+  (int16_t)off_r,
+  (int16_t)(off_g_shifted >> 8),
+  (int16_t)(off_b_shifted >> 16),
+  0
+ };
+ const uint8x8_t rgb_lo = vreinterpret_u8_u32(vdup_n_u32(rgb_tmp));
+ const int16x4_t rgb_4  = vreinterpret_s16_u16(vget_low_u16(vmovl_u8(rgb_lo)));
+ const int16x4_t sum    = vadd_s16(rgb_4, offs);
+ const int16x8_t sum8   = vcombine_s16(sum, vdup_n_s16(0));
+ const uint8x8_t narrow = vqmovun_s16(sum8);
+ return vget_lane_u32(vreinterpret_u32_u8(narrow), 0) & 0xFFFFFFu;
+#else
+ int32_t rt = off_r + (int32_t)(rgb_tmp & 0x000000FFu);
+ if(rt < 0) rt = 0;
+ if(rt > 0x000000FF) rt = 0x000000FF;
+ int32_t gt = off_g_shifted + (int32_t)(rgb_tmp & 0x0000FF00u);
+ if(gt < 0) gt = 0;
+ if(gt > 0x0000FF00) gt = 0x0000FF00;
+ int32_t bt = off_b_shifted + (int32_t)(rgb_tmp & 0x00FF0000u);
+ if(bt < 0) bt = 0;
+ if(bt > 0x00FF0000) bt = 0x00FF0000;
+ return (uint32_t)(rt | gt | bt);
+#endif
+}
+
 /* T_MixIt: was `template<bool TA_rbgdualen, unsigned TA_Special,
  * bool TA_CCRTMD, bool TA_CCMD> static void T_MixIt(uint32_t*
  * target, const unsigned vdp2_line, const unsigned w, const
@@ -3619,18 +3723,14 @@ enum
                                                                                                                                            \
    if((CCMD)) /* Ignore ratio, add as-is. */                                                                                                \
    {                                                                                                                                        \
-    new_rgb =  ((unsigned)(0x0000FF) < (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)) ? (unsigned)(0x0000FF) : (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)));\
-    new_rgb |= ((unsigned)(0x00FF00) < (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)) ? (unsigned)(0x00FF00) : (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)));\
-    new_rgb |= ((unsigned)(0xFF0000) < (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)) ? (unsigned)(0xFF0000) : (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)));\
+    new_rgb = MixIt_satadd_rgb24(fore_rgb, sec_rgb);                                                                                         \
    }                                                                                                                                        \
    else                                                                                                                                     \
    {                                                                                                                                        \
     unsigned fore_ratio = ((uint32_t)((CCRTMD) ? pix2 : pix) >> PIX_CCRATIO_SHIFT) ^ 0x1F;                                                  \
     unsigned sec_ratio = 0x20 - fore_ratio;                                                                                                 \
                                                                                                                                            \
-    new_rgb =  ((((fore_rgb & 0x0000FF) * fore_ratio) + ((sec_rgb & 0x0000FF) * sec_ratio)) >> 5);                                          \
-    new_rgb |= ((((fore_rgb & 0x00FF00) * fore_ratio) + ((sec_rgb & 0x00FF00) * sec_ratio)) >> 5) & 0x00FF00;                               \
-    new_rgb |= ((((fore_rgb & 0xFF0000) * fore_ratio) + ((sec_rgb & 0xFF0000) * sec_ratio)) >> 5) & 0xFF0000;                               \
+    new_rgb = MixIt_blend_rgb24(fore_rgb, sec_rgb, fore_ratio, sec_ratio);                                                                  \
    }                                                                                                                                        \
    pix = ((uint64_t)new_rgb << 32) | (uint32_t)pix;                                                                                         \
   }                                                                                                                                         \
@@ -3642,22 +3742,11 @@ enum
   {                                                                                                                                         \
    const unsigned sel = (pix >> PIX_COSEL_SHIFT) & 1;                                                                                       \
    const uint32_t rgb_tmp = pix >> PIX_RGB_SHIFT;                                                                                           \
-   int32_t rt, gt, bt;                                                                                                                      \
-                                                                                                                                           \
-/* Magnitude test (not bit-test) so the compiler emits csel instead of tst+branch. */                                                       \
-   rt = ColorOffs[sel][0] + (rgb_tmp & 0x000000FF);                                                                                         \
-   if(rt < 0) rt = 0;                                                                                                                       \
-   if(rt > 0x000000FF) rt = 0x000000FF;                                                                                                     \
-                                                                                                                                           \
-   gt = ColorOffs[sel][1] + (rgb_tmp & 0x0000FF00);                                                                                         \
-   if(gt < 0) gt = 0;                                                                                                                       \
-   if(gt > 0x0000FF00) gt = 0x0000FF00;                                                                                                     \
-                                                                                                                                           \
-   bt = ColorOffs[sel][2] + (rgb_tmp & 0x00FF0000);                                                                                         \
-   if(bt < 0) bt = 0;                                                                                                                       \
-   if(bt > 0x00FF0000) bt = 0x00FF0000;                                                                                                     \
-                                                                                                                                           \
-   pix = (uint32_t)pix | ((uint64_t)(uint32_t)(rt | gt | bt) << PIX_RGB_SHIFT);                                                             \
+   const uint32_t coff = MixIt_coloroffs_rgb24(rgb_tmp,                                                                                     \
+                                               ColorOffs[sel][0],                                                                           \
+                                               ColorOffs[sel][1],                                                                           \
+                                               ColorOffs[sel][2]);                                                                          \
+   pix = (uint32_t)pix | ((uint64_t)coff << PIX_RGB_SHIFT);                                                                                 \
   }                                                                                                                                         \
                                                                                                                                            \
 /* */                                                                                                                                       \
