@@ -107,6 +107,10 @@ void SCU_StateAction(StateMem* sm, const unsigned load, const bool data_only) MD
  * can call it across the C / C++ boundary. */
 void SCU_AdjustTS(const int32_t delta);
 
+/* Phase-7f: promoted from file-static so ss_init.c's InitCommon
+ * can call it across the C / C++ boundary. */
+void SCU_Init(void) MDFN_COLD;
+
 #ifdef __cplusplus
 }
 #endif

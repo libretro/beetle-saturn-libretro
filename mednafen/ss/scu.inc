@@ -2019,7 +2019,8 @@ MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(struct DSPS*) =
 //
 //
 
-static MDFN_COLD void SCU_Init(void)
+/* Phase-7f: promoted from file-static so ss_init.c’s InitCommon can call it. */
+MDFN_COLD void SCU_Init(void)
 {
  SCU_DMA_TimeCounter = 0;
  SCU_DMA_RunUntil = 0;

@@ -125,7 +125,10 @@ extern "C" void SH7095_SetExtHaltDMAKludge(int cpu, bool state)
  CPU[cpu].SetExtHaltDMAKludgeFromVDP2(state);
 }
 
-static uint16_t BIOSROM[524288 / sizeof(uint16_t)];
+/* Phase-7f: promoted from file-static -- ss_init.c's InitCommon
+ * loads it from disk and assigns BIOS_SHA256.  Definition stays
+ * here so the rest of ss.cpp's globals layout is undisturbed. */
+uint16_t BIOSROM[524288 / sizeof(uint16_t)];
 uint8_t WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
 // Effectively 32-bit in reality, but 16-bit here because of CPU interpreter design(regarding fastmap).
 uint16_t* WorkRAML = (uint16_t*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*0));
@@ -574,41 +577,10 @@ static NO_INLINE MDFN_HOT int32_t RunLoop(EmulateSpecStruct* espec)
  #pragma GCC pop_options
 #endif
 
-// Must not be called within an event or read/write handler.
-void SS_Reset(bool powering_up)
-{
- SH7095_BusLock = 0;
-
- if(powering_up)
- {
-   memset(WorkRAM, 0x00, sizeof(WorkRAM));   // TODO: Check real hardware
- }
-
- if(powering_up)
- {
-  CPU[0].TruePowerOn();
-  CPU[1].TruePowerOn();
- }
-
- SCU_Reset(powering_up);
- CPU[0].Reset(powering_up);
-
- // ST-V's I/O board must reset before SMPC -- SMPC's port shim
- // (IODevice_STVSMPC) consults state that STVIO_Reset re-initialises.
- if(ActiveCartType == CART_STV)
-   STVIO_Reset(powering_up);
-
- SMPC_Reset(powering_up);
-
- VDP1_Reset(powering_up);
- VDP2_Reset(powering_up);
-
- CDB_Reset(powering_up);
-
- SOUND_Reset(powering_up);
-
- CART_Reset(powering_up);
-}
+/* Phase-7f: SS_Reset moved to ss_init.c.  The three CPU class-method
+ * calls it dispatches (CPU[c].TruePowerOn, CPU[0].Reset) are exposed
+ * through the SH7095_{M,S}_{TruePowerOn,Reset} extern "C" wrappers
+ * added below in this phase.  Retires when SH7095 becomes a C struct. */
 
 /* Phase-7e: MidSync, UpdateSMPCInput, Emulate (and the file-statics
  * espec / AllowMidSync / cur_clock_div they share) moved to ss_init.c.
@@ -619,340 +591,35 @@ void SS_Reset(bool powering_up)
  * first loop calls CPU[c].ForceInternalEventUpdates (an SH7095 class
  * method); SH7095_{M,S}_AdjustTS wraps CPU[0/1].AdjustTS.  All four
  * retire once the SH7095 class becomes a C struct. */
-extern "C" int32_t SS_RunLoop_ICache(EmulateSpecStruct* espec)   { return RunLoop<true>(espec); }
-extern "C" int32_t SS_RunLoop_NoICache(EmulateSpecStruct* espec) { return RunLoop<false>(espec); }
-extern "C" void    SS_ForceEventUpdates(int32_t timestamp)       { ForceEventUpdates(timestamp); }
-extern "C" void    SH7095_M_AdjustTS(int32_t delta)              { CPU[0].AdjustTS(delta); }
-extern "C" void    SH7095_S_AdjustTS(int32_t delta)              { CPU[1].AdjustTS(delta); }
+extern "C" int32_t SS_RunLoop_ICache(EmulateSpecStruct* espec)                                   { return RunLoop<true>(espec); }
+extern "C" int32_t SS_RunLoop_NoICache(EmulateSpecStruct* espec)                                 { return RunLoop<false>(espec); }
+extern "C" void    SS_ForceEventUpdates(int32_t timestamp)                                       { ForceEventUpdates(timestamp); }
+extern "C" void    SH7095_M_AdjustTS(int32_t delta)                                              { CPU[0].AdjustTS(delta); }
+extern "C" void    SH7095_S_AdjustTS(int32_t delta)                                              { CPU[1].AdjustTS(delta); }
+
+/* Phase-7f: SH7095 wrappers used by InitCommon (Init / SetMD5 /
+ * TruePowerOn) and SS_Reset (TruePowerOn / Reset).  Retires when
+ * SH7095 becomes a C struct. */
+extern "C" MDFN_COLD void SH7095_M_Init(const bool emumode_full, const bool emumode_cb_only)     { CPU[0].Init(emumode_full, emumode_cb_only); }
+extern "C" MDFN_COLD void SH7095_S_Init(const bool emumode_full, const bool emumode_cb_only)     { CPU[1].Init(emumode_full, emumode_cb_only); }
+extern "C" void           SH7095_M_SetMD5(bool level)                                            { CPU[0].SetMD5(level); }
+extern "C" void           SH7095_S_SetMD5(bool level)                                            { CPU[1].SetMD5(level); }
+extern "C" MDFN_COLD void SH7095_M_TruePowerOn(void)                                             { CPU[0].TruePowerOn(); }
+extern "C" MDFN_COLD void SH7095_S_TruePowerOn(void)                                             { CPU[1].TruePowerOn(); }
+extern "C" MDFN_COLD void SH7095_M_Reset(bool power_on_reset)                                    { CPU[0].Reset(power_on_reset); }
 
 
 //
 //
 //
 
-static MDFN_COLD void Cleanup(void)
-{
- CART_Kill();
-
- VDP1_Kill();
- VDP2_Kill();
- SOUND_Kill();
- CDB_Kill();
- STVIO_Kill();
- SMPC_Kill();
-
- disc_cleanup();
-}
-
-typedef struct
-{
-   const unsigned type;
-   const char *name;
-} CartName;
-
-bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrible_hacks, const unsigned cart_type, const unsigned smpc_area, const char* rom_dir, const char* main_fname, const STVGameInfo* sgi)
-{
- //
-
-   unsigned i;
- //
- {
-  const struct
-  {
-   unsigned mode;
-   const char* name;
-  } CPUCacheEmuModes[] =
-  {
-   { CPUCACHE_EMUMODE_DATA_CB,   _("Data only, with high-level bypass") },
-   { CPUCACHE_EMUMODE_DATA,   _("Data only") },
-   { CPUCACHE_EMUMODE_FULL,   _("Full") },
-  };
-  const char* cem = _("Unknown");
-
-  for(auto const& ceme : CPUCacheEmuModes)
-  {
-   if(ceme.mode == cpucache_emumode)
-   {
-    cem = ceme.name;
-    break;
-   }
-  }
-  log_cb(RETRO_LOG_INFO, "CPU Cache Emulation Mode: %s\n", cem);
- }
- //
- if(horrible_hacks)
-  log_cb(RETRO_LOG_INFO, "Horrible hacks: 0x%08x\n", horrible_hacks);
- //
-   {
-      log_cb(RETRO_LOG_INFO, "Region: 0x%01x.\n", smpc_area);
-      const CartName CartNames[] =
-      {
-         { CART_NONE, "None" },
-         { CART_BACKUP_MEM, "Backup Memory" },
-         { CART_EXTRAM_1M, "1MiB Extended RAM" },
-         { CART_EXTRAM_4M, "4MiB Extended RAM" },
-         { CART_KOF95, "King of Fighters '95 ROM" },
-         { CART_ULTRAMAN, "Ultraman ROM" },
-         { CART_CS1RAM_16M, _("16MiB CS1 RAM") },
-         { CART_NLMODEM, _("Netlink Modem") },
-         { CART_STV, _("Sega Titan Video (ST-V)") },
-         { CART_BOOTROM, _("Bootable ROM") } 
-      };
-      const char* cn = nullptr;
-
-      for(i = 0; i < ARRAY_SIZE(CartNames); i++)
-      {
-         CartName cne = CartNames[i];
-         if(cne.type != cart_type)
-            continue;
-         cn = cne.name;
-         break;
-      }
-      if ( cn ) {
-         log_cb(RETRO_LOG_INFO, "Cart: %s.\n", cn);
-     } else {
-         log_cb(RETRO_LOG_INFO, "Cart: Unknown (%d).\n", cart_type );
-     }
-   }
-   //
-
-   NeedEmuICache = (cpucache_emumode == CPUCACHE_EMUMODE_FULL);
-   for(i = 0; i < 2; i++)
-   {
-      CPU[i].Init((cpucache_emumode == CPUCACHE_EMUMODE_FULL), (cpucache_emumode == CPUCACHE_EMUMODE_DATA_CB));
-      CPU[i].SetMD5((bool)i);
-   }
- SH7095_mem_timestamp = 0;
- SH7095_DB = 0;
-
- ss_horrible_hacks = horrible_hacks;
-
-   //
-   // Initialize backup memory.
-   //
-   memset(BackupRAM, 0x00, sizeof(BackupRAM));
-   for(i = 0; i < 0x40; i++)
-      BackupRAM[i] = BRAM_Init_Data[i & 0x0F];
-
-   // Call InitFastMemMap() before functions like SOUND_Init()
-   if(!InitFastMemMap())
-   {
-      Cleanup();
-      return false;
-   }
-   SS_SetPhysMemMap(0x00000000, 0x000FFFFF, BIOSROM, sizeof(BIOSROM));
-   SS_SetPhysMemMap(0x00200000, 0x003FFFFF, WorkRAML, WORKRAM_BANK_SIZE_BYTES, true);
-   SS_SetPhysMemMap(0x06000000, 0x07FFFFFF, WorkRAMH, WORKRAM_BANK_SIZE_BYTES, true);
-   MDFNMP_RegSearchable(0x00200000, WORKRAM_BANK_SIZE_BYTES);
-   MDFNMP_RegSearchable(0x06000000, WORKRAM_BANK_SIZE_BYTES);
-
-   if(!CART_Init(cart_type, rom_dir, main_fname, sgi))
-   {
-      Cleanup();
-      return false;
-   }
-   ActiveCartType = cart_type;
-
-   //
-   //
-   //
-   const bool is_stv = (cart_type == CART_STV);
-   // ST-V runs on a monitor, not on a TV; force 60 Hz timing
-   // regardless of region. PAL ST-V cabinets exist but the video
-   // signal is still 60 Hz.
-   const bool PAL = is_pal = (!is_stv) && (smpc_area & SMPC_AREA__PAL_MASK);
-   const int32_t MasterClock = PAL ? 1734687500 : 1746818182; // NTSC: 1746818181.8181818181, PAL: 1734687500-ish
-   const char* bios_filename;
-   int sls = MDFN_GetSettingI(PAL ? "ss.slstartp" : "ss.slstart");
-   int sle = MDFN_GetSettingI(PAL ? "ss.slendp" : "ss.slend");
- const uint64_t vdp2_affinity = 0; /*LibRetro: unused*/
-
-   if(sls > sle)
-   {
-      /* std::swap(sls, sle) folded; braced because this is an
-       * unbraced if body. */
-      int tmp_sl = sls;
-      sls = sle;
-      sle = tmp_sl;
-   }
-
-   if(is_stv)
-   {
-      // ST-V BIOSes are 128 KiB (vs Saturn's 512 KiB) and live in their
-      // own filename namespace. Hardcoded to match the fork's existing
-      // BIOS-filename convention for sega_101.bin / mpr-17933.bin.
-      // Users supply the actual files in retro_base_directory.
-      //   JP / Asia-NTSC:                       epr-20091.ic8
-      //   NA / CSA-NTSC / CSA-PAL:              epr-17952a.ic8
-      //   EU / Asia-PAL / Korea / everything else: epr-17954a.ic8
-      if(smpc_area == SMPC_AREA_JP || smpc_area == SMPC_AREA_ASIA_NTSC)
-         bios_filename = "epr-20091.ic8";
-      else if(smpc_area == SMPC_AREA_NA || smpc_area == SMPC_AREA_CSA_NTSC || smpc_area == SMPC_AREA_CSA_PAL)
-         bios_filename = "epr-17952a.ic8";
-      else
-         bios_filename = "epr-17954a.ic8";
-   }
-   else if(smpc_area == SMPC_AREA_JP || smpc_area == SMPC_AREA_ASIA_NTSC)
-      bios_filename = "sega_101.bin"; // Japan
-   else
-      bios_filename = "mpr-17933.bin"; // North America and Europe
-
-   {
-      char bios_path[4096];
-      snprintf(bios_path, sizeof(bios_path), "%s" RETRO_SLASH "%s", retro_base_directory, bios_filename);
-
-      RFILE *BIOSFile = filestream_open(bios_path,
-            RETRO_VFS_FILE_ACCESS_READ,
-            RETRO_VFS_FILE_ACCESS_HINT_NONE);
-
-      if(!BIOSFile)
-      {
-         log_cb(RETRO_LOG_ERROR, "Cannot open BIOS file \"%s\".\n", bios_path);
-         Cleanup();
-         return false;
-      }
-
-      // Saturn BIOSes are 512 KiB; ST-V BIOSes are 128 KiB
-      // (mapped into the upper half of the 512 KiB BIOSROM[] array
-      // and read by the SH-2 from the same 0x00000000-0x000FFFFF
-      // window). Accept either size.
-      //
-      // filestream_get_size must come AFTER the BIOSFile NULL check
-      // -- on filestream_open failure BIOSFile is NULL and passing
-      // it to get_size would be undefined.
-      const int64_t bios_size = filestream_get_size(BIOSFile);
-      if(bios_size != 524288 && !(is_stv && bios_size == 131072))
-      {
-         log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" is of an incorrect size.\n", bios_path);
-         filestream_close(BIOSFile);
-         Cleanup();
-         return false;
-      }
-      else
-      {
-         memset(BIOSROM, 0xFF, sizeof(BIOSROM));
-         /* Short read between get_size and the actual read would
-          * leave BIOSROM half-loaded (head: partial BIOS bytes,
-          * tail: 0xFF from the memset above), BIOS_SHA256 would
-          * hash the corrupted data, and the byte-swap loop below
-          * would scramble it further.  Fail init with a clear
-          * error rather than silently emulating with a corrupted
-          * BIOS image. */
-         if(filestream_read(BIOSFile, BIOSROM, bios_size) != bios_size)
-         {
-            log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" could not be fully read (short or failed read).\n", bios_path);
-            filestream_close(BIOSFile);
-            Cleanup();
-            return false;
-         }
-         filestream_close(BIOSFile);
-         BIOS_SHA256 = sha256(BIOSROM, 512 * 1024);
-
-         // swap endian-ness
-         for(unsigned i = 0; i < (bios_size / 2); i++)
-         {
-            /* MDFN_de16msb folded: BE-on-disk to host-endian. */
-#ifndef MSB_FIRST
-            BIOSROM[i] = (uint16_t)((BIOSROM[i] << 8) | (BIOSROM[i] >> 8));
-#endif
-         }
-      }
-   }
-
-   EmulatedSS.MasterClock = MDFN_MASTERCLOCK_FIXED(MasterClock);
-
-   SCU_Init();
-   SMPC_Init(smpc_area, MasterClock, is_stv);
-   VDP1_Init();
-   VDP2_Init(PAL,vdp2_affinity);
-   VDP2_SetGetVideoParams(&EmulatedSS, true, sls, sle, true, DoHBlend);
-   CDB_Init();
-   SOUND_Init();
-
-   InitEvents();
-   UpdateInputLastBigTS = 0;
-
-   // Apply multi-tap state to SMPC
-   SMPC_SetMultitap( 0, setting_multitap_port1 );
-   SMPC_SetMultitap( 1, setting_multitap_port2 );
-
-   if(is_stv)
-   {
-      // ST-V provides its own SMPC port shim (handles AK93C45 EEPROM
-      // and 68K sound-CPU control), and routes player input through
-      // STVIO_SetInput / STVIO_UpdateInput rather than the standard
-      // per-virtual-port path. Init the I/O board first, then inject
-      // the port shims into SMPC super-ports 0 and 1.
-      STVIO_Init(sgi);
-      for(unsigned sp = 0; sp < 2; sp++)
-         SMPC_SetInput(sp, "extern", (uint8_t*)STVIO_GetSMPCDevice(sp));
-   }
-
-   SS_LoadRTC();
-   SS_LoadBackupRAM();
-   SS_LoadCartNV();
-
-   SS_BackupBackupRAM();
-   SS_BackupCartNV();
-
-   // Just-loaded state is by definition clean. The cycle-counted
-   // SaveDelay variables are gone -- see comment in Emulate().
-   BackupRAM_Dirty = false;
-   CART_GetClearNVDirty();
-   CartNV_Dirty = false;
-   //
-   if(MDFN_GetSettingB("ss.smpc.autortc"))
-   {
-      time_t ut;
-      struct tm* ht;
-
-      if((ut = time(NULL)) == (time_t)-1)
-      {
-         log_cb(RETRO_LOG_ERROR,
-               "AutoRTC error #1\n");
-         // Previously this just returned false, leaving the VDP2
-         // render thread, semaphore, queue, SCU, SMPC, etc. fully
-         // initialised. A subsequent load would then double-init
-         // and race with the orphaned render thread.
-         Cleanup();
-         return false;
-      }
-
-      if((ht = localtime(&ut)) == NULL)
-      {
-         log_cb(RETRO_LOG_ERROR,
-               "AutoRTC error #2\n");
-         Cleanup();
-         return false;
-      }
-
-      SMPC_SetRTC(ht, MDFN_GetSettingUI("ss.smpc.autortc.lang"));
-   }
-   //
-   SS_Reset(true);
-
-   return true;
-}
-
-MDFN_COLD void CloseGame(void)
-{
- //
- //
-#ifdef SH7095_OP_PAIR_PROFILE
- SS_DumpOpPairProfile();
-#endif
-
- SS_SaveBackupRAM();
- SS_SaveCartNV();
- SS_SaveRTC();
-
- Cleanup();
-}
-
-void MDFN_BackupSavFile(const uint8_t max_backup_count, const char* sav_ext)
-{
-   // stub for libretro port
-}
+/* Phase-7f: Cleanup, CartName typedef, InitCommon, CloseGame, and
+ * MDFN_BackupSavFile moved to ss_init.c.  The SH7095 method calls
+ * they used (CPU[c].Init/SetMD5/TruePowerOn from InitCommon, and
+ * CPU[c].Reset/TruePowerOn from SS_Reset which also moved) are
+ * reached through the extern "C" SH7095_{M,S}_{Init,SetMD5,
+ * TruePowerOn,Reset} wrappers above.  Retires together with those
+ * wrappers when the SH7095 class becomes a C struct. */
 
 /* Phase-7b: BackupRAM / Cart NV / RTC file I/O moved to
  * ss_state.c.  The SS_Flush* public wrappers above still live
