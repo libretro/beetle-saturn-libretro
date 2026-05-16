@@ -27,7 +27,7 @@
 template<bool looped, unsigned op>
 static NO_INLINE NO_CLONE void MiscInstr(DSPS* dsp)
 {
- DSP_InstrPre<looped>(dsp);
+ DSP_InstrPre(dsp, looped);
 
  //
  // END/ENDI
@@ -57,7 +57,7 @@ static NO_INLINE NO_CLONE void MiscInstr(DSPS* dsp)
  }
  else if(op == 1)	// LPS
  {
-  dsp->NextInstr = DSP_DecodeInstruction<true>(dsp->NextInstr >> 32);
+  dsp->NextInstr = DSP_DecodeInstruction(dsp->NextInstr >> 32, true);
  }
 
  DSP_TailDispatch(dsp);

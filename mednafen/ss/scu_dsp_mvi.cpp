@@ -27,7 +27,7 @@
 template<bool looped, unsigned dest, unsigned cond>
 static NO_INLINE NO_CLONE void MVIInstr(DSPS* dsp)
 {
- const uint32_t instr = DSP_InstrPre<looped>(dsp);
+ const uint32_t instr = DSP_InstrPre(dsp, looped);
  uint32_t imm;
 
  if(cond & 0x40)
@@ -35,7 +35,7 @@ static NO_INLINE NO_CLONE void MVIInstr(DSPS* dsp)
  else
   imm = sign_x_to_s32(25, instr);
 
- if(DSP_TestCond<cond>(dsp))
+ if(DSP_TestCond(dsp, cond))
  {
   if(dsp->PRAMDMABufCount && (dest == 0x6 || dest == 0x7))
   {

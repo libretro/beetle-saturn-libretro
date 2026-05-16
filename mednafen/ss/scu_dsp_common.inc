@@ -70,11 +70,6 @@ struct DSPS
  };
  int32_t State;
 
- FORCE_INLINE bool IsRunning(void)	// returns true if not stopped and not paused.
- {
-  return State > 0;
- }
-
  uint64_t NextInstr;
 
  uint8_t PC;
@@ -116,6 +111,17 @@ struct DSPS
  uint32_t PRAMDMABufCount;
 };
 
+/* Phase-5a: replaces the struct's `FORCE_INLINE bool IsRunning(void)`
+ * member function.  Same semantics (returns true iff not stopped and
+ * not paused), C-callable free function form; pre-rename of the four
+ * scu_dsp_*.cpp TUs.  All callers use `DSPS_IsRunning(&DSP)` or
+ * `DSPS_IsRunning(dsp)` -- the member-function `DSP.IsRunning()` /
+ * `dsp->IsRunning()` spellings are gone. */
+static FORCE_INLINE bool DSPS_IsRunning(const struct DSPS* dsp)
+{
+ return dsp->State > 0;
+}
+
 
 // ALU Op: bits 26-29	- *16
 //   X Op: bits 23-25	- * 8
@@ -151,10 +157,15 @@ MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(DSPS*);
 
 MDFN_HIDE extern DSPS DSP;
 
-template<bool looped = false>
-static FORCE_INLINE uint64_t DSP_DecodeInstruction(const uint32_t instr)
+/* Phase-5a: was `template<bool looped = false> static FORCE_INLINE
+ * uint64_t DSP_DecodeInstruction(const uint32_t instr)`.  All call
+ * sites pass a compile-time-constant `looped`, so with FORCE_INLINE
+ * + -O2 the `looped` argument is constant-folded across the switch
+ * arms identically to the template instantiation -- gcc emits the
+ * same per-call code as the template did. */
+static FORCE_INLINE uint64_t DSP_DecodeInstruction(const uint32_t instr, const bool looped)
 {
- void (*aal)(DSPS*);
+ void (*aal)(struct DSPS*);
 
  switch((instr >> 28) & 0xF)
  {
@@ -193,8 +204,12 @@ static FORCE_INLINE uint64_t DSP_DecodeInstruction(const uint32_t instr)
  return ((uint64_t)instr << 32) | (uint32_t)((uintptr_t)aal - DSP_INSTR_BASE_UIPT);
 }
 
-template<bool looped>
-static FORCE_INLINE uint32_t DSP_InstrPre(DSPS* dsp)
+/* Phase-5a: was `template<bool looped> static FORCE_INLINE uint32_t
+ * DSP_InstrPre(DSPS* dsp)`.  Caller passes `looped` as a compile-time
+ * constant (template arg of the surrounding instruction-handler in
+ * scu_dsp_*.cpp); FORCE_INLINE + -O2 folds the if-branches identically
+ * to the template form. */
+static FORCE_INLINE uint32_t DSP_InstrPre(struct DSPS* dsp, const bool looped)
 {
  const uint32_t instr = dsp->NextInstr >> 32;
 
@@ -222,18 +237,21 @@ static FORCE_INLINE uint32_t DSP_InstrPre(DSPS* dsp)
 // below into a tail jump (verified on GCC 15 / -O2 / aarch64); even
 // when they don't, the bounded depth keeps the stack safe.
 //
-static FORCE_INLINE void DSP_TailDispatch(DSPS* dsp)
+static FORCE_INLINE void DSP_TailDispatch(struct DSPS* dsp)
 {
  dsp->CycleCounter -= 2;
- if(MDFN_UNLIKELY(dsp->CycleCounter <= 0 || !dsp->IsRunning()))
+ if(MDFN_UNLIKELY(dsp->CycleCounter <= 0 || !DSPS_IsRunning(dsp)))
   return;
 
- void (* const next)(DSPS*) = (void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)dsp->NextInstr);
+ void (* const next)(struct DSPS*) = (void (*)(struct DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)dsp->NextInstr);
  next(dsp);
 }
 
-template<unsigned cond>
-static FORCE_INLINE bool DSP_TestCond(DSPS* dsp)
+/* Phase-5a: was `template<unsigned cond> static FORCE_INLINE bool
+ * DSP_TestCond(DSPS* dsp)`.  Caller passes `cond` as a compile-time
+ * constant; FORCE_INLINE + -O2 folds the bit-checks identically to
+ * the template form. */
+static FORCE_INLINE bool DSP_TestCond(const struct DSPS* dsp, const unsigned cond)
 {
  if(!(cond & 0x40))
   return true;

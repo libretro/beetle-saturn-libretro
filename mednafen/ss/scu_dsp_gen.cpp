@@ -57,7 +57,7 @@ static FORCE_INLINE void CalcZS48(DSPS* dsp, uint64_t val)
 template<const bool looped, const unsigned alu_op, const unsigned x_op, const unsigned y_op, const unsigned d1_op>
 static NO_INLINE NO_CLONE void GeneralInstr(DSPS* dsp)
 {
- const uint32_t instr = DSP_InstrPre<looped>(dsp);
+ const uint32_t instr = DSP_InstrPre(dsp, looped);
  //
  DSPR48 ALU = dsp->AC;
  unsigned dr_read = 0;

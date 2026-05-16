@@ -650,16 +650,16 @@ static INLINE void SCU_RegRW_DB(uint32_t A, uint32_t* DB)
 	if(*DB & (1U << 15))	// PC load
 	{
 	 DSP.PC = *DB;
-	 DSP.NextInstr = DSP_DecodeInstruction(0);
+	 DSP.NextInstr = DSP_DecodeInstruction(0, false);
 	 DSP.PRAMDMABufCount = 0;	// Kludgy~
 	}
 
-	SS_SetEventNT(&events[SS_EVENT_SCU_DSP], (DSP.IsRunning() ? SH7095_mem_timestamp + (DSP_UpdateTimingGran / 2) : SS_EVENT_DISABLED_TS));
+	SS_SetEventNT(&events[SS_EVENT_SCU_DSP], (DSPS_IsRunning(&DSP) ? SH7095_mem_timestamp + (DSP_UpdateTimingGran / 2) : SS_EVENT_DISABLED_TS));
 	break;
 
    case 0x84:
-	if(!DSP.IsRunning())
-	 DSP.ProgRAM[DSP.PC++] = DSP_DecodeInstruction(*DB);
+	if(!DSPS_IsRunning(&DSP))
+	 DSP.ProgRAM[DSP.PC++] = DSP_DecodeInstruction(*DB, false);
 	break;
 
    case 0x88:
@@ -667,7 +667,7 @@ static INLINE void SCU_RegRW_DB(uint32_t A, uint32_t* DB)
 	break;
 
    case 0x8C:
-	if(!DSP.IsRunning())
+	if(!DSPS_IsRunning(&DSP))
 	 MDAP(DSP.DataRAM)[DSP.RA++] = *DB;
 	break;
   }
@@ -754,7 +754,7 @@ static INLINE void SCU_RegRW_DB(uint32_t A, uint32_t* DB)
 	 tmp |= DSP.FlagC << 20;
 	 tmp |= DSP.FlagV << 19;
 	 tmp |= DSP.FlagEnd << 18;
-	 tmp |= DSP.IsRunning() << 16;
+	 tmp |= DSPS_IsRunning(&DSP) << 16;
 	 *DB = tmp;
 	 //
 	 DSP.FlagV = false;
@@ -764,7 +764,7 @@ static INLINE void SCU_RegRW_DB(uint32_t A, uint32_t* DB)
 	break;
 
    case 0x8C:
-	if(!DSP.IsRunning())
+	if(!DSPS_IsRunning(&DSP))
 	 *DB = MDAP(DSP.DataRAM)[DSP.RA++];
 	else
 	 *DB = 0xFFFFFFFF;
@@ -1661,7 +1661,7 @@ sscpu_timestamp_t SCU_UpdateDSP(sscpu_timestamp_t timestamp)
  if(DSP.CycleCounter > DSP_UpdateTimingGran)
   DSP.CycleCounter = DSP_UpdateTimingGran;
 
- if(MDFN_UNLIKELY(!DSP.IsRunning()))
+ if(MDFN_UNLIKELY(!DSPS_IsRunning(&DSP)))
   return SS_EVENT_DISABLED_TS;
 
  {
@@ -1673,7 +1673,7 @@ sscpu_timestamp_t SCU_UpdateDSP(sscpu_timestamp_t timestamp)
    ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)dsp->NextInstr))(dsp);
  }
 
- if(MDFN_UNLIKELY(!DSP.IsRunning()))
+ if(MDFN_UNLIKELY(!DSPS_IsRunning(&DSP)))
  {
   DSP.CycleCounter += DSP_EndCCSubVal;
   return SS_EVENT_DISABLED_TS;
@@ -1691,7 +1691,7 @@ static void DSP_Reset(bool powering_up)
  if(powering_up)
  {
   for(unsigned i = 0; i < 256; i++)
-   DSP.ProgRAM[i] = DSP_DecodeInstruction(0);
+   DSP.ProgRAM[i] = DSP_DecodeInstruction(0, false);
 
   for(unsigned i = 0; i < 256; i++)
    MDAP(DSP.DataRAM)[i] = 0;
@@ -1706,7 +1706,7 @@ static void DSP_Reset(bool powering_up)
  DSP.FlagEnd = false;
  SCU_SetInt(SCU_INT_DSP, false);
 
- DSP.NextInstr = DSP_DecodeInstruction(0);
+ DSP.NextInstr = DSP_DecodeInstruction(0, false);
 
  DSP.TOP = 0;
  DSP.LOP = 0;
@@ -1740,18 +1740,18 @@ void DSP_FinishPRAMDMA(void)
  DSP.T0_Until = DSP.CycleCounter;
 
  for(uint32_t i = 0; i < DSP.PRAMDMABufCount; i++)
-  DSP.ProgRAM[DSP.PC++] = DSP_DecodeInstruction(DSP.PRAMDMABuf[i & 0xFF]);
+  DSP.ProgRAM[DSP.PC++] = DSP_DecodeInstruction(DSP.PRAMDMABuf[i & 0xFF], false);
 
  DSP.PRAMDMABufCount = 0;
  //
  DSP.PC = DSP.TOP;
- DSP.NextInstr = DSP_DecodeInstruction(0);
+ DSP.NextInstr = DSP_DecodeInstruction(0, false);
 }
 
 template<bool looped, bool hold, bool format, bool dir, unsigned drw>
 static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)
 {
- const uint32_t instr = DSP_InstrPre<looped>(dsp);
+ const uint32_t instr = DSP_InstrPre(dsp, looped);
  const unsigned add_mode = (instr >> 15) & 0x7;
  uint8_t count;	// 0 = 256
 
@@ -2152,7 +2152,7 @@ static MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const b
   DSP_ProgRAM[i] = DSP.ProgRAM[i] >> 32;
 
  DSP_NextInstr = DSP.NextInstr >> 32;
- DSP_NextInstrLooped = (DSP.NextInstr == DSP_DecodeInstruction<true>(DSP.NextInstr >> 32));
+ DSP_NextInstrLooped = (DSP.NextInstr == DSP_DecodeInstruction(DSP.NextInstr >> 32, true));
  //
  //
  const DMAWriteTabS* const dwt_ptrs[2] = { (const DMAWriteTabS*)dma_write_tab.acb, (const DMAWriteTabS*)dma_write_tab.aciv1 };
@@ -2211,12 +2211,12 @@ static MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const b
   //
   //
   for(unsigned i = 0; i < 256; i++)
-   DSP.ProgRAM[i] = DSP_DecodeInstruction(DSP_ProgRAM[i]);
+   DSP.ProgRAM[i] = DSP_DecodeInstruction(DSP_ProgRAM[i], false);
 
   if(DSP_NextInstrLooped)
-   DSP.NextInstr = DSP_DecodeInstruction<true>(DSP_NextInstr);
+   DSP.NextInstr = DSP_DecodeInstruction(DSP_NextInstr, true);
   else
-   DSP.NextInstr = DSP_DecodeInstruction(DSP_NextInstr);
+   DSP.NextInstr = DSP_DecodeInstruction(DSP_NextInstr, false);
 
   for(unsigned i = 0; i < 4; i++)
    DSP.CT[i] &= 0x3F;
