@@ -2686,233 +2686,301 @@ static INLINE void MakeSpriteCCLUT(void)
   SpriteCC3Mask = 1U << PIX_CCE_SHIFT;
 }
 
-template<bool TA_HiRes, bool TA_TPShadSel, unsigned TA_SPCTL_Low>
-static void T_DrawSpriteData(const uint16_t* vdp1sb, const bool vdp1_hires8, unsigned w)
-{
- const unsigned SpriteType = (TA_SPCTL_Low & 0xF);
- const bool SpriteWinEn = (TA_SPCTL_Low & 0x10);
- const bool SpriteColorMode = (TA_SPCTL_Low & 0x20);
- //
- const size_t cao = CRAMAddrOffs_Sprite << 8;
- uint32_t spix_base_or = 0;
-
- spix_base_or |= ((ColorOffsEn >> 6) & 1) << PIX_COE_SHIFT;
- spix_base_or |= ((ColorOffsSel >> 6) & 1) << PIX_COSEL_SHIFT;
- spix_base_or |= ((LineColorEn >> 5/*5 here, not 6*/) & 1) << PIX_LCE_SHIFT;
- spix_base_or |= (((CCCTL >> 12) & 0x7) == 0x0) << PIX_GRAD_SHIFT;
- spix_base_or |= ((CCCTL >> 6) & 1) << PIX_LAYER_CCE_SHIFT;
-
- for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
- {
-  unsigned src;
-  unsigned pr = 0, cc = 0;
-  bool tp = false;
-  uint64_t spix;
-
-  src = vdp1sb[i >> TA_HiRes];
-
-  if(vdp1_hires8)
-  {
-   if(TA_HiRes)
-    src = 0xFF00 | (src >> (((i & 1) ^ 1) << 3));
-   else
-    src = 0xFF00 | (src >> 8);
-  }
-
-  if(SpriteColorMode && (src & 0x8000))
-  {
-   spix = (uint64_t)rgb15_to_rgb24(src) << PIX_RGB_SHIFT;
-   spix |= 1U << PIX_ISRGB_SHIFT;
-   spix |= SpriteCC3Mask;
-
-   if(SpriteType & 0x8)
-    tp = !(src & 0xFF);
-   else if(SpriteWinEn)
-   {
-    if(SpriteType >= 0x2 && SpriteType <= 0x7)
-     tp = !(src & 0x7FFF);
-   }
-  }
-  else
-  {
-   bool nshad = false;
-   bool sd = false;
-   unsigned dc;
-
-   if(SpriteType & 0x8)
-    src &= 0xFF;
-
-   tp = !src;
-
-   switch(SpriteType)
-   {
-     case 0x0:
-	pr = (src >> 14) & 0x3;
-	cc = (src >> 11) & 0x7;
-	dc = src & 0x7FF;
-	nshad = (dc == 0x7FE);
-	break;
-
-     case 0x1:
-	pr = (src >> 13) & 0x7;
-	cc = (src >> 11) & 0x3;
-	dc = src & 0x7FF;
-	nshad = (dc == 0x7FE);
-	break;
-
-     case 0x2:
-	sd = (src >> 15) & 0x1;
-	pr = (src >> 14) & 0x1;
-	cc = (src >> 11) & 0x7;
-	dc = src & 0x7FF;
-	nshad = (dc == 0x7FE);
-	break;
-
-     case 0x3:
-	sd = (src >> 15) & 0x1;
-	pr = (src >> 13) & 0x3;
-	cc = (src >> 11) & 0x3;
-	dc = src & 0x7FF;
-	nshad = (dc == 0x7FE);
-	break;
-
-     case 0x4:
-	sd = (src >> 15) & 0x1;
-	pr = (src >> 13) & 0x3;
-	cc = (src >> 10) & 0x7;
-	dc = src & 0x3FF;
-	nshad = (dc == 0x3FE);
-	break;
-
-     case 0x5:
-	sd = (src >> 15) & 0x1;
-	pr = (src >> 12) & 0x7;
-	cc = (src >> 11) & 0x1;
-	dc = src & 0x7FF;
-	nshad = (dc == 0x7FE);
-	break;
-
-     case 0x6:
-	sd = (src >> 15) & 0x1;
-	pr = (src >> 12) & 0x7;
-	cc = (src >> 10) & 0x3;
-	dc = src & 0x3FF;
-	nshad = (dc == 0x3FE);
-	break;
-
-     case 0x7:
-	sd = (src >> 15) & 0x1;
-	pr = (src >> 12) & 0x7;
-	cc = (src >>  9) & 0x7;
-	dc = src & 0x1FF;
-	nshad = (dc == 0x1FE);
-	break;
-     //
-     //
-     //
-     case 0x8:
-	pr = (src >> 7) & 0x1;
-	dc = src & 0x7F;
-	nshad = (dc == 0x7E);
-	break;
-
-     case 0x9:
-	pr = (src >> 7) & 0x1;
-	cc = (src >> 6) & 0x1;
-	dc = src & 0x3F;
-	nshad = (dc == 0x3E);
-	break;
-
-     case 0xA:
-	pr = (src >> 6) & 0x3;
-	dc = src & 0x3F;
-	nshad = (dc == 0x3E);
-	break;
-
-     case 0xB:
-	cc = (src >> 6) & 0x3;
-	dc = src & 0x3F;
-	nshad = (dc == 0x3E);
-	break;
-     //
-     case 0xC:
-	pr = (src >> 7) & 0x1;
-	dc = src & 0xFF;
-	nshad = (dc == 0xFE);
-	break;
-
-     case 0xD:
-	pr = (src >> 7) & 0x1;
-	cc = (src >> 6) & 0x1;
-	dc = src & 0xFF;
-	nshad = (dc == 0xFE);
-	break;
-
-     case 0xE:
-	pr = (src >> 6) & 0x3;
-	dc = src & 0xFF;
-	nshad = (dc == 0xFE);
-	break;
-
-     case 0xF:
-	cc = (src >> 6) & 0x3;
-	dc = src & 0xFF;
-	nshad = (dc == 0xFE);
-	break;
-   }
-   //
-   //
-   //
-   uint32_t rgb24 = ColorCache[(cao + dc) & 0x7FF];
-
-   spix = (uint64_t)rgb24 << PIX_RGB_SHIFT;
-
-   spix |= ((int32_t)rgb24 >> 31) & SpriteCC3Mask;
-
-   if(SpriteWinEn)	// Sprite window enable
-    spix |= ((uint64_t)sd << PIX_SWBIT_SHIFT);
-
-   if(nshad)
-    spix |= 1 << PIX_DOSHAD_SHIFT;
-   else
-   {
-    if(SpriteWinEn)
-    {
-     if(SpriteType >= 0x2 && SpriteType <= 0x7)
-      tp = !(src & 0x7FFF);
-    }
-    else if(sd)
-    {
-     if(src & 0x7FFF)
-      spix |= 1 << PIX_SELFSHAD_SHIFT;
-     else if(TA_TPShadSel)
-      spix |= 1 << PIX_DOSHAD_SHIFT;
-     else
-      tp = true;
-    }
-   }
-  }
-
-  spix |= spix_base_or;
-  spix |= (tp ? 0 : SpritePrioNum[pr]) << PIX_PRIO_SHIFT;
-  spix |= SpriteCCRatio[cc] << PIX_CCRATIO_SHIFT;
-  spix |= SpriteCCLUT[pr];
-
-  LB.spr[i] = spix;
- }
+/* T_DrawSpriteData: was `template<bool TA_HiRes, bool TA_TPShadSel,
+ * unsigned TA_SPCTL_Low> static void T_DrawSpriteData(const
+ * uint16_t* vdp1sb, const bool vdp1_hires8, unsigned w)`.
+ * 256 specs: HIRES in {0,1}, TPSS in {0,1}, SPCTL in {0x00..0x3f}.
+ * Table layout [2][2][0x40] unchanged.
+ *
+ * Converted via the same X-macro pattern as T_DrawRBG_ConstAB /
+ * T_DrawNBG / T_DrawNBG23 / T_DrawRBG, with one new feature:
+ * the third dimension is a wide hex range (64 values).  The hex
+ * tokens (0x00..0x3f) paste-concatenate cleanly into the function-
+ * name suffix (e.g. T_DrawSpriteData_0_1_0x3f) -- pp-numbers are
+ * a single token and the resulting identifier is well-formed.
+ *
+ * Per-spec, the body only references each template arg a small
+ * number of times: TA_HiRes 2x, TA_TPShadSel 1x, TA_SPCTL_Low 3x.
+ * Most of the body uses local consts (SpriteType, SpriteWinEn,
+ * SpriteColorMode) derived from TA_SPCTL_Low at function entry --
+ * those derivations stay; with the macro form SPCTL is a literal
+ * so the constant-folding is identical to the template.
+ *
+ * Line-comments rewritten as block-comments for line-spliced
+ * macro safety, same convention as prior phases. */
+#define T_DrawSpriteData_BODY(HIRES, TPSS, SPCTL) \
+{                                                                                                                                           \
+ const unsigned SpriteType = ((SPCTL) & 0xF);                                                                                               \
+ const bool SpriteWinEn = ((SPCTL) & 0x10);                                                                                                 \
+ const bool SpriteColorMode = ((SPCTL) & 0x20);                                                                                             \
+/* */                                                                                                                                       \
+ const size_t cao = CRAMAddrOffs_Sprite << 8;                                                                                               \
+ uint32_t spix_base_or = 0;                                                                                                                 \
+                                                                                                                                           \
+ spix_base_or |= ((ColorOffsEn >> 6) & 1) << PIX_COE_SHIFT;                                                                                 \
+ spix_base_or |= ((ColorOffsSel >> 6) & 1) << PIX_COSEL_SHIFT;                                                                              \
+ spix_base_or |= ((LineColorEn >> 5/*5 here, not 6*/) & 1) << PIX_LCE_SHIFT;                                                                \
+ spix_base_or |= (((CCCTL >> 12) & 0x7) == 0x0) << PIX_GRAD_SHIFT;                                                                          \
+ spix_base_or |= ((CCCTL >> 6) & 1) << PIX_LAYER_CCE_SHIFT;                                                                                 \
+                                                                                                                                           \
+ for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                                               \
+ {                                                                                                                                          \
+  unsigned src;                                                                                                                             \
+  unsigned pr = 0, cc = 0;                                                                                                                  \
+  bool tp = false;                                                                                                                          \
+  uint64_t spix;                                                                                                                            \
+                                                                                                                                           \
+  src = vdp1sb[i >> (HIRES)];                                                                                                               \
+                                                                                                                                           \
+  if(vdp1_hires8)                                                                                                                           \
+  {                                                                                                                                         \
+   if((HIRES))                                                                                                                              \
+    src = 0xFF00 | (src >> (((i & 1) ^ 1) << 3));                                                                                           \
+   else                                                                                                                                     \
+    src = 0xFF00 | (src >> 8);                                                                                                              \
+  }                                                                                                                                         \
+                                                                                                                                           \
+  if(SpriteColorMode && (src & 0x8000))                                                                                                     \
+  {                                                                                                                                         \
+   spix = (uint64_t)rgb15_to_rgb24(src) << PIX_RGB_SHIFT;                                                                                   \
+   spix |= 1U << PIX_ISRGB_SHIFT;                                                                                                           \
+   spix |= SpriteCC3Mask;                                                                                                                   \
+                                                                                                                                           \
+   if(SpriteType & 0x8)                                                                                                                     \
+    tp = !(src & 0xFF);                                                                                                                     \
+   else if(SpriteWinEn)                                                                                                                     \
+   {                                                                                                                                        \
+    if(SpriteType >= 0x2 && SpriteType <= 0x7)                                                                                              \
+     tp = !(src & 0x7FFF);                                                                                                                  \
+   }                                                                                                                                        \
+  }                                                                                                                                         \
+  else                                                                                                                                      \
+  {                                                                                                                                         \
+   bool nshad = false;                                                                                                                      \
+   bool sd = false;                                                                                                                         \
+   unsigned dc;                                                                                                                             \
+                                                                                                                                           \
+   if(SpriteType & 0x8)                                                                                                                     \
+    src &= 0xFF;                                                                                                                            \
+                                                                                                                                           \
+   tp = !src;                                                                                                                               \
+                                                                                                                                           \
+   switch(SpriteType)                                                                                                                       \
+   {                                                                                                                                        \
+     case 0x0:                                                                                                                              \
+	pr = (src >> 14) & 0x3;                                                                                                                    \
+	cc = (src >> 11) & 0x7;                                                                                                                    \
+	dc = src & 0x7FF;                                                                                                                          \
+	nshad = (dc == 0x7FE);                                                                                                                     \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0x1:                                                                                                                              \
+	pr = (src >> 13) & 0x7;                                                                                                                    \
+	cc = (src >> 11) & 0x3;                                                                                                                    \
+	dc = src & 0x7FF;                                                                                                                          \
+	nshad = (dc == 0x7FE);                                                                                                                     \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0x2:                                                                                                                              \
+	sd = (src >> 15) & 0x1;                                                                                                                    \
+	pr = (src >> 14) & 0x1;                                                                                                                    \
+	cc = (src >> 11) & 0x7;                                                                                                                    \
+	dc = src & 0x7FF;                                                                                                                          \
+	nshad = (dc == 0x7FE);                                                                                                                     \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0x3:                                                                                                                              \
+	sd = (src >> 15) & 0x1;                                                                                                                    \
+	pr = (src >> 13) & 0x3;                                                                                                                    \
+	cc = (src >> 11) & 0x3;                                                                                                                    \
+	dc = src & 0x7FF;                                                                                                                          \
+	nshad = (dc == 0x7FE);                                                                                                                     \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0x4:                                                                                                                              \
+	sd = (src >> 15) & 0x1;                                                                                                                    \
+	pr = (src >> 13) & 0x3;                                                                                                                    \
+	cc = (src >> 10) & 0x7;                                                                                                                    \
+	dc = src & 0x3FF;                                                                                                                          \
+	nshad = (dc == 0x3FE);                                                                                                                     \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0x5:                                                                                                                              \
+	sd = (src >> 15) & 0x1;                                                                                                                    \
+	pr = (src >> 12) & 0x7;                                                                                                                    \
+	cc = (src >> 11) & 0x1;                                                                                                                    \
+	dc = src & 0x7FF;                                                                                                                          \
+	nshad = (dc == 0x7FE);                                                                                                                     \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0x6:                                                                                                                              \
+	sd = (src >> 15) & 0x1;                                                                                                                    \
+	pr = (src >> 12) & 0x7;                                                                                                                    \
+	cc = (src >> 10) & 0x3;                                                                                                                    \
+	dc = src & 0x3FF;                                                                                                                          \
+	nshad = (dc == 0x3FE);                                                                                                                     \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0x7:                                                                                                                              \
+	sd = (src >> 15) & 0x1;                                                                                                                    \
+	pr = (src >> 12) & 0x7;                                                                                                                    \
+	cc = (src >>  9) & 0x7;                                                                                                                    \
+	dc = src & 0x1FF;                                                                                                                          \
+	nshad = (dc == 0x1FE);                                                                                                                     \
+	break;                                                                                                                                     \
+/* */                                                                                                                                       \
+/* */                                                                                                                                       \
+/* */                                                                                                                                       \
+     case 0x8:                                                                                                                              \
+	pr = (src >> 7) & 0x1;                                                                                                                     \
+	dc = src & 0x7F;                                                                                                                           \
+	nshad = (dc == 0x7E);                                                                                                                      \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0x9:                                                                                                                              \
+	pr = (src >> 7) & 0x1;                                                                                                                     \
+	cc = (src >> 6) & 0x1;                                                                                                                     \
+	dc = src & 0x3F;                                                                                                                           \
+	nshad = (dc == 0x3E);                                                                                                                      \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0xA:                                                                                                                              \
+	pr = (src >> 6) & 0x3;                                                                                                                     \
+	dc = src & 0x3F;                                                                                                                           \
+	nshad = (dc == 0x3E);                                                                                                                      \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0xB:                                                                                                                              \
+	cc = (src >> 6) & 0x3;                                                                                                                     \
+	dc = src & 0x3F;                                                                                                                           \
+	nshad = (dc == 0x3E);                                                                                                                      \
+	break;                                                                                                                                     \
+/* */                                                                                                                                       \
+     case 0xC:                                                                                                                              \
+	pr = (src >> 7) & 0x1;                                                                                                                     \
+	dc = src & 0xFF;                                                                                                                           \
+	nshad = (dc == 0xFE);                                                                                                                      \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0xD:                                                                                                                              \
+	pr = (src >> 7) & 0x1;                                                                                                                     \
+	cc = (src >> 6) & 0x1;                                                                                                                     \
+	dc = src & 0xFF;                                                                                                                           \
+	nshad = (dc == 0xFE);                                                                                                                      \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0xE:                                                                                                                              \
+	pr = (src >> 6) & 0x3;                                                                                                                     \
+	dc = src & 0xFF;                                                                                                                           \
+	nshad = (dc == 0xFE);                                                                                                                      \
+	break;                                                                                                                                     \
+                                                                                                                                           \
+     case 0xF:                                                                                                                              \
+	cc = (src >> 6) & 0x3;                                                                                                                     \
+	dc = src & 0xFF;                                                                                                                           \
+	nshad = (dc == 0xFE);                                                                                                                      \
+	break;                                                                                                                                     \
+   }                                                                                                                                        \
+/* */                                                                                                                                       \
+/* */                                                                                                                                       \
+/* */                                                                                                                                       \
+   uint32_t rgb24 = ColorCache[(cao + dc) & 0x7FF];                                                                                         \
+                                                                                                                                           \
+   spix = (uint64_t)rgb24 << PIX_RGB_SHIFT;                                                                                                 \
+                                                                                                                                           \
+   spix |= ((int32_t)rgb24 >> 31) & SpriteCC3Mask;                                                                                          \
+                                                                                                                                           \
+   if(SpriteWinEn) /* Sprite window enable */                                                                                               \
+    spix |= ((uint64_t)sd << PIX_SWBIT_SHIFT);                                                                                              \
+                                                                                                                                           \
+   if(nshad)                                                                                                                                \
+    spix |= 1 << PIX_DOSHAD_SHIFT;                                                                                                          \
+   else                                                                                                                                     \
+   {                                                                                                                                        \
+    if(SpriteWinEn)                                                                                                                         \
+    {                                                                                                                                       \
+     if(SpriteType >= 0x2 && SpriteType <= 0x7)                                                                                             \
+      tp = !(src & 0x7FFF);                                                                                                                 \
+    }                                                                                                                                       \
+    else if(sd)                                                                                                                             \
+    {                                                                                                                                       \
+     if(src & 0x7FFF)                                                                                                                       \
+      spix |= 1 << PIX_SELFSHAD_SHIFT;                                                                                                      \
+     else if((TPSS))                                                                                                                        \
+      spix |= 1 << PIX_DOSHAD_SHIFT;                                                                                                        \
+     else                                                                                                                                   \
+      tp = true;                                                                                                                            \
+    }                                                                                                                                       \
+   }                                                                                                                                        \
+  }                                                                                                                                         \
+                                                                                                                                           \
+  spix |= spix_base_or;                                                                                                                     \
+  spix |= (tp ? 0 : SpritePrioNum[pr]) << PIX_PRIO_SHIFT;                                                                                   \
+  spix |= SpriteCCRatio[cc] << PIX_CCRATIO_SHIFT;                                                                                           \
+  spix |= SpriteCCLUT[pr];                                                                                                                  \
+                                                                                                                                           \
+  LB.spr[i] = spix;                                                                                                                         \
+ }                                                                                                                                          \
 }
+
+#define T_DrawSpriteData_NAME(HIRES, TPSS, SPCTL) \
+ T_DrawSpriteData_##HIRES##_##TPSS##_##SPCTL
+
+#define DEFINE_T_DrawSpriteData(HIRES, TPSS, SPCTL)                                                            \
+ static void T_DrawSpriteData_NAME(HIRES, TPSS, SPCTL)(const uint16_t* vdp1sb,                                  \
+                                                       const bool vdp1_hires8,                                  \
+                                                       unsigned w)                                              \
+ T_DrawSpriteData_BODY(HIRES, TPSS, SPCTL)
+
+/* SPCTL enumeration: 64 values, explicit list (cleanest given the
+ * width and the need for literal hex tokens for ## pasting). */
+#define DSD_ENUM_SP(M, HIRES, TPSS)                                                                                                  \
+ M(HIRES, TPSS, 0x00) M(HIRES, TPSS, 0x01) M(HIRES, TPSS, 0x02) M(HIRES, TPSS, 0x03) M(HIRES, TPSS, 0x04) M(HIRES, TPSS, 0x05) M(HIRES, TPSS, 0x06) M(HIRES, TPSS, 0x07) \
+ M(HIRES, TPSS, 0x08) M(HIRES, TPSS, 0x09) M(HIRES, TPSS, 0x0a) M(HIRES, TPSS, 0x0b) M(HIRES, TPSS, 0x0c) M(HIRES, TPSS, 0x0d) M(HIRES, TPSS, 0x0e) M(HIRES, TPSS, 0x0f) \
+ M(HIRES, TPSS, 0x10) M(HIRES, TPSS, 0x11) M(HIRES, TPSS, 0x12) M(HIRES, TPSS, 0x13) M(HIRES, TPSS, 0x14) M(HIRES, TPSS, 0x15) M(HIRES, TPSS, 0x16) M(HIRES, TPSS, 0x17) \
+ M(HIRES, TPSS, 0x18) M(HIRES, TPSS, 0x19) M(HIRES, TPSS, 0x1a) M(HIRES, TPSS, 0x1b) M(HIRES, TPSS, 0x1c) M(HIRES, TPSS, 0x1d) M(HIRES, TPSS, 0x1e) M(HIRES, TPSS, 0x1f) \
+ M(HIRES, TPSS, 0x20) M(HIRES, TPSS, 0x21) M(HIRES, TPSS, 0x22) M(HIRES, TPSS, 0x23) M(HIRES, TPSS, 0x24) M(HIRES, TPSS, 0x25) M(HIRES, TPSS, 0x26) M(HIRES, TPSS, 0x27) \
+ M(HIRES, TPSS, 0x28) M(HIRES, TPSS, 0x29) M(HIRES, TPSS, 0x2a) M(HIRES, TPSS, 0x2b) M(HIRES, TPSS, 0x2c) M(HIRES, TPSS, 0x2d) M(HIRES, TPSS, 0x2e) M(HIRES, TPSS, 0x2f) \
+ M(HIRES, TPSS, 0x30) M(HIRES, TPSS, 0x31) M(HIRES, TPSS, 0x32) M(HIRES, TPSS, 0x33) M(HIRES, TPSS, 0x34) M(HIRES, TPSS, 0x35) M(HIRES, TPSS, 0x36) M(HIRES, TPSS, 0x37) \
+ M(HIRES, TPSS, 0x38) M(HIRES, TPSS, 0x39) M(HIRES, TPSS, 0x3a) M(HIRES, TPSS, 0x3b) M(HIRES, TPSS, 0x3c) M(HIRES, TPSS, 0x3d) M(HIRES, TPSS, 0x3e) M(HIRES, TPSS, 0x3f)
+
+#define DSD_ENUM_TPSS(M, HIRES) \
+ M(HIRES, 0)                   \
+ M(HIRES, 1)
+
+#define DSD_ENUM_HIRES(M) \
+ M(0)                    \
+ M(1)
+
+/* Function-definition composition. */
+#define DSD_FN_AT_TPSS(HIRES, TPSS) DSD_ENUM_SP(DEFINE_T_DrawSpriteData, HIRES, TPSS)
+#define DSD_FN_AT_HIRES(HIRES)      DSD_ENUM_TPSS(DSD_FN_AT_TPSS, HIRES)
+
+DSD_FN_AT_HIRES(0)
+DSD_FN_AT_HIRES(1)
+
+/* Table composition: each non-leaf level wraps in braces. */
+#define DSD_TBL_AT_SP(HIRES, TPSS, SPCTL)  T_DrawSpriteData_NAME(HIRES, TPSS, SPCTL),
+#define DSD_TBL_AT_TPSS(HIRES, TPSS)       { DSD_ENUM_SP(DSD_TBL_AT_SP, HIRES, TPSS) },
+#define DSD_TBL_AT_HIRES(HIRES)            { DSD_ENUM_TPSS(DSD_TBL_AT_TPSS, HIRES) },
 
 static void (*DrawSpriteData[2][2][0x40])(const uint16_t* vdp1sb, const bool vdp1_hires8, unsigned w) =
 {
- {
-  { T_DrawSpriteData<0, 0, 0x00>, T_DrawSpriteData<0, 0, 0x01>, T_DrawSpriteData<0, 0, 0x02>, T_DrawSpriteData<0, 0, 0x03>, T_DrawSpriteData<0, 0, 0x04>, T_DrawSpriteData<0, 0, 0x05>, T_DrawSpriteData<0, 0, 0x06>, T_DrawSpriteData<0, 0, 0x07>, T_DrawSpriteData<0, 0, 0x08>, T_DrawSpriteData<0, 0, 0x09>, T_DrawSpriteData<0, 0, 0x0a>, T_DrawSpriteData<0, 0, 0x0b>, T_DrawSpriteData<0, 0, 0x0c>, T_DrawSpriteData<0, 0, 0x0d>, T_DrawSpriteData<0, 0, 0x0e>, T_DrawSpriteData<0, 0, 0x0f>, T_DrawSpriteData<0, 0, 0x10>, T_DrawSpriteData<0, 0, 0x11>, T_DrawSpriteData<0, 0, 0x12>, T_DrawSpriteData<0, 0, 0x13>, T_DrawSpriteData<0, 0, 0x14>, T_DrawSpriteData<0, 0, 0x15>, T_DrawSpriteData<0, 0, 0x16>, T_DrawSpriteData<0, 0, 0x17>, T_DrawSpriteData<0, 0, 0x18>, T_DrawSpriteData<0, 0, 0x19>, T_DrawSpriteData<0, 0, 0x1a>, T_DrawSpriteData<0, 0, 0x1b>, T_DrawSpriteData<0, 0, 0x1c>, T_DrawSpriteData<0, 0, 0x1d>, T_DrawSpriteData<0, 0, 0x1e>, T_DrawSpriteData<0, 0, 0x1f>, T_DrawSpriteData<0, 0, 0x20>, T_DrawSpriteData<0, 0, 0x21>, T_DrawSpriteData<0, 0, 0x22>, T_DrawSpriteData<0, 0, 0x23>, T_DrawSpriteData<0, 0, 0x24>, T_DrawSpriteData<0, 0, 0x25>, T_DrawSpriteData<0, 0, 0x26>, T_DrawSpriteData<0, 0, 0x27>, T_DrawSpriteData<0, 0, 0x28>, T_DrawSpriteData<0, 0, 0x29>, T_DrawSpriteData<0, 0, 0x2a>, T_DrawSpriteData<0, 0, 0x2b>, T_DrawSpriteData<0, 0, 0x2c>, T_DrawSpriteData<0, 0, 0x2d>, T_DrawSpriteData<0, 0, 0x2e>, T_DrawSpriteData<0, 0, 0x2f>, T_DrawSpriteData<0, 0, 0x30>, T_DrawSpriteData<0, 0, 0x31>, T_DrawSpriteData<0, 0, 0x32>, T_DrawSpriteData<0, 0, 0x33>, T_DrawSpriteData<0, 0, 0x34>, T_DrawSpriteData<0, 0, 0x35>, T_DrawSpriteData<0, 0, 0x36>, T_DrawSpriteData<0, 0, 0x37>, T_DrawSpriteData<0, 0, 0x38>, T_DrawSpriteData<0, 0, 0x39>, T_DrawSpriteData<0, 0, 0x3a>, T_DrawSpriteData<0, 0, 0x3b>, T_DrawSpriteData<0, 0, 0x3c>, T_DrawSpriteData<0, 0, 0x3d>, T_DrawSpriteData<0, 0, 0x3e>, T_DrawSpriteData<0, 0, 0x3f> },
-  { T_DrawSpriteData<0, 1, 0x00>, T_DrawSpriteData<0, 1, 0x01>, T_DrawSpriteData<0, 1, 0x02>, T_DrawSpriteData<0, 1, 0x03>, T_DrawSpriteData<0, 1, 0x04>, T_DrawSpriteData<0, 1, 0x05>, T_DrawSpriteData<0, 1, 0x06>, T_DrawSpriteData<0, 1, 0x07>, T_DrawSpriteData<0, 1, 0x08>, T_DrawSpriteData<0, 1, 0x09>, T_DrawSpriteData<0, 1, 0x0a>, T_DrawSpriteData<0, 1, 0x0b>, T_DrawSpriteData<0, 1, 0x0c>, T_DrawSpriteData<0, 1, 0x0d>, T_DrawSpriteData<0, 1, 0x0e>, T_DrawSpriteData<0, 1, 0x0f>, T_DrawSpriteData<0, 1, 0x10>, T_DrawSpriteData<0, 1, 0x11>, T_DrawSpriteData<0, 1, 0x12>, T_DrawSpriteData<0, 1, 0x13>, T_DrawSpriteData<0, 1, 0x14>, T_DrawSpriteData<0, 1, 0x15>, T_DrawSpriteData<0, 1, 0x16>, T_DrawSpriteData<0, 1, 0x17>, T_DrawSpriteData<0, 1, 0x18>, T_DrawSpriteData<0, 1, 0x19>, T_DrawSpriteData<0, 1, 0x1a>, T_DrawSpriteData<0, 1, 0x1b>, T_DrawSpriteData<0, 1, 0x1c>, T_DrawSpriteData<0, 1, 0x1d>, T_DrawSpriteData<0, 1, 0x1e>, T_DrawSpriteData<0, 1, 0x1f>, T_DrawSpriteData<0, 1, 0x20>, T_DrawSpriteData<0, 1, 0x21>, T_DrawSpriteData<0, 1, 0x22>, T_DrawSpriteData<0, 1, 0x23>, T_DrawSpriteData<0, 1, 0x24>, T_DrawSpriteData<0, 1, 0x25>, T_DrawSpriteData<0, 1, 0x26>, T_DrawSpriteData<0, 1, 0x27>, T_DrawSpriteData<0, 1, 0x28>, T_DrawSpriteData<0, 1, 0x29>, T_DrawSpriteData<0, 1, 0x2a>, T_DrawSpriteData<0, 1, 0x2b>, T_DrawSpriteData<0, 1, 0x2c>, T_DrawSpriteData<0, 1, 0x2d>, T_DrawSpriteData<0, 1, 0x2e>, T_DrawSpriteData<0, 1, 0x2f>, T_DrawSpriteData<0, 1, 0x30>, T_DrawSpriteData<0, 1, 0x31>, T_DrawSpriteData<0, 1, 0x32>, T_DrawSpriteData<0, 1, 0x33>, T_DrawSpriteData<0, 1, 0x34>, T_DrawSpriteData<0, 1, 0x35>, T_DrawSpriteData<0, 1, 0x36>, T_DrawSpriteData<0, 1, 0x37>, T_DrawSpriteData<0, 1, 0x38>, T_DrawSpriteData<0, 1, 0x39>, T_DrawSpriteData<0, 1, 0x3a>, T_DrawSpriteData<0, 1, 0x3b>, T_DrawSpriteData<0, 1, 0x3c>, T_DrawSpriteData<0, 1, 0x3d>, T_DrawSpriteData<0, 1, 0x3e>, T_DrawSpriteData<0, 1, 0x3f> },
- },
- {
-  { T_DrawSpriteData<1, 0, 0x00>, T_DrawSpriteData<1, 0, 0x01>, T_DrawSpriteData<1, 0, 0x02>, T_DrawSpriteData<1, 0, 0x03>, T_DrawSpriteData<1, 0, 0x04>, T_DrawSpriteData<1, 0, 0x05>, T_DrawSpriteData<1, 0, 0x06>, T_DrawSpriteData<1, 0, 0x07>, T_DrawSpriteData<1, 0, 0x08>, T_DrawSpriteData<1, 0, 0x09>, T_DrawSpriteData<1, 0, 0x0a>, T_DrawSpriteData<1, 0, 0x0b>, T_DrawSpriteData<1, 0, 0x0c>, T_DrawSpriteData<1, 0, 0x0d>, T_DrawSpriteData<1, 0, 0x0e>, T_DrawSpriteData<1, 0, 0x0f>, T_DrawSpriteData<1, 0, 0x10>, T_DrawSpriteData<1, 0, 0x11>, T_DrawSpriteData<1, 0, 0x12>, T_DrawSpriteData<1, 0, 0x13>, T_DrawSpriteData<1, 0, 0x14>, T_DrawSpriteData<1, 0, 0x15>, T_DrawSpriteData<1, 0, 0x16>, T_DrawSpriteData<1, 0, 0x17>, T_DrawSpriteData<1, 0, 0x18>, T_DrawSpriteData<1, 0, 0x19>, T_DrawSpriteData<1, 0, 0x1a>, T_DrawSpriteData<1, 0, 0x1b>, T_DrawSpriteData<1, 0, 0x1c>, T_DrawSpriteData<1, 0, 0x1d>, T_DrawSpriteData<1, 0, 0x1e>, T_DrawSpriteData<1, 0, 0x1f>, T_DrawSpriteData<1, 0, 0x20>, T_DrawSpriteData<1, 0, 0x21>, T_DrawSpriteData<1, 0, 0x22>, T_DrawSpriteData<1, 0, 0x23>, T_DrawSpriteData<1, 0, 0x24>, T_DrawSpriteData<1, 0, 0x25>, T_DrawSpriteData<1, 0, 0x26>, T_DrawSpriteData<1, 0, 0x27>, T_DrawSpriteData<1, 0, 0x28>, T_DrawSpriteData<1, 0, 0x29>, T_DrawSpriteData<1, 0, 0x2a>, T_DrawSpriteData<1, 0, 0x2b>, T_DrawSpriteData<1, 0, 0x2c>, T_DrawSpriteData<1, 0, 0x2d>, T_DrawSpriteData<1, 0, 0x2e>, T_DrawSpriteData<1, 0, 0x2f>, T_DrawSpriteData<1, 0, 0x30>, T_DrawSpriteData<1, 0, 0x31>, T_DrawSpriteData<1, 0, 0x32>, T_DrawSpriteData<1, 0, 0x33>, T_DrawSpriteData<1, 0, 0x34>, T_DrawSpriteData<1, 0, 0x35>, T_DrawSpriteData<1, 0, 0x36>, T_DrawSpriteData<1, 0, 0x37>, T_DrawSpriteData<1, 0, 0x38>, T_DrawSpriteData<1, 0, 0x39>, T_DrawSpriteData<1, 0, 0x3a>, T_DrawSpriteData<1, 0, 0x3b>, T_DrawSpriteData<1, 0, 0x3c>, T_DrawSpriteData<1, 0, 0x3d>, T_DrawSpriteData<1, 0, 0x3e>, T_DrawSpriteData<1, 0, 0x3f> },
-  { T_DrawSpriteData<1, 1, 0x00>, T_DrawSpriteData<1, 1, 0x01>, T_DrawSpriteData<1, 1, 0x02>, T_DrawSpriteData<1, 1, 0x03>, T_DrawSpriteData<1, 1, 0x04>, T_DrawSpriteData<1, 1, 0x05>, T_DrawSpriteData<1, 1, 0x06>, T_DrawSpriteData<1, 1, 0x07>, T_DrawSpriteData<1, 1, 0x08>, T_DrawSpriteData<1, 1, 0x09>, T_DrawSpriteData<1, 1, 0x0a>, T_DrawSpriteData<1, 1, 0x0b>, T_DrawSpriteData<1, 1, 0x0c>, T_DrawSpriteData<1, 1, 0x0d>, T_DrawSpriteData<1, 1, 0x0e>, T_DrawSpriteData<1, 1, 0x0f>, T_DrawSpriteData<1, 1, 0x10>, T_DrawSpriteData<1, 1, 0x11>, T_DrawSpriteData<1, 1, 0x12>, T_DrawSpriteData<1, 1, 0x13>, T_DrawSpriteData<1, 1, 0x14>, T_DrawSpriteData<1, 1, 0x15>, T_DrawSpriteData<1, 1, 0x16>, T_DrawSpriteData<1, 1, 0x17>, T_DrawSpriteData<1, 1, 0x18>, T_DrawSpriteData<1, 1, 0x19>, T_DrawSpriteData<1, 1, 0x1a>, T_DrawSpriteData<1, 1, 0x1b>, T_DrawSpriteData<1, 1, 0x1c>, T_DrawSpriteData<1, 1, 0x1d>, T_DrawSpriteData<1, 1, 0x1e>, T_DrawSpriteData<1, 1, 0x1f>, T_DrawSpriteData<1, 1, 0x20>, T_DrawSpriteData<1, 1, 0x21>, T_DrawSpriteData<1, 1, 0x22>, T_DrawSpriteData<1, 1, 0x23>, T_DrawSpriteData<1, 1, 0x24>, T_DrawSpriteData<1, 1, 0x25>, T_DrawSpriteData<1, 1, 0x26>, T_DrawSpriteData<1, 1, 0x27>, T_DrawSpriteData<1, 1, 0x28>, T_DrawSpriteData<1, 1, 0x29>, T_DrawSpriteData<1, 1, 0x2a>, T_DrawSpriteData<1, 1, 0x2b>, T_DrawSpriteData<1, 1, 0x2c>, T_DrawSpriteData<1, 1, 0x2d>, T_DrawSpriteData<1, 1, 0x2e>, T_DrawSpriteData<1, 1, 0x2f>, T_DrawSpriteData<1, 1, 0x30>, T_DrawSpriteData<1, 1, 0x31>, T_DrawSpriteData<1, 1, 0x32>, T_DrawSpriteData<1, 1, 0x33>, T_DrawSpriteData<1, 1, 0x34>, T_DrawSpriteData<1, 1, 0x35>, T_DrawSpriteData<1, 1, 0x36>, T_DrawSpriteData<1, 1, 0x37>, T_DrawSpriteData<1, 1, 0x38>, T_DrawSpriteData<1, 1, 0x39>, T_DrawSpriteData<1, 1, 0x3a>, T_DrawSpriteData<1, 1, 0x3b>, T_DrawSpriteData<1, 1, 0x3c>, T_DrawSpriteData<1, 1, 0x3d>, T_DrawSpriteData<1, 1, 0x3e>, T_DrawSpriteData<1, 1, 0x3f> },
- }
+ DSD_TBL_AT_HIRES(0)
+ DSD_TBL_AT_HIRES(1)
 };
+
+#undef DSD_TBL_AT_HIRES
+#undef DSD_TBL_AT_TPSS
+#undef DSD_TBL_AT_SP
+#undef DSD_FN_AT_HIRES
+#undef DSD_FN_AT_TPSS
+#undef DSD_ENUM_HIRES
+#undef DSD_ENUM_TPSS
+#undef DSD_ENUM_SP
+#undef DEFINE_T_DrawSpriteData
+#undef T_DrawSpriteData_NAME
+#undef T_DrawSpriteData_BODY
 
 // Don't change these constants without also updating the template variable
 // setup for the call into MixIt(and the contents of MixIt itself...).
