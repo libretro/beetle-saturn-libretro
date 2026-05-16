@@ -589,8 +589,8 @@ INLINE void SH7095::DMA_DoTransfer(unsigned ch)
 	{
 	 uint8_t buffer;
 
-	 buffer = BSC_BusRead<uint8_t>(sar & 0x07FFFFFF, false, &DMA_Timestamp);
-	 BSC_BusWrite<uint8_t>(dar & 0x07FFFFFF, buffer, false, &DMA_Timestamp);
+	 buffer = BSC_BusRead_u8(sar & 0x07FFFFFF, false, &DMA_Timestamp);
+	 BSC_BusWrite_u8(dar & 0x07FFFFFF, buffer, false, &DMA_Timestamp);
 
 	 sar += ainc[0][sm];
  	 dar += ainc[0][dm];
@@ -602,8 +602,8 @@ INLINE void SH7095::DMA_DoTransfer(unsigned ch)
 	{
 	 uint16_t buffer;
 
-	 buffer = BSC_BusRead<uint16_t>(sar & 0x07FFFFFE, false, &DMA_Timestamp);
-	 BSC_BusWrite<uint16_t>(dar & 0x07FFFFFE, buffer, false, &DMA_Timestamp);
+	 buffer = BSC_BusRead_u16(sar & 0x07FFFFFE, false, &DMA_Timestamp);
+	 BSC_BusWrite_u16(dar & 0x07FFFFFE, buffer, false, &DMA_Timestamp);
 
 	 if(MDFN_UNLIKELY((sar | dar) & 0x1))
 	 {
@@ -623,8 +623,8 @@ INLINE void SH7095::DMA_DoTransfer(unsigned ch)
 	{
 	 uint32_t buffer;
 
-	 buffer = BSC_BusRead<uint32_t>(sar & 0x07FFFFFC, false, &DMA_Timestamp);
-	 BSC_BusWrite<uint32_t>(dar & 0x07FFFFFC, buffer, false, &DMA_Timestamp);
+	 buffer = BSC_BusRead_u32(sar & 0x07FFFFFC, false, &DMA_Timestamp);
+	 BSC_BusWrite_u32(dar & 0x07FFFFFC, buffer, false, &DMA_Timestamp);
 
 	 if(MDFN_UNLIKELY((sar | dar) & 0x3))
 	 {
@@ -654,14 +654,14 @@ INLINE void SH7095::DMA_DoTransfer(unsigned ch)
 
 	 for(unsigned i = 0; i < 4; i++)
 	 {
-	  buffer[i] = BSC_BusRead<uint32_t>((sar + (i << 2)) & 0x07FFFFFC, (bool)i, &DMA_Timestamp);
+	  buffer[i] = BSC_BusRead_u32((sar + (i << 2)) & 0x07FFFFFC, (bool)i, &DMA_Timestamp);
 	 }
 
 	 sar += 0x10;
 
 	 for(unsigned i = 0; i < 4; i++)
 	 {
-	  BSC_BusWrite<uint32_t>(dar & 0x07FFFFFC, buffer[i], false, &DMA_Timestamp);
+	  BSC_BusWrite_u32(dar & 0x07FFFFFC, buffer[i], false, &DMA_Timestamp);
 	  dar += ainc[2][dm];
 	  tcr = (tcr - 1) & 0xFFFFFF;
 	  if(MDFN_UNLIKELY(!tcr))
@@ -1929,8 +1929,17 @@ INLINE T SH7095::OnChipRegRead_INLINE(uint32_t A)
  }
 }
 
-template<typename T>
-void INLINE SH7095::BSC_BusWrite(uint32_t A, T V, const bool BurstHax, int32_t* SH2DMAHax)
+/* Phase-8l: BSC_BusWrite<T> retired -- 3 named variants below
+ * carry the per-width specialisations of the original template
+ * body.  In each variant: the CS0 branch's `if(sizeof(T) == 4)`
+ * dispatch resolves at the source level, the shift/mask
+ * constants come pre-computed for the matching width, and the
+ * BusRW_DB_CSn<T, true> calls inside become concrete-T
+ * instantiations.  Aside from collapsing the sizeof(T) chain
+ * to one arm, the variants are textually identical to what
+ * the previous template instantiations produced. */
+
+void INLINE SH7095::BSC_BusWrite_u8(uint32_t A, uint8_t V, const bool BurstHax, int32_t* SH2DMAHax)
 {
  uint32_t DB = SH7095_DB;
 
@@ -1939,37 +1948,20 @@ void INLINE SH7095::BSC_BusWrite(uint32_t A, T V, const bool BurstHax, int32_t* 
 
  if(A < 0x02000000)	// CS0, configured as 16-bit
  {
-  if(sizeof(T) == 4)
-  {
-   // TODO/FIXME: Don't allow DMA transfers to occur between the two 16-bit accesses.
-   //if(!SH2DMAHax)
-   // SH7095_BusLock++;
+  /* sizeof(uint8_t) == 1: shift = ((A & 1) ^ 1) << 3,  mask = 0xFF << shift */
+  const uint32_t shift = ((A & 1) ^ 1) << 3;
+  const uint32_t mask = 0xFFu << shift;
 
-   DB = (DB & 0xFFFF0000) | (V >> 16);
-   BusRW_DB_CS0<uint16_t, true>(A, DB, BurstHax, SH2DMAHax);
-
-   DB = (DB & 0xFFFF0000) | (uint16_t)V;
-   BusRW_DB_CS0<uint16_t, true>(A | 2, DB, BurstHax, SH2DMAHax);
-
-   //if(!SH2DMAHax)
-   // SH7095_BusLock--;
-  }
-  else
-  {
-   const uint32_t shift = ((A & 1) ^ (2 - sizeof(T))) << 3;
-   const uint32_t mask = (0xFFFF >> ((2 - sizeof(T)) * 8)) << shift;
-
-   DB = (DB & ~mask) | (V << shift);
-   BusRW_DB_CS0<T, true>(A, DB, BurstHax, SH2DMAHax);
-  }
+  DB = (DB & ~mask) | ((uint32_t)V << shift);
+  BusRW_DB_CS0<uint8_t, true>(A, DB, BurstHax, SH2DMAHax);
  }
  else if(A >= 0x06000000)	// CS3; 32-bit
  {
-  const uint32_t shift = ((A & 3) ^ (4 - sizeof(T))) << 3;
-  const uint32_t mask = (0xFFFFFFFF >> ((4 - sizeof(T)) * 8)) << shift;
+  const uint32_t shift = ((A & 3) ^ 3) << 3;
+  const uint32_t mask = 0xFFu << shift;
 
-  DB = (DB & ~mask) | (V << shift);
-  BusRW_DB_CS3<T, true>(A, DB, BurstHax, SH2DMAHax);
+  DB = (DB & ~mask) | ((uint32_t)V << shift);
+  BusRW_DB_CS3<uint8_t, true>(A, DB, BurstHax, SH2DMAHax);
 
   if(!BurstHax)
   {
@@ -1987,11 +1979,11 @@ void INLINE SH7095::BSC_BusWrite(uint32_t A, T V, const bool BurstHax, int32_t* 
  }
  else	// CS1, CS2; 32-bit
  {
-  const uint32_t shift = ((A & 3) ^ (4 - sizeof(T))) << 3;
-  const uint32_t mask = (0xFFFFFFFF >> ((4 - sizeof(T)) * 8)) << shift;
+  const uint32_t shift = ((A & 3) ^ 3) << 3;
+  const uint32_t mask = 0xFFu << shift;
 
-  DB = (DB & ~mask) | (V << shift);
-  BusRW_DB_CS12<T, true>(A, DB, BurstHax, SH2DMAHax);
+  DB = (DB & ~mask) | ((uint32_t)V << shift);
+  BusRW_DB_CS12<uint8_t, true>(A, DB, BurstHax, SH2DMAHax);
  }
 
  SH7095_DB = DB;
@@ -2004,48 +1996,141 @@ void INLINE SH7095::BSC_BusWrite(uint32_t A, T V, const bool BurstHax, int32_t* 
  }
 }
 
-template<typename T>
-T INLINE SH7095::BSC_BusRead(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax)
+void INLINE SH7095::BSC_BusWrite_u16(uint32_t A, uint16_t V, const bool BurstHax, int32_t* SH2DMAHax)
 {
- //
- //
- //
  uint32_t DB = SH7095_DB;
- T ret;
+
+ if(!BurstHax)
+  SH7095_mem_timestamp += (SH7095_mem_timestamp == BSC.last_mem_time) & BSC.last_mem_type;
+
+ if(A < 0x02000000)	// CS0, configured as 16-bit
+ {
+  /* sizeof(uint16_t) == 2: shift = ((A & 1) ^ 0) << 3,  mask = 0xFFFF << shift */
+  const uint32_t shift = (A & 1) << 3;
+  const uint32_t mask = 0xFFFFu << shift;
+
+  DB = (DB & ~mask) | ((uint32_t)V << shift);
+  BusRW_DB_CS0<uint16_t, true>(A, DB, BurstHax, SH2DMAHax);
+ }
+ else if(A >= 0x06000000)	// CS3; 32-bit
+ {
+  const uint32_t shift = ((A & 3) ^ 2) << 3;
+  const uint32_t mask = 0xFFFFu << shift;
+
+  DB = (DB & ~mask) | ((uint32_t)V << shift);
+  BusRW_DB_CS3<uint16_t, true>(A, DB, BurstHax, SH2DMAHax);
+
+  if(!BurstHax)
+  {
+   if(!SH2DMAHax)
+   {
+    if(SH7095_mem_timestamp < BSC.sdram_finish_time)
+     SH7095_mem_timestamp = BSC.sdram_finish_time;
+
+    SH7095_mem_timestamp += 2;
+    BSC.sdram_finish_time = SH7095_mem_timestamp + 2;
+   }
+   else
+    *SH2DMAHax += 3;
+  }
+ }
+ else	// CS1, CS2; 32-bit
+ {
+  const uint32_t shift = ((A & 3) ^ 2) << 3;
+  const uint32_t mask = 0xFFFFu << shift;
+
+  DB = (DB & ~mask) | ((uint32_t)V << shift);
+  BusRW_DB_CS12<uint16_t, true>(A, DB, BurstHax, SH2DMAHax);
+ }
+
+ SH7095_DB = DB;
+
+ if(!BurstHax)
+ {
+  BSC.last_mem_addr = A;
+  BSC.last_mem_type = 0;
+  BSC.last_mem_time = SH7095_mem_timestamp;
+ }
+}
+
+void INLINE SH7095::BSC_BusWrite_u32(uint32_t A, uint32_t V, const bool BurstHax, int32_t* SH2DMAHax)
+{
+ uint32_t DB = SH7095_DB;
+
+ if(!BurstHax)
+  SH7095_mem_timestamp += (SH7095_mem_timestamp == BSC.last_mem_time) & BSC.last_mem_type;
+
+ if(A < 0x02000000)	// CS0, configured as 16-bit -- split into two 16-bit accesses
+ {
+  // TODO/FIXME: Don't allow DMA transfers to occur between the two 16-bit accesses.
+  //if(!SH2DMAHax)
+  // SH7095_BusLock++;
+
+  DB = (DB & 0xFFFF0000) | (V >> 16);
+  BusRW_DB_CS0<uint16_t, true>(A, DB, BurstHax, SH2DMAHax);
+
+  DB = (DB & 0xFFFF0000) | (uint16_t)V;
+  BusRW_DB_CS0<uint16_t, true>(A | 2, DB, BurstHax, SH2DMAHax);
+
+  //if(!SH2DMAHax)
+  // SH7095_BusLock--;
+ }
+ else if(A >= 0x06000000)	// CS3; 32-bit
+ {
+  /* sizeof(uint32_t) == 4: shift = 0, mask = 0xFFFFFFFFu */
+  DB = V;
+  BusRW_DB_CS3<uint32_t, true>(A, DB, BurstHax, SH2DMAHax);
+
+  if(!BurstHax)
+  {
+   if(!SH2DMAHax)
+   {
+    if(SH7095_mem_timestamp < BSC.sdram_finish_time)
+     SH7095_mem_timestamp = BSC.sdram_finish_time;
+
+    SH7095_mem_timestamp += 2;
+    BSC.sdram_finish_time = SH7095_mem_timestamp + 2;
+   }
+   else
+    *SH2DMAHax += 3;
+  }
+ }
+ else	// CS1, CS2; 32-bit
+ {
+  DB = V;
+  BusRW_DB_CS12<uint32_t, true>(A, DB, BurstHax, SH2DMAHax);
+ }
+
+ SH7095_DB = DB;
+
+ if(!BurstHax)
+ {
+  BSC.last_mem_addr = A;
+  BSC.last_mem_type = 0;
+  BSC.last_mem_time = SH7095_mem_timestamp;
+ }
+}
+
+/* Phase-8l: BSC_BusRead<T> retired -- 3 named variants below
+ * mirror BSC_BusWrite's structure for the read side. */
+
+uint8_t INLINE SH7095::BSC_BusRead_u8(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax)
+{
+ uint32_t DB = SH7095_DB;
+ uint8_t ret;
 
  if(!BurstHax)
   SH7095_mem_timestamp += (SH7095_mem_timestamp == BSC.last_mem_time) & (bool)((BSC.last_mem_addr ^ A) & 0x06000000);
 
  if(A < 0x02000000)	// CS0, configured as 16-bit
  {
-  if(sizeof(T) == 4)
-  {
-   // TODO/FIXME: Don't allow DMA transfers to occur between the two 16-bit accesses.
-   //if(!SH2DMAHax)
-   // SH7095_BusLock++;
-
-   BusRW_DB_CS0<uint16_t, false>(A, DB, BurstHax, SH2DMAHax);
-   ret = DB << 16;
-
-   BusRW_DB_CS0<uint16_t, false>(A | 2, DB, BurstHax, SH2DMAHax);
-   ret |= (uint16_t)DB;
-
-   //if(!SH2DMAHax)
-   // SH7095_BusLock--;
-  }
-  else
-  {
-   BusRW_DB_CS0<T, false>(A, DB, BurstHax, SH2DMAHax);
-   ret = DB >> (((A & 1) ^ (2 - sizeof(T))) << 3);
-  }
+  BusRW_DB_CS0<uint8_t, false>(A, DB, BurstHax, SH2DMAHax);
+  ret = DB >> (((A & 1) ^ 1) << 3);
  }
  else if(A >= 0x06000000)	// CS3; 32-bit
  {
-  BusRW_DB_CS3<T, false>(A, DB, BurstHax, SH2DMAHax);
-  ret = DB >> (((A & 3) ^ (4 - sizeof(T))) << 3);
-
-  // SDRAM leaves data bus in a weird state after read...
-  // DB = 0;
+  BusRW_DB_CS3<uint8_t, false>(A, DB, BurstHax, SH2DMAHax);
+  ret = DB >> (((A & 3) ^ 3) << 3);
 
   if(!BurstHax)
   {
@@ -2062,8 +2147,116 @@ T INLINE SH7095::BSC_BusRead(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax
  }
  else	// CS1, CS2; 32-bit
  {
-  BusRW_DB_CS12<T, false>(A, DB, BurstHax, SH2DMAHax);
-  ret = DB >> (((A & 3) ^ (4 - sizeof(T))) << 3);
+  BusRW_DB_CS12<uint8_t, false>(A, DB, BurstHax, SH2DMAHax);
+  ret = DB >> (((A & 3) ^ 3) << 3);
+ }
+
+ SH7095_DB = DB;
+
+ if(!BurstHax)
+ {
+  BSC.last_mem_addr = A;
+  BSC.last_mem_type = 1;
+  BSC.last_mem_time = SH7095_mem_timestamp;
+ }
+
+ return ret;
+}
+
+uint16_t INLINE SH7095::BSC_BusRead_u16(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax)
+{
+ uint32_t DB = SH7095_DB;
+ uint16_t ret;
+
+ if(!BurstHax)
+  SH7095_mem_timestamp += (SH7095_mem_timestamp == BSC.last_mem_time) & (bool)((BSC.last_mem_addr ^ A) & 0x06000000);
+
+ if(A < 0x02000000)	// CS0, configured as 16-bit
+ {
+  BusRW_DB_CS0<uint16_t, false>(A, DB, BurstHax, SH2DMAHax);
+  ret = DB >> ((A & 1) << 3);
+ }
+ else if(A >= 0x06000000)	// CS3; 32-bit
+ {
+  BusRW_DB_CS3<uint16_t, false>(A, DB, BurstHax, SH2DMAHax);
+  ret = DB >> (((A & 3) ^ 2) << 3);
+
+  if(!BurstHax)
+  {
+   if(!SH2DMAHax)
+   {
+    if(SH7095_mem_timestamp < BSC.sdram_finish_time)
+     SH7095_mem_timestamp = BSC.sdram_finish_time;
+
+    SH7095_mem_timestamp += 7;
+   }
+   else
+    *SH2DMAHax += 6;
+  }
+ }
+ else	// CS1, CS2; 32-bit
+ {
+  BusRW_DB_CS12<uint16_t, false>(A, DB, BurstHax, SH2DMAHax);
+  ret = DB >> (((A & 3) ^ 2) << 3);
+ }
+
+ SH7095_DB = DB;
+
+ if(!BurstHax)
+ {
+  BSC.last_mem_addr = A;
+  BSC.last_mem_type = 1;
+  BSC.last_mem_time = SH7095_mem_timestamp;
+ }
+
+ return ret;
+}
+
+uint32_t INLINE SH7095::BSC_BusRead_u32(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax)
+{
+ uint32_t DB = SH7095_DB;
+ uint32_t ret;
+
+ if(!BurstHax)
+  SH7095_mem_timestamp += (SH7095_mem_timestamp == BSC.last_mem_time) & (bool)((BSC.last_mem_addr ^ A) & 0x06000000);
+
+ if(A < 0x02000000)	// CS0, configured as 16-bit -- split into two 16-bit accesses
+ {
+  // TODO/FIXME: Don't allow DMA transfers to occur between the two 16-bit accesses.
+  //if(!SH2DMAHax)
+  // SH7095_BusLock++;
+
+  BusRW_DB_CS0<uint16_t, false>(A, DB, BurstHax, SH2DMAHax);
+  ret = DB << 16;
+
+  BusRW_DB_CS0<uint16_t, false>(A | 2, DB, BurstHax, SH2DMAHax);
+  ret |= (uint16_t)DB;
+
+  //if(!SH2DMAHax)
+  // SH7095_BusLock--;
+ }
+ else if(A >= 0x06000000)	// CS3; 32-bit
+ {
+  BusRW_DB_CS3<uint32_t, false>(A, DB, BurstHax, SH2DMAHax);
+  ret = DB;	/* shift folds to 0 for sizeof(T)==4 */
+
+  if(!BurstHax)
+  {
+   if(!SH2DMAHax)
+   {
+    if(SH7095_mem_timestamp < BSC.sdram_finish_time)
+     SH7095_mem_timestamp = BSC.sdram_finish_time;
+
+    SH7095_mem_timestamp += 7;
+   }
+   else
+    *SH2DMAHax += 6;
+  }
+ }
+ else	// CS1, CS2; 32-bit
+ {
+  BusRW_DB_CS12<uint32_t, false>(A, DB, BurstHax, SH2DMAHax);
+  ret = DB;
  }
 
  SH7095_DB = DB;
@@ -2103,7 +2296,10 @@ INLINE T SH7095::ExtBusRead_INLINE(uint32_t A)
    SH7095_mem_timestamp++;
  }
 
- ret = BSC_BusRead<T>(A, BurstHax, NULL);
+ /* Phase-8l: sizeof(T) folds at template instantiation. */
+ if(sizeof(T) == 1)      ret = BSC_BusRead_u8 (A, BurstHax, NULL);
+ else if(sizeof(T) == 2) ret = BSC_BusRead_u16(A, BurstHax, NULL);
+ else                    ret = BSC_BusRead_u32(A, BurstHax, NULL);
 
  if(SlavePenalty && !BurstHax)
  {
@@ -2127,7 +2323,10 @@ INLINE void SH7095::ExtBusWrite_INLINE(uint32_t A, T V)
  if(SlavePenalty)
   SH7095_mem_timestamp++;
 
- BSC_BusWrite<T>(A, V, false, NULL);
+ /* Phase-8l: sizeof(T) folds at template instantiation. */
+ if(sizeof(T) == 1)      BSC_BusWrite_u8 (A, V, false, NULL);
+ else if(sizeof(T) == 2) BSC_BusWrite_u16(A, V, false, NULL);
+ else                    BSC_BusWrite_u32(A, V, false, NULL);
 
  if(SlavePenalty)
  {

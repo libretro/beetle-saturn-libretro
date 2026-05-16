@@ -301,11 +301,21 @@ class SH7095 final
   uint32_t last_mem_type;
  } BSC;
 
- template<typename T>
- void INLINE BSC_BusWrite(uint32_t A, T V, const bool BurstHax, int32_t* SH2DMAHax);
+ /* Phase-8l: BSC_BusRead<T> / BSC_BusWrite<T> retired -- each
+  * splits into 3 named width variants.  Body sizeof(T) chain
+  * folds to one arm per variant, eliminating the dead branches
+  * the previous template form had inlined at every call site.
+  * The 8 concrete callers (DMA paths) become direct named calls;
+  * the 2 T-parametric callers (ExtBusRead_INLINE / ExtBusWrite_INLINE
+  * bodies) become a sizeof(T) ladder that folds when those
+  * outer templates instantiate. */
+ void INLINE BSC_BusWrite_u8 (uint32_t A, uint8_t  V, const bool BurstHax, int32_t* SH2DMAHax);
+ void INLINE BSC_BusWrite_u16(uint32_t A, uint16_t V, const bool BurstHax, int32_t* SH2DMAHax);
+ void INLINE BSC_BusWrite_u32(uint32_t A, uint32_t V, const bool BurstHax, int32_t* SH2DMAHax);
 
- template<typename T>
- T INLINE BSC_BusRead(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
+ uint8_t  INLINE BSC_BusRead_u8 (uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
+ uint16_t INLINE BSC_BusRead_u16(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
+ uint32_t INLINE BSC_BusRead_u32(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
 
  uint32_t UCRead_IF_Kludge;
 
