@@ -2152,10 +2152,30 @@ static NO_INLINE MDFN_HOT void ExtBusWrite_NI(uint32_t A, T V)
  CPU[w].ExtBusWrite_INLINE<SlavePenalty, T>(A, V);
 }
 
-template<unsigned w, typename T>
-static NO_INLINE MDFN_HOT T OnChipRegRead_NI(uint32_t A)
+/* Phase-8j: OnChipRegRead_NI<unsigned w, typename T> retired.
+ * Only one (w, T) tuple-set is ever instantiated: w=1 (the slave
+ * CPU's on-chip-register read path used by the slave-CPU
+ * MemReadRT specialisation at line ~3256), with T in
+ * {uint8_t, uint16_t, uint32_t}.  Three named NO_INLINE
+ * forwarders below cover those three instantiations; the
+ * w template parameter is gone because w=1 is the only value
+ * that ever flowed through.  The OnChipRegRead macro at line
+ * 3241 dispatches by sizeof(T) at preprocessor time (T is a
+ * concrete macro argument at every invocation, so gcc -O2 folds
+ * the sizeof chain to a single arm). */
+static NO_INLINE MDFN_HOT uint8_t OnChipRegRead_NI_u8(uint32_t A)
 {
- return CPU[w].OnChipRegRead_INLINE<T>(A);
+ return CPU[1].OnChipRegRead_INLINE<uint8_t>(A);
+}
+
+static NO_INLINE MDFN_HOT uint16_t OnChipRegRead_NI_u16(uint32_t A)
+{
+ return CPU[1].OnChipRegRead_INLINE<uint16_t>(A);
+}
+
+static NO_INLINE MDFN_HOT uint32_t OnChipRegRead_NI_u32(uint32_t A)
+{
+ return CPU[1].OnChipRegRead_INLINE<uint32_t>(A);
 }
 
 //
@@ -3238,7 +3258,10 @@ FORCE_INLINE void SH7095::Step(void)
 
 #define DoIDIF(IntPreventNext) DoIDIF_MACRO(IntPreventNext)
 
-#define OnChipRegRead(T, A) OnChipRegRead_NI<1, T>(A)
+#define OnChipRegRead(T, A)							\
+        ( (sizeof(T) == 1) ? (T)OnChipRegRead_NI_u8(A)				\
+        : (sizeof(T) == 2) ? (T)OnChipRegRead_NI_u16(A)				\
+                           : (T)OnChipRegRead_NI_u32(A) )
 #define ExtBusRead(T, BurstHax, A) ExtBusRead_NI<1, true, T, BurstHax>(A)
 #define ExtBusWrite(T, A, V) ExtBusWrite_NI<1, true, T>(A, V)
 
