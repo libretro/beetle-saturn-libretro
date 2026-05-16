@@ -1771,7 +1771,7 @@ static INLINE uint32_t rgb15_to_rgb24(uint16_t src)
 #define MAKE_NBGRBG_PIX(DEST, BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy) \
 do                                                                                                                                          \
 {                                                                                                                                           \
- uint32_t cellx = (ix ^ (tf)->cellx_xor);                                                                                                      \
+ uint32_t cellx = ((ix) ^ (tf)->cellx_xor);                                                                                                    \
  const uint16_t* vrb = &(tf)->tile_vrb[((cellx * (BPP)) >> 4)];                                                                                \
 /* */                                                                                                                                       \
 /* */                                                                                                                                       \
@@ -1920,6 +1920,44 @@ do                                                                              
 /* */                                                                                                                   \
    MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix, iy);             \
    xc += xcinc;                                                                                                         \
+  }                                                                                                                     \
+ }                                                                                                                      \
+ else if(xcinc == 0x100 && !VCSEn)                                                                                      \
+ {                                                                                                                      \
+/* Cell-aligned 8-px fast path: 1:1 horizontal scroll, no vertical cell scroll. */                                      \
+/* Eliminates the per-pixel cell-cross branch by splitting into head / 8-px body */                                     \
+/* / tail.  iy is constant across the run.  Each block issues exactly one        */                                     \
+/* TF_NR_FETCH before unrolled MAKE_NBGRBG_PIX calls with ix+0..ix+7.            */                                     \
+  uint32_t ix = xc >> 8;                                                                                                \
+  unsigned i = 0;                                                                                                       \
+  unsigned head_n = (8U - (ix & 7U)) & 7U;                                                                              \
+  if(head_n > w) head_n = w;                                                                                            \
+  if(head_n)                                                                                                            \
+  {                                                                                                                     \
+   TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                               \
+   for(unsigned k = 0; k < head_n; k++)                                                                                 \
+    MAKE_NBGRBG_PIX(bgbuf[i + k], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + k, iy);    \
+   i += head_n; ix += head_n;                                                                                           \
+  }                                                                                                                     \
+  while(i + 8U <= w)                                                                                                    \
+  {                                                                                                                     \
+   TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                               \
+   MAKE_NBGRBG_PIX(bgbuf[i + 0], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 0, iy);     \
+   MAKE_NBGRBG_PIX(bgbuf[i + 1], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 1, iy);     \
+   MAKE_NBGRBG_PIX(bgbuf[i + 2], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 2, iy);     \
+   MAKE_NBGRBG_PIX(bgbuf[i + 3], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 3, iy);     \
+   MAKE_NBGRBG_PIX(bgbuf[i + 4], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 4, iy);     \
+   MAKE_NBGRBG_PIX(bgbuf[i + 5], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 5, iy);     \
+   MAKE_NBGRBG_PIX(bgbuf[i + 6], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 6, iy);     \
+   MAKE_NBGRBG_PIX(bgbuf[i + 7], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 7, iy);     \
+   i += 8U; ix += 8U;                                                                                                   \
+  }                                                                                                                     \
+  if(i < w)                                                                                                             \
+  {                                                                                                                     \
+   const unsigned tail_n = w - i;                                                                                       \
+   TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                               \
+   for(unsigned k = 0; k < tail_n; k++)                                                                                 \
+    MAKE_NBGRBG_PIX(bgbuf[i + k], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + k, iy);    \
   }                                                                                                                     \
  }                                                                                                                      \
  else                                                                                                                   \
