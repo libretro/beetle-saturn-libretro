@@ -1511,8 +1511,9 @@ INLINE void SS_SCSP::RunDSP(void)
 //
 //
 //
-template<typename T_out>
-INLINE void SS_SCSP::RunSample(T_out* outlr)
+/* Phase-8f: RunSample detempleted -- hardcoded T_out = int16_t.
+ * See the matching note in scsp.h. */
+INLINE void SS_SCSP::RunSample(int16_t* outlr)
 {
  const uint32_t SampleCounter = GlobalCounter >> 5;
  const uint32_t SampleCounterXC = (SampleCounter ^ (SampleCounter - 1)) & (SampleCounter ^ 1);

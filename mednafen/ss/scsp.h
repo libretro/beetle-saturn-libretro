@@ -32,9 +32,17 @@ class SS_SCSP
 
  void Reset(bool powering_up) MDFN_COLD;
 
- // Use int16_t if the SCSP is connected to a 16-bit DAC, int32_t if an 18-bit DAC
- template<typename T_out = int16_t>
- void RunSample(T_out* outlr);
+ /* Phase-8f: RunSample's `template<typename T_out = int16_t>` form
+  * was the only path-traveled instantiation -- sound_glue.cpp's
+  * one and only caller passes an int16_t* (the IBuffer slot) and
+  * always relied on the default template argument.  The 18-bit-DAC
+  * path inside the body still shifts the clamped accumulators up
+  * by 2, but the result is then truncated back to int16_t at the
+  * outlr[0/1] stores anyway, so the previous int32_t T_out branch
+  * gained no actual precision -- it was dead code.  Hard-coding
+  * int16_t retires the template, makes the method a regular class
+  * member, and leaves no behaviour change. */
+ void RunSample(int16_t* outlr);
 
  template<typename T, bool IsWrite>
  void RW(uint32_t A, T& V); //, void (*time_sucker)();
