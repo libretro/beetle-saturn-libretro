@@ -1467,18 +1467,80 @@ static void CheckDMASFByInt(unsigned int_which)
  }
 }
 
-template<unsigned count>
-static INLINE uint32_t DMA_Read(DMALevelS* d)
+/* Phase-8m: DMA_Read<unsigned count> retired.  The template was
+ * instantiated for count = 1 / 2 / 4 (matching the three SCU DMA
+ * transfer widths) via the 9 call sites in DMA_Loop_0 / _1 / _2
+ * (themselves the phase-8g detempled variants of DMA_Loop).
+ * Three named static helpers below carry the post-folding body
+ * with count substituted as a literal; the `4 - count` and
+ * `d->CurReadSub += count` terms collapse to constants at
+ * compile time. */
+static INLINE uint32_t DMA_Read_c1(DMALevelS* d)
 {
- int shift = ((0x3 ^ (d->CurReadSub & 0x3)) - (0x3 ^ (d->CurWriteAddr & 0x3 & (4 - count)))) * 8;
+ int shift = ((0x3 ^ (d->CurReadSub & 0x3)) - (0x3 ^ (d->CurWriteAddr & 0x3 & 3))) * 8;
 
- d->CurReadSub += count;
+ d->CurReadSub += 1;
  if(d->CurReadSub > 4)
  {
-  if((d->CurReadSub - count) < 4)
+  if((d->CurReadSub - 1) < 4)
    shift += 32;
 
-  d->CurReadSub -= 4; //&= 0x3;
+  d->CurReadSub -= 4;
+  d->CurReadBase += (d->ReadAdd ? 4 : 0);
+  //
+  SCU_DMA_TimeCounter -= SCU_DMA_ReadOverhead;
+  SCU_DMA_ReadOverhead = 0;
+  uint32_t tmp = d->ReadFunc(d->CurReadBase);
+  d->Buffer <<= 32;
+  d->Buffer |= tmp;
+ }
+
+ if(shift > 0)
+  return d->Buffer >> shift;
+ else
+  return d->Buffer << -shift;
+}
+
+static INLINE uint32_t DMA_Read_c2(DMALevelS* d)
+{
+ int shift = ((0x3 ^ (d->CurReadSub & 0x3)) - (0x3 ^ (d->CurWriteAddr & 0x3 & 2))) * 8;
+
+ d->CurReadSub += 2;
+ if(d->CurReadSub > 4)
+ {
+  if((d->CurReadSub - 2) < 4)
+   shift += 32;
+
+  d->CurReadSub -= 4;
+  d->CurReadBase += (d->ReadAdd ? 4 : 0);
+  //
+  SCU_DMA_TimeCounter -= SCU_DMA_ReadOverhead;
+  SCU_DMA_ReadOverhead = 0;
+  uint32_t tmp = d->ReadFunc(d->CurReadBase);
+  d->Buffer <<= 32;
+  d->Buffer |= tmp;
+ }
+
+ if(shift > 0)
+  return d->Buffer >> shift;
+ else
+  return d->Buffer << -shift;
+}
+
+static INLINE uint32_t DMA_Read_c4(DMALevelS* d)
+{
+ /* count == 4 folds: `4 - count` is 0 so the second 0x3 ^ () term
+  * masks against 0, leaving shift = (0x3 ^ (d->CurReadSub & 0x3))
+  * - 0x3) * 8. */
+ int shift = ((0x3 ^ (d->CurReadSub & 0x3)) - 0x3) * 8;
+
+ d->CurReadSub += 4;
+ if(d->CurReadSub > 4)
+ {
+  if((d->CurReadSub - 4) < 4)
+   shift += 32;
+
+  d->CurReadSub -= 4;
   d->CurReadBase += (d->ReadAdd ? 4 : 0);
   //
   SCU_DMA_TimeCounter -= SCU_DMA_ReadOverhead;
@@ -1564,9 +1626,9 @@ static bool NO_INLINE DMA_Loop_0(DMALevelS* d)
  {
   switch(d->WATable->write_size)
   {
-   case 0x1: DMA_Write<0, uint8_t> (d, DMA_Read<1>(d)); break;
-   case 0x2: DMA_Write<0, uint16_t>(d, DMA_Read<2>(d)); break;
-   case 0x4: DMA_Write<0, uint32_t>(d, DMA_Read<4>(d)); break;
+   case 0x1: DMA_Write<0, uint8_t> (d, DMA_Read_c1(d)); break;
+   case 0x2: DMA_Write<0, uint16_t>(d, DMA_Read_c2(d)); break;
+   case 0x4: DMA_Write<0, uint32_t>(d, DMA_Read_c4(d)); break;
   }
   d->CurWriteAddr += d->WATable->write_addr_delta;
 
@@ -1590,9 +1652,9 @@ static bool NO_INLINE DMA_Loop_1(DMALevelS* d)
  {
   switch(d->WATable->write_size)
   {
-   case 0x1: DMA_Write<1, uint8_t> (d, DMA_Read<1>(d)); break;
-   case 0x2: DMA_Write<1, uint16_t>(d, DMA_Read<2>(d)); break;
-   case 0x4: DMA_Write<1, uint32_t>(d, DMA_Read<4>(d)); break;
+   case 0x1: DMA_Write<1, uint8_t> (d, DMA_Read_c1(d)); break;
+   case 0x2: DMA_Write<1, uint16_t>(d, DMA_Read_c2(d)); break;
+   case 0x4: DMA_Write<1, uint32_t>(d, DMA_Read_c4(d)); break;
   }
   d->CurWriteAddr += d->WATable->write_addr_delta;
 
@@ -1616,9 +1678,9 @@ static bool NO_INLINE DMA_Loop_2(DMALevelS* d)
  {
   switch(d->WATable->write_size)
   {
-   case 0x1: DMA_Write<2, uint8_t> (d, DMA_Read<1>(d)); break;
-   case 0x2: DMA_Write<2, uint16_t>(d, DMA_Read<2>(d)); break;
-   case 0x4: DMA_Write<2, uint32_t>(d, DMA_Read<4>(d)); break;
+   case 0x1: DMA_Write<2, uint8_t> (d, DMA_Read_c1(d)); break;
+   case 0x2: DMA_Write<2, uint16_t>(d, DMA_Read_c2(d)); break;
+   case 0x4: DMA_Write<2, uint32_t>(d, DMA_Read_c4(d)); break;
   }
   d->CurWriteAddr += d->WATable->write_addr_delta;
 
