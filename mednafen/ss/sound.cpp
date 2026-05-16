@@ -63,13 +63,22 @@ static INLINE void SCSP_MainIntChanged(SS_SCSP* s, bool state)
 
 //
 //
-template<typename T>
-static MDFN_FASTCALL T SoundCPU_BusRead(uint32_t A);
+/* Phase-6a: was `template<typename T> static MDFN_FASTCALL T
+ * SoundCPU_BusRead(uint32_t A)`.  Detemplated into two named
+ * functions (uint8_t / uint16_t) so the body's spelling can
+ * eventually compile as C; the only template-driven differences
+ * are the access width and the alignment-check mask, both folded
+ * into the per-size body. */
+static MDFN_FASTCALL uint8_t  SoundCPU_BusRead_u8(uint32_t A);
+static MDFN_FASTCALL uint16_t SoundCPU_BusRead_u16(uint32_t A);
 
 static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A);
 
-template<typename T>
-static MDFN_FASTCALL void SoundCPU_BusWrite(uint32_t A, T V);
+/* Phase-6a: was `template<typename T> static MDFN_FASTCALL void
+ * SoundCPU_BusWrite(uint32_t A, T V)`.  Same detemplate as the
+ * Read pair. */
+static MDFN_FASTCALL void SoundCPU_BusWrite_u8 (uint32_t A, uint8_t  V);
+static MDFN_FASTCALL void SoundCPU_BusWrite_u16(uint32_t A, uint16_t V);
 
 static MDFN_FASTCALL void SoundCPU_BusRMW(uint32_t A, uint8_t (MDFN_FASTCALL *cb)(M68K*, uint8_t));
 static MDFN_FASTCALL unsigned SoundCPU_BusIntAck(uint8_t level);
@@ -86,11 +95,11 @@ void SOUND_Init(void)
  next_scsp_time = 0;
  lastts = 0;
 
- SoundCPU.BusRead8 = SoundCPU_BusRead<uint8_t>;
- SoundCPU.BusRead16 = SoundCPU_BusRead<uint16_t>;
+ SoundCPU.BusRead8 = SoundCPU_BusRead_u8;
+ SoundCPU.BusRead16 = SoundCPU_BusRead_u16;
 
- SoundCPU.BusWrite8 = SoundCPU_BusWrite<uint8_t>;
- SoundCPU.BusWrite16 = SoundCPU_BusWrite<uint16_t>;
+ SoundCPU.BusWrite8 = SoundCPU_BusWrite_u8;
+ SoundCPU.BusWrite16 = SoundCPU_BusWrite_u16;
 
  SoundCPU.BusReadInstr = SoundCPU_BusReadInstr;
 
@@ -275,34 +284,42 @@ void SOUND_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 //
 //
 //
-template<typename T>
-static MDFN_FASTCALL T SoundCPU_BusRead(uint32_t A)
-{
- if(MDFN_UNLIKELY(A & (0xE00000 | (sizeof(T) - 1))))
- {
-  SoundCPU.timestamp += 4;
-
-  if(A & (sizeof(T) - 1))
-   SoundCPU.SignalAddressError(A, 0x3);
-  else
-   SoundCPU.SignalDTACKHalted(A);
-
-  MDFN_longjmp(jbuf);
- }
- //
- T ret;
-
- SoundCPU.timestamp += 4;
-
- if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))
-  RunSCSP();
-
- SCSP.RW<T, false>(A & 0x1FFFFF, ret);
-
- SoundCPU.timestamp += 2;
-
- return ret;
+/* Phase-6a: monomorphized via macro -- the only template-dependent
+ * pieces are sizeof(T) and the alignment-error type code (0x3 for
+ * misaligned read of word); the rest of the body is identical
+ * across instantiations. */
+#define SOUNDCPU_BUSREAD_BODY(T_t, SIZEMASK)                                                       \
+{                                                                                                  \
+ if(MDFN_UNLIKELY(A & (0xE00000 | (SIZEMASK))))                                                    \
+ {                                                                                                 \
+  SoundCPU.timestamp += 4;                                                                         \
+                                                                                                   \
+  if(A & (SIZEMASK))                                                                               \
+   SoundCPU.SignalAddressError(A, 0x3);                                                            \
+  else                                                                                             \
+   SoundCPU.SignalDTACKHalted(A);                                                                  \
+                                                                                                   \
+  MDFN_longjmp(jbuf);                                                                              \
+ }                                                                                                 \
+ /* */                                                                                             \
+ T_t ret;                                                                                          \
+                                                                                                   \
+ SoundCPU.timestamp += 4;                                                                          \
+                                                                                                   \
+ if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))                                           \
+  RunSCSP();                                                                                       \
+                                                                                                   \
+ SCSP.RW<T_t, false>(A & 0x1FFFFF, ret);                                                           \
+                                                                                                   \
+ SoundCPU.timestamp += 2;                                                                          \
+                                                                                                   \
+ return ret;                                                                                       \
 }
+
+static MDFN_FASTCALL uint8_t  SoundCPU_BusRead_u8 (uint32_t A) SOUNDCPU_BUSREAD_BODY(uint8_t,  0x0)
+static MDFN_FASTCALL uint16_t SoundCPU_BusRead_u16(uint32_t A) SOUNDCPU_BUSREAD_BODY(uint16_t, 0x1)
+
+#undef SOUNDCPU_BUSREAD_BODY
 
 static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
 {
@@ -339,31 +356,36 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
  return ret;
 }
 
-template<typename T>
-static MDFN_FASTCALL void SoundCPU_BusWrite(uint32_t A, T V)
-{
- if(MDFN_UNLIKELY(A & (0xE00000 | (sizeof(T) - 1))))
- {
-  SoundCPU.timestamp += 4;
-
-  if(A & (sizeof(T) - 1))
-   SoundCPU.SignalAddressError(A, 0x1);
-  else
-   SoundCPU.SignalDTACKHalted(A);
-
-  MDFN_longjmp(jbuf);
- }
- //
- SoundCPU.timestamp += 2;
-
- if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))
-  RunSCSP();
-
- SoundCPU.timestamp += 2;
-
- SCSP.RW<T, true>(A & 0x1FFFFF, V);
- SoundCPU.timestamp += 2;
+/* Phase-6a: same monomorphization scheme as the BusRead pair. */
+#define SOUNDCPU_BUSWRITE_BODY(T_t, SIZEMASK)                                                      \
+{                                                                                                  \
+ if(MDFN_UNLIKELY(A & (0xE00000 | (SIZEMASK))))                                                    \
+ {                                                                                                 \
+  SoundCPU.timestamp += 4;                                                                         \
+                                                                                                   \
+  if(A & (SIZEMASK))                                                                               \
+   SoundCPU.SignalAddressError(A, 0x1);                                                            \
+  else                                                                                             \
+   SoundCPU.SignalDTACKHalted(A);                                                                  \
+                                                                                                   \
+  MDFN_longjmp(jbuf);                                                                              \
+ }                                                                                                 \
+ /* */                                                                                             \
+ SoundCPU.timestamp += 2;                                                                          \
+                                                                                                   \
+ if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))                                           \
+  RunSCSP();                                                                                       \
+                                                                                                   \
+ SoundCPU.timestamp += 2;                                                                          \
+                                                                                                   \
+ SCSP.RW<T_t, true>(A & 0x1FFFFF, V);                                                              \
+ SoundCPU.timestamp += 2;                                                                          \
 }
+
+static MDFN_FASTCALL void SoundCPU_BusWrite_u8 (uint32_t A, uint8_t  V) SOUNDCPU_BUSWRITE_BODY(uint8_t,  0x0)
+static MDFN_FASTCALL void SoundCPU_BusWrite_u16(uint32_t A, uint16_t V) SOUNDCPU_BUSWRITE_BODY(uint16_t, 0x1)
+
+#undef SOUNDCPU_BUSWRITE_BODY
 
 
 static MDFN_FASTCALL void SoundCPU_BusRMW(uint32_t A, uint8_t (MDFN_FASTCALL *cb)(M68K*, uint8_t))
