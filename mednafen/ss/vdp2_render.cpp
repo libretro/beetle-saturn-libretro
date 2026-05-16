@@ -2299,78 +2299,159 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
 }
 
 // const bool TA_bmen = ((rn == 1) ? false : ((CHCTLB >> 9) & 1));
-template<bool TA_bmen, unsigned TA_bpp, bool TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
-static void T_DrawRBG(const bool rn, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or)
-{
- // Full color format selection for both RBG0 and RBG1
- // Bitmap only allowed for RBG0
- // RBG0 can use rot param A and B, RBG1 is fixed to rot param B
- // RBG1 shares setting bitfields with NBG0
- // 16 planes instead of 4 like with NBG*
- // Mosaic only has effect in the horizontal direction?
- //
- int16_t sfcode_lut[8];
-
- MAKE_SFCODE_LUT(TA_PrioMode, TA_CCMode, (rn ? 0 : 4), sfcode_lut);
-
- for(unsigned i = 0; MDFN_LIKELY(i < w); i++)
- {
-  const unsigned ab = LB.rotabsel[i];
-  auto& r = LB.rotv[ab];
-  auto& tf = r.tf;
-  uint32_t Xp = r.Xp;
-  int32_t kx = r.kx;
-  int32_t ky = r.ky;
-  bool rot_tp = false;
-
-  if(r.use_coeff)
-  {
-   const uint32_t coeff = (rn ? r.base_coeff : LB.rotcoeff[i]);
-
-   rot_tp = ((int32_t)coeff < 0);
-
-   const uint32_t sext = sign_x_to_s32(24, coeff);
- 
-   switch((KTCTL[ab] >> 2) & 0x3)
-   {
-    case 0: kx = ky = sext; break;
-    case 1: kx = sext; break;
-    case 2: ky = sext; break;
-    case 3: Xp = sext << 2; break;
-   }
-  }
-
-  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r.Xsp + (r.dX * i))) >> 16)) >> 10;
-  const uint32_t iy = (r.Yp + (uint32_t)(((int64_t)ky * (int32_t)(r.Ysp + (r.dY * i))) >> 16)) >> 10;
-
-  rot_tp |= tf.Fetch<TA_bpp>(TA_bmen, ix, iy);
-
-  LB.rotabsel[i] = rot_tp;
-  //
-  //
-  //
-  bgbuf[i] = MakeNBGRBGPix<TA_bmen, TA_bpp, TA_isrgb, TA_igntp, TA_PrioMode, TA_CCMode>(tf, pix_base_or, sfcode_lut, ix, iy);
- }
+/* T_DrawRBG: was `template<bool TA_bmen, unsigned TA_bpp, bool
+ * TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
+ * static void T_DrawRBG(const bool rn, uint64_t* bgbuf,
+ * const unsigned w, const uint32_t pix_base_or)`.  240 specs:
+ * bmen in {0,1}, color-mode in 0..4, igntp in {0,1}, PrioMode
+ * in {0..2}, CCMode in {0..3}.
+ *
+ * Converted via the same X-macro pattern used by the existing
+ * T_DrawRBG_ConstAB and the just-landed T_DrawNBG / T_DrawNBG23:
+ * five-dimensional descent through BMEN -> CM -> IGNTP -> PMODE
+ * -> CCMODE, with CM enumerating the five (BPP, ISRGB) pairs.
+ * Function-name suffix uses CM (not BPP, ISRGB), matching the
+ * T_DrawRBG_CAB / T_DrawNBG convention -- so e.g. CM=3 means
+ * BPP=16 ISRGB=1.
+ *
+ * Body still uses `auto& r`, `auto& tf` for ergonomic field
+ * access plus calls tf.Fetch<BPP>() and MakeNBGRBGPix<...>().
+ * All of those stay through phase 3; phase 4's .cpp -> .c rename
+ * is where they convert.
+ *
+ * The existing T_DrawRBG_CAB block below uses identical macro
+ * names (DRBG_ENUM_*, DRBG_FN_AT_*, DRBG_TBL_AT_*).  We #undef
+ * everything at the end of this block, so the CAB block can
+ * redefine fresh -- it also has matching #undefs after itself.
+ *
+ * Line-comments rewritten as block-comments for line-spliced
+ * macro safety. */
+#define T_DrawRBG_BODY(BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE) \
+{                                                                                                                       \
+/* Full color format selection for both RBG0 and RBG1 */                                                                \
+/* Bitmap only allowed for RBG0 */                                                                                      \
+/* RBG0 can use rot param A and B, RBG1 is fixed to rot param B */                                                      \
+/* RBG1 shares setting bitfields with NBG0 */                                                                           \
+/* 16 planes instead of 4 like with NBG* */                                                                             \
+/* Mosaic only has effect in the horizontal direction? */                                                               \
+/* */                                                                                                                   \
+ int16_t sfcode_lut[8];                                                                                                 \
+                                                                                                                       \
+ MAKE_SFCODE_LUT((PMODE), (CCMODE), (rn ? 0 : 4), sfcode_lut);                                                          \
+                                                                                                                       \
+ for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                           \
+ {                                                                                                                      \
+  const unsigned ab = LB.rotabsel[i];                                                                                   \
+  auto& r = LB.rotv[ab];                                                                                                \
+  auto& tf = r.tf;                                                                                                      \
+  uint32_t Xp = r.Xp;                                                                                                   \
+  int32_t kx = r.kx;                                                                                                    \
+  int32_t ky = r.ky;                                                                                                    \
+  bool rot_tp = false;                                                                                                  \
+                                                                                                                       \
+  if(r.use_coeff)                                                                                                       \
+  {                                                                                                                     \
+   const uint32_t coeff = (rn ? r.base_coeff : LB.rotcoeff[i]);                                                         \
+                                                                                                                       \
+   rot_tp = ((int32_t)coeff < 0);                                                                                       \
+                                                                                                                       \
+   const uint32_t sext = sign_x_to_s32(24, coeff);                                                                      \
+                                                                                                                       \
+   switch((KTCTL[ab] >> 2) & 0x3)                                                                                       \
+   {                                                                                                                    \
+    case 0: kx = ky = sext; break;                                                                                      \
+    case 1: kx = sext; break;                                                                                           \
+    case 2: ky = sext; break;                                                                                           \
+    case 3: Xp = sext << 2; break;                                                                                      \
+   }                                                                                                                    \
+  }                                                                                                                     \
+                                                                                                                       \
+  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r.Xsp + (r.dX * i))) >> 16)) >> 10;                   \
+  const uint32_t iy = (r.Yp + (uint32_t)(((int64_t)ky * (int32_t)(r.Ysp + (r.dY * i))) >> 16)) >> 10;                   \
+                                                                                                                       \
+  rot_tp |= tf.Fetch<(BPP)>((BMEN), ix, iy);                                                                            \
+                                                                                                                       \
+  LB.rotabsel[i] = rot_tp;                                                                                              \
+/* */                                                                                                                   \
+/* */                                                                                                                   \
+/* */                                                                                                                   \
+  bgbuf[i] = MakeNBGRBGPix<(BMEN), (BPP), (ISRGB), (IGNTP), (PMODE), (CCMODE)>(tf, pix_base_or, sfcode_lut, ix, iy);    \
+ }                                                                                                                      \
 }
 
-//template<unsigned TA_bpp, bool TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
+#define T_DrawRBG_NAME(BMEN, CM, IGNTP, PMODE, CCMODE) \
+ T_DrawRBG_##BMEN##_##CM##_##IGNTP##_##PMODE##_##CCMODE
+
+#define DEFINE_T_DrawRBG(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, CCMODE)                              \
+ static void T_DrawRBG_NAME(BMEN, CM, IGNTP, PMODE, CCMODE)(const bool rn, uint64_t* bgbuf,       \
+                                                            const unsigned w,                     \
+                                                            const uint32_t pix_base_or)           \
+ T_DrawRBG_BODY(BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE)
+
+/* One-level enumerators.  Match the DRBG_ENUM_* shape pioneered for
+ * T_DrawRBG_ConstAB and reused for T_DrawNBG. */
+#define DRBG_ENUM_CC(M, BMEN, CM, BPP, ISRGB, IGNTP, PMODE) \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 0)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 1)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 2)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, 3)
+
+#define DRBG_ENUM_PM(M, BMEN, CM, BPP, ISRGB, IGNTP) \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, 0)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, 1)                   \
+ M(BMEN, CM, BPP, ISRGB, IGNTP, 2)
+
+#define DRBG_ENUM_IG(M, BMEN, CM, BPP, ISRGB) \
+ M(BMEN, CM, BPP, ISRGB, 0)                   \
+ M(BMEN, CM, BPP, ISRGB, 1)
+
+#define DRBG_ENUM_CM(M, BMEN) \
+ M(BMEN, 0, 4,  0)            \
+ M(BMEN, 1, 8,  0)            \
+ M(BMEN, 2, 16, 0)            \
+ M(BMEN, 3, 16, 1)            \
+ M(BMEN, 4, 32, 1)
+
+/* Function-definition composition: descend through every level,
+ * invoking DEFINE_T_DrawRBG at the leaf. */
+#define DRBG_FN_AT_PM(BMEN, CM, BPP, ISRGB, IGNTP, PMODE) DRBG_ENUM_CC(DEFINE_T_DrawRBG, BMEN, CM, BPP, ISRGB, IGNTP, PMODE)
+#define DRBG_FN_AT_IG(BMEN, CM, BPP, ISRGB, IGNTP)        DRBG_ENUM_PM(DRBG_FN_AT_PM, BMEN, CM, BPP, ISRGB, IGNTP)
+#define DRBG_FN_AT_CM(BMEN, CM, BPP, ISRGB)               DRBG_ENUM_IG(DRBG_FN_AT_IG, BMEN, CM, BPP, ISRGB)
+#define DRBG_FN_AT_BM(BMEN)                               DRBG_ENUM_CM(DRBG_FN_AT_CM, BMEN)
+
+DRBG_FN_AT_BM(0)
+DRBG_FN_AT_BM(1)
+
+/* Table composition: same descent but each non-leaf wraps its inner
+ * expansion in braces, producing the nested [2][5][2][3][4] initializer. */
+#define DRBG_TBL_AT_CC(BMEN, CM, BPP, ISRGB, IGNTP, PMODE, CCMODE) T_DrawRBG_NAME(BMEN, CM, IGNTP, PMODE, CCMODE),
+#define DRBG_TBL_AT_PM(BMEN, CM, BPP, ISRGB, IGNTP, PMODE) { DRBG_ENUM_CC(DRBG_TBL_AT_CC, BMEN, CM, BPP, ISRGB, IGNTP, PMODE) },
+#define DRBG_TBL_AT_IG(BMEN, CM, BPP, ISRGB, IGNTP)        { DRBG_ENUM_PM(DRBG_TBL_AT_PM, BMEN, CM, BPP, ISRGB, IGNTP) },
+#define DRBG_TBL_AT_CM(BMEN, CM, BPP, ISRGB)               { DRBG_ENUM_IG(DRBG_TBL_AT_IG, BMEN, CM, BPP, ISRGB) },
+#define DRBG_TBL_AT_BM(BMEN)                               { DRBG_ENUM_CM(DRBG_TBL_AT_CM, BMEN) },
+
 static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(const bool rn, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or) =
 {
- {
-  {  {  { T_DrawRBG<0, 4, 0, 0, 0, 0>, T_DrawRBG<0, 4, 0, 0, 0, 1>, T_DrawRBG<0, 4, 0, 0, 0, 2>, T_DrawRBG<0, 4, 0, 0, 0, 3>,  },  { T_DrawRBG<0, 4, 0, 0, 1, 0>, T_DrawRBG<0, 4, 0, 0, 1, 1>, T_DrawRBG<0, 4, 0, 0, 1, 2>, T_DrawRBG<0, 4, 0, 0, 1, 3>,  },  { T_DrawRBG<0, 4, 0, 0, 2, 0>, T_DrawRBG<0, 4, 0, 0, 2, 1>, T_DrawRBG<0, 4, 0, 0, 2, 2>, T_DrawRBG<0, 4, 0, 0, 2, 3>,  },  },  {  { T_DrawRBG<0, 4, 0, 1, 0, 0>, T_DrawRBG<0, 4, 0, 1, 0, 1>, T_DrawRBG<0, 4, 0, 1, 0, 2>, T_DrawRBG<0, 4, 0, 1, 0, 3>,  },  { T_DrawRBG<0, 4, 0, 1, 1, 0>, T_DrawRBG<0, 4, 0, 1, 1, 1>, T_DrawRBG<0, 4, 0, 1, 1, 2>, T_DrawRBG<0, 4, 0, 1, 1, 3>,  },  { T_DrawRBG<0, 4, 0, 1, 2, 0>, T_DrawRBG<0, 4, 0, 1, 2, 1>, T_DrawRBG<0, 4, 0, 1, 2, 2>, T_DrawRBG<0, 4, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawRBG<0, 8, 0, 0, 0, 0>, T_DrawRBG<0, 8, 0, 0, 0, 1>, T_DrawRBG<0, 8, 0, 0, 0, 2>, T_DrawRBG<0, 8, 0, 0, 0, 3>,  },  { T_DrawRBG<0, 8, 0, 0, 1, 0>, T_DrawRBG<0, 8, 0, 0, 1, 1>, T_DrawRBG<0, 8, 0, 0, 1, 2>, T_DrawRBG<0, 8, 0, 0, 1, 3>,  },  { T_DrawRBG<0, 8, 0, 0, 2, 0>, T_DrawRBG<0, 8, 0, 0, 2, 1>, T_DrawRBG<0, 8, 0, 0, 2, 2>, T_DrawRBG<0, 8, 0, 0, 2, 3>,  },  },  {  { T_DrawRBG<0, 8, 0, 1, 0, 0>, T_DrawRBG<0, 8, 0, 1, 0, 1>, T_DrawRBG<0, 8, 0, 1, 0, 2>, T_DrawRBG<0, 8, 0, 1, 0, 3>,  },  { T_DrawRBG<0, 8, 0, 1, 1, 0>, T_DrawRBG<0, 8, 0, 1, 1, 1>, T_DrawRBG<0, 8, 0, 1, 1, 2>, T_DrawRBG<0, 8, 0, 1, 1, 3>,  },  { T_DrawRBG<0, 8, 0, 1, 2, 0>, T_DrawRBG<0, 8, 0, 1, 2, 1>, T_DrawRBG<0, 8, 0, 1, 2, 2>, T_DrawRBG<0, 8, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawRBG<0, 16, 0, 0, 0, 0>, T_DrawRBG<0, 16, 0, 0, 0, 1>, T_DrawRBG<0, 16, 0, 0, 0, 2>, T_DrawRBG<0, 16, 0, 0, 0, 3>,  },  { T_DrawRBG<0, 16, 0, 0, 1, 0>, T_DrawRBG<0, 16, 0, 0, 1, 1>, T_DrawRBG<0, 16, 0, 0, 1, 2>, T_DrawRBG<0, 16, 0, 0, 1, 3>,  },  { T_DrawRBG<0, 16, 0, 0, 2, 0>, T_DrawRBG<0, 16, 0, 0, 2, 1>, T_DrawRBG<0, 16, 0, 0, 2, 2>, T_DrawRBG<0, 16, 0, 0, 2, 3>,  },  },  {  { T_DrawRBG<0, 16, 0, 1, 0, 0>, T_DrawRBG<0, 16, 0, 1, 0, 1>, T_DrawRBG<0, 16, 0, 1, 0, 2>, T_DrawRBG<0, 16, 0, 1, 0, 3>,  },  { T_DrawRBG<0, 16, 0, 1, 1, 0>, T_DrawRBG<0, 16, 0, 1, 1, 1>, T_DrawRBG<0, 16, 0, 1, 1, 2>, T_DrawRBG<0, 16, 0, 1, 1, 3>,  },  { T_DrawRBG<0, 16, 0, 1, 2, 0>, T_DrawRBG<0, 16, 0, 1, 2, 1>, T_DrawRBG<0, 16, 0, 1, 2, 2>, T_DrawRBG<0, 16, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawRBG<0, 16, 1, 0, 0, 0>, T_DrawRBG<0, 16, 1, 0, 0, 1>, T_DrawRBG<0, 16, 1, 0, 0, 2>, T_DrawRBG<0, 16, 1, 0, 0, 3>,  },  { T_DrawRBG<0, 16, 1, 0, 1, 0>, T_DrawRBG<0, 16, 1, 0, 1, 1>, T_DrawRBG<0, 16, 1, 0, 1, 2>, T_DrawRBG<0, 16, 1, 0, 1, 3>,  },  { T_DrawRBG<0, 16, 1, 0, 2, 0>, T_DrawRBG<0, 16, 1, 0, 2, 1>, T_DrawRBG<0, 16, 1, 0, 2, 2>, T_DrawRBG<0, 16, 1, 0, 2, 3>,  },  },  {  { T_DrawRBG<0, 16, 1, 1, 0, 0>, T_DrawRBG<0, 16, 1, 1, 0, 1>, T_DrawRBG<0, 16, 1, 1, 0, 2>, T_DrawRBG<0, 16, 1, 1, 0, 3>,  },  { T_DrawRBG<0, 16, 1, 1, 1, 0>, T_DrawRBG<0, 16, 1, 1, 1, 1>, T_DrawRBG<0, 16, 1, 1, 1, 2>, T_DrawRBG<0, 16, 1, 1, 1, 3>,  },  { T_DrawRBG<0, 16, 1, 1, 2, 0>, T_DrawRBG<0, 16, 1, 1, 2, 1>, T_DrawRBG<0, 16, 1, 1, 2, 2>, T_DrawRBG<0, 16, 1, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawRBG<0, 32, 1, 0, 0, 0>, T_DrawRBG<0, 32, 1, 0, 0, 1>, T_DrawRBG<0, 32, 1, 0, 0, 2>, T_DrawRBG<0, 32, 1, 0, 0, 3>,  },  { T_DrawRBG<0, 32, 1, 0, 1, 0>, T_DrawRBG<0, 32, 1, 0, 1, 1>, T_DrawRBG<0, 32, 1, 0, 1, 2>, T_DrawRBG<0, 32, 1, 0, 1, 3>,  },  { T_DrawRBG<0, 32, 1, 0, 2, 0>, T_DrawRBG<0, 32, 1, 0, 2, 1>, T_DrawRBG<0, 32, 1, 0, 2, 2>, T_DrawRBG<0, 32, 1, 0, 2, 3>,  },  },  {  { T_DrawRBG<0, 32, 1, 1, 0, 0>, T_DrawRBG<0, 32, 1, 1, 0, 1>, T_DrawRBG<0, 32, 1, 1, 0, 2>, T_DrawRBG<0, 32, 1, 1, 0, 3>,  },  { T_DrawRBG<0, 32, 1, 1, 1, 0>, T_DrawRBG<0, 32, 1, 1, 1, 1>, T_DrawRBG<0, 32, 1, 1, 1, 2>, T_DrawRBG<0, 32, 1, 1, 1, 3>,  },  { T_DrawRBG<0, 32, 1, 1, 2, 0>, T_DrawRBG<0, 32, 1, 1, 2, 1>, T_DrawRBG<0, 32, 1, 1, 2, 2>, T_DrawRBG<0, 32, 1, 1, 2, 3>,  },  },  },
- },
- {
-  {  {  { T_DrawRBG<1, 4, 0, 0, 0, 0>, T_DrawRBG<1, 4, 0, 0, 0, 1>, T_DrawRBG<1, 4, 0, 0, 0, 2>, T_DrawRBG<1, 4, 0, 0, 0, 3>,  },  { T_DrawRBG<1, 4, 0, 0, 1, 0>, T_DrawRBG<1, 4, 0, 0, 1, 1>, T_DrawRBG<1, 4, 0, 0, 1, 2>, T_DrawRBG<1, 4, 0, 0, 1, 3>,  },  { T_DrawRBG<1, 4, 0, 0, 2, 0>, T_DrawRBG<1, 4, 0, 0, 2, 1>, T_DrawRBG<1, 4, 0, 0, 2, 2>, T_DrawRBG<1, 4, 0, 0, 2, 3>,  },  },  {  { T_DrawRBG<1, 4, 0, 1, 0, 0>, T_DrawRBG<1, 4, 0, 1, 0, 1>, T_DrawRBG<1, 4, 0, 1, 0, 2>, T_DrawRBG<1, 4, 0, 1, 0, 3>,  },  { T_DrawRBG<1, 4, 0, 1, 1, 0>, T_DrawRBG<1, 4, 0, 1, 1, 1>, T_DrawRBG<1, 4, 0, 1, 1, 2>, T_DrawRBG<1, 4, 0, 1, 1, 3>,  },  { T_DrawRBG<1, 4, 0, 1, 2, 0>, T_DrawRBG<1, 4, 0, 1, 2, 1>, T_DrawRBG<1, 4, 0, 1, 2, 2>, T_DrawRBG<1, 4, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawRBG<1, 8, 0, 0, 0, 0>, T_DrawRBG<1, 8, 0, 0, 0, 1>, T_DrawRBG<1, 8, 0, 0, 0, 2>, T_DrawRBG<1, 8, 0, 0, 0, 3>,  },  { T_DrawRBG<1, 8, 0, 0, 1, 0>, T_DrawRBG<1, 8, 0, 0, 1, 1>, T_DrawRBG<1, 8, 0, 0, 1, 2>, T_DrawRBG<1, 8, 0, 0, 1, 3>,  },  { T_DrawRBG<1, 8, 0, 0, 2, 0>, T_DrawRBG<1, 8, 0, 0, 2, 1>, T_DrawRBG<1, 8, 0, 0, 2, 2>, T_DrawRBG<1, 8, 0, 0, 2, 3>,  },  },  {  { T_DrawRBG<1, 8, 0, 1, 0, 0>, T_DrawRBG<1, 8, 0, 1, 0, 1>, T_DrawRBG<1, 8, 0, 1, 0, 2>, T_DrawRBG<1, 8, 0, 1, 0, 3>,  },  { T_DrawRBG<1, 8, 0, 1, 1, 0>, T_DrawRBG<1, 8, 0, 1, 1, 1>, T_DrawRBG<1, 8, 0, 1, 1, 2>, T_DrawRBG<1, 8, 0, 1, 1, 3>,  },  { T_DrawRBG<1, 8, 0, 1, 2, 0>, T_DrawRBG<1, 8, 0, 1, 2, 1>, T_DrawRBG<1, 8, 0, 1, 2, 2>, T_DrawRBG<1, 8, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawRBG<1, 16, 0, 0, 0, 0>, T_DrawRBG<1, 16, 0, 0, 0, 1>, T_DrawRBG<1, 16, 0, 0, 0, 2>, T_DrawRBG<1, 16, 0, 0, 0, 3>,  },  { T_DrawRBG<1, 16, 0, 0, 1, 0>, T_DrawRBG<1, 16, 0, 0, 1, 1>, T_DrawRBG<1, 16, 0, 0, 1, 2>, T_DrawRBG<1, 16, 0, 0, 1, 3>,  },  { T_DrawRBG<1, 16, 0, 0, 2, 0>, T_DrawRBG<1, 16, 0, 0, 2, 1>, T_DrawRBG<1, 16, 0, 0, 2, 2>, T_DrawRBG<1, 16, 0, 0, 2, 3>,  },  },  {  { T_DrawRBG<1, 16, 0, 1, 0, 0>, T_DrawRBG<1, 16, 0, 1, 0, 1>, T_DrawRBG<1, 16, 0, 1, 0, 2>, T_DrawRBG<1, 16, 0, 1, 0, 3>,  },  { T_DrawRBG<1, 16, 0, 1, 1, 0>, T_DrawRBG<1, 16, 0, 1, 1, 1>, T_DrawRBG<1, 16, 0, 1, 1, 2>, T_DrawRBG<1, 16, 0, 1, 1, 3>,  },  { T_DrawRBG<1, 16, 0, 1, 2, 0>, T_DrawRBG<1, 16, 0, 1, 2, 1>, T_DrawRBG<1, 16, 0, 1, 2, 2>, T_DrawRBG<1, 16, 0, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawRBG<1, 16, 1, 0, 0, 0>, T_DrawRBG<1, 16, 1, 0, 0, 1>, T_DrawRBG<1, 16, 1, 0, 0, 2>, T_DrawRBG<1, 16, 1, 0, 0, 3>,  },  { T_DrawRBG<1, 16, 1, 0, 1, 0>, T_DrawRBG<1, 16, 1, 0, 1, 1>, T_DrawRBG<1, 16, 1, 0, 1, 2>, T_DrawRBG<1, 16, 1, 0, 1, 3>,  },  { T_DrawRBG<1, 16, 1, 0, 2, 0>, T_DrawRBG<1, 16, 1, 0, 2, 1>, T_DrawRBG<1, 16, 1, 0, 2, 2>, T_DrawRBG<1, 16, 1, 0, 2, 3>,  },  },  {  { T_DrawRBG<1, 16, 1, 1, 0, 0>, T_DrawRBG<1, 16, 1, 1, 0, 1>, T_DrawRBG<1, 16, 1, 1, 0, 2>, T_DrawRBG<1, 16, 1, 1, 0, 3>,  },  { T_DrawRBG<1, 16, 1, 1, 1, 0>, T_DrawRBG<1, 16, 1, 1, 1, 1>, T_DrawRBG<1, 16, 1, 1, 1, 2>, T_DrawRBG<1, 16, 1, 1, 1, 3>,  },  { T_DrawRBG<1, 16, 1, 1, 2, 0>, T_DrawRBG<1, 16, 1, 1, 2, 1>, T_DrawRBG<1, 16, 1, 1, 2, 2>, T_DrawRBG<1, 16, 1, 1, 2, 3>,  },  },  },
-  {  {  { T_DrawRBG<1, 32, 1, 0, 0, 0>, T_DrawRBG<1, 32, 1, 0, 0, 1>, T_DrawRBG<1, 32, 1, 0, 0, 2>, T_DrawRBG<1, 32, 1, 0, 0, 3>,  },  { T_DrawRBG<1, 32, 1, 0, 1, 0>, T_DrawRBG<1, 32, 1, 0, 1, 1>, T_DrawRBG<1, 32, 1, 0, 1, 2>, T_DrawRBG<1, 32, 1, 0, 1, 3>,  },  { T_DrawRBG<1, 32, 1, 0, 2, 0>, T_DrawRBG<1, 32, 1, 0, 2, 1>, T_DrawRBG<1, 32, 1, 0, 2, 2>, T_DrawRBG<1, 32, 1, 0, 2, 3>,  },  },  {  { T_DrawRBG<1, 32, 1, 1, 0, 0>, T_DrawRBG<1, 32, 1, 1, 0, 1>, T_DrawRBG<1, 32, 1, 1, 0, 2>, T_DrawRBG<1, 32, 1, 1, 0, 3>,  },  { T_DrawRBG<1, 32, 1, 1, 1, 0>, T_DrawRBG<1, 32, 1, 1, 1, 1>, T_DrawRBG<1, 32, 1, 1, 1, 2>, T_DrawRBG<1, 32, 1, 1, 1, 3>,  },  { T_DrawRBG<1, 32, 1, 1, 2, 0>, T_DrawRBG<1, 32, 1, 1, 2, 1>, T_DrawRBG<1, 32, 1, 1, 2, 2>, T_DrawRBG<1, 32, 1, 1, 2, 3>,  },  },  },
- }
+ DRBG_TBL_AT_BM(0)
+ DRBG_TBL_AT_BM(1)
 };
+
+#undef DRBG_TBL_AT_BM
+#undef DRBG_TBL_AT_CM
+#undef DRBG_TBL_AT_IG
+#undef DRBG_TBL_AT_PM
+#undef DRBG_TBL_AT_CC
+#undef DRBG_FN_AT_BM
+#undef DRBG_FN_AT_CM
+#undef DRBG_FN_AT_IG
+#undef DRBG_FN_AT_PM
+#undef DRBG_ENUM_CM
+#undef DRBG_ENUM_IG
+#undef DRBG_ENUM_PM
+#undef DRBG_ENUM_CC
+#undef DEFINE_T_DrawRBG
+#undef T_DrawRBG_NAME
+#undef T_DrawRBG_BODY
 
 //
 // Constant-AB specialization of T_DrawRBG.
