@@ -1,7 +1,13 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* sound.cpp - Sound Emulation
+/* sound_glue.cpp - C++ side of the Saturn sound module.  Phase-6c split out
+**                  from sound.cpp so the orchestration half can become C
+**                  (see sound.c); this file keeps the SS_SCSP / M68K class
+**                  instances, the M68K bus callbacks (which need C++-side
+**                  access to the class globals), and exposes everything
+**                  the C side needs through extern "C" SoundGlue_* wrappers.
+**
 **  Copyright (C) 2015-2021 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -19,36 +25,28 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-// TODO: Bus between SCU and SCSP looks to be 8-bit, maybe implement that, but
-// first test to see how the bus access cycle(s) work with respect to reading from
-// registers whose values may change between the individual byte reads.
-// (May not be worth emulating if it could possibly trigger problems in games)
-
 #include "../mednafen.h"
 #include "../hw_cpu/m68k/m68k.h"
 #include "../jump.h"
 
 #include "ss.h"
 #include "sound.h"
+#include "sound_internal.h"
 #include "scu.h"
 #include "cdb.h"
 
 #include "scsp.h"
 
+/* The two C++ class instances that drive the Saturn sound module.
+ * Both are file-static here; sound.c never sees the class types
+ * directly -- it only reaches them through the extern "C" wrappers
+ * below. */
 static SS_SCSP SCSP;
-
 static M68K SoundCPU(true);
-static int64_t run_until_time;	// 32.32
-static int32_t next_scsp_time;
 
-static uint32_t clock_ratio;
-static sscpu_timestamp_t lastts;
-
-static MDFN_jmp_buf jbuf;
-
-int16_t IBuffer[1024][2];
-uint32_t IBufferCount;
-
+/* SCSP IRQ-line and main-CPU-int callbacks.  These get pulled in
+ * by scsp.inc and called from the SCSP state machine; they touch
+ * the M68K IPL line and the SCU interrupt latch respectively. */
 static INLINE void SCSP_SoundIntChanged(SS_SCSP* s, unsigned level)
 {
  SoundCPU.SetIPL(level);
@@ -61,231 +59,28 @@ static INLINE void SCSP_MainIntChanged(SS_SCSP* s, bool state)
 
 #include "scsp.inc"
 
-//
-//
-/* Phase-6a: was `template<typename T> static MDFN_FASTCALL T
- * SoundCPU_BusRead(uint32_t A)`.  Detemplated into two named
- * functions (uint8_t / uint16_t) so the body's spelling can
- * eventually compile as C; the only template-driven differences
- * are the access width and the alignment-check mask, both folded
- * into the per-size body. */
-static MDFN_FASTCALL uint8_t  SoundCPU_BusRead_u8(uint32_t A);
-static MDFN_FASTCALL uint16_t SoundCPU_BusRead_u16(uint32_t A);
+/* ===================================================================
+ * M68K SoundCPU bus callbacks
+ *
+ * Installed in SoundCPU's BusRead8 / BusRead16 / BusWrite8 / BusWrite16
+ * / BusReadInstr / BusRMW / BusIntAck / BusRESET function-pointer
+ * fields from SoundGlue_Init().  M68K execution dispatches into these
+ * for every external memory access.
+ *
+ * They live on the C++ side because the bodies reach SCSP.RW_* (member
+ * call, needs class visibility) and the global SoundCPU and SCSP
+ * instances.  Their function-pointer addresses are stored in M68K's
+ * fields; the calling code (M68K::Run, deep in m68k.cpp) only sees
+ * the pointer values, so the calling convention is the only ABI
+ * constraint -- MDFN_FASTCALL on both sides.
+ *
+ * The bus-access bodies need three pieces of cross-TU state owned
+ * by sound.c: SOUND_next_scsp_time (the SCSP-sample boundary timer
+ * read at every bus access), SOUND_jbuf (the longjmp recovery point
+ * set up in SOUND_Update), and SOUND_RunSCSP (defined below; not in
+ * sound.c, but called from sound.c too).
+ * =================================================================== */
 
-static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A);
-
-/* Phase-6a: was `template<typename T> static MDFN_FASTCALL void
- * SoundCPU_BusWrite(uint32_t A, T V)`.  Same detemplate as the
- * Read pair. */
-static MDFN_FASTCALL void SoundCPU_BusWrite_u8 (uint32_t A, uint8_t  V);
-static MDFN_FASTCALL void SoundCPU_BusWrite_u16(uint32_t A, uint16_t V);
-
-static MDFN_FASTCALL void SoundCPU_BusRMW(uint32_t A, uint8_t (MDFN_FASTCALL *cb)(M68K*, uint8_t));
-static MDFN_FASTCALL unsigned SoundCPU_BusIntAck(uint8_t level);
-static MDFN_FASTCALL void SoundCPU_BusRESET(bool state);
-//
-//
-
-void SOUND_Init(void)
-{
- memset(IBuffer, 0, sizeof(IBuffer));
- IBufferCount = 0;
-
- run_until_time = 0;
- next_scsp_time = 0;
- lastts = 0;
-
- SoundCPU.BusRead8 = SoundCPU_BusRead_u8;
- SoundCPU.BusRead16 = SoundCPU_BusRead_u16;
-
- SoundCPU.BusWrite8 = SoundCPU_BusWrite_u8;
- SoundCPU.BusWrite16 = SoundCPU_BusWrite_u16;
-
- SoundCPU.BusReadInstr = SoundCPU_BusReadInstr;
-
- SoundCPU.BusRMW = SoundCPU_BusRMW;
-
- SoundCPU.BusIntAck = SoundCPU_BusIntAck;
- SoundCPU.BusRESET = SoundCPU_BusRESET;
-
- SS_SetPhysMemMap(0x05A00000, 0x05A7FFFF, SCSP.GetRAMPtr(), 0x80000, true);
- // TODO: MEM4B: SS_SetPhysMemMap(0x05A00000, 0x05AFFFFF, SCSP.GetRAMPtr(), 0x40000, true);
-}
-
-uint8_t SOUND_PeekRAM(uint32_t A)
-{
- /* ne16_rbo_be<uint8_t> folded. */
-#ifdef MSB_FIRST
- return ((const uint8_t*)SCSP.GetRAMPtr())[A & 0x7FFFF];
-#else
- return ((const uint8_t*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1];
-#endif
-}
-
-void SOUND_PokeRAM(uint32_t A, uint8_t V)
-{
- /* ne16_wbo_be<uint8_t> folded. */
-#ifdef MSB_FIRST
- ((uint8_t*)SCSP.GetRAMPtr())[A & 0x7FFFF] = V;
-#else
- ((uint8_t*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1] = V;
-#endif
-}
-
-static INLINE void ResetTS_68K(void)
-{
- next_scsp_time -= SoundCPU.timestamp;
- run_until_time -= (int64_t)SoundCPU.timestamp << 32;
- SoundCPU.timestamp = 0;
-}
-
-void SOUND_AdjustTS(const int32_t delta)
-{
- ResetTS_68K();
- //
- //
- lastts += delta;
-}
-
-void SOUND_Reset(bool powering_up)
-{
- SCSP.Reset(powering_up);
- SoundCPU.Reset(powering_up);
-}
-
-void SOUND_Reset68K(void)
-{
- SoundCPU.Reset(false);
-}
-
-void SOUND_ResetSCSP(void)
-{
- SCSP.Reset(false);
-}
-
-void SOUND_Kill(void)
-{
-}
-
-void SOUND_Set68KActive(bool active)
-{
- SoundCPU.SetExtHalted(!active);
-}
-
-uint16_t SOUND_Read16(uint32_t A)
-{
- return SCSP.RW_R16(A);
-}
-
-void SOUND_Write8(uint32_t A, uint8_t V)
-{
- SCSP.RW_W8(A, V);
-}
-
-void SOUND_Write16(uint32_t A, uint16_t V)
-{
- SCSP.RW_W16(A, V);
-}
-
-static NO_INLINE void RunSCSP(void)
-{
- CDB_GetCDDA(SCSP.GetEXTSPtr());
- //
- //
- int16_t* const bp = IBuffer[IBufferCount];
- SCSP.RunSample(bp);
- //bp[0] = rand();
- //bp[1] = rand();
- bp[0] = (bp[0] * 27 + 16) >> 5;
- bp[1] = (bp[1] * 27 + 16) >> 5;
-
-/*
- // TODO?  Need to measure frequency response more reliably first, ideally after capacitor
- // replacement.  Should probably be controlled by a boolean setting, too.
- for(unsigned lr = 0; lr < 2; lr++)
- {
-  static int32_t filt[2];
-  filt[lr] += (((int64_t)(int32_t)((uint32_t)bp[lr] << 16) - filt[lr]) * 60500) >> 16;
-  bp[lr] = filt[lr] >> 16;
- }
-*/
-
- IBufferCount = (IBufferCount + 1) & 1023;
- next_scsp_time += 256;
-}
-
-// Ratio between SH-2 clock and 68K clock (sound clock / 2)
-void SOUND_SetClockRatio(uint32_t ratio)
-{
- clock_ratio = ratio;
-}
-
-sscpu_timestamp_t SOUND_Update(sscpu_timestamp_t timestamp)
-{
- run_until_time += ((uint64_t)(timestamp - lastts) * clock_ratio);
- lastts = timestamp;
- //
- //
- MDFN_setjmp(jbuf);
-
- if(MDFN_LIKELY(SoundCPU.timestamp < (run_until_time >> 32)))
- {
-  do
-  {
-   int32_t next_time = ((int32_t)(next_scsp_time) < (int32_t)(run_until_time >> 32) ? (int32_t)(next_scsp_time) : (int32_t)(run_until_time >> 32));
-
-   SoundCPU.Run(next_time);
-
-   if(SoundCPU.timestamp >= next_scsp_time)
-    RunSCSP();
-  } while(MDFN_LIKELY(SoundCPU.timestamp < (run_until_time >> 32)));
- }
- else
- {
-  while(next_scsp_time < (run_until_time >> 32))
-   RunSCSP();
- }
-
- return timestamp + 128;	// FIXME
-}
-
-void SOUND_StartFrame(double rate, uint32_t quality)
-{
-}
-
-void SOUND_StateAction(StateMem* sm, const unsigned load, const bool data_only)
-{
- SFORMAT StateRegs[] =
- {
-  SFVAR(next_scsp_time),
-  SFVAR(run_until_time),
-
-  SFEND
- };
-
- //
- next_scsp_time -= SoundCPU.timestamp;
- run_until_time -= (int64_t)SoundCPU.timestamp << 32;
-
- MDFNSS_StateAction(sm, load, data_only, StateRegs, "SOUND", false);
-
- next_scsp_time += SoundCPU.timestamp;
- run_until_time += (int64_t)SoundCPU.timestamp << 32;
- //
-
- SoundCPU.StateAction(sm, load, data_only, "M68K");
- SCSP.StateAction(sm, load, data_only, "SCSP");
-}
-
-//
-//
-//
-/* Phase-6a: monomorphized via macro -- the only template-dependent
- * pieces are sizeof(T) and the alignment-error type code (0x3 for
- * misaligned read of word); the rest of the body is identical
- * across instantiations.  Phase-6b also passes the SS_SCSP RW entry
- * tag (`R8` / `R16`) so the macro can paste the non-template member
- * name for the read call. */
 #define SOUNDCPU_BUSREAD_BODY(T_t, WIDTH_TAG, SIZEMASK)                                            \
 {                                                                                                  \
  if(MDFN_UNLIKELY(A & (0xE00000 | (SIZEMASK))))                                                    \
@@ -297,15 +92,15 @@ void SOUND_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   else                                                                                             \
    SoundCPU.SignalDTACKHalted(A);                                                                  \
                                                                                                    \
-  MDFN_longjmp(jbuf);                                                                              \
+  MDFN_longjmp(SOUND_jbuf);                                                                        \
  }                                                                                                 \
  /* */                                                                                             \
  T_t ret;                                                                                          \
                                                                                                    \
  SoundCPU.timestamp += 4;                                                                          \
                                                                                                    \
- if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))                                           \
-  RunSCSP();                                                                                       \
+ if(MDFN_UNLIKELY(SoundCPU.timestamp >= SOUND_next_scsp_time))                                     \
+  SOUND_RunSCSP();                                                                                 \
                                                                                                    \
  ret = SCSP.RW_R##WIDTH_TAG(A & 0x1FFFFF);                                                         \
                                                                                                    \
@@ -330,15 +125,15 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
   else
    SoundCPU.SignalDTACKHalted(A);
 
-  MDFN_longjmp(jbuf);
+  MDFN_longjmp(SOUND_jbuf);
  }
  //
  uint16_t ret;
 
  SoundCPU.timestamp += 4;
 
- //if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))
- // RunSCSP();
+ //if(MDFN_UNLIKELY(SoundCPU.timestamp >= SOUND_next_scsp_time))
+ // SOUND_RunSCSP();
 
  // Fast path: instruction fetch goes to sound RAM (0x000000-0x07FFFF).
  // The 68K can't sensibly execute from the mirror region or SCSP registers,
@@ -354,8 +149,6 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
  return ret;
 }
 
-/* Phase-6a: same monomorphization scheme as the BusRead pair.
- * Phase-6b: routes through SCSP.RW_W{8,16}. */
 #define SOUNDCPU_BUSWRITE_BODY(T_t, WIDTH_TAG, SIZEMASK)                                           \
 {                                                                                                  \
  if(MDFN_UNLIKELY(A & (0xE00000 | (SIZEMASK))))                                                    \
@@ -367,13 +160,13 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
   else                                                                                             \
    SoundCPU.SignalDTACKHalted(A);                                                                  \
                                                                                                    \
-  MDFN_longjmp(jbuf);                                                                              \
+  MDFN_longjmp(SOUND_jbuf);                                                                        \
  }                                                                                                 \
  /* */                                                                                             \
  SoundCPU.timestamp += 2;                                                                          \
                                                                                                    \
- if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))                                           \
-  RunSCSP();                                                                                       \
+ if(MDFN_UNLIKELY(SoundCPU.timestamp >= SOUND_next_scsp_time))                                     \
+  SOUND_RunSCSP();                                                                                 \
                                                                                                    \
  SoundCPU.timestamp += 2;                                                                          \
                                                                                                    \
@@ -386,22 +179,21 @@ static MDFN_FASTCALL void SoundCPU_BusWrite_u16(uint32_t A, uint16_t V) SOUNDCPU
 
 #undef SOUNDCPU_BUSWRITE_BODY
 
-
 static MDFN_FASTCALL void SoundCPU_BusRMW(uint32_t A, uint8_t (MDFN_FASTCALL *cb)(M68K*, uint8_t))
 {
  if(MDFN_UNLIKELY(A & 0xE00000))
  {
   SoundCPU.timestamp += 4;
   SoundCPU.SignalDTACKHalted(A);
-  MDFN_longjmp(jbuf);
+  MDFN_longjmp(SOUND_jbuf);
  }
  //
  uint8_t tmp;
 
  SoundCPU.timestamp += 4;
 
- if(MDFN_UNLIKELY(SoundCPU.timestamp >= next_scsp_time))
-  RunSCSP();
+ if(MDFN_UNLIKELY(SoundCPU.timestamp >= SOUND_next_scsp_time))
+  SOUND_RunSCSP();
 
  tmp = SCSP.RW_R8(A & 0x1FFFFF);
 
@@ -427,22 +219,124 @@ static MDFN_FASTCALL void SoundCPU_BusRESET(bool state)
   SoundCPU.Reset(false);
 }
 
-uint32_t SOUND_GetSCSPRegister(const unsigned id, char* const special, const uint32_t special_len)
+/* ===================================================================
+ * extern "C" wrappers exposed to sound.c
+ * =================================================================== */
+
+extern "C" {
+
+void SoundGlue_Init(void)
 {
- return SCSP.GetRegister(id, special, special_len);
+ SoundCPU.BusRead8 = SoundCPU_BusRead_u8;
+ SoundCPU.BusRead16 = SoundCPU_BusRead_u16;
+
+ SoundCPU.BusWrite8 = SoundCPU_BusWrite_u8;
+ SoundCPU.BusWrite16 = SoundCPU_BusWrite_u16;
+
+ SoundCPU.BusReadInstr = SoundCPU_BusReadInstr;
+
+ SoundCPU.BusRMW = SoundCPU_BusRMW;
+
+ SoundCPU.BusIntAck = SoundCPU_BusIntAck;
+ SoundCPU.BusRESET = SoundCPU_BusRESET;
+
+ SS_SetPhysMemMap(0x05A00000, 0x05A7FFFF, SCSP.GetRAMPtr(), 0x80000, true);
+ // TODO: MEM4B: SS_SetPhysMemMap(0x05A00000, 0x05AFFFFF, SCSP.GetRAMPtr(), 0x40000, true);
 }
 
-void SOUND_SetSCSPRegister(const unsigned id, const uint32_t value)
+/* M68K SoundCPU accessors / forwarders. */
+int32_t SoundGlue_M68K_GetTimestamp(void) { return SoundCPU.timestamp; }
+void    SoundGlue_M68K_ResetTimestamp(void) { SoundCPU.timestamp = 0; }
+void    SoundGlue_M68K_Run(int32_t until)   { SoundCPU.Run(until); }
+void    SoundGlue_M68K_Reset(bool pwr)      { SoundCPU.Reset(pwr); }
+void    SoundGlue_M68K_SetExtHalted(bool s) { SoundCPU.SetExtHalted(s); }
+
+void SoundGlue_M68K_StateAction(StateMem* sm, const unsigned load, const bool data_only,
+                                const char* sname)
 {
- SCSP.SetRegister(id, value);
+ SoundCPU.StateAction(sm, load, data_only, sname);
 }
 
-uint32_t SOUND_GetM68KRegister(const unsigned id, char* const special, const uint32_t special_len)
+uint32_t SoundGlue_M68K_GetRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
  return SoundCPU.GetRegister(id, special, special_len);
 }
 
-void SOUND_SetM68KRegister(const unsigned id, const uint32_t value)
+void SoundGlue_M68K_SetRegister(const unsigned id, const uint32_t value)
 {
  SoundCPU.SetRegister(id, value);
 }
+
+/* SS_SCSP forwarders. */
+void     SoundGlue_SCSP_Reset(bool pwr)              { SCSP.Reset(pwr); }
+uint16_t SoundGlue_SCSP_RW_R16(uint32_t A)           { return SCSP.RW_R16(A); }
+void     SoundGlue_SCSP_RW_W8 (uint32_t A, uint8_t  V) { SCSP.RW_W8 (A, V); }
+void     SoundGlue_SCSP_RW_W16(uint32_t A, uint16_t V) { SCSP.RW_W16(A, V); }
+
+uint8_t SoundGlue_SCSP_PeekRAM(uint32_t A)
+{
+ /* ne16_rbo_be<uint8_t> folded. */
+#ifdef MSB_FIRST
+ return ((const uint8_t*)SCSP.GetRAMPtr())[A & 0x7FFFF];
+#else
+ return ((const uint8_t*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1];
+#endif
+}
+
+void SoundGlue_SCSP_PokeRAM(uint32_t A, uint8_t V)
+{
+ /* ne16_wbo_be<uint8_t> folded. */
+#ifdef MSB_FIRST
+ ((uint8_t*)SCSP.GetRAMPtr())[A & 0x7FFFF] = V;
+#else
+ ((uint8_t*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1] = V;
+#endif
+}
+
+void SoundGlue_SCSP_StateAction(StateMem* sm, const unsigned load, const bool data_only,
+                                const char* sname)
+{
+ SCSP.StateAction(sm, load, data_only, sname);
+}
+
+uint32_t SoundGlue_SCSP_GetRegister(const unsigned id, char* const special, const uint32_t special_len)
+{
+ return SCSP.GetRegister(id, special, special_len);
+}
+
+void SoundGlue_SCSP_SetRegister(const unsigned id, const uint32_t value)
+{
+ SCSP.SetRegister(id, value);
+}
+
+/* Runs one SCSP sample.  Called from sound.c's SOUND_Update orchestration
+ * loop and from the bus-callback hot path; defined here because the body
+ * accesses SCSP (C++ class instance). */
+void SOUND_RunSCSP(void)
+{
+ CDB_GetCDDA(SCSP.GetEXTSPtr());
+ //
+ //
+ int16_t* const bp = IBuffer[IBufferCount];
+ SCSP.RunSample(bp);
+ //bp[0] = rand();
+ //bp[1] = rand();
+ bp[0] = (bp[0] * 27 + 16) >> 5;
+ bp[1] = (bp[1] * 27 + 16) >> 5;
+
+/*
+ // TODO?  Need to measure frequency response more reliably first, ideally after capacitor
+ // replacement.  Should probably be controlled by a boolean setting, too.
+ for(unsigned lr = 0; lr < 2; lr++)
+ {
+  static int32_t filt[2];
+  filt[lr] += (((int64_t)(int32_t)((uint32_t)bp[lr] << 16) - filt[lr]) * 60500) >> 16;
+  bp[lr] = filt[lr] >> 16;
+ }
+*/
+
+ IBufferCount = (IBufferCount + 1) & 1023;
+ SOUND_next_scsp_time += 256;
+}
+
+} /* extern "C" */

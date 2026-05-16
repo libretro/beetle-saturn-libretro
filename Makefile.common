@@ -56,8 +56,20 @@ ifeq ($(NEED_TREMOR), 1)
 endif
 
 SOURCES_CXX += \
-	$(CORE_EMU_DIR)/sound.cpp \
+	$(CORE_EMU_DIR)/sound_glue.cpp \
 	$(CORE_EMU_DIR)/ss.cpp
+
+# sound.cpp -> sound.c + sound_glue.cpp.  The orchestration half
+# (SOUND_* public ABI, the SOUND_Update 32.32 fixed-point cycle
+# loop, the SCSP IBuffer ring, the setjmp recovery point) moves
+# to C; the C++ class instances (SS_SCSP SCSP, M68K SoundCPU),
+# the eight M68K bus callbacks they need, and scsp.inc stay in
+# the new sound_glue.cpp.  The two halves exchange state through
+# sound_internal.h: a handful of extern "C" SoundGlue_* wrappers
+# around the M68K / SS_SCSP class methods sound.c needs, and four
+# extern symbols (SOUND_next_scsp_time, SOUND_jbuf, IBuffer,
+# SOUND_IBufferCount) owned by sound.c that the glue side reads /
+# writes during the bus-callback and RunSCSP paths.
 
 # scu_dsp_{gen,mvi,jmp,misc}.cpp -> .c.  Phase-5a detemplated the
 # four helper functions in scu_dsp_common.inc (DSP_TestCond,
@@ -134,7 +146,8 @@ SOURCES_C += $(CORE_EMU_DIR)/db.c \
 		$(CORE_EMU_DIR)/scu_dsp_gen.c \
 		$(CORE_EMU_DIR)/scu_dsp_mvi.c \
 		$(CORE_EMU_DIR)/scu_dsp_jmp.c \
-		$(CORE_EMU_DIR)/scu_dsp_misc.c
+		$(CORE_EMU_DIR)/scu_dsp_misc.c \
+		$(CORE_EMU_DIR)/sound.c
 
 # The cartridge subsystem, converted from C++ to C. CartInfo was
 # already a plain struct of function pointers (C-style polymorphism),
