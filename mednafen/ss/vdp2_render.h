@@ -56,17 +56,25 @@ void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_onl
 }
 #endif
 
+/* Inline rotation-parameter state per RBG, two slots (A and B).
+ * Was an anonymous struct embedded in VDP2Rend_LIB::rv[2]; callers
+ * (vdp2.c at lib->rv[i], vdp2_render.cpp at LIB[..].rv[i] and
+ * SetupRotVars's rs argument) had to recover the element type via
+ * __typeof__.  Naming the struct removes that GCC/clang dependency
+ * and makes the C signature direct. */
+struct VDP2Rend_RotVars
+{
+ uint32_t Xsp, Ysp;// .10
+ uint32_t Xp, Yp; // .10
+ uint32_t dX, dY; // .10
+ int32_t kx, ky;	 // .16
+ uint32_t KAstAccum;
+ uint32_t DKAx;
+};
+
 struct VDP2Rend_LIB
 {
- struct
- {
-  uint32_t Xsp, Ysp;// .10
-  uint32_t Xp, Yp; // .10
-  uint32_t dX, dY; // .10
-  int32_t kx, ky;	 // .16
-  uint32_t KAstAccum;
-  uint32_t DKAx;
- } rv[2];
+ struct VDP2Rend_RotVars rv[2];
  bool vdp1_hires8;
  bool win_ymet[2];
  uint16_t vdp1_line[352];

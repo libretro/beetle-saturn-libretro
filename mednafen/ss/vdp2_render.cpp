@@ -1975,17 +1975,13 @@ static INLINE uint32_t ReadCoeff(const unsigned i, const uint32_t addr)
 // RBG1 requires RPMD == 0, or else bad things happen?
 
 /* SetupRotVars: was `template<typename T> static void SetupRotVars(
- * const T* rs, const unsigned rbg_w)`.  Only call site is at
- *   SetupRotVars(LIB[vdp2_line].rv, rbg_w);
- * so T was always the same concrete (anonymous-struct) type.  The
- * struct is the inline `rv[2]` array element of VDP2Rend_LIB --
- * unnamed in the public header.  Recover the element type with
- * __typeof__ on a LIB[0].rv[0] sample, same idiom vdp2.c already
- * uses on lib->rv[i] (line 533 there), and bind it to a local
- * typedef so the function signature is plain C.  Drop the template;
- * single-callsite + same concrete T = identical codegen. */
-typedef __typeof__(LIB[0].rv[0]) RotVarsArg;
-static void SetupRotVars(const RotVarsArg* rs, const unsigned rbg_w)
+ * const T* rs, const unsigned rbg_w)`.  Only call site passes
+ * LIB[vdp2_line].rv (a VDP2Rend_RotVars[2] array), so T was always
+ * the same concrete struct type.  Drop the template; the struct is
+ * now named in vdp2_render.h (was an anonymous inline `struct {...}
+ * rv[2]` previously), so the function signature can reference it
+ * directly without __typeof__. */
+static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w)
 {
  const uint8_t EffRPMD = ((BGON & 0x20) ? 0 : RPMD);
 
