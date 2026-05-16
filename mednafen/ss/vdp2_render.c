@@ -1884,15 +1884,26 @@ do                                                                              
                                                                                                                        \
  if(((ZMCTL >> (n << 3)) & 0x3) && VCSEn)                                                                               \
  {                                                                                                                      \
+  uint32_t prev_celli = ~0u;                                                                                            \
+  uint32_t prev_cellj = ~0u;                                                                                            \
+                                                                                                                        \
   for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                          \
   {                                                                                                                     \
    const uint32_t ix = xc >> 8;                                                                                         \
    iy = LB.vcscr[n][i >> 3];                                                                                            \
-   TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                                     \
+   const uint32_t celli = ix >> 3;                                                                                      \
+   const uint32_t cellj = iy >> 3;                                                                                      \
+                                                                                                                        \
+   if(celli != prev_celli || cellj != prev_cellj)                                                                       \
+   {                                                                                                                    \
+    prev_celli = celli;                                                                                                 \
+    prev_cellj = cellj;                                                                                                 \
+    TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                              \
+   }                                                                                                                    \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
-   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix, iy);           \
+   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix, iy);             \
    xc += xcinc;                                                                                                         \
   }                                                                                                                     \
  }                                                                                                                      \
@@ -2503,9 +2514,14 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
 /* Mosaic only has effect in the horizontal direction? */                                                               \
 /* */                                                                                                                   \
  int16_t sfcode_lut[8];                                                                                                 \
-                                                                                                                       \
+                                                                                                                        \
  MAKE_SFCODE_LUT((PMODE), (CCMODE), (rn ? 0 : 4), sfcode_lut);                                                          \
-                                                                                                                       \
+                                                                                                                        \
+ unsigned prev_ab    = ~0u;                                                                                             \
+ uint32_t prev_celli = ~0u;                                                                                             \
+ uint32_t prev_cellj = ~0u;                                                                                             \
+ bool     prev_rot_tp_f = false;                                                                                        \
+                                                                                                                        \
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                           \
  {                                                                                                                      \
   const unsigned ab = LB.rotabsel[i];                                                                                   \
@@ -2536,13 +2552,23 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
   const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r->Xsp + (r->dX * i))) >> 16)) >> 10;                 \
   const uint32_t iy = (r->Yp + (uint32_t)(((int64_t)ky * (int32_t)(r->Ysp + (r->dY * i))) >> 16)) >> 10;                \
                                                                                                                        \
-  rot_tp |= TF_ROT_FETCH(tf, BPP, (BMEN), ix, iy);                                                                            \
-                                                                                                                       \
+  const uint32_t celli = ix >> 3;                                                                                       \
+  const uint32_t cellj = iy >> 3;                                                                                       \
+                                                                                                                        \
+  if(ab != prev_ab || celli != prev_celli || cellj != prev_cellj)                                                       \
+  {                                                                                                                     \
+   prev_ab    = ab;                                                                                                     \
+   prev_celli = celli;                                                                                                  \
+   prev_cellj = cellj;                                                                                                  \
+   prev_rot_tp_f = TF_ROT_FETCH(tf, BPP, (BMEN), ix, iy);                                                               \
+  }                                                                                                                     \
+  rot_tp |= prev_rot_tp_f;                                                                                              \
+                                                                                                                        \
   LB.rotabsel[i] = rot_tp;                                                                                              \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
-  MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);           \
+  MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);               \
  }                                                                                                                      \
 }
 
@@ -2668,6 +2694,10 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
  const uint32_t r_base_c = r->base_coeff;                                                               \
  const uint8_t  ktctl_md = (KTCTL[const_ab] >> 2) & 0x3;                                                \
                                                                                                       \
+ uint32_t prev_celli    = ~0u;                                                                         \
+ uint32_t prev_cellj    = ~0u;                                                                         \
+ bool     prev_rot_tp_f = false;                                                                       \
+                                                                                                      \
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                         \
  {                                                                                                    \
   uint32_t Xp = r_Xp;                                                                                   \
@@ -2695,7 +2725,16 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
   const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r_Xsp + (r_dX * i))) >> 16)) >> 10;         \
   const uint32_t iy = (r_Yp + (uint32_t)(((int64_t)ky * (int32_t)(r_Ysp + (r_dY * i))) >> 16)) >> 10;         \
                                                                                                       \
-  rot_tp |= TF_ROT_FETCH(tf, BPP, BMEN, ix, iy);                                                              \
+  const uint32_t celli = ix >> 3;                                                                     \
+  const uint32_t cellj = iy >> 3;                                                                     \
+                                                                                                      \
+  if(celli != prev_celli || cellj != prev_cellj)                                                      \
+  {                                                                                                   \
+   prev_celli    = celli;                                                                             \
+   prev_cellj    = cellj;                                                                             \
+   prev_rot_tp_f = TF_ROT_FETCH(tf, BPP, BMEN, ix, iy);                                               \
+  }                                                                                                   \
+  rot_tp |= prev_rot_tp_f;                                                                            \
                                                                                                       \
   LB.rotabsel[i] = rot_tp;                                                                            \
   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);\
