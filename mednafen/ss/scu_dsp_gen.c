@@ -86,7 +86,7 @@ static FORCE_INLINE void CalcZS48(struct DSPS* dsp, uint64_t val)
 {                                                                                                  \
  const uint32_t instr = DSP_InstrPre(dsp, LOOPED);                                                 \
  /* */                                                                                             \
- DSPR48 ALU = dsp->AC;                                                                             \
+ union DSPR48 ALU = dsp->AC;                                                                       \
  unsigned dr_read = 0;                                                                             \
  unsigned ct_inc = 0;                                                                              \
                                                                                                    \

@@ -57,11 +57,27 @@ endif
 
 SOURCES_CXX += \
 	$(CORE_EMU_DIR)/sound.cpp \
-	$(CORE_EMU_DIR)/ss.cpp \
-	$(CORE_EMU_DIR)/scu_dsp_gen.cpp \
-	$(CORE_EMU_DIR)/scu_dsp_mvi.cpp \
-	$(CORE_EMU_DIR)/scu_dsp_jmp.cpp \
-	$(CORE_EMU_DIR)/scu_dsp_misc.cpp
+	$(CORE_EMU_DIR)/ss.cpp
+
+# scu_dsp_{gen,mvi,jmp,misc}.cpp -> .c.  Phase-5a detemplated the
+# four helper functions in scu_dsp_common.inc (DSP_TestCond,
+# DSP_InstrPre, DSP_DecodeInstruction, the DSPS::IsRunning member)
+# to FORCE_INLINE C-callable forms with const args.  Phase 5b/5c/5d
+# monomorphized the four instruction-handler templates:
+#   - JMPInstr <looped, cond>            -> 130 named functions
+#   - MVIInstr <looped, dest, cond>      -> 2080 named functions
+#   - GeneralInstr <l, alu, x, y, d1>    -> 5376 named functions
+#   - MiscInstr <looped, op>             -> 8 named functions
+# Each scu_dsp_*tab.inc table file regenerated with the new
+# underscored names; the hand-dedup pattern in gentab.inc and
+# jmptab.inc / mvitab.inc (cond&0x40==0 collapse, alu NOP collapse,
+# x_op 0/1 collapse) preserved slot-by-slot so the function-pointer
+# tables stay byte-identical pre/post.  DMAInstr stays embedded in
+# scu.inc (ss.cpp's TU) since the body still uses BBusRW_DB and
+# ABus_Write_DB32 C++ templates from the bus-access layer.
+# The STATE_MASK_* enum was hoisted out of `struct DSPS` to file
+# scope so the same `STATE_MASK_EXECUTE` spelling compiles in
+# both C and C++.
 
 # db.cpp -> db.c. Dead std:: helpers (DB_GetInternalDB,
 # DB_GetHHDescriptions, FDIDToString) were removed in an earlier
@@ -114,7 +130,11 @@ SOURCES_C += $(CORE_EMU_DIR)/db.c \
 		$(CORE_EMU_DIR)/smpc.c \
 		$(CORE_EMU_DIR)/cdb.c \
 		$(CORE_EMU_DIR)/vdp2.c \
-		$(CORE_EMU_DIR)/vdp2_render.c
+		$(CORE_EMU_DIR)/vdp2_render.c \
+		$(CORE_EMU_DIR)/scu_dsp_gen.c \
+		$(CORE_EMU_DIR)/scu_dsp_mvi.c \
+		$(CORE_EMU_DIR)/scu_dsp_jmp.c \
+		$(CORE_EMU_DIR)/scu_dsp_misc.c
 
 # The cartridge subsystem, converted from C++ to C. CartInfo was
 # already a plain struct of function pointers (C-style polymorphism),

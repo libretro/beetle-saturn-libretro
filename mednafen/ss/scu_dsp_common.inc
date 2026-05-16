@@ -30,8 +30,19 @@
 // See loop in "SCU_UpdateDSP()" in scu.inc, and END/ENDI handling in scu_dsp_misc.cpp
 enum { DSP_EndCCSubVal = 1000000 };
 
+/* These two function symbols cross the C/C++ boundary: defined in
+ * scu.inc (compiled as part of ss.cpp -- C++), called from the
+ * scu_dsp_*.c files (post-phase-5e -- C).  Wrap the decls in
+ * `extern "C"` when seen by C++ so the same unmangled symbol name
+ * resolves on both sides at link time. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 void DSP_Init(void) MDFN_COLD;
 void DSP_FinishPRAMDMA(void);
+#ifdef __cplusplus
+}
+#endif
 
 union DSPR48
 {
@@ -91,8 +102,8 @@ struct DSPS
  uint8_t TOP;
  uint16_t LOP;	// 12 bits
 
- DSPR48 AC;
- DSPR48 P;
+ union DSPR48 AC;
+ union DSPR48 P;
 
  union
  {
@@ -129,39 +140,47 @@ static FORCE_INLINE bool DSPS_IsRunning(const struct DSPS* dsp)
 }
 
 
-// ALU Op: bits 26-29	- *16
-//   X Op: bits 23-25	- * 8
-//   Y Op: bits 17-19	- * 8
-//  D1 Op: bits 12-13	- * 4
-MDFN_HIDE extern void (*const DSP_GenFuncTable[2][16][8][8][4])(DSPS*);
+/* All 5 function-pointer tables + the global DSPS state cross
+ * the C/C++ boundary post-phase-5e: DSP_DMAFuncTable and `DSP DSP`
+ * are defined in scu.inc (C++, in ss.cpp's TU); the other 4
+ * tables are defined in the scu_dsp_*.c files (C).  All five
+ * are read from both sides through DSP_DecodeInstruction (which
+ * is FORCE_INLINE, so the references reproduce in both link
+ * paths).  Wrap the externs in extern "C" when seen by C++ so
+ * the unmangled symbol resolves both ways. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-// Hold/Format/Direction: bits 12-14
-//  Hold: bit 14
-//  Format: bit 13
-//  Direction: bit 12
-// RAM: bits 8-10
-//
-MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(DSPS*);
+/* ALU Op: bits 26-29	- *16 */
+/*   X Op: bits 23-25	- * 8 */
+/*   Y Op: bits 17-19	- * 8 */
+/*  D1 Op: bits 12-13	- * 4 */
+MDFN_HIDE extern void (*const DSP_GenFuncTable[2][16][8][8][4])(struct DSPS*);
 
-//
-// Dest: bits 26-29
-// Condition: bits 19-25
-//
-MDFN_HIDE extern void (*const DSP_MVIFuncTable[2][16][128])(DSPS*);
+/* Hold/Format/Direction: bits 12-14 */
+/*  Hold: bit 14   */
+/*  Format: bit 13 */
+/*  Direction: bit 12 */
+/* RAM: bits 8-10 */
+MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(struct DSPS*);
 
-//
-// Condition: bits 19-25
-//
-MDFN_HIDE extern void (*const DSP_JMPFuncTable[2][128])(DSPS*);
+/* Dest: bits 26-29 */
+/* Condition: bits 19-25 */
+MDFN_HIDE extern void (*const DSP_MVIFuncTable[2][16][128])(struct DSPS*);
 
+/* Condition: bits 19-25 */
+MDFN_HIDE extern void (*const DSP_JMPFuncTable[2][128])(struct DSPS*);
 
-//
-// LPS, BTM, END, ENDI(bits 29-31 = 0x7)
-// bits 27-28
-//
-MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(DSPS*);
+/* LPS, BTM, END, ENDI(bits 29-31 = 0x7) */
+/* bits 27-28 */
+MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(struct DSPS*);
 
-MDFN_HIDE extern DSPS DSP;
+MDFN_HIDE extern struct DSPS DSP;
+
+#ifdef __cplusplus
+}
+#endif
 
 /* Phase-5a: was `template<bool looped = false> static FORCE_INLINE
  * uint64_t DSP_DecodeInstruction(const uint32_t instr)`.  All call
