@@ -536,7 +536,6 @@ void SH7095::AdjustTS(int32_t delta)
  FRT_WDT_Recalc_NET();
 }
 
-
 // de=1, dme=1, te=0, nmif=0, ae=0
 INLINE bool SH7095::DMA_RunCond(unsigned ch)
 {
@@ -561,7 +560,6 @@ void SH7095::DMA_CheckEnterBurstHack(void)
  if(DMA_InBurst())
   SetPEX(PEX_PSEUDO_DMABURST);
 }
-
 
 // RecalcPendingIntPEX() will be called higher up, at the end of DMA_Update()
 //
@@ -789,7 +787,6 @@ INLINE void SH7095::DMA_BusTimingKludge(void)
  DMA_PenaltyKludgeAccum = 0;
 }
 
-
 //
 //
 //
@@ -852,7 +849,6 @@ INLINE void SH7095::FRT_ClockFRC(void)
  //
  FRT_CheckOCR();
 }
-
 
 static const uint8_t wdt_cstab[8] = { 1, /**/ 6, 7, 8, 9, 10, /**/ 12, 13 };
 
@@ -1154,7 +1150,6 @@ void SH7095::SCI_Reset(void)
  RecalcPendingIntPEX();
 }
 
-
 //
 //
 // End SCI
@@ -1177,16 +1172,10 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u8(uint32_t A, uint32_t V)
 {
  if(A & 0x100)
  {
-  if(1 == 2)
-   A &= 0xFE;
-  else
-   A &= 0xFC;
+  A &= 0xFC;
 
-  if(1 == 1)
-  {
-   SetPEX(PEX_CPUADDR);
-   V |= (uint8_t)V << 8;
-  }
+  SetPEX(PEX_CPUADDR);
+  V |= (uint8_t)V << 8;
 
   switch(A)
   {
@@ -1291,52 +1280,24 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u8(uint32_t A, uint32_t V)
    // BSC registers
    //
    case 0xE0:	// BCR1
-	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.BCR1 = (BSC.BCR1 & 0x8000) | (V & 0x1FF7);
-	}
 	break;
 
    case 0xE4:	// BCR2
-	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.BCR2 = V & 0xFC;
-	}
 	break;
 
    case 0xE8:	// WCR
-	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.WCR = V & 0xFFFF;
-	}
 	break;
 
    case 0xEC:	// MCR
-	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.MCR = V & 0xFEFC;
-	}
 	break;
 
    case 0xF0:	// RTCSR
-	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.RTCSR = (V & 0x78) | (BSC.RTCSR & 0x80 & (V | ~BSC.RTCSRM));
-	}
 	break;
 
    case 0xF4:	// RTCNT
-	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.RTCNT = V & 0xFF;
-	}
 	break;
 
    case 0xF8: // RTCOR
-	if(1 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.RTCOR = V & 0xFF;
-	}
 	break;
   }
  }
@@ -1345,17 +1306,8 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u8(uint32_t A, uint32_t V)
   unsigned mask = 0xFFFF;
   unsigned shift = 0;
 
-  if(1 != 2)
-  {
-   shift = ((A & 1) ^ 1) << 3;
-   mask = 0xFF << shift;
-
-   if(1 == 4)
-    shift ^= 8;
-  }
-
-  if(1 == 4)
-   SetPEX(PEX_CPUADDR);
+  shift = ((A & 1) ^ 1) << 3;
+  mask = 0xFF << shift;
 
   switch(A & 0xFF)
   {
@@ -1438,33 +1390,12 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u8(uint32_t A, uint32_t V)
 	DMACH[(A & 1) ^ 1].DRCR = V & 0x3;
 	break;
 
-
    //
    // WDT registers
    //
    case 0x80:
    case 0x88:
 	FRT_WDT_Update();
-	if(1 == 2)
-	{
-	 if((V & 0xFF00) == 0x5A00)
-	 {
-	  if(WDT.WTCSR & 0x20)
-	   WDT.WTCNT = V;
-	 }
-	 else if((V & 0xFF00) == 0xA500)
-	 {
-	  WDT.WTCSR = (WDT.WTCSR & (WDT.WTCSRM | V) & 0x80) | (V & 0x67);
-
-	  if(WDT.WTCSR & 0x20)
-	   SBYCR &= 0x7F;
-	  else
-	  {
-	   WDT.WTCSR &= ~0x80;	// Seemingly undocumented...
-	   WDT.WTCNT = 0;
-	  }
-	 }
-	}
 	WDT.RSTCSRM = 0;
 	FRT_WDT_Recalc_NET();
 	RecalcPendingIntPEX();
@@ -1473,19 +1404,6 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u8(uint32_t A, uint32_t V)
    case 0x82:
    case 0x8A:
 	FRT_WDT_Update();
-	if(1 == 2)
-	{
-	 if(V == 0xA500)
-	 {
-	  // Clear OVF bit
-	  WDT.RSTCSR &= ~WDT.RSTCSRM;
-	 }
-	 else if((V & 0xFF00) == 0x5A00)
-	 {
-	  // Write RSTE and RSTS bits
-	  WDT.RSTCSR = (WDT.RSTCSR & 0x80) | (V & 0x60);
-	 }
-	}
 	WDT.RSTCSRM = 0;
 	break;
 
@@ -1571,16 +1489,7 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u16(uint32_t A, uint32_t V)
 {
  if(A & 0x100)
  {
-  if(2 == 2)
-   A &= 0xFE;
-  else
-   A &= 0xFC;
-
-  if(2 == 1)
-  {
-   SetPEX(PEX_CPUADDR);
-   V |= (uint8_t)V << 8;
-  }
+  A &= 0xFE;
 
   switch(A)
   {
@@ -1685,52 +1594,24 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u16(uint32_t A, uint32_t V)
    // BSC registers
    //
    case 0xE0:	// BCR1
-	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.BCR1 = (BSC.BCR1 & 0x8000) | (V & 0x1FF7);
-	}
 	break;
 
    case 0xE4:	// BCR2
-	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.BCR2 = V & 0xFC;
-	}
 	break;
 
    case 0xE8:	// WCR
-	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.WCR = V & 0xFFFF;
-	}
 	break;
 
    case 0xEC:	// MCR
-	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.MCR = V & 0xFEFC;
-	}
 	break;
 
    case 0xF0:	// RTCSR
-	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.RTCSR = (V & 0x78) | (BSC.RTCSR & 0x80 & (V | ~BSC.RTCSRM));
-	}
 	break;
 
    case 0xF4:	// RTCNT
-	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.RTCNT = V & 0xFF;
-	}
 	break;
 
    case 0xF8: // RTCOR
-	if(2 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
-	{
- 	 BSC.RTCOR = V & 0xFF;
-	}
 	break;
   }
  }
@@ -1738,18 +1619,6 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u16(uint32_t A, uint32_t V)
  {
   unsigned mask = 0xFFFF;
   unsigned shift = 0;
-
-  if(2 != 2)
-  {
-   shift = ((A & 1) ^ 1) << 3;
-   mask = 0xFF << shift;
-
-   if(2 == 4)
-    shift ^= 8;
-  }
-
-  if(2 == 4)
-   SetPEX(PEX_CPUADDR);
 
   switch(A & 0xFF)
   {
@@ -1832,33 +1701,29 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u16(uint32_t A, uint32_t V)
 	DMACH[(A & 1) ^ 1].DRCR = V & 0x3;
 	break;
 
-
    //
    // WDT registers
    //
    case 0x80:
    case 0x88:
 	FRT_WDT_Update();
-	if(2 == 2)
-	{
-	 if((V & 0xFF00) == 0x5A00)
-	 {
-	  if(WDT.WTCSR & 0x20)
-	   WDT.WTCNT = V;
-	 }
-	 else if((V & 0xFF00) == 0xA500)
-	 {
-	  WDT.WTCSR = (WDT.WTCSR & (WDT.WTCSRM | V) & 0x80) | (V & 0x67);
+ if((V & 0xFF00) == 0x5A00)
+ {
+  if(WDT.WTCSR & 0x20)
+   WDT.WTCNT = V;
+ }
+ else if((V & 0xFF00) == 0xA500)
+ {
+  WDT.WTCSR = (WDT.WTCSR & (WDT.WTCSRM | V) & 0x80) | (V & 0x67);
 
-	  if(WDT.WTCSR & 0x20)
-	   SBYCR &= 0x7F;
-	  else
-	  {
-	   WDT.WTCSR &= ~0x80;	// Seemingly undocumented...
-	   WDT.WTCNT = 0;
-	  }
-	 }
-	}
+  if(WDT.WTCSR & 0x20)
+   SBYCR &= 0x7F;
+  else
+  {
+   WDT.WTCSR &= ~0x80;	// Seemingly undocumented...
+   WDT.WTCNT = 0;
+  }
+ }
 	WDT.RSTCSRM = 0;
 	FRT_WDT_Recalc_NET();
 	RecalcPendingIntPEX();
@@ -1867,19 +1732,16 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u16(uint32_t A, uint32_t V)
    case 0x82:
    case 0x8A:
 	FRT_WDT_Update();
-	if(2 == 2)
-	{
-	 if(V == 0xA500)
-	 {
-	  // Clear OVF bit
-	  WDT.RSTCSR &= ~WDT.RSTCSRM;
-	 }
-	 else if((V & 0xFF00) == 0x5A00)
-	 {
-	  // Write RSTE and RSTS bits
-	  WDT.RSTCSR = (WDT.RSTCSR & 0x80) | (V & 0x60);
-	 }
-	}
+ if(V == 0xA500)
+ {
+  // Clear OVF bit
+  WDT.RSTCSR &= ~WDT.RSTCSRM;
+ }
+ else if((V & 0xFF00) == 0x5A00)
+ {
+  // Write RSTE and RSTS bits
+  WDT.RSTCSR = (WDT.RSTCSR & 0x80) | (V & 0x60);
+ }
 	WDT.RSTCSRM = 0;
 	break;
 
@@ -1965,16 +1827,7 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u32(uint32_t A, uint32_t V)
 {
  if(A & 0x100)
  {
-  if(4 == 2)
-   A &= 0xFE;
-  else
-   A &= 0xFC;
-
-  if(4 == 1)
-  {
-   SetPEX(PEX_CPUADDR);
-   V |= (uint8_t)V << 8;
-  }
+  A &= 0xFC;
 
   switch(A)
   {
@@ -2079,49 +1932,49 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u32(uint32_t A, uint32_t V)
    // BSC registers
    //
    case 0xE0:	// BCR1
-	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if((V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.BCR1 = (BSC.BCR1 & 0x8000) | (V & 0x1FF7);
 	}
 	break;
 
    case 0xE4:	// BCR2
-	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if((V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.BCR2 = V & 0xFC;
 	}
 	break;
 
    case 0xE8:	// WCR
-	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if((V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.WCR = V & 0xFFFF;
 	}
 	break;
 
    case 0xEC:	// MCR
-	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if((V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.MCR = V & 0xFEFC;
 	}
 	break;
 
    case 0xF0:	// RTCSR
-	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if((V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.RTCSR = (V & 0x78) | (BSC.RTCSR & 0x80 & (V | ~BSC.RTCSRM));
 	}
 	break;
 
    case 0xF4:	// RTCNT
-	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if((V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.RTCNT = V & 0xFF;
 	}
 	break;
 
    case 0xF8: // RTCOR
-	if(4 == 4 && (V & 0xFFFF0000) == 0xA55A0000)
+	if((V & 0xFFFF0000) == 0xA55A0000)
 	{
  	 BSC.RTCOR = V & 0xFF;
 	}
@@ -2133,17 +1986,12 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u32(uint32_t A, uint32_t V)
   unsigned mask = 0xFFFF;
   unsigned shift = 0;
 
-  if(4 != 2)
-  {
-   shift = ((A & 1) ^ 1) << 3;
-   mask = 0xFF << shift;
+  shift = ((A & 1) ^ 1) << 3;
+  mask = 0xFF << shift;
 
-   if(4 == 4)
-    shift ^= 8;
-  }
+  shift ^= 8;
 
-  if(4 == 4)
-   SetPEX(PEX_CPUADDR);
+  SetPEX(PEX_CPUADDR);
 
   switch(A & 0xFF)
   {
@@ -2226,33 +2074,12 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u32(uint32_t A, uint32_t V)
 	DMACH[(A & 1) ^ 1].DRCR = V & 0x3;
 	break;
 
-
    //
    // WDT registers
    //
    case 0x80:
    case 0x88:
 	FRT_WDT_Update();
-	if(4 == 2)
-	{
-	 if((V & 0xFF00) == 0x5A00)
-	 {
-	  if(WDT.WTCSR & 0x20)
-	   WDT.WTCNT = V;
-	 }
-	 else if((V & 0xFF00) == 0xA500)
-	 {
-	  WDT.WTCSR = (WDT.WTCSR & (WDT.WTCSRM | V) & 0x80) | (V & 0x67);
-
-	  if(WDT.WTCSR & 0x20)
-	   SBYCR &= 0x7F;
-	  else
-	  {
-	   WDT.WTCSR &= ~0x80;	// Seemingly undocumented...
-	   WDT.WTCNT = 0;
-	  }
-	 }
-	}
 	WDT.RSTCSRM = 0;
 	FRT_WDT_Recalc_NET();
 	RecalcPendingIntPEX();
@@ -2261,19 +2088,6 @@ NO_INLINE MDFN_HOT void SH7095::OnChipRegWrite_u32(uint32_t A, uint32_t V)
    case 0x82:
    case 0x8A:
 	FRT_WDT_Update();
-	if(4 == 2)
-	{
-	 if(V == 0xA500)
-	 {
-	  // Clear OVF bit
-	  WDT.RSTCSR &= ~WDT.RSTCSRM;
-	 }
-	 else if((V & 0xFF00) == 0x5A00)
-	 {
-	  // Write RSTE and RSTS bits
-	  WDT.RSTCSR = (WDT.RSTCSR & 0x80) | (V & 0x60);
-	 }
-	}
 	WDT.RSTCSRM = 0;
 	break;
 
@@ -2370,13 +2184,9 @@ INLINE uint8_t SH7095::OnChipRegRead_INLINE_u8(uint32_t A)
 
   MA_until++;
 
-  if(1 == 2)
-   A &= 0xFE;
-  else
-   A &= 0xFC;
+  A &= 0xFC;
 
-  if(1 == 1)
-   SetPEX(PEX_CPUADDR);
+  SetPEX(PEX_CPUADDR);
 
   switch(A)
   {
@@ -2534,15 +2344,14 @@ INLINE uint8_t SH7095::OnChipRegRead_INLINE_u8(uint32_t A)
 	break;
   }
 
-  if(1 == 1)
-   ret >>= ((A & 1) ^ 1) << 3;
+  ret >>= ((A & 1) ^ 1) << 3;
 
   return ret;
  }
  else
  {
   const unsigned Am = (uint8_t)A;
-  const unsigned shift = ((1 != 2) ? (((A & 1) ^ 1) << 3) : 0);
+  const unsigned shift = ((((A & 1) ^ 1) << 3));
   uint16_t ret = 0;
 
   if(Am < 0x20)
@@ -2552,10 +2361,7 @@ INLINE uint8_t SH7095::OnChipRegRead_INLINE_u8(uint32_t A)
   else
    MA_until += 1;
 
-  if(1 == 4)
-   SetPEX(PEX_CPUADDR);
-
-  else switch(Am)
+  switch(Am)
   {
    default:
 	break;
@@ -2618,7 +2424,6 @@ INLINE uint8_t SH7095::OnChipRegRead_INLINE_u8(uint32_t A)
    case 0x72:
 	ret = DMACH[(A & 1) ^ 1].DRCR;
 	break;
-
 
    //
    // WDT registers
@@ -2739,13 +2544,7 @@ INLINE uint16_t SH7095::OnChipRegRead_INLINE_u16(uint32_t A)
 
   MA_until++;
 
-  if(2 == 2)
-   A &= 0xFE;
-  else
-   A &= 0xFC;
-
-  if(2 == 1)
-   SetPEX(PEX_CPUADDR);
+  A &= 0xFE;
 
   switch(A)
   {
@@ -2903,15 +2702,12 @@ INLINE uint16_t SH7095::OnChipRegRead_INLINE_u16(uint32_t A)
 	break;
   }
 
-  if(2 == 1)
-   ret >>= ((A & 1) ^ 1) << 3;
-
   return ret;
  }
  else
  {
   const unsigned Am = (uint8_t)A;
-  const unsigned shift = ((2 != 2) ? (((A & 1) ^ 1) << 3) : 0);
+  const unsigned shift = (0);
   uint16_t ret = 0;
 
   if(Am < 0x20)
@@ -2921,10 +2717,7 @@ INLINE uint16_t SH7095::OnChipRegRead_INLINE_u16(uint32_t A)
   else
    MA_until += 1;
 
-  if(2 == 4)
-   SetPEX(PEX_CPUADDR);
-
-  else switch(Am)
+  switch(Am)
   {
    default:
 	break;
@@ -2987,7 +2780,6 @@ INLINE uint16_t SH7095::OnChipRegRead_INLINE_u16(uint32_t A)
    case 0x72:
 	ret = DMACH[(A & 1) ^ 1].DRCR;
 	break;
-
 
    //
    // WDT registers
@@ -3108,13 +2900,7 @@ INLINE uint32_t SH7095::OnChipRegRead_INLINE_u32(uint32_t A)
 
   MA_until++;
 
-  if(4 == 2)
-   A &= 0xFE;
-  else
-   A &= 0xFC;
-
-  if(4 == 1)
-   SetPEX(PEX_CPUADDR);
+  A &= 0xFC;
 
   switch(A)
   {
@@ -3272,15 +3058,12 @@ INLINE uint32_t SH7095::OnChipRegRead_INLINE_u32(uint32_t A)
 	break;
   }
 
-  if(4 == 1)
-   ret >>= ((A & 1) ^ 1) << 3;
-
   return ret;
  }
  else
  {
   const unsigned Am = (uint8_t)A;
-  const unsigned shift = ((4 != 2) ? (((A & 1) ^ 1) << 3) : 0);
+  const unsigned shift = ((((A & 1) ^ 1) << 3));
   uint16_t ret = 0;
 
   if(Am < 0x20)
@@ -3290,180 +3073,7 @@ INLINE uint32_t SH7095::OnChipRegRead_INLINE_u32(uint32_t A)
   else
    MA_until += 1;
 
-  if(4 == 4)
-   SetPEX(PEX_CPUADDR);
-
-  else switch(Am)
-  {
-   default:
-	break;
-
-   //
-   // FRT registers.  Some weirdness with 16-bit reads duplicating the lower 8 bits in the upper 8-bits, but the upper 8-bits are masked
-   // with the last data written to the FRT area or something...not emulated here.
-   //
-   case 0x10:
-	ret = FRT.TIER | 1;
-	break;
-
-   case 0x11:
-	FRT_WDT_Update();
-	//
-	ret = FRT.FTCSR;
-	FRT.FTCSRM = 0x00;
-	break;
-
-   case 0x12:
-	FRT_WDT_Update();
-	//
-	FRT.RW_Temp = FRT.FRC;
-	ret = FRT.FRC >> 8;
-	break;
-
-   case 0x13:
-	ret = FRT.RW_Temp;
-	break;
-
-   case 0x14:
-	ret = FRT.OCR[(FRT.TOCR >> 4) & 1] >> 8;
-	break;
-
-   case 0x15:
-	ret = FRT.OCR[(FRT.TOCR >> 4) & 1] & 0xFF;
-	break;
-
-   case 0x16:
-	ret = FRT.TCR;
-	break;
-
-   case 0x17:
-	ret = FRT.TOCR | 0xE0;
-	break;
-
-   case 0x18:
-	FRT.RW_Temp = FRT.FICR;
-	ret = FRT.FICR >> 8;
-	break;
-
-   case 0x19:
-	ret = FRT.RW_Temp;
-	break;
-
-   //
-   //
-   //
-   case 0x71:
-   case 0x72:
-	ret = DMACH[(A & 1) ^ 1].DRCR;
-	break;
-
-
-   //
-   // WDT registers
-   //
-   case 0x80:
-   case 0x88:
-	FRT_WDT_Update();
-	ret = WDT.WTCSR | 0x18;
-	WDT.WTCSRM = 0x00;
-	break;
-
-   case 0x81:
-   case 0x89:
-	FRT_WDT_Update();
-	ret = WDT.WTCNT;
-	break;
-
-   case 0x82:
-   case 0x85:
-   case 0x86:
-   case 0x87:
-   case 0x8A:
-   case 0x8D:
-   case 0x8E:
-   case 0x8F:
-	ret = 0xFF;
-	break;
-
-   case 0x83:
-   case 0x8B:
-	FRT_WDT_Update();
-	ret = WDT.RSTCSR | 0x1F;
-	WDT.RSTCSRM = (WDT.RSTCSR & 0x80);
-	break;
-
-   // FIXME: WDT open bus of a sort.
-   // case 0x84:
-   // case 0x8C:
-
-   //
-   //
-   //
-
-   case 0x91:
-	ret = SBYCR;
-	break;
-
-   case 0x92 ... 0x9F:
-	//
-	// TODO: Emulate jankiness of 16-bit reads from mirror addresses.
-	//
-	ret = CCR | (CCR << 8);
-	break;
-   //
-   //
-   //
-   case 0x60:
-   case 0x61:
-	ret = IPRB >> shift;
-	break;
-
-   case 0x62:
-   case 0x63:
-	ret = VCRA >> shift;
-	break;
-
-   case 0x64:
-   case 0x65:
-	ret = VCRB >> shift;
-	break;
-
-   case 0x66:
-   case 0x67:
-	ret = VCRC >> shift;
-	break;
-
-   case 0x68:
-   case 0x69:
-	ret = VCRD >> shift;
-	break;
-
-   case 0x6A: case 0x6B: case 0x6C: case 0x6D: case 0x6E: case 0x6F:
-	ret = 0xFFFF >> shift;
-	break;
-
-   case 0xE0:
-   case 0xE1:
-	ret = (ICR | (NMILevel << 15)) >> shift;
-	break;
-
-   case 0xE2:
-   case 0xE3:
-	ret = IPRA >> shift;
-	break;
-
-   case 0xE4:
-   case 0xE5:
-	ret = VCRWDT >> shift;
-	break;
-
-   case 0xE6: case 0xE7:
-   case 0xE8: case 0xE9: case 0xEA: case 0xEB: case 0xEC: case 0xED: case 0xEE: case 0xEF:
-   case 0xF0: case 0xF1: case 0xF2: case 0xF3: case 0xF4: case 0xF5: case 0xF6: case 0xF7:
-   case 0xF8: case 0xF9: case 0xFA: case 0xFB: case 0xFC: case 0xFD: case 0xFE: case 0xFF:
-	ret = 0xFFFF >> shift;
-	break;
-  }
+  SetPEX(PEX_CPUADDR);
 
   return ret;
  }
@@ -3810,7 +3420,6 @@ uint32_t INLINE SH7095::BSC_BusRead_u32(uint32_t A, const bool BurstHax, int32_t
 
  return ret;
 }
-
 
 template<bool SlavePenalty, typename T, bool BurstHax>
 INLINE T SH7095::ExtBusRead_INLINE(uint32_t A)
@@ -4407,11 +4016,7 @@ INLINE void SH7095::SetCCR(uint8_t V)
  }
 }
 
-
-
-
 /*
-
 
 */
 void NO_INLINE SH7095::Reset(bool power_on_reset, bool from_internal_wdt)
@@ -4830,7 +4435,6 @@ void SS_DumpOpPairProfile(void)
  }									\
 }
 
-
 /* Remember to use with BEGIN_OP_DLYIDIF instead of BEGIN_OP */
 #define UCDelayBranch(target)						\
 {									\
@@ -4895,7 +4499,6 @@ void SS_DumpOpPairProfile(void)
  timestamp++;								\
 									\
 }
-
 
 /*
  PC == 0
@@ -5093,7 +4696,6 @@ FORCE_INLINE void SH7095::Step(void)
 #define CONST_VAR(T, n) T n; n
 #define RESUME_VAR(T, n) static_assert(std::is_same<T,decltype(n)>::value, "Resume variable type mismatch.")
 #define SH7095_NEED_RESUME_TABLE_INIT 1
-
 
 #define SH7095_DEBUG_MODE 0
 #include "sh7095s_cnorm.inc"
@@ -5850,7 +5452,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(2, ea);
  END_BP_OP
 
-
  //
  // MOV.L @(disp,PC),Rn
  //
@@ -5860,7 +5461,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(4, ea);
  END_BP_OP
-
 
  //
  // MOV.B Rm,@Rn
@@ -5872,7 +5472,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(1, ea);
  END_BP_OP
 
-
  //
  // MOV.W Rm,@Rn
  //
@@ -5882,7 +5481,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MWrite(2, ea);
  END_BP_OP
-
 
  //
  // MOV.L Rm,@Rn
@@ -5894,7 +5492,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(4, ea);
  END_BP_OP
 
-
  //
  // MOV.B @Rm,Rn
  //
@@ -5904,7 +5501,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(1, ea);
  END_BP_OP
-
 
  //
  // MOV.W @Rm,Rn
@@ -5916,7 +5512,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(2, ea);
  END_BP_OP
 
-
  //
  // MOV.L @Rm,Rn
  //
@@ -5926,7 +5521,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(4, ea);
  END_BP_OP
-
 
  //
  // MOV.B Rm,@-Rn
@@ -5938,7 +5532,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(1, ea);
  END_BP_OP
 
-
  //
  // MOV.W Rm,@-Rn
  //
@@ -5948,7 +5541,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MWrite(2, ea);
  END_BP_OP
-
 
  //
  // MOV.L Rm,@-Rn
@@ -5960,7 +5552,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(4, ea);
  END_BP_OP
 
-
  //
  // MOV.B @Rm+,Rn
  //
@@ -5970,7 +5561,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(1, ea);
  END_BP_OP
-
 
  //
  // MOV.W @Rm+,Rn
@@ -5982,7 +5572,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(2, ea);
  END_BP_OP
 
-
  //
  // MOV.L @Rm+,Rn
  //
@@ -5992,7 +5581,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(4, ea);
  END_BP_OP
-
 
  //
  // MOV.B R0,@(disp,Rn)
@@ -6005,7 +5593,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(1, ea);
  END_BP_OP
 
-
  //
  // MOV.W R0,@(disp,Rn)
  //
@@ -6016,7 +5603,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MWrite(2, ea);
  END_BP_OP
-
 
  //
  // MOV.L Rm,@(disp,Rn)
@@ -6029,7 +5615,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(4, ea);
  END_BP_OP
 
-
  //
  // MOV.B @(disp,Rm),R0
  //
@@ -6040,7 +5625,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(1, ea);
  END_BP_OP
-
 
  //
  // MOV.W @(disp,Rm),R0
@@ -6053,7 +5637,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(2, ea);
  END_BP_OP
 
-
  //
  // MOV.L @(disp,Rm),Rn
  //
@@ -6065,7 +5648,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(4, ea);
  END_BP_OP
 
-
  //
  // MOV.B Rm,@(R0,Rn)
  //
@@ -6075,7 +5657,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MWrite(1, ea);
  END_BP_OP
-
 
  //
  // MOV.W Rm,@(R0,Rn)
@@ -6087,7 +5668,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(2, ea);
  END_BP_OP
 
-
  //
  // MOV.L Rm,@(R0,Rn)
  //
@@ -6097,7 +5677,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MWrite(4, ea);
  END_BP_OP
-
 
  //
  // MOV.B @(R0,Rm),Rn
@@ -6109,7 +5688,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(1, ea);
  END_BP_OP
 
-
  //
  // MOV.W @(R0,Rm),Rn
  //
@@ -6119,7 +5697,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(2, ea);
  END_BP_OP
-
 
  //
  // MOV.L @(R0,Rm),Rn
@@ -6131,7 +5708,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(4, ea);
  END_BP_OP
 
-
  //
  // MOV.B R0,@(disp,GBR)
  //
@@ -6141,7 +5717,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MWrite(1, ea);
  END_BP_OP
-
 
  //
  // MOV.W R0,@(disp,GBR)
@@ -6153,7 +5728,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(2, ea);
  END_BP_OP
 
-
  //
  // MOV.L R0,@(disp,GBR)
  //
@@ -6163,7 +5737,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MWrite(4, ea);
  END_BP_OP
-
 
  //
  // MOV.B @(disp,GBR),R0
@@ -6175,7 +5748,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(1, ea);
  END_BP_OP
 
-
  //
  // MOV.W @(disp,GBR),R0
  //
@@ -6186,7 +5758,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(2, ea);
  END_BP_OP
 
-
  //
  // MOV.L @(disp,GBR),R0
  //
@@ -6196,7 +5767,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(4, ea);
  END_BP_OP
-
 
  //
  // MAC.L @Rm+,@Rn+
@@ -6209,7 +5779,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
         MRead(4, R[n] + ((m == n) << 2));
  END_BP_OP
 
-
  //
  // MAC.W @Rm+,@Rn+
  //
@@ -6220,7 +5789,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(2, R[m]);
         MRead(2, R[n] + ((m == n) << 1));
  END_BP_OP
-
 
  //
  // AND.B #imm,@(R0,GBR)
@@ -6242,7 +5810,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(1, ea);
  END_BP_OP
 
-
  //
  // TAS.B @Rn
  //
@@ -6254,7 +5821,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(1, ea);
  END_BP_OP
 
-
  //
  // TST.B #imm,@(R0,GBR)
  //
@@ -6263,7 +5829,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(1, ea);
  END_BP_OP
-
 
  //
  // XOR.B #imm,@(R0,GBR)
@@ -6275,7 +5840,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MWrite(1, ea);
  END_BP_OP
 
-
  //
  // LDC.L 
  //
@@ -6286,7 +5850,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 	MRead(4, ea);
  END_BP_OP
 
-
  //
  // LDS.L 
  //
@@ -6296,7 +5859,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MRead(4, ea);
  END_BP_OP
-
 
  //
  // RTE 
@@ -6325,7 +5887,6 @@ INLINE void SH7095::CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr
 
 	MWrite(4, ea);
  END_BP_OP
-
 
  #undef BEGIN_BP_OP
  #undef END_BP_OP
