@@ -686,7 +686,7 @@ static struct
    uint32_t rotcoeff[352];
   };
  };
- alignas(16) uint8_t lc[704];
+ __attribute__((aligned(16))) uint8_t lc[704];
 } LB;
 
 // LB.* zero-fill skip state.
@@ -3580,7 +3580,7 @@ static INLINE void ApplyMeshOverlay(uint32_t* target, const uint16_t* mesh_line,
  // dc-mask per SpriteType -- mirrors the switch in T_DrawSpriteData
  // (SpriteType 0-3,5: 11 bits; 4,6: 10 bits; 7: 9 bits; 8,A: 6 bits
  //  -> mask 0x3F; 9,B: 6 bits; C-F: 8 bits).
- static constexpr uint16_t SpriteType_DcMask[16] = {
+ static const uint16_t SpriteType_DcMask[16] = {
   0x7FF, 0x7FF, 0x7FF, 0x7FF,   // 0-3
   0x3FF, 0x7FF, 0x3FF, 0x1FF,   // 4-7
   0x7F,  0x3F,  0x3F,  0x3F,    // 8-B
@@ -3592,11 +3592,11 @@ static INLINE void ApplyMeshOverlay(uint32_t* target, const uint16_t* mesh_line,
  // and 0xF have no priority bits in the texel (they encode CC only),
  // so they fall back to slot 0 -- the same default T_DrawSpriteData
  // leaves `pr` at for those types.
- static constexpr uint8_t SpriteType_PrShift[16] = {
+ static const uint8_t SpriteType_PrShift[16] = {
   14, 13, 14, 13,  13, 12, 12, 12,
    7,  7,  6,  0,   7,  7,  6,  0,
  };
- static constexpr uint8_t SpriteType_PrMask[16] = {
+ static const uint8_t SpriteType_PrMask[16] = {
   0x3, 0x7, 0x1, 0x3,  0x3, 0x7, 0x7, 0x7,
   0x1, 0x1, 0x3, 0x0,  0x1, 0x1, 0x3, 0x0,
  };
@@ -4004,8 +4004,9 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
    // technically wasted. Conservatively rare; not worth threading
    // the extra parameter through.
    //
-   // LB.lc lives OUTSIDE the LB union (alignas(16) uint8_t lc[704]
-   // is a sibling of the nbg union, not part of it), so stale
+   // LB.lc lives OUTSIDE the LB union (__attribute__((aligned(16)))
+   // uint8_t lc[704] is a sibling of the nbg union, not part of it),
+   // so stale
    // content from a prior LineColorEn != 0 frame can never alias
    // any nbg buffer -- the Sega Rally aliasing failure mode from
    // commit b9f8b4e doesn't apply to LB.lc.
@@ -4412,8 +4413,8 @@ static struct WQ_Entry WQ[WQ_SIZE];
 // WQ_PushCount also publishes these writes, and the consumer's acquire-load makes
 // them visible before it dispatches the burst. Sized large enough that the
 // occupancy check below never realistically blocks (one max burst is 512 words).
-static constexpr uint32_t BurstBufSize = 1u << 20;
-static constexpr uint32_t BurstBufMask = BurstBufSize - 1;
+#define BurstBufSize ((uint32_t)(1u << 20))
+#define BurstBufMask ((uint32_t)(BurstBufSize - 1))
 static uint16_t BurstBuf[BurstBufSize];
 // SPSC queue state. Each atomic is written by exactly one thread (release-store)
 // and read by the other (acquire-load); live queue depth is recovered by
@@ -4426,12 +4427,12 @@ static uint16_t BurstBuf[BurstBufSize];
 // DrawPushCount (producer-written) mirrors Prod.DrawPushLocal so the consumer
 // can tell when it has finished every DRAW_LINE the producer queued and wake
 // EndFrame's drain wait.
-alignas(64) static vdp2_atomic_u32 WQ_PushCount;     // producer-written
-alignas(64) static vdp2_atomic_u32 WQ_PopCount;      // consumer-written
-alignas(64) static vdp2_atomic_u32 DrawFinishCount;  // consumer-written
-alignas(64) static vdp2_atomic_u32 DrawPushCount;    // producer-written
-alignas(64) static vdp2_atomic_u32 BurstPopCount;    // consumer-written; cumulative uint16_t words drained from BurstBuf
-struct alignas(64) ProducerState
+__attribute__((aligned(64))) static vdp2_atomic_u32 WQ_PushCount;     // producer-written
+__attribute__((aligned(64))) static vdp2_atomic_u32 WQ_PopCount;      // consumer-written
+__attribute__((aligned(64))) static vdp2_atomic_u32 DrawFinishCount;  // consumer-written
+__attribute__((aligned(64))) static vdp2_atomic_u32 DrawPushCount;    // producer-written
+__attribute__((aligned(64))) static vdp2_atomic_u32 BurstPopCount;    // consumer-written; cumulative uint16_t words drained from BurstBuf
+struct __attribute__((aligned(64))) ProducerState
 {
  size_t WritePos;
  uint32_t PushLocal;        // total WQ pushes
@@ -4441,7 +4442,7 @@ struct alignas(64) ProducerState
  uint32_t BurstWritePos;    // cumulative uint16_t words written to BurstBuf
  uint32_t BurstPopCached;   // last-seen BurstPopCount; refreshed only when BurstBuf appears full
 };
-struct alignas(64) ConsumerState
+struct __attribute__((aligned(64))) ConsumerState
 {
  size_t ReadPos;
  uint32_t PopLocal;         // total WQ pops
