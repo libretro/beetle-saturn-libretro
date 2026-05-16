@@ -1082,25 +1082,48 @@ static INLINE void ABusRW_DB(uint32_t A, uint16_t* DB, int32_t* time_thing, int3
   *dma_time_thing -= 1;
 }
 
-template<typename T>
-static INLINE void ABus_Write_DB32(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)
+/* Phase-8k: ABus_Write_DB32<T> retired -- 3 named static
+ * functions cover the three width slices the template was
+ * instantiated for (uint8_t, uint16_t, uint32_t).  The u32
+ * variant carries the 32-bit-into-two-16-bit-accesses path
+ * the template's `if(sizeof(T) == 4)` branch held; the u8
+ * and u16 variants take the single-access "else" branch
+ * with the byte / halfword shift folded against their
+ * respective widths (DB32 >> 24 for u8, DB32 >> 16 or 0
+ * for u16 depending on A & 2).
+ *
+ * Caller sites pick the right named variant either via a
+ * direct concrete call (the dsp T0 burst path, line ~1961)
+ * or via a sizeof(T) ladder when called from inside the
+ * SCU_FromSH2_BusRW_DB / DMA_Write templates -- T is a
+ * template-time constant in those callers so the ladder
+ * folds away under -O2.  ABusRW_DB<T, true> calls inside
+ * the u8/u16 bodies are now concrete-T template
+ * instantiations (uint8_t / uint16_t respectively).
+ */
+static INLINE void ABus_Write_DB32_u8(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)
 {
- if(sizeof(T) == 4)
- {
-  uint16_t tmp;
+ uint16_t tmp = DB32 >> (((A & 2) ^ 2) << 3);
 
-  tmp = DB32 >> 16;
-  ABusRW_DB<uint16_t, true>(A, &tmp, time_thing, dma_time_thing, sh2_dma_time_thing);
+ ABusRW_DB<uint8_t, true>(A, &tmp, time_thing, dma_time_thing, sh2_dma_time_thing);
+}
 
-  tmp = DB32 >> 0;
-  ABusRW_DB<uint16_t, true, true>(A | 2, &tmp, time_thing, dma_time_thing, sh2_dma_time_thing);
- }
- else
- {
-  uint16_t tmp = DB32 >> (((A & 2) ^ 2) << 3);
+static INLINE void ABus_Write_DB32_u16(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)
+{
+ uint16_t tmp = DB32 >> (((A & 2) ^ 2) << 3);
 
-  ABusRW_DB<T, true>(A, &tmp, time_thing, dma_time_thing, sh2_dma_time_thing);
- }
+ ABusRW_DB<uint16_t, true>(A, &tmp, time_thing, dma_time_thing, sh2_dma_time_thing);
+}
+
+static INLINE void ABus_Write_DB32_u32(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)
+{
+ uint16_t tmp;
+
+ tmp = DB32 >> 16;
+ ABusRW_DB<uint16_t, true>(A, &tmp, time_thing, dma_time_thing, sh2_dma_time_thing);
+
+ tmp = DB32 >> 0;
+ ABusRW_DB<uint16_t, true, true>(A | 2, &tmp, time_thing, dma_time_thing, sh2_dma_time_thing);
 }
 
 // Lower 2 bits of A should be 0
@@ -1129,7 +1152,15 @@ static INLINE void SCU_FromSH2_BusRW_DB(uint32_t A, uint32_t* DB, int32_t* SH2DM
   CheckForceDMAFinish();
 
   if(IsWrite)
-   ABus_Write_DB32<T>(A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+  {
+   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+   if(sizeof(T) == 1)
+    ABus_Write_DB32_u8 (A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+   else if(sizeof(T) == 2)
+    ABus_Write_DB32_u16(A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+   else
+    ABus_Write_DB32_u32(A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+  }
   else // A-bus reads are always 32-bit(divided into two 16-bit accesses internally)
    *DB = ABus_Read(A &~ 0x3, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
 
@@ -1471,7 +1502,13 @@ static INLINE void DMA_Write(DMALevelS* d, uint32_t DB)
 
  if(WriteBus == 0)
  {
-  ABus_Write_DB32<T>(A, DB, NULL, &WriteOverhead);
+  /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+  if(sizeof(T) == 1)
+   ABus_Write_DB32_u8 (A, DB, NULL, &WriteOverhead);
+  else if(sizeof(T) == 2)
+   ABus_Write_DB32_u16(A, DB, NULL, &WriteOverhead);
+  else
+   ABus_Write_DB32_u32(A, DB, NULL, &WriteOverhead);
  }
  else if(WriteBus == 1)
  {
@@ -1958,7 +1995,7 @@ void DSP_FinishPRAMDMA(void)
    }                                                                                               \
    else if(WriteBus == 0)                                                                          \
    {                                                                                               \
-    ABus_Write_DB32<uint32_t>(addr, DB, NULL, &dsp->T0_Until);                                     \
+    ABus_Write_DB32_u32(addr, DB, NULL, &dsp->T0_Until);                                     \
                                                                                                    \
     addr += addr_add_amount;                                                                       \
    }                                                                                               \
