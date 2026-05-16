@@ -112,6 +112,37 @@ class M68K
  //private:
  void RecalcInt(void);
 
+ /* Phase-8a: M68K's width-template family is being detemplated.
+  *
+  * - Read<T> / Write<T, long_dec> stay as 1-line dispatchers for the
+  *   4 T-parametric call sites in HAM<T, AM>, Scc<cc, T, DAM>, and
+  *   MOVEM_to_MEM<pseudo_predec, T, DAM>; their bodies now forward
+  *   to the named uX variants below.  Those four templates retire
+  *   together when HAM/Scc/MOVEM also detemplate (later phase).
+  *
+  * - Push<T> / Pull<T> are gone -- every caller used a concrete
+  *   uint16_t / uint32_t at the call site, so the 4 named variants
+  *   below replace them outright.
+  */
+ uint8_t  Read_u8(uint32_t addr);
+ uint16_t Read_u16(uint32_t addr);
+ uint32_t Read_u32(uint32_t addr);
+
+ void     Write_u8(uint32_t addr, const uint8_t val);
+ void     Write_u16(uint32_t addr, const uint16_t val);
+ /* For 32-bit writes the M68K has two bus-ordering modes:
+  *   default -- high half first   (BusWrite16(addr, hi); BusWrite16(addr+2, lo))
+  *   _longdec -- low half first   (BusWrite16(addr+2, lo); BusWrite16(addr, hi))
+  * The longdec variant is what Push_u32 uses, mirroring the old
+  * `Write<uint32_t, true>` template instantiation. */
+ void     Write_u32(uint32_t addr, const uint32_t val);
+ void     Write_u32_longdec(uint32_t addr, const uint32_t val);
+
+ void     Push_u16(const uint16_t value);
+ void     Push_u32(const uint32_t value);
+ uint16_t Pull_u16(void);
+ uint32_t Pull_u32(void);
+
  template<typename T>
  T Read(uint32_t addr);
 
@@ -124,12 +155,6 @@ class M68K
 
  template<typename T, bool long_dec = false>
  void Write(uint32_t addr, const T val);
-
- template<typename T>
- void Push(const T value);
-
- template<typename T>
- T Pull(void);
 
  enum AddressMode
  {

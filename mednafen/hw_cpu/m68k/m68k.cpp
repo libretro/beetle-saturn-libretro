@@ -200,17 +200,17 @@ void NO_INLINE M68K::Exception(unsigned which, unsigned vecnum)
   timestamp += 2;
  }
 
- Push<uint32_t>(PC_save);
- Push<uint16_t>(SR_save);
+ Push_u32(PC_save);
+ Push_u16(SR_save);
 
  if(MDFN_UNLIKELY(which == EXCEPTION_BUS_ERROR || which == EXCEPTION_ADDRESS_ERROR))
  {
-  Push<uint16_t>(0); // TODO: Instruction register
-  Push<uint32_t>(0); // TODO: Access address
-  Push<uint16_t>(0); // TODO: R/W, I/N, function code
+  Push_u16(0); // TODO: Instruction register
+  Push_u32(0); // TODO: Access address
+  Push_u16(0); // TODO: R/W, I/N, function code
  }
 
- PC = Read<uint32_t>(vecnum << 2);
+ PC = Read_u32(vecnum << 2);
 
  // TODO: Prefetch
  ReadOp();
@@ -251,8 +251,8 @@ void NO_INLINE M68K::Run(int32_t run_until_time)
 					 SetSR((GetSR() & ~0x8000));
 					 SetSR((GetSR() & ~0x0700) | (0x7 << 8));
 
-					 A[7] = Read<uint32_t>(VECNUM_RESET_SSP << 2);
-					 PC = Read<uint32_t>(VECNUM_RESET_PC << 2);
+					 A[7] = Read_u32(VECNUM_RESET_SSP << 2);
+					 PC = Read_u32(VECNUM_RESET_PC << 2);
 					 //
 					 XPending &= ~XPENDING_MASK_RESET;
 				 }

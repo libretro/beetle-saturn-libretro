@@ -12,22 +12,40 @@ INLINE void M68K::RecalcInt(void)
   XPending |= XPENDING_MASK_INT;
 }
 
+/* Phase-8a: named width-typed Read methods.  The Read<T> template
+ * below is kept as a thin dispatcher only for the four T-parametric
+ * call sites still in m68k_private.h (HAM<T, AM>::Read,
+ * Scc<cc, T, DAM>, and a couple of internal helpers).  When those
+ * detemplate too, the wrapper retires. */
+INLINE uint8_t M68K::Read_u8(uint32_t addr)
+{
+ return BusRead8(addr);
+}
+
+INLINE uint16_t M68K::Read_u16(uint32_t addr)
+{
+ return BusRead16(addr);
+}
+
+INLINE uint32_t M68K::Read_u32(uint32_t addr)
+{
+ uint32_t ret;
+
+ ret  = BusRead16(addr) << 16;
+ ret |= BusRead16(addr + 2);
+
+ return ret;
+}
+
 template<typename T>
 INLINE T M68K::Read(uint32_t addr)
 {
  if(sizeof(T) == 4)
- {
-  uint32_t ret;
-
-  ret = BusRead16(addr) << 16;
-  ret |= BusRead16(addr + 2);
-
-  return ret;
- }
+  return Read_u32(addr);
  else if(sizeof(T) == 2)
-  return BusRead16(addr);
+  return Read_u16(addr);
  else
-  return BusRead8(addr);
+  return Read_u8(addr);
 }
 
 INLINE uint16_t M68K::ReadOp(void)
@@ -40,47 +58,83 @@ INLINE uint16_t M68K::ReadOp(void)
  return ret;
 }
 
+/* Phase-8a: named width-typed Write methods.  The Write<T, long_dec>
+ * template below is kept as a thin dispatcher for the two
+ * T-parametric call sites still in m68k_private.h (HAM<T, AM>::Write,
+ * MOVEM_to_MEM<pseudo_predec, T, DAM>).  When those detemplate too,
+ * the wrapper retires.
+ *
+ * The two 32-bit variants differ only in bus-write ordering:
+ *  - Write_u32          : high half first (default for non-predec)
+ *  - Write_u32_longdec  : low half first  (used by Push_u32 and by
+ *                                          MOVEM_to_MEM in predec mode) */
+INLINE void M68K::Write_u8(uint32_t addr, const uint8_t val)
+{
+ BusWrite8(addr, val);
+}
+
+INLINE void M68K::Write_u16(uint32_t addr, const uint16_t val)
+{
+ BusWrite16(addr, val);
+}
+
+INLINE void M68K::Write_u32(uint32_t addr, const uint32_t val)
+{
+ BusWrite16(addr,     val >> 16);
+ BusWrite16(addr + 2, val);
+}
+
+INLINE void M68K::Write_u32_longdec(uint32_t addr, const uint32_t val)
+{
+ BusWrite16(addr + 2, val);
+ BusWrite16(addr,     val >> 16);
+}
+
 template<typename T, bool long_dec>
 INLINE void M68K::Write(uint32_t addr, const T val)
 {
  if(sizeof(T) == 4)
  {
   if(long_dec)
-  {
-   BusWrite16(addr + 2, val);
-   BusWrite16(addr, val >> 16);
-  }
+   Write_u32_longdec(addr, val);
   else
-  {
-   BusWrite16(addr, val >> 16);
-   BusWrite16(addr + 2, val);
-  }
+   Write_u32(addr, val);
  }
  else if(sizeof(T) == 2)
-  BusWrite16(addr, val);
+  Write_u16(addr, val);
  else
-  BusWrite8(addr, val);
+  Write_u8(addr, val);
 }
 
-template<typename T>
-INLINE void M68K::Push(const T value)
+/* Phase-8a: Push and Pull were `template<typename T>` member
+ * methods.  Every caller used a concrete uint16_t or uint32_t, so
+ * the templates are gone -- the two width-typed variants below
+ * are the entire callsite ABI.  Push_u32 uses Write_u32_longdec
+ * (low half first) to match the M68K's 32-bit predec semantics
+ * for stack pushes. */
+INLINE void M68K::Push_u16(const uint16_t value)
 {
- static_assert(sizeof(T) != 1, "Wrong type.");
- A[7] -= sizeof(T);
- Write<T, true>(A[7], value);
+ A[7] -= 2;
+ Write_u16(A[7], value);
 }
 
-template<typename T>
-INLINE T M68K::Pull(void)
+INLINE void M68K::Push_u32(const uint32_t value)
 {
- static_assert(sizeof(T) != 1, "Wrong type.");
+ A[7] -= 4;
+ Write_u32_longdec(A[7], value);
+}
 
- T ret;
+INLINE uint16_t M68K::Pull_u16(void)
+{
+ uint16_t ret = Read_u16(A[7]);
+ A[7] += 2;
+ return ret;
+}
 
- ret = Read<T>(A[7]);
-
- A[7] += sizeof(T);
-
+INLINE uint32_t M68K::Pull_u32(void)
+{
+ uint32_t ret = Read_u32(A[7]);
+ A[7] += 4;
  return ret;
 }
 
@@ -1087,11 +1141,11 @@ INLINE void M68K::MOVEP(const unsigned ar, const unsigned dr)
  for(unsigned i = 0; i < sizeof(T); i++)
  {
   if(reg_to_mem)
-   Write<uint8_t>(ea, D[dr] >> shift);
+   Write_u8(ea, D[dr] >> shift);
   else
   {
    D[dr] &= ~(0xFF << shift);
-   D[dr] |= Read<uint8_t>(ea) << shift;
+   D[dr] |= Read_u8(ea) << shift;
   }
   ea += 2;
   shift -= 8;
@@ -1223,7 +1277,7 @@ INLINE void M68K::MOVEM_to_REGS(HAM<T, SAM> &src, const uint16_t reglist)
   }
  }
 
- Read<uint16_t>(ea);	// or should be <T> ?
+ Read_u16(ea);	// or should be <T> ?
 
  if(pseudo_postinc)
   A[src.reg] = ea;
@@ -1589,7 +1643,7 @@ INLINE void M68K::Bxx(uint32_t disp)
    PC -= 2;
 
   if(cc == 0x01)
-   Push<uint32_t>(PC);
+   Push_u32(PC);
 
   timestamp += 2;
   PC = BPC + disp;
@@ -1651,7 +1705,7 @@ INLINE void M68K::Scc(HAM<T, DAM> &dst)
 template<typename T, M68K::AddressMode TAM>
 INLINE void M68K::JSR(HAM<T, TAM> &targ)
 {
- Push<uint32_t>(PC);
+ Push_u32(PC);
  targ.jump();
 }
 
@@ -1743,7 +1797,7 @@ INLINE void M68K::PEA(HAM<T, SAM> &src)
 {
  const uint32_t ea = src.getea();
 
- Push<uint32_t>(ea);
+ Push_u32(ea);
 }
 
 //
@@ -1752,7 +1806,7 @@ INLINE void M68K::PEA(HAM<T, SAM> &src)
 INLINE void M68K::UNLK(const unsigned ar)
 {
  A[7] = A[ar];
- A[ar] = Pull<uint32_t>();
+ A[ar] = Pull_u32();
 }
 
 
@@ -1763,7 +1817,7 @@ INLINE void M68K::LINK(const unsigned ar)
 {
  const uint32_t disp = (int16_t)ReadOp();
 
- Push<uint32_t>(A[ar]);
+ Push_u32(A[ar]);
  A[ar] = A[7];
  A[7] += disp;
 }
@@ -1779,8 +1833,8 @@ INLINE void M68K::RTE(void)
 {
  uint16_t new_SR;
 
- new_SR = Pull<uint16_t>();
- PC = Pull<uint32_t>();
+ new_SR = Pull_u16();
+ PC = Pull_u32();
 
  SetSR(new_SR);
 }
@@ -1791,8 +1845,8 @@ INLINE void M68K::RTE(void)
 //
 INLINE void M68K::RTR(void)
 {
- SetCCR(Pull<uint16_t>());
- PC = Pull<uint32_t>();
+ SetCCR(Pull_u16());
+ PC = Pull_u32();
 }
 
 
@@ -1801,7 +1855,7 @@ INLINE void M68K::RTR(void)
 //
 INLINE void M68K::RTS(void)
 {
- PC = Pull<uint32_t>();
+ PC = Pull_u32();
 }
 
 
