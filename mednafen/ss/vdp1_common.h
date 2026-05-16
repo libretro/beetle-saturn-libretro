@@ -97,7 +97,7 @@ MDFN_HIDE extern uint8_t VDP1_gouraud_lut[0x40];
 
 typedef struct {
  uint32_t g; uint32_t intinc;
- int32_t ginc[3]; int32_t error[3]; int32_t error_inc[3]; int32_t error_adj[3];
+ int32_t ginc[4]; int32_t error[4]; int32_t error_inc[4]; int32_t error_adj[4];
 } GourauderTheTerrible;
 
 static INLINE void Gourauder_Setup(GourauderTheTerrible *self, const unsigned length, const uint16_t gstart, const uint16_t gend)
@@ -120,6 +120,7 @@ static INLINE void Gourauder_Setup(GourauderTheTerrible *self, const unsigned le
   }
   self->error[cc] = ~self->error[cc];
  }
+ self->ginc[3] = 0; self->error[3] = 0; self->error_inc[3] = 0; self->error_adj[3] = 0;
 }
 static INLINE uint32_t Gourauder_Current(GourauderTheTerrible *self) { return self->g; }
 static INLINE uint16_t Gourauder_Apply(const GourauderTheTerrible *self, uint16_t pix) {
@@ -130,12 +131,13 @@ static INLINE uint16_t Gourauder_Apply(const GourauderTheTerrible *self, uint16_
  return ret;
 }
 static INLINE void Gourauder_Step(GourauderTheTerrible *self) {
- unsigned cc; self->g += self->intinc;
- for(cc = 0; cc < 3; cc++) {
+ int32_t g_delta = 0; unsigned cc;
+ for(cc = 0; cc < 4; cc++) {
   self->error[cc] -= self->error_inc[cc];
-  { const uint32_t mask = (int32_t)self->error[cc] >> 31;
-    self->g += self->ginc[cc] & mask; self->error[cc] += self->error_adj[cc] & mask; }
+  { const int32_t mask = self->error[cc] >> 31;
+    g_delta += self->ginc[cc] & mask; self->error[cc] += self->error_adj[cc] & mask; }
  }
+ self->g += self->intinc + (uint32_t)g_delta;
 }
 
 

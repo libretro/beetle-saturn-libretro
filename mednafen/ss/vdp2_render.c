@@ -37,6 +37,10 @@
 #include <string.h>
 #include <stdatomic.h>
 
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
+
 /* C11 atomic bridge for the SPSC ring-buffer counters.  When this TU
  * was vdp2_render.cpp the same macros switched between std::atomic<>
  * (C++) and _Atomic (C11) via #ifdef __cplusplus; phase 4e renamed
@@ -564,28 +568,28 @@ static INLINE void TileFetcher_Rot_Start(struct TileFetcher_Rot* self, const uns
 static INLINE void TileFetcher_NonRot_Start(struct TileFetcher_NonRot* self, const unsigned n, const bool bmen, const unsigned map_offset, const uint8_t* map_regs)
  TILEFETCHER_START_BODY(0)
 
-static INLINE bool TileFetcher_Rot_Fetch_4(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_Rot_Fetch_4(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(1, 4)
 
-static INLINE bool TileFetcher_Rot_Fetch_8(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_Rot_Fetch_8(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(1, 8)
 
-static INLINE bool TileFetcher_Rot_Fetch_16(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_Rot_Fetch_16(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(1, 16)
 
-static INLINE bool TileFetcher_Rot_Fetch_32(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_Rot_Fetch_32(struct TileFetcher_Rot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(1, 32)
 
-static INLINE bool TileFetcher_NonRot_Fetch_4(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_4(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(0, 4)
 
-static INLINE bool TileFetcher_NonRot_Fetch_8(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_8(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(0, 8)
 
-static INLINE bool TileFetcher_NonRot_Fetch_16(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_16(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(0, 16)
 
-static INLINE bool TileFetcher_NonRot_Fetch_32(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
+static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_32(struct TileFetcher_NonRot* self, const bool bmen, const uint32_t ix, const uint32_t iy)
  TILEFETCHER_FETCH_BODY(0, 32)
 
 /* Drop the field-redirect aliases so subsequent code (the function-
@@ -1477,20 +1481,24 @@ static void GetWinRotAB(void)
 
   GetCWV(WinControl[WINLAYER_ROTPARAM], xmet, cwv);
 
+  /* Branchless cwv[bool] selection (same idea as ApplyWin's slow
+   * path) so SLP can vectorize: sel_or | (sel_xor & sel_bits). */
+  const uint8_t r_or  = (uint8_t)cwv[0];
+  const uint8_t r_xor = (uint8_t)(cwv[0] ^ cwv[1]);
   if(HRes & 0x2)
   {
    for(; MDFN_LIKELY(x < WinPieces[piece]); x += 2)
-    LB.rotabsel[x >> 1] = cwv[(LB.spr[x] >> PIX_SWBIT_SHIFT) & 1];
+    LB.rotabsel[x >> 1] = r_or ^ (r_xor & (uint8_t)((LB.spr[x] >> PIX_SWBIT_SHIFT) & 1));
   }
   else
   {
    for(; MDFN_LIKELY(x < WinPieces[piece]); x++)
-    LB.rotabsel[x] = cwv[(LB.spr[x] >> PIX_SWBIT_SHIFT) & 1];
+    LB.rotabsel[x] = r_or ^ (r_xor & (uint8_t)((LB.spr[x] >> PIX_SWBIT_SHIFT) & 1));
   }
  }
 }
 
-static void ApplyWin(const unsigned wlayer, uint64_t* buf)
+static void ApplyWin(const unsigned wlayer, uint64_t* __restrict__ buf)
 {
  unsigned x = 0;
 
@@ -1541,9 +1549,20 @@ static void ApplyWin(const unsigned wlayer, uint64_t* buf)
     masks[i] = m;
    }
 
+   /* Branchless mask select: replace masks[bool] gather with
+    * `mor ^ (sel_bits & mxor)` so SLP can vectorize the loop.
+    * Form `sel` via a sign-extending arith shift so we never have
+    * a 1-bit intermediate (GCC's bool-pattern recognizer would
+    * otherwise reconstruct a conditional select and the v2di
+    * conversion path bails with "bit-precision arithmetic not
+    * supported"). */
+   const uint64_t mor  = masks[0];
+   const uint64_t mxor = masks[0] ^ masks[1];
    for(; MDFN_LIKELY(x < WinPieces[piece]); x++)
    {
-    buf[x] &= masks[(LB.spr[x] >> PIX_SWBIT_SHIFT) & 1];
+    const int64_t shifted = (int64_t)(LB.spr[x] << (63 - PIX_SWBIT_SHIFT));
+    const uint64_t sel    = (uint64_t)(shifted >> 63);
+    buf[x] &= mor ^ (sel & mxor);
    }
   }
  }
@@ -1694,25 +1713,30 @@ static void FetchVCScroll(const unsigned w)
  * Note: macro emits a `{ ... }` block, so call sites that wrote
  * `MAKE_SFCODE_LUT(a, b, c, d);` become `MAKE_SFCODE_LUT(a, b, c, d);` --
  * the trailing `;` becomes an empty statement after the block. */
+/* Explicit-unroll SLP-friendly form: the original `for(i=0;i<8;i++)` body
+ * carried a variable shift `(MK_SF_code >> i)` per iteration, which kept
+ * GCC from packing the eight uint16_t stores.  Computing the lane mask via
+ * `-((c>>i)&1)` against a precomputed flip-pattern lets each of the eight
+ * stores share the same shape with a constant shift -- SLP packs them into
+ * one (or two) 128-bit stores.  When the spec collapses MK_SF_off to
+ * 0xFFFF (the common PrioMode/CCMode pairing where neither bit clears)
+ * the whole block folds to a single broadcast/store. */
 #define MAKE_SFCODE_LUT(TA_PrioMode, TA_CCMode, layer, sfcode_lut)                                    \
 {                                                                                                     \
- const uint8_t MK_SF_code = SFCODE >> (((SFSEL >> (layer)) & 1) << 3);                                \
+ const uint32_t MK_SF_off  = 0xFFFFu                                                                  \
+                            & ~(((TA_PrioMode) & 2) ? (1U << PIX_PRIO_SHIFT) : 0u)                    \
+                            & ~(((TA_CCMode) == 2)  ? (1U << PIX_CCE_SHIFT)  : 0u);                   \
+ const uint32_t MK_SF_flip = 0xFFFFu ^ MK_SF_off;                                                     \
+ const uint32_t MK_SF_c    = SFCODE >> (((SFSEL >> (layer)) & 1) << 3);                               \
                                                                                                       \
- for(unsigned MK_SF_i = 0; MK_SF_i < 8; MK_SF_i++)                                                    \
- {                                                                                                    \
-  uint16_t MK_SF_tmp = 0xFFFF;                                                                        \
-                                                                                                      \
-  if(!((MK_SF_code >> MK_SF_i) & 1))                                                                  \
-  {                                                                                                   \
-   if((TA_PrioMode) & 2)                                                                              \
-    MK_SF_tmp &= ~(1U << PIX_PRIO_SHIFT);                                                             \
-                                                                                                      \
-   if((TA_CCMode) == 2)                                                                               \
-    MK_SF_tmp &= ~(1U << PIX_CCE_SHIFT);                                                              \
-  }                                                                                                   \
-                                                                                                      \
-  (sfcode_lut)[MK_SF_i] = MK_SF_tmp;                                                                  \
- }                                                                                                    \
+ (sfcode_lut)[0] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 0) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[1] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 1) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[2] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 2) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[3] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 3) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[4] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 4) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[5] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 5) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[6] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 6) & 1u)) & MK_SF_flip));                \
+ (sfcode_lut)[7] = (int16_t)(MK_SF_off | ((0u - ((MK_SF_c >> 7) & 1u)) & MK_SF_flip));                \
 }
 
 static INLINE uint32_t rgb15_to_rgb24(uint16_t src)
@@ -1756,7 +1780,7 @@ static INLINE uint32_t rgb15_to_rgb24(uint16_t src)
 #define MAKE_NBGRBG_PIX(DEST, BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy) \
 do                                                                                                                                          \
 {                                                                                                                                           \
- uint32_t cellx = (ix ^ (tf)->cellx_xor);                                                                                                      \
+ uint32_t cellx = ((ix) ^ (tf)->cellx_xor);                                                                                                    \
  const uint16_t* vrb = &(tf)->tile_vrb[((cellx * (BPP)) >> 4)];                                                                                \
 /* */                                                                                                                                       \
 /* */                                                                                                                                       \
@@ -1819,6 +1843,153 @@ do                                                                              
                                                                                                                                            \
  (DEST) = pbor | ((uint64_t)rgb24 << PIX_RGB_SHIFT);                                                                                        \
 } while(0)
+
+/* DrawCell8_BPP4: 8 paletted pixels for one BPP=4 cell row, shared by
+ * T_DrawNBG23_BODY (8-px tile body) and T_DrawNBG_BODY's xcinc==0x100
+ * cell-aligned fast path (BPP=4 branch).
+ *
+ * Per-pixel work matches MAKE_NBG23_PIX exactly (and MAKE_NBGRBG_PIX with
+ * BPP=4, ISRGB=0, which has identical semantics for the paletted path):
+ *   dcc    = nibble extracted from (vrb0<<16)|vrb1 in big-endian nibble order
+ *   rgb24  = ColorCache[(pcco + dcc) & 2047]
+ *   if CCMODE==3:               pbor |= ((int32_t)rgb24>>31) & (1<<PIX_CCE_SHIFT)
+ *   if PMODE==2 || CCMODE==2:   pbor &= sfcode_lut[(dcc & 0xE)/2]
+ *   if !IGNTP && dcc==0:        pbor = 0
+ *   out[k] = pbor + ((uint64_t)rgb24 << PIX_RGB_SHIFT)
+ *
+ * Callers must pre-merge CCMODE-1/2 SCC bits and PMODE-1/2 SPR bits into
+ * pbor_in, matching MAKE_NBG23_PIX / MAKE_NBGRBG_PIX's per-pixel OR.
+ *
+ * REV=true is the cellx_xor & 0x7 case: writes out[7]..out[0] instead of
+ * out[0]..out[7].
+ *
+ * aarch64 fast path: 16 ColorCache entries are contiguous when
+ * (pcco & 2047) <= 2032, fitting in 4 q-regs; vqtbl4q_u8 performs all 8
+ * gathers in one TBL.  The wrap case (pcco_m in [2033..2047]) falls back to
+ * scalar.  On amd64 / others the scalar fallback runs unconditionally, which
+ * is codegen-equivalent to the 8 inlined MAKE_NBG{,RBG}_PIX stamps it replaces. */
+/* Phase 4-style detemplated: was a C++ `template<bool IGNTP, unsigned
+ * PMODE, unsigned CCMODE, bool REV>` function.  All call sites pass
+ * compile-time-constant values (from the X-macro dispatch), so with
+ * MDFN_FORCE_INLINE + -O2 the runtime const args fold identically to
+ * the template instantiations. */
+static MDFN_FORCE_INLINE void DrawCell8_BPP4(uint64_t* out,
+                                             uint32_t pcco,
+                                             uint16_t vrb0,
+                                             uint16_t vrb1,
+                                             uint32_t pbor_in,
+                                             const int16_t* sfcode_lut,
+                                             const bool IGNTP,
+                                             const unsigned PMODE,
+                                             const unsigned CCMODE,
+                                             const bool REV)
+{
+ const uint8_t nibbles[8] = {
+  (uint8_t)((vrb0 >> 12) & 0xF),
+  (uint8_t)((vrb0 >>  8) & 0xF),
+  (uint8_t)((vrb0 >>  4) & 0xF),
+  (uint8_t)((vrb0 >>  0) & 0xF),
+  (uint8_t)((vrb1 >> 12) & 0xF),
+  (uint8_t)((vrb1 >>  8) & 0xF),
+  (uint8_t)((vrb1 >>  4) & 0xF),
+  (uint8_t)((vrb1 >>  0) & 0xF),
+ };
+
+#if defined(__aarch64__)
+ const uint32_t pcco_m = pcco & 2047;
+ if(MDFN_LIKELY(pcco_m <= 2032))
+ {
+  const uint8_t* const cc_base = (const uint8_t*)&ColorCache[pcco_m];
+  uint8x16x4_t cc4;
+  cc4.val[0] = vld1q_u8(cc_base +  0);
+  cc4.val[1] = vld1q_u8(cc_base + 16);
+  cc4.val[2] = vld1q_u8(cc_base + 32);
+  cc4.val[3] = vld1q_u8(cc_base + 48);
+
+  /* nv carries the 8 dcc values in output order; for REV the source-order
+   * nibbles vector is reversed once so all downstream lanes are already
+   * indexed by the destination pixel slot. */
+  const uint8x8_t nv_src = vld1_u8(nibbles);
+  const uint8x8_t nv = REV ? vrev64_u8(nv_src) : nv_src;
+
+  /* Build 32 byte indices over two q-regs (4 pixels * 4 bytes per reg).
+   * idx[4*k + j] = nv[k]*4 + j, j in 0..3.  For dcc in 0..15 the maximum
+   * index is 63, within the 64-byte (4 q-reg) vqtbl4q lookup span. */
+  static const uint8x16_t broadcast4_lo = {0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3};
+  static const uint8x16_t broadcast4_hi = {4,4,4,4, 5,5,5,5, 6,6,6,6, 7,7,7,7};
+  static const uint8x16_t byte_off      = {0,1,2,3, 0,1,2,3, 0,1,2,3, 0,1,2,3};
+  const uint8x16_t nv_q  = vcombine_u8(nv, vdup_n_u8(0));
+  const uint8x16_t idx_lo = vaddq_u8(vshlq_n_u8(vqtbl1q_u8(nv_q, broadcast4_lo), 2), byte_off);
+  const uint8x16_t idx_hi = vaddq_u8(vshlq_n_u8(vqtbl1q_u8(nv_q, broadcast4_hi), 2), byte_off);
+
+  const uint32x4_t rgb_lo = vreinterpretq_u32_u8(vqtbl4q_u8(cc4, idx_lo));
+  const uint32x4_t rgb_hi = vreinterpretq_u32_u8(vqtbl4q_u8(cc4, idx_hi));
+
+  uint32x4_t pbor_lo = vdupq_n_u32(pbor_in);
+  uint32x4_t pbor_hi = vdupq_n_u32(pbor_in);
+
+  if(CCMODE == 3)
+  {
+   const int32x4_t sb_lo = vshrq_n_s32(vreinterpretq_s32_u32(rgb_lo), 31);
+   const int32x4_t sb_hi = vshrq_n_s32(vreinterpretq_s32_u32(rgb_hi), 31);
+   const uint32x4_t cc_mask = vdupq_n_u32(1U << PIX_CCE_SHIFT);
+   pbor_lo = vorrq_u32(pbor_lo, vandq_u32(vreinterpretq_u32_s32(sb_lo), cc_mask));
+   pbor_hi = vorrq_u32(pbor_hi, vandq_u32(vreinterpretq_u32_s32(sb_hi), cc_mask));
+  }
+
+  if(PMODE == 2 || CCMODE == 2)
+  {
+   /* 8 small i16 loads from sfcode_lut; SLP-pack into one i32x4 per half. */
+   uint8_t nv_arr[8];
+   uint32_t m[8];
+   vst1_u8(nv_arr, nv);
+   for(unsigned i = 0; i < 8; i++)
+    m[i] = (uint32_t)(int32_t)(*(const int16_t*)((const uint8_t*)sfcode_lut + (nv_arr[i] & 0xE)));
+   pbor_lo = vandq_u32(pbor_lo, vld1q_u32(m));
+   pbor_hi = vandq_u32(pbor_hi, vld1q_u32(m + 4));
+  }
+
+  if(!IGNTP)
+  {
+   /* pbor zeroed where dcc==0.  Build the clear-mask at u32 width directly:
+    * unsigned-widen nv (u8 -> u16 -> u32), then vceqq_u32 against 0 produces
+    * a proper 0xFFFFFFFF / 0x00000000 mask.  The earlier u8-0xFF + unsigned
+    * widening path produced 0x000000FF, which only cleared the low 8 bits and
+    * silently dropped pbor's PRIO/CCE/SWBIT bits on every opaque pixel. */
+   const uint16x8_t nv16    = vmovl_u8(nv);
+   const uint32x4_t nv32_lo = vmovl_u16(vget_low_u16(nv16));
+   const uint32x4_t nv32_hi = vmovl_u16(vget_high_u16(nv16));
+   const uint32x4_t clear_lo = vceqq_u32(nv32_lo, vdupq_n_u32(0));
+   const uint32x4_t clear_hi = vceqq_u32(nv32_hi, vdupq_n_u32(0));
+   pbor_lo = vbicq_u32(pbor_lo, clear_lo);
+   pbor_hi = vbicq_u32(pbor_hi, clear_hi);
+  }
+
+  /* Interleave pbor (low 32) and rgb24 (high 32) into each u64 output. */
+  vst1q_u64(&out[0], vreinterpretq_u64_u32(vzip1q_u32(pbor_lo, rgb_lo)));
+  vst1q_u64(&out[2], vreinterpretq_u64_u32(vzip2q_u32(pbor_lo, rgb_lo)));
+  vst1q_u64(&out[4], vreinterpretq_u64_u32(vzip1q_u32(pbor_hi, rgb_hi)));
+  vst1q_u64(&out[6], vreinterpretq_u64_u32(vzip2q_u32(pbor_hi, rgb_hi)));
+  return;
+ }
+#endif
+
+ /* Scalar fallback (wrap case on aarch64, baseline elsewhere). */
+ for(unsigned k = 0; k < 8; k++)
+ {
+  const unsigned dest = REV ? (7U - k) : k;
+  const uint32_t dcc   = nibbles[k];
+  const uint32_t rgb24 = ColorCache[(pcco + dcc) & 2047];
+  uint32_t pbor = pbor_in;
+  if(CCMODE == 3)
+   pbor |= ((int32_t)rgb24 >> 31) & (1 << PIX_CCE_SHIFT);
+  if(PMODE == 2 || CCMODE == 2)
+   pbor &= *(const int16_t*)((const uint8_t*)sfcode_lut + (dcc & 0xE));
+  if(!IGNTP && !dcc)
+   pbor = 0;
+  out[dest] = pbor + ((uint64_t)rgb24 << PIX_RGB_SHIFT);
+ }
+}
 
 /* T_DrawNBG: was `template<bool TA_bmen, unsigned TA_bpp, bool
  * TA_isrgb, bool TA_igntp, unsigned TA_PrioMode, unsigned TA_CCMode>
@@ -1884,16 +2055,82 @@ do                                                                              
                                                                                                                        \
  if(((ZMCTL >> (n << 3)) & 0x3) && VCSEn)                                                                               \
  {                                                                                                                      \
+  uint32_t prev_celli = ~0u;                                                                                            \
+  uint32_t prev_cellj = ~0u;                                                                                            \
+                                                                                                                        \
   for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                          \
   {                                                                                                                     \
    const uint32_t ix = xc >> 8;                                                                                         \
    iy = LB.vcscr[n][i >> 3];                                                                                            \
-   TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                                     \
+   const uint32_t celli = ix >> 3;                                                                                      \
+   const uint32_t cellj = iy >> 3;                                                                                      \
+                                                                                                                        \
+   if(celli != prev_celli || cellj != prev_cellj)                                                                       \
+   {                                                                                                                    \
+    prev_celli = celli;                                                                                                 \
+    prev_cellj = cellj;                                                                                                 \
+    TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                              \
+   }                                                                                                                    \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
-   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix, iy);           \
+   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix, iy);             \
    xc += xcinc;                                                                                                         \
+  }                                                                                                                     \
+ }                                                                                                                      \
+ else if(xcinc == 0x100 && !VCSEn)                                                                                      \
+ {                                                                                                                      \
+/* Cell-aligned 8-px fast path: 1:1 horizontal scroll, no vertical cell scroll. */                                      \
+/* Eliminates the per-pixel cell-cross branch by splitting into head / 8-px body */                                     \
+/* / tail.  iy is constant across the run.  Each block issues exactly one        */                                     \
+/* TF_NR_FETCH before unrolled MAKE_NBGRBG_PIX calls with ix+0..ix+7.            */                                     \
+  uint32_t ix = xc >> 8;                                                                                                \
+  unsigned i = 0;                                                                                                       \
+  unsigned head_n = (8U - (ix & 7U)) & 7U;                                                                              \
+  if(head_n > w) head_n = w;                                                                                            \
+  if(head_n)                                                                                                            \
+  {                                                                                                                     \
+   TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                               \
+   for(unsigned k = 0; k < head_n; k++)                                                                                 \
+    MAKE_NBGRBG_PIX(bgbuf[i + k], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + k, iy);    \
+   i += head_n; ix += head_n;                                                                                           \
+  }                                                                                                                     \
+  while(i + 8U <= w)                                                                                                    \
+  {                                                                                                                     \
+   TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                               \
+   if((BPP) == 4)                                                                                                       \
+   {                                                                                                                    \
+/* BPP=4 cell body: dispatch to NEON-TBL helper (shared with T_DrawNBG23).         */                                   \
+/* Pre-merge SCC/SPR bits into pbor here, matching NBG23's per-cell prologue, so   */                                   \
+/* DrawCell8_BPP4 sees the same pbor_in contract.  CCMODE==3 / PMODE==2 / IGNTP==0 */                                   \
+/* are handled inside the helper.                                                  */                                   \
+    uint32_t pbor_pre = pix_base_or;                                                                                    \
+    if((CCMODE) == 1 || (CCMODE) == 2) pbor_pre |= (tf.scc << PIX_CCE_SHIFT);                                           \
+    if((PMODE)  == 1 || (PMODE)  == 2) pbor_pre |= (tf.spr << PIX_PRIO_SHIFT);                                          \
+    if(tf.cellx_xor & 0x7)                                                                                              \
+     DrawCell8_BPP4(&bgbuf[i], tf.pcco, tf.tile_vrb[0], tf.tile_vrb[1], pbor_pre, sfcode_lut, (bool)(IGNTP), (PMODE), (CCMODE), true ); \
+    else                                                                                                                \
+     DrawCell8_BPP4(&bgbuf[i], tf.pcco, tf.tile_vrb[0], tf.tile_vrb[1], pbor_pre, sfcode_lut, (bool)(IGNTP), (PMODE), (CCMODE), false); \
+   }                                                                                                                    \
+   else                                                                                                                 \
+   {                                                                                                                    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 0], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 0, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 1], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 1, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 2], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 2, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 3], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 3, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 4], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 4, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 5], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 5, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 6], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 6, iy);    \
+    MAKE_NBGRBG_PIX(bgbuf[i + 7], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + 7, iy);    \
+   }                                                                                                                    \
+   i += 8U; ix += 8U;                                                                                                   \
+  }                                                                                                                     \
+  if(i < w)                                                                                                             \
+  {                                                                                                                     \
+   const unsigned tail_n = w - i;                                                                                       \
+   TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                               \
+   for(unsigned k = 0; k < tail_n; k++)                                                                                 \
+    MAKE_NBGRBG_PIX(bgbuf[i + k], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, &tf, pix_base_or, sfcode_lut, ix + k, iy);    \
   }                                                                                                                     \
  }                                                                                                                      \
  else                                                                                                                   \
@@ -2162,27 +2399,9 @@ static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
   else                                                                                                                  \
   {                                                                                                                     \
    if(tf.cellx_xor & 0x7)                                                                                               \
-   {                                                                                                                    \
-    MAKE_NBG23_PIX(bgbuf[7], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>  12),       pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[6], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[5], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[4], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[3], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>  12),       pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[2], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[1], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[0], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-   }                                                                                                                    \
+    DrawCell8_BPP4(bgbuf, tf.pcco, tf.tile_vrb[0], tf.tile_vrb[1], pbor, sfcode_lut, (bool)(IGNTP), (PMODE), (CCMODE), true ); \
    else                                                                                                                 \
-   {                                                                                                                    \
-    MAKE_NBG23_PIX(bgbuf[0], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>  12),       pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[1], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[2], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[3], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[0] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[4], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>  12),       pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[5], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   8) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[6], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   4) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-    MAKE_NBG23_PIX(bgbuf[7], (IGNTP), (PMODE), (CCMODE), (tf.tile_vrb[1] >>   0) & 0xF, pbor, sfcode_lut, tf.pcco);     \
-   }                                                                                                                    \
+    DrawCell8_BPP4(bgbuf, tf.pcco, tf.tile_vrb[0], tf.tile_vrb[1], pbor, sfcode_lut, (bool)(IGNTP), (PMODE), (CCMODE), false); \
   }                                                                                                                     \
                                                                                                                        \
 /* */                                                                                                                   \
@@ -2418,20 +2637,47 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
    const int32_t    rs_KA = rsi->KAstAccum;
    const int32_t    rs_DK = rsi->DKAx;
    const bool     wr_lc = (KTCTL[ci] & 0x10);
-   uint32_t         cur_c = coeff[ci];
 
-   for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
+   /* perdot_mask is a loop-invariant 0/~0u toggle.  Per-dot mode
+    * (mask == 0) zeros cur_c every pixel before the optional bank
+    * read, so iterations are independent and the body SLP-packs;
+    * stickiness mode (mask == ~0u) carries cur_c across iterations
+    * on bank misses, a true scalar dep that has to stay scalar.
+    * Unswitching here lets GCC reason about each loop separately
+    * instead of conservatively treating the cur_c flow as dependent
+    * in both. */
+   if(perdot_mask == 0)
    {
-    const uint32_t addr = GetCoeffAddr(ci, rs_KA + (x * rs_DK));
+    for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
+    {
+     const uint32_t addr = GetCoeffAddr(ci, rs_KA + (x * rs_DK));
+     uint32_t cur_c = 0;
 
-    cur_c &= perdot_mask;
-    if(bank_tab[addr >> 16])
-     cur_c = ReadCoeff(ci, addr);
+     if(bank_tab[addr >> 16])
+      cur_c = ReadCoeff(ci, addr);
 
-    if(wr_lc)
-     LB.lc[x] = (cur_c >> 24) & 0x7F;
+     if(wr_lc)
+      LB.lc[x] = (cur_c >> 24) & 0x7F;
 
-    LB.rotcoeff[x] = cur_c;
+     LB.rotcoeff[x] = cur_c;
+    }
+   }
+   else
+   {
+    uint32_t cur_c = coeff[ci];
+
+    for(unsigned x = 0; MDFN_LIKELY(x < rbg_w); x++)
+    {
+     const uint32_t addr = GetCoeffAddr(ci, rs_KA + (x * rs_DK));
+
+     if(bank_tab[addr >> 16])
+      cur_c = ReadCoeff(ci, addr);
+
+     if(wr_lc)
+      LB.lc[x] = (cur_c >> 24) & 0x7F;
+
+     LB.rotcoeff[x] = cur_c;
+    }
    }
   }
   else
@@ -2503,9 +2749,14 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
 /* Mosaic only has effect in the horizontal direction? */                                                               \
 /* */                                                                                                                   \
  int16_t sfcode_lut[8];                                                                                                 \
-                                                                                                                       \
+                                                                                                                        \
  MAKE_SFCODE_LUT((PMODE), (CCMODE), (rn ? 0 : 4), sfcode_lut);                                                          \
-                                                                                                                       \
+                                                                                                                        \
+ unsigned prev_ab    = ~0u;                                                                                             \
+ uint32_t prev_celli = ~0u;                                                                                             \
+ uint32_t prev_cellj = ~0u;                                                                                             \
+ bool     prev_rot_tp_f = false;                                                                                        \
+                                                                                                                        \
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                           \
  {                                                                                                                      \
   const unsigned ab = LB.rotabsel[i];                                                                                   \
@@ -2536,13 +2787,23 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
   const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r->Xsp + (r->dX * i))) >> 16)) >> 10;                 \
   const uint32_t iy = (r->Yp + (uint32_t)(((int64_t)ky * (int32_t)(r->Ysp + (r->dY * i))) >> 16)) >> 10;                \
                                                                                                                        \
-  rot_tp |= TF_ROT_FETCH(tf, BPP, (BMEN), ix, iy);                                                                            \
-                                                                                                                       \
+  const uint32_t celli = ix >> 3;                                                                                       \
+  const uint32_t cellj = iy >> 3;                                                                                       \
+                                                                                                                        \
+  if(ab != prev_ab || celli != prev_celli || cellj != prev_cellj)                                                       \
+  {                                                                                                                     \
+   prev_ab    = ab;                                                                                                     \
+   prev_celli = celli;                                                                                                  \
+   prev_cellj = cellj;                                                                                                  \
+   prev_rot_tp_f = TF_ROT_FETCH(tf, BPP, (BMEN), ix, iy);                                                               \
+  }                                                                                                                     \
+  rot_tp |= prev_rot_tp_f;                                                                                              \
+                                                                                                                        \
   LB.rotabsel[i] = rot_tp;                                                                                              \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
 /* */                                                                                                                   \
-  MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);           \
+  MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);               \
  }                                                                                                                      \
 }
 
@@ -2668,6 +2929,23 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
  const uint32_t r_base_c = r->base_coeff;                                                               \
  const uint8_t  ktctl_md = (KTCTL[const_ab] >> 2) & 0x3;                                                \
                                                                                                       \
+ uint32_t prev_celli    = ~0u;                                                                         \
+ uint32_t prev_cellj    = ~0u;                                                                         \
+ bool     prev_rot_tp_f = false;                                                                       \
+                                                                                                      \
+ /* Strength-reduce the per-pixel (r_dX * i) / (r_dY * i) into running                                  \
+  * unsigned-modular adds; this matches the original                                                  \
+  *   (int32_t)((uint32_t)r_Xsp + (uint32_t)r_dX * (uint32_t)i)                                       \
+  * wrap behavior exactly (uint32 add wraps at 2^32, then the int32 cast                              \
+  * reinterprets bits).  Saves the inner MUL per pixel; the outer SMULL                               \
+  * stays because the full (int64)kx * (Xsp + dX*N) accumulator would                                 \
+  * disagree with the original at the int32 overflow boundary (extreme                                \
+  * zoom-in: |dX*N| can exceed 2^31). */                                                              \
+ uint32_t arg_x_u = (uint32_t)r_Xsp;                                                                   \
+ uint32_t arg_y_u = (uint32_t)r_Ysp;                                                                   \
+ const uint32_t r_dX_u = (uint32_t)r_dX;                                                               \
+ const uint32_t r_dY_u = (uint32_t)r_dY;                                                               \
+                                                                                                      \
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                         \
  {                                                                                                    \
   uint32_t Xp = r_Xp;                                                                                   \
@@ -2692,10 +2970,22 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
    }                                                                                                  \
   }                                                                                                   \
                                                                                                       \
-  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)(r_Xsp + (r_dX * i))) >> 16)) >> 10;         \
-  const uint32_t iy = (r_Yp + (uint32_t)(((int64_t)ky * (int32_t)(r_Ysp + (r_dY * i))) >> 16)) >> 10;         \
+  const uint32_t ix = (  Xp + (uint32_t)(((int64_t)kx * (int32_t)arg_x_u) >> 16)) >> 10;               \
+  const uint32_t iy = (r_Yp + (uint32_t)(((int64_t)ky * (int32_t)arg_y_u) >> 16)) >> 10;               \
                                                                                                       \
-  rot_tp |= TF_ROT_FETCH(tf, BPP, BMEN, ix, iy);                                                              \
+  arg_x_u += r_dX_u;                                                                                  \
+  arg_y_u += r_dY_u;                                                                                  \
+                                                                                                      \
+  const uint32_t celli = ix >> 3;                                                                     \
+  const uint32_t cellj = iy >> 3;                                                                     \
+                                                                                                      \
+  if(celli != prev_celli || cellj != prev_cellj)                                                      \
+  {                                                                                                   \
+   prev_celli    = celli;                                                                             \
+   prev_cellj    = cellj;                                                                             \
+   prev_rot_tp_f = TF_ROT_FETCH(tf, BPP, BMEN, ix, iy);                                               \
+  }                                                                                                   \
+  rot_tp |= prev_rot_tp_f;                                                                            \
                                                                                                       \
   LB.rotabsel[i] = rot_tp;                                                                            \
   MAKE_NBGRBG_PIX(bgbuf[i], BMEN, BPP, ISRGB, IGNTP, PMODE, CCMODE, tf, pix_base_or, sfcode_lut, ix, iy);\
@@ -2793,14 +3083,30 @@ static void (*DrawRBG_ConstAB[2 /*bitmap enable*/][5 /*col mode*/][2 /*igntp*/][
  *
  * Macro arg `ptr` is bound once to DUB_p, so call-site side effects
  * are single-evaluated; `orig_len` likewise to DUB_len.  do/while(0)
- * so the macro tolerates if/else nesting at the call site. */
+ * so the macro tolerates if/else nesting at the call site.
+ *
+ * Two-pass form (stage to stack scratch, then doubling-store): the
+ * original single-pass walked high-to-low and read DUB_p[i] while
+ * writing DUB_p[2i..2i+1] in the same buffer, which is correct in
+ * sequence but defeats GCC's autovec because the source and dest
+ * pointers alias.  Staging into DUB_src up front gives the doubling
+ * loop a source pointer GCC can prove disjoint from the dest, so it
+ * SLP-packs the read and emits an interleaved store (vst2 on NEON,
+ * unpack+store on amd64).  rbg_w is bounded at 352 by the only
+ * caller chain (vdp2_render line 4035: 320 or 352), and both
+ * elem_t instantiations (uint64_t and uint8_t) at 352 entries are
+ * cheap on the stack (2816 B and 352 B respectively). */
 #define DOUBLEIZE_BODY(elem_t, ptr, orig_len) do {                                 \
  elem_t* DUB_p = (ptr);                                                            \
  const int DUB_len = (orig_len);                                                   \
+ elem_t DUB_src[352];                                                              \
                                                                                    \
- for(int DUB_i = DUB_len - 1; MDFN_LIKELY(DUB_i >= 0); DUB_i--)                    \
+ for(int DUB_i = 0; MDFN_LIKELY(DUB_i < DUB_len); DUB_i++)                         \
+  DUB_src[DUB_i] = DUB_p[DUB_i];                                                   \
+                                                                                   \
+ for(int DUB_i = 0; MDFN_LIKELY(DUB_i < DUB_len); DUB_i++)                         \
  {                                                                                 \
-  const elem_t DUB_tmp = DUB_p[DUB_i];                                             \
+  const elem_t DUB_tmp = DUB_src[DUB_i];                                           \
                                                                                    \
   DUB_p[(DUB_i << 1) + 0] = DUB_tmp;                                               \
   DUB_p[(DUB_i << 1) + 1] = DUB_tmp;                                               \
@@ -3094,7 +3400,7 @@ static INLINE void MakeSpriteCCLUT(void)
  T_DrawSpriteData_##HIRES##_##TPSS##_##SPCTL
 
 #define DEFINE_T_DrawSpriteData(HIRES, TPSS, SPCTL)                                                            \
- static void T_DrawSpriteData_NAME(HIRES, TPSS, SPCTL)(const uint16_t* vdp1sb,                                  \
+ static void T_DrawSpriteData_NAME(HIRES, TPSS, SPCTL)(const uint16_t* __restrict__ vdp1sb,                     \
                                                        const bool vdp1_hires8,                                  \
                                                        unsigned w)                                              \
  T_DrawSpriteData_BODY(HIRES, TPSS, SPCTL)
@@ -3167,6 +3473,89 @@ enum
 #else
 #define MIXIT_TO_SURFACE(v) (__builtin_bswap32((uint32_t)(v)) >> 8)
 #endif
+
+/* Per-pixel RGB24 channel kernels used by T_MixIt's color-calc and
+ * color-offset stages.  Each takes scalar uint32_t RGB inputs (R in byte 0,
+ * G in byte 1, B in byte 2) and returns scalar uint32_t RGB.  On aarch64
+ * the body uses NEON byte ops to do the three channels in one shot; on
+ * other targets it falls back to the original scalar per-channel expression
+ * (preserves amd64 codegen byte-identical to before this change). */
+
+static MDFN_FORCE_INLINE uint32_t MixIt_satadd_rgb24(uint32_t fore_rgb, uint32_t sec_rgb)
+{
+#if defined(__aarch64__)
+ const uint8x8_t f = vreinterpret_u8_u32(vdup_n_u32(fore_rgb));
+ const uint8x8_t s = vreinterpret_u8_u32(vdup_n_u32(sec_rgb));
+ const uint8x8_t r = vqadd_u8(f, s);
+ return vget_lane_u32(vreinterpret_u32_u8(r), 0) & 0xFFFFFFu;
+#else
+ uint32_t r;
+ r  = ((unsigned)(0x0000FF) < (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)) ? (unsigned)(0x0000FF) : (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)));
+ r |= ((unsigned)(0x00FF00) < (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)) ? (unsigned)(0x00FF00) : (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)));
+ r |= ((unsigned)(0xFF0000) < (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)) ? (unsigned)(0xFF0000) : (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)));
+ return r;
+#endif
+}
+
+/* fore_ratio + sec_ratio is always 0x20, ratio inputs are in [0, 0x1F].  Per-
+ * channel max product fits in 13 bits, so the uint8*uint8 widening (UMULL +
+ * UMLAL) sums never overflow u16, and the post-shift right by 5 narrows back
+ * to a byte. */
+static MDFN_FORCE_INLINE uint32_t MixIt_blend_rgb24(uint32_t fore_rgb, uint32_t sec_rgb,
+                                                    unsigned fore_ratio, unsigned sec_ratio)
+{
+#if defined(__aarch64__)
+ const uint8x8_t f = vreinterpret_u8_u32(vdup_n_u32(fore_rgb));
+ const uint8x8_t s = vreinterpret_u8_u32(vdup_n_u32(sec_rgb));
+ uint16x8_t prod = vmull_u8(f, vdup_n_u8((uint8_t)fore_ratio));
+ prod = vmlal_u8(prod, s, vdup_n_u8((uint8_t)sec_ratio));
+ const uint8x8_t narrow = vshrn_n_u16(prod, 5);
+ return vget_lane_u32(vreinterpret_u32_u8(narrow), 0) & 0xFFFFFFu;
+#else
+ uint32_t r;
+ r  = ((((fore_rgb & 0x0000FF) * fore_ratio) + ((sec_rgb & 0x0000FF) * sec_ratio)) >> 5);
+ r |= ((((fore_rgb & 0x00FF00) * fore_ratio) + ((sec_rgb & 0x00FF00) * sec_ratio)) >> 5) & 0x00FF00;
+ r |= ((((fore_rgb & 0xFF0000) * fore_ratio) + ((sec_rgb & 0xFF0000) * sec_ratio)) >> 5) & 0xFF0000;
+ return r;
+#endif
+}
+
+/* off_r is a sign-extended 9-bit offset in the low bits; off_g_shifted is
+ * already pre-shifted by 8 (so it occupies bits 0..16, range [-0xFF00,
+ * +0xFF00]); off_b_shifted by 16.  We reverse those shifts to recover a
+ * per-channel int16 offset, then do one 4-lane signed add + saturated narrow
+ * to u8. */
+static MDFN_FORCE_INLINE uint32_t MixIt_coloroffs_rgb24(uint32_t rgb_tmp,
+                                                        int32_t off_r,
+                                                        int32_t off_g_shifted,
+                                                        int32_t off_b_shifted)
+{
+#if defined(__aarch64__)
+ const int16x4_t offs = {
+  (int16_t)off_r,
+  (int16_t)(off_g_shifted >> 8),
+  (int16_t)(off_b_shifted >> 16),
+  0
+ };
+ const uint8x8_t rgb_lo = vreinterpret_u8_u32(vdup_n_u32(rgb_tmp));
+ const int16x4_t rgb_4  = vreinterpret_s16_u16(vget_low_u16(vmovl_u8(rgb_lo)));
+ const int16x4_t sum    = vadd_s16(rgb_4, offs);
+ const int16x8_t sum8   = vcombine_s16(sum, vdup_n_s16(0));
+ const uint8x8_t narrow = vqmovun_s16(sum8);
+ return vget_lane_u32(vreinterpret_u32_u8(narrow), 0) & 0xFFFFFFu;
+#else
+ int32_t rt = off_r + (int32_t)(rgb_tmp & 0x000000FFu);
+ if(rt < 0) rt = 0;
+ if(rt > 0x000000FF) rt = 0x000000FF;
+ int32_t gt = off_g_shifted + (int32_t)(rgb_tmp & 0x0000FF00u);
+ if(gt < 0) gt = 0;
+ if(gt > 0x0000FF00) gt = 0x0000FF00;
+ int32_t bt = off_b_shifted + (int32_t)(rgb_tmp & 0x00FF0000u);
+ if(bt < 0) bt = 0;
+ if(bt > 0x00FF0000) bt = 0x00FF0000;
+ return (uint32_t)(rt | gt | bt);
+#endif
+}
 
 /* T_MixIt: was `template<bool TA_rbgdualen, unsigned TA_Special,
  * bool TA_CCRTMD, bool TA_CCMD> static void T_MixIt(uint32_t*
@@ -3377,18 +3766,14 @@ enum
                                                                                                                                            \
    if((CCMD)) /* Ignore ratio, add as-is. */                                                                                                \
    {                                                                                                                                        \
-    new_rgb =  ((unsigned)(0x0000FF) < (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)) ? (unsigned)(0x0000FF) : (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)));\
-    new_rgb |= ((unsigned)(0x00FF00) < (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)) ? (unsigned)(0x00FF00) : (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)));\
-    new_rgb |= ((unsigned)(0xFF0000) < (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)) ? (unsigned)(0xFF0000) : (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)));\
+    new_rgb = MixIt_satadd_rgb24(fore_rgb, sec_rgb);                                                                                         \
    }                                                                                                                                        \
    else                                                                                                                                     \
    {                                                                                                                                        \
     unsigned fore_ratio = ((uint32_t)((CCRTMD) ? pix2 : pix) >> PIX_CCRATIO_SHIFT) ^ 0x1F;                                                  \
     unsigned sec_ratio = 0x20 - fore_ratio;                                                                                                 \
                                                                                                                                            \
-    new_rgb =  ((((fore_rgb & 0x0000FF) * fore_ratio) + ((sec_rgb & 0x0000FF) * sec_ratio)) >> 5);                                          \
-    new_rgb |= ((((fore_rgb & 0x00FF00) * fore_ratio) + ((sec_rgb & 0x00FF00) * sec_ratio)) >> 5) & 0x00FF00;                               \
-    new_rgb |= ((((fore_rgb & 0xFF0000) * fore_ratio) + ((sec_rgb & 0xFF0000) * sec_ratio)) >> 5) & 0xFF0000;                               \
+    new_rgb = MixIt_blend_rgb24(fore_rgb, sec_rgb, fore_ratio, sec_ratio);                                                                  \
    }                                                                                                                                        \
    pix = ((uint64_t)new_rgb << 32) | (uint32_t)pix;                                                                                         \
   }                                                                                                                                         \
@@ -3400,22 +3785,11 @@ enum
   {                                                                                                                                         \
    const unsigned sel = (pix >> PIX_COSEL_SHIFT) & 1;                                                                                       \
    const uint32_t rgb_tmp = pix >> PIX_RGB_SHIFT;                                                                                           \
-   int32_t rt, gt, bt;                                                                                                                      \
-                                                                                                                                           \
-/* Magnitude test (not bit-test) so the compiler emits csel instead of tst+branch. */                                                       \
-   rt = ColorOffs[sel][0] + (rgb_tmp & 0x000000FF);                                                                                         \
-   if(rt < 0) rt = 0;                                                                                                                       \
-   if(rt > 0x000000FF) rt = 0x000000FF;                                                                                                     \
-                                                                                                                                           \
-   gt = ColorOffs[sel][1] + (rgb_tmp & 0x0000FF00);                                                                                         \
-   if(gt < 0) gt = 0;                                                                                                                       \
-   if(gt > 0x0000FF00) gt = 0x0000FF00;                                                                                                     \
-                                                                                                                                           \
-   bt = ColorOffs[sel][2] + (rgb_tmp & 0x00FF0000);                                                                                         \
-   if(bt < 0) bt = 0;                                                                                                                       \
-   if(bt > 0x00FF0000) bt = 0x00FF0000;                                                                                                     \
-                                                                                                                                           \
-   pix = (uint32_t)pix | ((uint64_t)(uint32_t)(rt | gt | bt) << PIX_RGB_SHIFT);                                                             \
+   const uint32_t coff = MixIt_coloroffs_rgb24(rgb_tmp,                                                                                     \
+                                               ColorOffs[sel][0],                                                                           \
+                                               ColorOffs[sel][1],                                                                           \
+                                               ColorOffs[sel][2]);                                                                          \
+   pix = (uint32_t)pix | ((uint64_t)coff << PIX_RGB_SHIFT);                                                                                 \
   }                                                                                                                                         \
                                                                                                                                            \
 /* */                                                                                                                                       \
