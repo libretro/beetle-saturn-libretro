@@ -794,8 +794,8 @@ static INLINE void SCU_RegRW_DB(uint32_t A, uint32_t* DB)
 static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint8_t;
- static constexpr bool IsWrite = true;
- static constexpr bool SH32 = false;
+ constexpr bool IsWrite = true;
+ constexpr bool SH32 = false;
 
  static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
 
@@ -976,8 +976,8 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint16_t;
- static constexpr bool IsWrite = true;
- static constexpr bool SH32 = false;
+ constexpr bool IsWrite = true;
+ constexpr bool SH32 = false;
 
  static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
 
@@ -1158,8 +1158,8 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint16_t;
- static constexpr bool IsWrite = true;
- static constexpr bool SH32 = true;
+ constexpr bool IsWrite = true;
+ constexpr bool SH32 = true;
 
  static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
 
@@ -1340,8 +1340,8 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint32_t;
- static constexpr bool IsWrite = true;
- static constexpr bool SH32 = false;
+ constexpr bool IsWrite = true;
+ constexpr bool SH32 = false;
 
  static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
 
@@ -1522,8 +1522,8 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint16_t;
- static constexpr bool IsWrite = false;
- static constexpr bool SH32 = false;
+ constexpr bool IsWrite = false;
+ constexpr bool SH32 = false;
 
  static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
 
@@ -1704,8 +1704,8 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint16_t;
- static constexpr bool IsWrite = false;
- static constexpr bool SH32 = true;
+ constexpr bool IsWrite = false;
+ constexpr bool SH32 = true;
 
  static_assert(IsWrite || sizeof(T) == 2, "Wrong type.");
 
@@ -1888,8 +1888,8 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint8_t;
- static constexpr bool IsWrite = true;
- static constexpr bool SH32 = false;
+ constexpr bool IsWrite = true;
+ constexpr bool SH32 = false;
 
  //
  // A-Bus CS0 and CS1
@@ -2020,8 +2020,8 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint16_t;
- static constexpr bool IsWrite = true;
- static constexpr bool SH32 = false;
+ constexpr bool IsWrite = true;
+ constexpr bool SH32 = false;
 
  //
  // A-Bus CS0 and CS1
@@ -2152,8 +2152,8 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint16_t;
- static constexpr bool IsWrite = true;
- static constexpr bool SH32 = true;
+ constexpr bool IsWrite = true;
+ constexpr bool SH32 = true;
 
  //
  // A-Bus CS0 and CS1
@@ -2284,8 +2284,8 @@ static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint16_t;
- static constexpr bool IsWrite = false;
- static constexpr bool SH32 = false;
+ constexpr bool IsWrite = false;
+ constexpr bool SH32 = false;
 
  //
  // A-Bus CS0 and CS1
@@ -2416,8 +2416,8 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  using T = uint16_t;
- static constexpr bool IsWrite = false;
- static constexpr bool SH32 = true;
+ constexpr bool IsWrite = false;
+ constexpr bool SH32 = true;
 
  //
  // A-Bus CS0 and CS1
