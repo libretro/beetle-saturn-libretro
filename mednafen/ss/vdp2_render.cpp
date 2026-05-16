@@ -3001,279 +3001,359 @@ enum
 #define MIXIT_TO_SURFACE(v) (__builtin_bswap32((uint32_t)(v)) >> 8)
 #endif
 
-template<bool TA_rbgdualen, unsigned TA_Special, bool TA_CCRTMD, bool TA_CCMD>
-static void T_MixIt(uint32_t* target, const unsigned vdp2_line, const unsigned w, const uint32_t back_rgb24, const uint64_t* blursrc)
-{
- const uint32_t* lclut = &ColorCache[CurLCColor &~ 0x7F];
- uint32_t blurprev[2];
-
- if(TA_Special == MIXIT_SPECIAL_GRAD)
-  blurprev[0] = blurprev[1] = *blursrc >> PIX_RGB_SHIFT;
-
- uint32_t line_pix_l;
- {
-  line_pix_l = 0U << PIX_ISRGB_SHIFT;
-  line_pix_l |= LineColorCCRatio << PIX_CCRATIO_SHIFT;
-  line_pix_l |= ((CCCTL >> 5) & 1) << PIX_CCE_SHIFT;
-  line_pix_l |= ((CCCTL >> 5) & 1) << PIX_LAYER_CCE_SHIFT;
- }
-
- //
- //
- uint64_t back_pix;
- {
-  back_pix = (uint64_t)back_rgb24 << PIX_RGB_SHIFT;
-  back_pix |= 1U << PIX_ISRGB_SHIFT;
-  back_pix |= ((ColorOffsEn >> 5) & 1) << PIX_COE_SHIFT;
-  back_pix |= ((ColorOffsSel >> 5) & 1) << PIX_COSEL_SHIFT;
-  back_pix |= ((SDCTL >> 5) & 1) << PIX_SHADEN_SHIFT;
-  back_pix |= BackCCRatio << PIX_CCRATIO_SHIFT;
- }
-
- for(uint32_t i = 0; MDFN_LIKELY(i < w); i++)
- {
-  uint64_t pix = back_pix;
-  uint32_t blurcake;
-
-  //
-  // Listed from lowest priority to greatest priority when prio levels are equal(back pixel has prio level of 0,
-  // and should display on "top" of any other layers).
-  //
-  uint64_t tmp_pix[8] =
-  {
-   (TA_rbgdualen ? 0 : (LB.nbg[3] + 8)[i]),
-   (TA_rbgdualen ? 0 : (LB.nbg[2] + 8)[i]),
-   (TA_rbgdualen ? 0 : (LB.nbg[1] + 8)[i]),
-   (LB.nbg[0] + 8)[i],
-   LB.rbg0[i],
-   LB.spr[i],
-   0/*null pixel*/,
-   back_pix
-  };
-  uint64_t pt;
-  unsigned st;
-
-  pt  = 0x01ULL << (uint8_t)(tmp_pix[0] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x02ULL << (uint8_t)(tmp_pix[1] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x04ULL << (uint8_t)(tmp_pix[2] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x08ULL << (uint8_t)(tmp_pix[3] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x10ULL << (uint8_t)(tmp_pix[4] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0x20ULL << (uint8_t)(tmp_pix[5] >> PIX_PRIO_TEST_SHIFT);
-  pt |= 0xC0ULL; // Back pixel(0x80) and null pixel(0x40)
-
-  st = 63 ^ MDFN_lzcount64_0UD(pt);
-  pt ^= 1ULL << st;
-  pt |= 0x40;	// Restore the null!
-  pix = tmp_pix[st & 0x7];
-
-  if(pix & (1U << PIX_DOSHAD_SHIFT))
-  {
-   st = 63 ^ MDFN_lzcount64_0UD(pt);
-   pt ^= 1ULL << st;
-   pt |= 0x40;	// Restore the null!
-   pix = tmp_pix[st & 0x7];
-   pix |= (1U << PIX_DOSHAD_SHIFT);
-  }
-
-  //
-  // Prevent blending with a transparent sprite shadow pixel beneath the topmost layer:
-  //
-  //if(tmp_pix[5] & (1U << PIX_DOSHAD_SHIFT))
-  // pt &= ~0x2020202020202020ULL;
-  // PIX_DOSHAD_SHIFT compile-time check via negative-array-bound trick
-  // (no static_assert / _Static_assert dependence; works in both C and
-  // C++ -- C++ has its own static_assert, C99 doesn't get _Static_assert
-  // until C11, and GCC's C++ mode rejects _Static_assert without
-  // -fpermissive).  Triggers `size of unnamed array is negative` on
-  // mismatch.  The typedef is named to allow grep'ing for the assert.
-  typedef char VDP2REND_PIX_DOSHAD_SHIFT_check[
-   1 - 2*!((1U << PIX_DOSHAD_SHIFT) == 0x40)];
-  (void)sizeof(VDP2REND_PIX_DOSHAD_SHIFT_check);
-  pt &= ~((((tmp_pix[5] >> 1) & 0x20) << (uint8_t)(tmp_pix[5] >> PIX_PRIO_TEST_SHIFT)));
-
-
-  if(TA_Special == MIXIT_SPECIAL_GRAD)
-  {
-   const uint32_t blurpie = blursrc[i] >> PIX_RGB_SHIFT;
-
-   blurcake = ((blurprev[0] + blurprev[1]) - ((blurprev[0] ^ blurprev[1]) & 0x01010101)) >> 1;
-   blurcake = ((blurcake + blurpie) - ((blurcake ^ blurpie) & 0x01010101)) >> 1;
-   blurprev[0] = blurprev[1];
-   blurprev[1] = blurpie;
-  }
-
-  //
-  // Color calculation
-  //
-  if(pix & (1U << PIX_CCE_SHIFT))
-  {
-   uint64_t pix2, pix3;
-
-   st = 63 ^ MDFN_lzcount64_0UD(pt);
-   pt ^= 1ULL << st;
-   pt |= 0x40;	// Restore the null!
-   pix2 = tmp_pix[st & 0x7];
-
-   st = 63 ^ MDFN_lzcount64_0UD(pt);
-   pt ^= 1ULL << st;
-   pt |= 0x40;	// Restore the null!
-   pix3 = tmp_pix[st & 0x7];
-
-   if(TA_Special == MIXIT_SPECIAL_GRAD)
-   {
-    if((pix | pix2) & (1U << PIX_GRAD_SHIFT))
-     pix2 = (uint32_t)pix2 | ((uint64_t)blurcake << PIX_RGB_SHIFT);	// Be sure to preserve the color calc ratio, at least.
-   }
-   else if(pix & (1U << PIX_LCE_SHIFT))
-   {
-    //
-    // Line color
-    //
-    const uint64_t pix4 = pix3;
-    const uint32_t line_pix_rgb = lclut[LB.lc[i]];
-    pix3 = pix2;
-    pix2 = line_pix_l | ((uint64_t)line_pix_rgb << PIX_RGB_SHIFT);
-
-    if(TA_Special == MIXIT_SPECIAL_EXCC_LINE_CRAM0)
-    {
-     uint32_t sec_rgb = line_pix_rgb;
-     uint32_t third_rgb = (pix3 >> PIX_RGB_SHIFT);
-
-     if(pix3 & (1U << PIX_LAYER_CCE_SHIFT))
-      third_rgb = (third_rgb >> 1) & 0x7F7F7F;
-
-     sec_rgb = ((sec_rgb + third_rgb) - ((sec_rgb ^ third_rgb) & 0x01010101)) >> 1;
-     pix2 = (uint32_t)pix2 | ((uint64_t)sec_rgb << PIX_RGB_SHIFT);
-    }
-    else if(TA_Special == MIXIT_SPECIAL_EXCC_LINE_CRAM12)
-    {
-     uint32_t sec_rgb = line_pix_rgb;
-     uint32_t third_rgb = (pix3 >> PIX_RGB_SHIFT);
-
-     if(pix3 & (1U << PIX_ISRGB_SHIFT))
-     {
-      if((pix3 & (1U << PIX_LAYER_CCE_SHIFT)) && (pix4 & (1U << PIX_ISRGB_SHIFT)))
-      {
-       const uint32_t fourth_rgb = (pix4 >> PIX_RGB_SHIFT);
-       third_rgb = ((third_rgb + fourth_rgb) - ((third_rgb ^ fourth_rgb) & 0x01010101)) >> 1;
-      }
-
-      sec_rgb = ((sec_rgb + third_rgb) - ((sec_rgb ^ third_rgb) & 0x01010101)) >> 1;
-      pix2 = (uint32_t)pix2 | ((uint64_t)sec_rgb << PIX_RGB_SHIFT);
-     }
-    }
-   }
-   else
-   {
-    if(TA_Special == MIXIT_SPECIAL_EXCC_CRAM0 || TA_Special == MIXIT_SPECIAL_EXCC_CRAM12 || TA_Special == MIXIT_SPECIAL_EXCC_LINE_CRAM0 || TA_Special == MIXIT_SPECIAL_EXCC_LINE_CRAM12)
-    {
-     if(pix2 & (1U << PIX_LAYER_CCE_SHIFT))
-     {
-      if(TA_Special == MIXIT_SPECIAL_EXCC_CRAM0 || TA_Special == MIXIT_SPECIAL_EXCC_LINE_CRAM0 || (pix3 & (1U << PIX_ISRGB_SHIFT)))
-      {
-       uint32_t sec_rgb = pix2 >> PIX_RGB_SHIFT;
-       const uint32_t third_rgb = (pix3 >> PIX_RGB_SHIFT);
-
-       sec_rgb = ((sec_rgb + third_rgb) - ((sec_rgb ^ third_rgb) & 0x01010101)) >> 1;
-       pix2 = (uint32_t)pix2 | ((uint64_t)sec_rgb << PIX_RGB_SHIFT);
-      }
-     }
-    }
-   }
-
-   uint32_t fore_rgb = pix >> PIX_RGB_SHIFT;
-   uint32_t sec_rgb = pix2 >> PIX_RGB_SHIFT;
-   uint32_t new_rgb;
-
-   if(TA_Special == MIXIT_SPECIAL_HIRES_CRAM12 && !(pix2 & (1U << PIX_ISRGB_SHIFT)))
-    sec_rgb = fore_rgb;
-
-   if(TA_CCMD)	// Ignore ratio, add as-is.
-   {
-    new_rgb =  ((unsigned)(0x0000FF) < (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)) ? (unsigned)(0x0000FF) : (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)));
-    new_rgb |= ((unsigned)(0x00FF00) < (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)) ? (unsigned)(0x00FF00) : (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)));
-    new_rgb |= ((unsigned)(0xFF0000) < (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)) ? (unsigned)(0xFF0000) : (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)));
-   }
-   else
-   {
-    unsigned fore_ratio = ((uint32_t)(TA_CCRTMD ? pix2 : pix) >> PIX_CCRATIO_SHIFT) ^ 0x1F;
-    unsigned sec_ratio = 0x20 - fore_ratio;
-
-    new_rgb =  ((((fore_rgb & 0x0000FF) * fore_ratio) + ((sec_rgb & 0x0000FF) * sec_ratio)) >> 5);
-    new_rgb |= ((((fore_rgb & 0x00FF00) * fore_ratio) + ((sec_rgb & 0x00FF00) * sec_ratio)) >> 5) & 0x00FF00;
-    new_rgb |= ((((fore_rgb & 0xFF0000) * fore_ratio) + ((sec_rgb & 0xFF0000) * sec_ratio)) >> 5) & 0xFF0000;
-   }
-   pix = ((uint64_t)new_rgb << 32) | (uint32_t)pix;
-  }
-
-  //
-  // Color offset
-  //
-  if(pix & (1U << PIX_COE_SHIFT))
-  {
-   const unsigned sel = (pix >> PIX_COSEL_SHIFT) & 1;
-   const uint32_t rgb_tmp = pix >> PIX_RGB_SHIFT;
-   int32_t rt, gt, bt;
-
-   // Magnitude test (not bit-test) so the compiler emits csel instead of tst+branch.
-   rt = ColorOffs[sel][0] + (rgb_tmp & 0x000000FF);
-   if(rt < 0) rt = 0;
-   if(rt > 0x000000FF) rt = 0x000000FF;
-
-   gt = ColorOffs[sel][1] + (rgb_tmp & 0x0000FF00);
-   if(gt < 0) gt = 0;
-   if(gt > 0x0000FF00) gt = 0x0000FF00;
-
-   bt = ColorOffs[sel][2] + (rgb_tmp & 0x00FF0000);
-   if(bt < 0) bt = 0;
-   if(bt > 0x00FF0000) bt = 0x00FF0000;
-
-   pix = (uint32_t)pix | ((uint64_t)(uint32_t)(rt | gt | bt) << PIX_RGB_SHIFT);
-  }
-
-  //
-  // Sprite shadow
-  //
-  if((uint8_t)pix >= PIX_SHADHALVTEST8_VAL)
-   pix = (uint32_t)pix | ((pix >> 1) & 0x7F7F7F00000000ULL);
-
-  // MixIt's internal pixel format keeps R at byte 0, G at byte 1, B at
-  // byte 2 (matches rgb15_to_rgb24's output and lets all the colour-
-  // offset / blend / shadow math above use byte-aligned 0x0000FF /
-  // 0x00FF00 / 0xFF0000 masks). The libretro surface wants R at byte 2
-  // (RED_SHIFT=16), G at byte 1 (GREEN_SHIFT=8), B at byte 0
-  // (BLUE_SHIFT=0) -- exactly the byte-swap-and-drop-high-byte that
-  // ReorderRGB used to do as a separate post-pass over the same row.
-  //
-  // Folding it inline here costs ~2 extra instructions per pixel
-  // (bswap + shr) at a register that already holds the value, and
-  // eliminates the entire ReorderRGB pass's read-modify-write of the
-  // active row (8 bytes/pixel of memory traffic, ~3 ops/pixel).
-  // Border pixels are written by the border-fill loops in DrawLine
-  // already in output format, so they don't need any swap.
-  // Mesh-improved-transparency occlusion gate: record the priority of
-  // the layer whose pix won this output pixel. ApplyMeshOverlay reads
-  // this to suppress mesh blending where a higher-priority VDP2 layer
-  // already occludes the would-be VDP1 sprite (matches Kronos's
-  // `if (i <= FBMeshPrio)` rule). PIX_PRIO_SHIFT holds the resolved
-  // priority value (0..7); one byte store per output pixel.
-  //
-  // Gated on the runtime MeshImproved flag rather than written
-  // unconditionally: the flag flips only via the libretro option-
-  // update path so the branch is ~100% predictable across a frame,
-  // and gating keeps MixIt's default-off cost identical to before
-  // this feature existed.
-  if(VDP1_MeshImproved)
-   LIB[vdp2_line].vdp1_winprio[i] = (pix >> PIX_PRIO_SHIFT) & 0x7;
-  target[i] = MIXIT_TO_SURFACE(pix >> PIX_RGB_SHIFT);
- }
+/* T_MixIt: was `template<bool TA_rbgdualen, unsigned TA_Special,
+ * bool TA_CCRTMD, bool TA_CCMD> static void T_MixIt(uint32_t*
+ * target, const unsigned vdp2_line, const unsigned w, const
+ * uint32_t back_rgb24, const uint64_t* blursrc)`.  56 specs:
+ * DUALEN in {0,1}, SPECIAL in {0..6} (the MIXIT_SPECIAL_*
+ * enum range), CCRTMD in {0,1}, CCMD in {0,1}.  Table layout
+ * [2][7][2][2] unchanged.
+ *
+ * Converted via the same X-macro pattern as the prior phase-3
+ * function-table conversions (T_DrawRBG_ConstAB / T_DrawNBG23
+ * / T_DrawNBG / T_DrawRBG / T_DrawSpriteData).  Four-dimensional
+ * descent: DUALEN -> SPECIAL -> CCRTMD -> CCMD.
+ *
+ * Body has 13 template-arg references across 265 lines: mostly
+ * `if(TA_Special == MIXIT_SPECIAL_XX)` branches and a couple of
+ * `if(TA_CCRTMD)` / `if(TA_CCMD)` / `if(TA_rbgdualen)` checks.
+ * With the macro form each becomes a literal constant after
+ * substitution, folding identically to the template form.
+ *
+ * Line-comments rewritten as block-comments for line-spliced
+ * macro safety; same convention as prior phases. */
+#define T_MixIt_BODY(DUALEN, SPECIAL, CCRTMD, CCMD) \
+{                                                                                                                                           \
+ const uint32_t* lclut = &ColorCache[CurLCColor &~ 0x7F];                                                                                   \
+ uint32_t blurprev[2];                                                                                                                      \
+                                                                                                                                           \
+ if((SPECIAL) == MIXIT_SPECIAL_GRAD)                                                                                                        \
+  blurprev[0] = blurprev[1] = *blursrc >> PIX_RGB_SHIFT;                                                                                    \
+                                                                                                                                           \
+ uint32_t line_pix_l;                                                                                                                       \
+ {                                                                                                                                          \
+  line_pix_l = 0U << PIX_ISRGB_SHIFT;                                                                                                       \
+  line_pix_l |= LineColorCCRatio << PIX_CCRATIO_SHIFT;                                                                                      \
+  line_pix_l |= ((CCCTL >> 5) & 1) << PIX_CCE_SHIFT;                                                                                        \
+  line_pix_l |= ((CCCTL >> 5) & 1) << PIX_LAYER_CCE_SHIFT;                                                                                  \
+ }                                                                                                                                          \
+                                                                                                                                           \
+/* */                                                                                                                                       \
+/* */                                                                                                                                       \
+ uint64_t back_pix;                                                                                                                         \
+ {                                                                                                                                          \
+  back_pix = (uint64_t)back_rgb24 << PIX_RGB_SHIFT;                                                                                         \
+  back_pix |= 1U << PIX_ISRGB_SHIFT;                                                                                                        \
+  back_pix |= ((ColorOffsEn >> 5) & 1) << PIX_COE_SHIFT;                                                                                    \
+  back_pix |= ((ColorOffsSel >> 5) & 1) << PIX_COSEL_SHIFT;                                                                                 \
+  back_pix |= ((SDCTL >> 5) & 1) << PIX_SHADEN_SHIFT;                                                                                       \
+  back_pix |= BackCCRatio << PIX_CCRATIO_SHIFT;                                                                                             \
+ }                                                                                                                                          \
+                                                                                                                                           \
+ for(uint32_t i = 0; MDFN_LIKELY(i < w); i++)                                                                                               \
+ {                                                                                                                                          \
+  uint64_t pix = back_pix;                                                                                                                  \
+  uint32_t blurcake;                                                                                                                        \
+                                                                                                                                           \
+/* */                                                                                                                                       \
+/* Listed from lowest priority to greatest priority when prio levels are equal(back pixel has prio level of 0, */                           \
+/* and should display on "top" of any other layers). */                                                                                     \
+/* */                                                                                                                                       \
+  uint64_t tmp_pix[8] =                                                                                                                     \
+  {                                                                                                                                         \
+   ((DUALEN) ? 0 : (LB.nbg[3] + 8)[i]),                                                                                                     \
+   ((DUALEN) ? 0 : (LB.nbg[2] + 8)[i]),                                                                                                     \
+   ((DUALEN) ? 0 : (LB.nbg[1] + 8)[i]),                                                                                                     \
+   (LB.nbg[0] + 8)[i],                                                                                                                      \
+   LB.rbg0[i],                                                                                                                              \
+   LB.spr[i],                                                                                                                               \
+   0/*null pixel*/,                                                                                                                         \
+   back_pix                                                                                                                                 \
+  };                                                                                                                                        \
+  uint64_t pt;                                                                                                                              \
+  unsigned st;                                                                                                                              \
+                                                                                                                                           \
+  pt  = 0x01ULL << (uint8_t)(tmp_pix[0] >> PIX_PRIO_TEST_SHIFT);                                                                            \
+  pt |= 0x02ULL << (uint8_t)(tmp_pix[1] >> PIX_PRIO_TEST_SHIFT);                                                                            \
+  pt |= 0x04ULL << (uint8_t)(tmp_pix[2] >> PIX_PRIO_TEST_SHIFT);                                                                            \
+  pt |= 0x08ULL << (uint8_t)(tmp_pix[3] >> PIX_PRIO_TEST_SHIFT);                                                                            \
+  pt |= 0x10ULL << (uint8_t)(tmp_pix[4] >> PIX_PRIO_TEST_SHIFT);                                                                            \
+  pt |= 0x20ULL << (uint8_t)(tmp_pix[5] >> PIX_PRIO_TEST_SHIFT);                                                                            \
+  pt |= 0xC0ULL; /* Back pixel(0x80) and null pixel(0x40) */                                                                                \
+                                                                                                                                           \
+  st = 63 ^ MDFN_lzcount64_0UD(pt);                                                                                                         \
+  pt ^= 1ULL << st;                                                                                                                         \
+  pt |= 0x40; /* Restore the null! */                                                                                                       \
+  pix = tmp_pix[st & 0x7];                                                                                                                  \
+                                                                                                                                           \
+  if(pix & (1U << PIX_DOSHAD_SHIFT))                                                                                                        \
+  {                                                                                                                                         \
+   st = 63 ^ MDFN_lzcount64_0UD(pt);                                                                                                        \
+   pt ^= 1ULL << st;                                                                                                                        \
+   pt |= 0x40; /* Restore the null! */                                                                                                      \
+   pix = tmp_pix[st & 0x7];                                                                                                                 \
+   pix |= (1U << PIX_DOSHAD_SHIFT);                                                                                                         \
+  }                                                                                                                                         \
+                                                                                                                                           \
+/* */                                                                                                                                       \
+/* Prevent blending with a transparent sprite shadow pixel beneath the topmost layer: */                                                    \
+/* */                                                                                                                                       \
+/*if(tmp_pix[5] & (1U << PIX_DOSHAD_SHIFT)) */                                                                                              \
+/* pt &= ~0x2020202020202020ULL; */                                                                                                         \
+/* PIX_DOSHAD_SHIFT compile-time check via negative-array-bound trick */                                                                    \
+/* (no static_assert / _Static_assert dependence; works in both C and */                                                                    \
+/* C++ -- C++ has its own static_assert, C99 doesn't get _Static_assert */                                                                  \
+/* until C11, and GCC's C++ mode rejects _Static_assert without */                                                                          \
+/* -fpermissive).  Triggers `size of unnamed array is negative` on */                                                                       \
+/* mismatch.  The typedef is named to allow grep'ing for the assert. */                                                                     \
+  typedef char VDP2REND_PIX_DOSHAD_SHIFT_check[                                                                                             \
+   1 - 2*!((1U << PIX_DOSHAD_SHIFT) == 0x40)];                                                                                              \
+  (void)sizeof(VDP2REND_PIX_DOSHAD_SHIFT_check);                                                                                            \
+  pt &= ~((((tmp_pix[5] >> 1) & 0x20) << (uint8_t)(tmp_pix[5] >> PIX_PRIO_TEST_SHIFT)));                                                    \
+                                                                                                                                           \
+                                                                                                                                           \
+  if((SPECIAL) == MIXIT_SPECIAL_GRAD)                                                                                                       \
+  {                                                                                                                                         \
+   const uint32_t blurpie = blursrc[i] >> PIX_RGB_SHIFT;                                                                                    \
+                                                                                                                                           \
+   blurcake = ((blurprev[0] + blurprev[1]) - ((blurprev[0] ^ blurprev[1]) & 0x01010101)) >> 1;                                              \
+   blurcake = ((blurcake + blurpie) - ((blurcake ^ blurpie) & 0x01010101)) >> 1;                                                            \
+   blurprev[0] = blurprev[1];                                                                                                               \
+   blurprev[1] = blurpie;                                                                                                                   \
+  }                                                                                                                                         \
+                                                                                                                                           \
+/* */                                                                                                                                       \
+/* Color calculation */                                                                                                                     \
+/* */                                                                                                                                       \
+  if(pix & (1U << PIX_CCE_SHIFT))                                                                                                           \
+  {                                                                                                                                         \
+   uint64_t pix2, pix3;                                                                                                                     \
+                                                                                                                                           \
+   st = 63 ^ MDFN_lzcount64_0UD(pt);                                                                                                        \
+   pt ^= 1ULL << st;                                                                                                                        \
+   pt |= 0x40; /* Restore the null! */                                                                                                      \
+   pix2 = tmp_pix[st & 0x7];                                                                                                                \
+                                                                                                                                           \
+   st = 63 ^ MDFN_lzcount64_0UD(pt);                                                                                                        \
+   pt ^= 1ULL << st;                                                                                                                        \
+   pt |= 0x40; /* Restore the null! */                                                                                                      \
+   pix3 = tmp_pix[st & 0x7];                                                                                                                \
+                                                                                                                                           \
+   if((SPECIAL) == MIXIT_SPECIAL_GRAD)                                                                                                      \
+   {                                                                                                                                        \
+    if((pix | pix2) & (1U << PIX_GRAD_SHIFT))                                                                                               \
+     pix2 = (uint32_t)pix2 | ((uint64_t)blurcake << PIX_RGB_SHIFT); /* Be sure to preserve the color calc ratio, at least. */               \
+   }                                                                                                                                        \
+   else if(pix & (1U << PIX_LCE_SHIFT))                                                                                                     \
+   {                                                                                                                                        \
+/* */                                                                                                                                       \
+/* Line color */                                                                                                                            \
+/* */                                                                                                                                       \
+    const uint64_t pix4 = pix3;                                                                                                             \
+    const uint32_t line_pix_rgb = lclut[LB.lc[i]];                                                                                          \
+    pix3 = pix2;                                                                                                                            \
+    pix2 = line_pix_l | ((uint64_t)line_pix_rgb << PIX_RGB_SHIFT);                                                                          \
+                                                                                                                                           \
+    if((SPECIAL) == MIXIT_SPECIAL_EXCC_LINE_CRAM0)                                                                                          \
+    {                                                                                                                                       \
+     uint32_t sec_rgb = line_pix_rgb;                                                                                                       \
+     uint32_t third_rgb = (pix3 >> PIX_RGB_SHIFT);                                                                                          \
+                                                                                                                                           \
+     if(pix3 & (1U << PIX_LAYER_CCE_SHIFT))                                                                                                 \
+      third_rgb = (third_rgb >> 1) & 0x7F7F7F;                                                                                              \
+                                                                                                                                           \
+     sec_rgb = ((sec_rgb + third_rgb) - ((sec_rgb ^ third_rgb) & 0x01010101)) >> 1;                                                         \
+     pix2 = (uint32_t)pix2 | ((uint64_t)sec_rgb << PIX_RGB_SHIFT);                                                                          \
+    }                                                                                                                                       \
+    else if((SPECIAL) == MIXIT_SPECIAL_EXCC_LINE_CRAM12)                                                                                    \
+    {                                                                                                                                       \
+     uint32_t sec_rgb = line_pix_rgb;                                                                                                       \
+     uint32_t third_rgb = (pix3 >> PIX_RGB_SHIFT);                                                                                          \
+                                                                                                                                           \
+     if(pix3 & (1U << PIX_ISRGB_SHIFT))                                                                                                     \
+     {                                                                                                                                      \
+      if((pix3 & (1U << PIX_LAYER_CCE_SHIFT)) && (pix4 & (1U << PIX_ISRGB_SHIFT)))                                                          \
+      {                                                                                                                                     \
+       const uint32_t fourth_rgb = (pix4 >> PIX_RGB_SHIFT);                                                                                 \
+       third_rgb = ((third_rgb + fourth_rgb) - ((third_rgb ^ fourth_rgb) & 0x01010101)) >> 1;                                               \
+      }                                                                                                                                     \
+                                                                                                                                           \
+      sec_rgb = ((sec_rgb + third_rgb) - ((sec_rgb ^ third_rgb) & 0x01010101)) >> 1;                                                        \
+      pix2 = (uint32_t)pix2 | ((uint64_t)sec_rgb << PIX_RGB_SHIFT);                                                                         \
+     }                                                                                                                                      \
+    }                                                                                                                                       \
+   }                                                                                                                                        \
+   else                                                                                                                                     \
+   {                                                                                                                                        \
+    if((SPECIAL) == MIXIT_SPECIAL_EXCC_CRAM0 || (SPECIAL) == MIXIT_SPECIAL_EXCC_CRAM12 || (SPECIAL) == MIXIT_SPECIAL_EXCC_LINE_CRAM0 || (SPECIAL) == MIXIT_SPECIAL_EXCC_LINE_CRAM12)\
+    {                                                                                                                                       \
+     if(pix2 & (1U << PIX_LAYER_CCE_SHIFT))                                                                                                 \
+     {                                                                                                                                      \
+      if((SPECIAL) == MIXIT_SPECIAL_EXCC_CRAM0 || (SPECIAL) == MIXIT_SPECIAL_EXCC_LINE_CRAM0 || (pix3 & (1U << PIX_ISRGB_SHIFT)))           \
+      {                                                                                                                                     \
+       uint32_t sec_rgb = pix2 >> PIX_RGB_SHIFT;                                                                                            \
+       const uint32_t third_rgb = (pix3 >> PIX_RGB_SHIFT);                                                                                  \
+                                                                                                                                           \
+       sec_rgb = ((sec_rgb + third_rgb) - ((sec_rgb ^ third_rgb) & 0x01010101)) >> 1;                                                       \
+       pix2 = (uint32_t)pix2 | ((uint64_t)sec_rgb << PIX_RGB_SHIFT);                                                                        \
+      }                                                                                                                                     \
+     }                                                                                                                                      \
+    }                                                                                                                                       \
+   }                                                                                                                                        \
+                                                                                                                                           \
+   uint32_t fore_rgb = pix >> PIX_RGB_SHIFT;                                                                                                \
+   uint32_t sec_rgb = pix2 >> PIX_RGB_SHIFT;                                                                                                \
+   uint32_t new_rgb;                                                                                                                        \
+                                                                                                                                           \
+   if((SPECIAL) == MIXIT_SPECIAL_HIRES_CRAM12 && !(pix2 & (1U << PIX_ISRGB_SHIFT)))                                                         \
+    sec_rgb = fore_rgb;                                                                                                                     \
+                                                                                                                                           \
+   if((CCMD)) /* Ignore ratio, add as-is. */                                                                                                \
+   {                                                                                                                                        \
+    new_rgb =  ((unsigned)(0x0000FF) < (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)) ? (unsigned)(0x0000FF) : (unsigned)((fore_rgb & 0x0000FF) + (sec_rgb & 0x0000FF)));\
+    new_rgb |= ((unsigned)(0x00FF00) < (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)) ? (unsigned)(0x00FF00) : (unsigned)((fore_rgb & 0x00FF00) + (sec_rgb & 0x00FF00)));\
+    new_rgb |= ((unsigned)(0xFF0000) < (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)) ? (unsigned)(0xFF0000) : (unsigned)((fore_rgb & 0xFF0000) + (sec_rgb & 0xFF0000)));\
+   }                                                                                                                                        \
+   else                                                                                                                                     \
+   {                                                                                                                                        \
+    unsigned fore_ratio = ((uint32_t)((CCRTMD) ? pix2 : pix) >> PIX_CCRATIO_SHIFT) ^ 0x1F;                                                  \
+    unsigned sec_ratio = 0x20 - fore_ratio;                                                                                                 \
+                                                                                                                                           \
+    new_rgb =  ((((fore_rgb & 0x0000FF) * fore_ratio) + ((sec_rgb & 0x0000FF) * sec_ratio)) >> 5);                                          \
+    new_rgb |= ((((fore_rgb & 0x00FF00) * fore_ratio) + ((sec_rgb & 0x00FF00) * sec_ratio)) >> 5) & 0x00FF00;                               \
+    new_rgb |= ((((fore_rgb & 0xFF0000) * fore_ratio) + ((sec_rgb & 0xFF0000) * sec_ratio)) >> 5) & 0xFF0000;                               \
+   }                                                                                                                                        \
+   pix = ((uint64_t)new_rgb << 32) | (uint32_t)pix;                                                                                         \
+  }                                                                                                                                         \
+                                                                                                                                           \
+/* */                                                                                                                                       \
+/* Color offset */                                                                                                                          \
+/* */                                                                                                                                       \
+  if(pix & (1U << PIX_COE_SHIFT))                                                                                                           \
+  {                                                                                                                                         \
+   const unsigned sel = (pix >> PIX_COSEL_SHIFT) & 1;                                                                                       \
+   const uint32_t rgb_tmp = pix >> PIX_RGB_SHIFT;                                                                                           \
+   int32_t rt, gt, bt;                                                                                                                      \
+                                                                                                                                           \
+/* Magnitude test (not bit-test) so the compiler emits csel instead of tst+branch. */                                                       \
+   rt = ColorOffs[sel][0] + (rgb_tmp & 0x000000FF);                                                                                         \
+   if(rt < 0) rt = 0;                                                                                                                       \
+   if(rt > 0x000000FF) rt = 0x000000FF;                                                                                                     \
+                                                                                                                                           \
+   gt = ColorOffs[sel][1] + (rgb_tmp & 0x0000FF00);                                                                                         \
+   if(gt < 0) gt = 0;                                                                                                                       \
+   if(gt > 0x0000FF00) gt = 0x0000FF00;                                                                                                     \
+                                                                                                                                           \
+   bt = ColorOffs[sel][2] + (rgb_tmp & 0x00FF0000);                                                                                         \
+   if(bt < 0) bt = 0;                                                                                                                       \
+   if(bt > 0x00FF0000) bt = 0x00FF0000;                                                                                                     \
+                                                                                                                                           \
+   pix = (uint32_t)pix | ((uint64_t)(uint32_t)(rt | gt | bt) << PIX_RGB_SHIFT);                                                             \
+  }                                                                                                                                         \
+                                                                                                                                           \
+/* */                                                                                                                                       \
+/* Sprite shadow */                                                                                                                         \
+/* */                                                                                                                                       \
+  if((uint8_t)pix >= PIX_SHADHALVTEST8_VAL)                                                                                                 \
+   pix = (uint32_t)pix | ((pix >> 1) & 0x7F7F7F00000000ULL);                                                                                \
+                                                                                                                                           \
+/* MixIt's internal pixel format keeps R at byte 0, G at byte 1, B at */                                                                    \
+/* byte 2 (matches rgb15_to_rgb24's output and lets all the colour- */                                                                      \
+/* offset / blend / shadow math above use byte-aligned 0x0000FF / */                                                                        \
+/* 0x00FF00 / 0xFF0000 masks). The libretro surface wants R at byte 2 */                                                                    \
+/* (RED_SHIFT=16), G at byte 1 (GREEN_SHIFT=8), B at byte 0 */                                                                              \
+/* (BLUE_SHIFT=0) -- exactly the byte-swap-and-drop-high-byte that */                                                                       \
+/* ReorderRGB used to do as a separate post-pass over the same row. */                                                                      \
+/* */                                                                                                                                       \
+/* Folding it inline here costs ~2 extra instructions per pixel */                                                                          \
+/* (bswap + shr) at a register that already holds the value, and */                                                                         \
+/* eliminates the entire ReorderRGB pass's read-modify-write of the */                                                                      \
+/* active row (8 bytes/pixel of memory traffic, ~3 ops/pixel). */                                                                           \
+/* Border pixels are written by the border-fill loops in DrawLine */                                                                        \
+/* already in output format, so they don't need any swap. */                                                                                \
+/* Mesh-improved-transparency occlusion gate: record the priority of */                                                                     \
+/* the layer whose pix won this output pixel. ApplyMeshOverlay reads */                                                                     \
+/* this to suppress mesh blending where a higher-priority VDP2 layer */                                                                     \
+/* already occludes the would-be VDP1 sprite (matches Kronos's */                                                                           \
+/* `if (i <= FBMeshPrio)` rule). PIX_PRIO_SHIFT holds the resolved */                                                                       \
+/* priority value (0..7); one byte store per output pixel. */                                                                               \
+/* */                                                                                                                                       \
+/* Gated on the runtime MeshImproved flag rather than written */                                                                            \
+/* unconditionally: the flag flips only via the libretro option- */                                                                         \
+/* update path so the branch is ~100% predictable across a frame, */                                                                        \
+/* and gating keeps MixIt's default-off cost identical to before */                                                                         \
+/* this feature existed. */                                                                                                                 \
+  if(VDP1_MeshImproved)                                                                                                                     \
+   LIB[vdp2_line].vdp1_winprio[i] = (pix >> PIX_PRIO_SHIFT) & 0x7;                                                                          \
+  target[i] = MIXIT_TO_SURFACE(pix >> PIX_RGB_SHIFT);                                                                                       \
+ }                                                                                                                                          \
 }
+
+#define T_MixIt_NAME(DUALEN, SPECIAL, CCRTMD, CCMD) \
+ T_MixIt_##DUALEN##_##SPECIAL##_##CCRTMD##_##CCMD
+
+#define DEFINE_T_MixIt(DUALEN, SPECIAL, CCRTMD, CCMD)                                                          \
+ static void T_MixIt_NAME(DUALEN, SPECIAL, CCRTMD, CCMD)(uint32_t* target, const unsigned vdp2_line,            \
+                                                         const unsigned w, const uint32_t back_rgb24,           \
+                                                         const uint64_t* blursrc)                               \
+ T_MixIt_BODY(DUALEN, SPECIAL, CCRTMD, CCMD)
+
+/* One-level enumerators. */
+#define DMI_ENUM_CCMD(M, DUALEN, SPECIAL, CCRTMD) \
+ M(DUALEN, SPECIAL, CCRTMD, 0)                    \
+ M(DUALEN, SPECIAL, CCRTMD, 1)
+
+#define DMI_ENUM_CCRTMD(M, DUALEN, SPECIAL) \
+ M(DUALEN, SPECIAL, 0)                     \
+ M(DUALEN, SPECIAL, 1)
+
+#define DMI_ENUM_SPECIAL(M, DUALEN) \
+ M(DUALEN, 0)                      \
+ M(DUALEN, 1)                      \
+ M(DUALEN, 2)                      \
+ M(DUALEN, 3)                      \
+ M(DUALEN, 4)                      \
+ M(DUALEN, 5)                      \
+ M(DUALEN, 6)
+
+#define DMI_ENUM_DUALEN(M) \
+ M(0)                     \
+ M(1)
+
+/* Function-definition composition. */
+#define DMI_FN_AT_CCRTMD(DUALEN, SPECIAL, CCRTMD) DMI_ENUM_CCMD(DEFINE_T_MixIt, DUALEN, SPECIAL, CCRTMD)
+#define DMI_FN_AT_SPECIAL(DUALEN, SPECIAL)        DMI_ENUM_CCRTMD(DMI_FN_AT_CCRTMD, DUALEN, SPECIAL)
+#define DMI_FN_AT_DUALEN(DUALEN)                  DMI_ENUM_SPECIAL(DMI_FN_AT_SPECIAL, DUALEN)
+
+DMI_FN_AT_DUALEN(0)
+DMI_FN_AT_DUALEN(1)
+
+/* Table composition: each non-leaf level wraps in braces. */
+#define DMI_TBL_AT_CCMD(DUALEN, SPECIAL, CCRTMD, CCMD)  T_MixIt_NAME(DUALEN, SPECIAL, CCRTMD, CCMD),
+#define DMI_TBL_AT_CCRTMD(DUALEN, SPECIAL, CCRTMD)      { DMI_ENUM_CCMD(DMI_TBL_AT_CCMD, DUALEN, SPECIAL, CCRTMD) },
+#define DMI_TBL_AT_SPECIAL(DUALEN, SPECIAL)             { DMI_ENUM_CCRTMD(DMI_TBL_AT_CCRTMD, DUALEN, SPECIAL) },
+#define DMI_TBL_AT_DUALEN(DUALEN)                       { DMI_ENUM_SPECIAL(DMI_TBL_AT_SPECIAL, DUALEN) },
 
 static void (*MixIt[2][7][2][2])(uint32_t* target, const unsigned vdp2_line, const unsigned w, const uint32_t back_rgb24, const uint64_t* blursrc) =
 {
- {  {  { T_MixIt<0, 0, 0, 0>, T_MixIt<0, 0, 0, 1>,  },  { T_MixIt<0, 0, 1, 0>, T_MixIt<0, 0, 1, 1>,  },  },  {  { T_MixIt<0, 1, 0, 0>, T_MixIt<0, 1, 0, 1>,  },  { T_MixIt<0, 1, 1, 0>, T_MixIt<0, 1, 1, 1>,  },  },  {  { T_MixIt<0, 2, 0, 0>, T_MixIt<0, 2, 0, 1>,  },  { T_MixIt<0, 2, 1, 0>, T_MixIt<0, 2, 1, 1>,  },  },  {  { T_MixIt<0, 3, 0, 0>, T_MixIt<0, 3, 0, 1>,  },  { T_MixIt<0, 3, 1, 0>, T_MixIt<0, 3, 1, 1>,  },  },  {  { T_MixIt<0, 4, 0, 0>, T_MixIt<0, 4, 0, 1>,  },  { T_MixIt<0, 4, 1, 0>, T_MixIt<0, 4, 1, 1>,  },  },  {  { T_MixIt<0, 5, 0, 0>, T_MixIt<0, 5, 0, 1>,  },  { T_MixIt<0, 5, 1, 0>, T_MixIt<0, 5, 1, 1>,  },  },  {  { T_MixIt<0, 6, 0, 0>, T_MixIt<0, 6, 0, 1>,  },  { T_MixIt<0, 6, 1, 0>, T_MixIt<0, 6, 1, 1>,  },  },  },
- {  {  { T_MixIt<1, 0, 0, 0>, T_MixIt<1, 0, 0, 1>,  },  { T_MixIt<1, 0, 1, 0>, T_MixIt<1, 0, 1, 1>,  },  },  {  { T_MixIt<1, 1, 0, 0>, T_MixIt<1, 1, 0, 1>,  },  { T_MixIt<1, 1, 1, 0>, T_MixIt<1, 1, 1, 1>,  },  },  {  { T_MixIt<1, 2, 0, 0>, T_MixIt<1, 2, 0, 1>,  },  { T_MixIt<1, 2, 1, 0>, T_MixIt<1, 2, 1, 1>,  },  },  {  { T_MixIt<1, 3, 0, 0>, T_MixIt<1, 3, 0, 1>,  },  { T_MixIt<1, 3, 1, 0>, T_MixIt<1, 3, 1, 1>,  },  },  {  { T_MixIt<1, 4, 0, 0>, T_MixIt<1, 4, 0, 1>,  },  { T_MixIt<1, 4, 1, 0>, T_MixIt<1, 4, 1, 1>,  },  },  {  { T_MixIt<1, 5, 0, 0>, T_MixIt<1, 5, 0, 1>,  },  { T_MixIt<1, 5, 1, 0>, T_MixIt<1, 5, 1, 1>,  },  },  {  { T_MixIt<1, 6, 0, 0>, T_MixIt<1, 6, 0, 1>,  },  { T_MixIt<1, 6, 1, 0>, T_MixIt<1, 6, 1, 1>,  },  },  },
+ DMI_TBL_AT_DUALEN(0)
+ DMI_TBL_AT_DUALEN(1)
 };
+
+#undef DMI_TBL_AT_DUALEN
+#undef DMI_TBL_AT_SPECIAL
+#undef DMI_TBL_AT_CCRTMD
+#undef DMI_TBL_AT_CCMD
+#undef DMI_FN_AT_DUALEN
+#undef DMI_FN_AT_SPECIAL
+#undef DMI_FN_AT_CCRTMD
+#undef DMI_ENUM_DUALEN
+#undef DMI_ENUM_SPECIAL
+#undef DMI_ENUM_CCRTMD
+#undef DMI_ENUM_CCMD
+#undef DEFINE_T_MixIt
+#undef T_MixIt_NAME
+#undef T_MixIt_BODY
 
 // Apply the improved-mesh-transparency overlay to a freshly-composited
 // scanline. For each pixel where the mesh side-buffer has a non-zero
