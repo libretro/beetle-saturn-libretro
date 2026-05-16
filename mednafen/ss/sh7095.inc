@@ -2267,8 +2267,8 @@ INLINE void SH7095::Cache_WriteUpdate(uint32_t A, T V)
  }
 }
 
-template<typename T>
-INLINE void SH7095::Cache_WriteAddressArray(uint32_t A, T V)
+/* Phase-8h: detempleted -- body never used T. */
+INLINE void SH7095::Cache_WriteAddressArray(uint32_t A, uint32_t V)
 {
  const unsigned way = (CCR >> 6) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
@@ -2286,8 +2286,9 @@ INLINE void SH7095::Cache_WriteDataArray(uint32_t A, T V)
  memcpy(&Cache[ena].Data[way][NE32ASU8_IDX_ADJ(T, A & 0x0F)], &V, sizeof(T));
 }
 
-template<typename T>
-INLINE T SH7095::Cache_ReadAddressArray(uint32_t A)
+/* Phase-8h: detempleted -- body never used T; returns a 32-bit
+ * tag value, callers truncate via `retval = (T)...` assignment. */
+INLINE uint32_t SH7095::Cache_ReadAddressArray(uint32_t A)
 {
  const unsigned way = (CCR >> 6) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
@@ -2306,10 +2307,10 @@ INLINE T SH7095::Cache_ReadDataArray(uint32_t A)
  return tmp;
 }
 
-template<typename T>
-INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, const uint32_t A)
-{
-}
+/* Phase-8h: Cache_CheckReadIncoherency<T> retired -- the body was
+ * empty (it was a stub for cache-coherency tracking that was never
+ * implemented).  Callers in the MemRead macro drop the line
+ * outright. */
 
 #define MemRead(IsInstr, T, region, CacheEnabled, A_, outval_, A, unmasked_A, cent, way_match)			\
 {														\
@@ -2372,8 +2373,10 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	   timestamp = SH7095_mem_timestamp;									\
 	 }													\
 														\
-	 Cache_CheckReadIncoherency<T>(cent, way_match, A);							\
-														\
+	 /* Phase-8h: Cache_CheckReadIncoherency call dropped -- its
+	  * body was empty.  Macro continuation tightened up by one
+	  * line. */									\
+											\
 	 Cache_LRU[(A >> 4) & 0x3F] = (Cache_LRU[(A >> 4) & 0x3F] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;	\
 														\
          /* Ugggghhhh.... */											\
@@ -2420,7 +2423,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	/* Note: bits 0, 1, 3, 29, 30, 31 are some sort	*/							\
 	/*       of open-bus(unemulated). 		*/							\
 	/*				   		*/							\
-	retval = Cache_ReadAddressArray<T>(A);									\
+	retval = Cache_ReadAddressArray(A);									\
 	goto MemReturn;												\
 														\
   case 4:													\
@@ -2482,7 +2485,7 @@ INLINE void SH7095::Cache_CheckReadIncoherency(CacheEntry* cent, const int way, 
 	timestamp++;								\
 	if((timestamp + 1) > MA_until) MA_until = (timestamp + 1);	\
 										\
-	Cache_WriteAddressArray<T>(A, V);					\
+	Cache_WriteAddressArray(A, V);					\
 	break;									\
 										\
   case 4:									\

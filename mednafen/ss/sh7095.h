@@ -243,20 +243,27 @@ class SH7095 final
 
  int Cache_FindWay(CacheEntry* const cent, const uint32_t ATM);
 
- template<typename T>
- void Cache_WriteAddressArray(uint32_t A, T V);
+ /* Phase-8h: Cache_WriteAddressArray, Cache_ReadAddressArray,
+  * and Cache_CheckReadIncoherency lost their `template<typename T>`
+  * parameter -- none of their bodies use T.  The two address-array
+  * accessors handle a 32-bit tag word that's always the same width
+  * regardless of the macro-passed T (V truncates implicitly on
+  * write, and the caller's `retval = (T)...` truncates on read).
+  * Cache_CheckReadIncoherency had an empty body and is gone
+  * entirely; macro callsites drop the line.
+  *
+  * Cache_WriteDataArray, Cache_ReadDataArray, and Cache_WriteUpdate
+  * keep their T parameter -- those use sizeof(T) for cache-line
+  * byte placement via NE32ASU8_IDX_ADJ. */
+ void Cache_WriteAddressArray(uint32_t A, uint32_t V);
 
  template<typename T>
  void Cache_WriteDataArray(uint32_t A, T V);
 
- template<typename T>
- T Cache_ReadAddressArray(uint32_t A);
+ uint32_t Cache_ReadAddressArray(uint32_t A);
 
  template<typename T>
  T Cache_ReadDataArray(uint32_t A);
-
- template<typename T>
- void Cache_CheckReadIncoherency(CacheEntry* cent, const int way, const uint32_t A);
 
  template<typename T>
  void Cache_WriteUpdate(uint32_t A, T V);
