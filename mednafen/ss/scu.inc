@@ -1519,12 +1519,23 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
  if(A >= 0x05C00000 && A <= 0x05D7FFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing +=  10;
+   *sh2_dma_time_thing +=  ( 6) ;
 
   if(dma_time_thing != NULL)
   {
    *dma_time_thing -= 1;
 
+    if(MDFN_UNLIKELY(A >= 0x05D00000))
+    {
+     const bool ignore_write = (A >= 0x5D00004 && SCU_DMA_VDP1WriteIgnoreKludge > 0) | (SCU_DMA_VDP1WriteIgnoreKludge & 0x1);
+
+     SCU_DMA_VDP1WriteIgnoreKludge++;
+     if(ignore_write)
+      return;
+    }
+    else
+     SCU_DMA_VDP1WriteIgnoreKludge = 0;
+   
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1534,18 +1545,17 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
   if(time_thing != NULL)
   {
-   
-    *time_thing += 14;
+   BBus_SH2_WriteFinishTS +=  9;
 
    CheckEventsByMemTS();
   }
 
    if(time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *time_thing);
+    VDP1_Write_CheckDrawSlowdown(A, *time_thing);
    else if(sh2_dma_time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
+    VDP1_Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
 
-   *DB = VDP1_Read16_DB(A);
+   VDP1_Write8_DB(A, *DB);
 
   return;
  }
@@ -1556,7 +1566,7 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
  if(A >= 0x05E00000 && A <= 0x05FBFFFF)
  {
   if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing +=  10;
+   *sh2_dma_time_thing +=  ( 5) ;
 
   if(dma_time_thing != NULL)
   {
@@ -1567,12 +1577,17 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
   if(time_thing != NULL)
   {
-   *time_thing += 20;
+   BBus_SH2_WriteFinishTS +=  3;
 
    CheckEventsByMemTS();
   }
 
-   *DB = VDP2_Read16_DB(A);
+   uint32_t expenalty;
+
+   expenalty = VDP2_Write8_DB(A, *DB);
+
+   if(dma_time_thing != NULL)
+    *dma_time_thing -= expenalty;
 
   return;
  }
@@ -1592,10 +1607,10 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
   if(time_thing != NULL)
   {
-   *time_thing += 24;
+   BBus_SH2_WriteFinishTS +=  17;
   }
 
-  *DB = SOUND_Read16(A & 0x1FFFFF); 
+   SOUND_Write8(A & 0x1FFFFF, *DB >> (((A & 1) ^ 1) << 3));
 
   return;
  }
@@ -1622,112 +1637,6 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     *time_thing += 2;
     BBus_SH2_WriteFinishTS = *time_thing;
 
- }
-
- //
- // VDP1
- //
- if(A >= 0x05C00000 && A <= 0x05D7FFFF)
- {
-  if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing +=  10;
-
-  if(dma_time_thing != NULL)
-  {
-   *dma_time_thing -= 1;
-
-  }
-
-  //if(IsWrite && (A & 0x100000) && SH32)
-  //{
-  // assert(0);
-  //}
-
-  if(time_thing != NULL)
-  {
-   
-    *time_thing += 14;
-
-   CheckEventsByMemTS();
-  }
-
-   if(time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *time_thing);
-   else if(sh2_dma_time_thing != NULL)
-    VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
-
-   *DB = VDP1_Read16_DB(A);
-
-  return;
- }
-
- //
- // VDP2
- //
- if(A >= 0x05E00000 && A <= 0x05FBFFFF)
- {
-  if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing +=  10;
-
-  if(dma_time_thing != NULL)
-  {
-   *dma_time_thing -= 1;
-   //if(A & 0x00100000)
-   // *dma_time_thing -= 1;
-  }
-
-  if(time_thing != NULL)
-  {
-   *time_thing += 20;
-
-   CheckEventsByMemTS();
-  }
-
-   *DB = VDP2_Read16_DB(A);
-
-  return;
- }
-
- //
- // SCSP
- // 
- if(A >= 0x05A00000 && A <= 0x05BFFFFF)
- {
-  if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += 13;
-
-  if(dma_time_thing != NULL)
-  {
-   *dma_time_thing -= 13;
-  }
-
-  if(time_thing != NULL)
-  {
-   *time_thing += 24;
-  }
-
-  *DB = SOUND_Read16(A & 0x1FFFFF); 
-
-  return;
- }
- //
- //
- //
- if(sh2_dma_time_thing != NULL)
-  *sh2_dma_time_thing += 1;
-
- if(dma_time_thing != NULL)
-  *dma_time_thing -= 1;
-
-}
-
-static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
-{
- 
-
- if(time_thing != NULL)
- {
-  
  }
 
  //
@@ -1842,18 +1751,13 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
 }
 
-static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  
 
  if(time_thing != NULL)
  {
   
-   *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
-
-    *time_thing += 2;
-    BBus_SH2_WriteFinishTS = *time_thing;
-
  }
 
  //
@@ -1968,7 +1872,7 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
 }
 
-static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
 {
  
 
@@ -1977,128 +1881,9 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
   
    *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
- }
+    *time_thing += 2;
+    BBus_SH2_WriteFinishTS = *time_thing;
 
- //
- // VDP1
- //
- if(A >= 0x05C00000 && A <= 0x05D7FFFF)
- {
-  if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing +=  ( 6) ;
-
-  if(dma_time_thing != NULL)
-  {
-   *dma_time_thing -= 1;
-
-    if(MDFN_UNLIKELY(A >= 0x05D00000))
-    {
-     const bool ignore_write = (A >= 0x5D00004 && SCU_DMA_VDP1WriteIgnoreKludge > 0) | (SCU_DMA_VDP1WriteIgnoreKludge & 0x1);
-
-     SCU_DMA_VDP1WriteIgnoreKludge++;
-     if(ignore_write)
-      return;
-    }
-    else
-     SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   
-  }
-
-  //if(IsWrite && (A & 0x100000) && SH32)
-  //{
-  // assert(0);
-  //}
-
-  if(time_thing != NULL)
-  {
-   BBus_SH2_WriteFinishTS +=  9;
-
-   CheckEventsByMemTS();
-  }
-
-   if(time_thing != NULL)
-    VDP1_Write_CheckDrawSlowdown(A, *time_thing);
-   else if(sh2_dma_time_thing != NULL)
-    VDP1_Write_CheckDrawSlowdown(A, *sh2_dma_time_thing);
-
-   VDP1_Write8_DB(A, *DB);
-
-  return;
- }
-
- //
- // VDP2
- //
- if(A >= 0x05E00000 && A <= 0x05FBFFFF)
- {
-  if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing +=  ( 5) ;
-
-  if(dma_time_thing != NULL)
-  {
-   *dma_time_thing -= 1;
-   //if(A & 0x00100000)
-   // *dma_time_thing -= 1;
-  }
-
-  if(time_thing != NULL)
-  {
-   BBus_SH2_WriteFinishTS +=  3;
-
-   CheckEventsByMemTS();
-  }
-
-   uint32_t expenalty;
-
-   expenalty = VDP2_Write8_DB(A, *DB);
-
-   if(dma_time_thing != NULL)
-    *dma_time_thing -= expenalty;
-
-  return;
- }
-
- //
- // SCSP
- // 
- if(A >= 0x05A00000 && A <= 0x05BFFFFF)
- {
-  if(sh2_dma_time_thing != NULL)
-   *sh2_dma_time_thing += 13;
-
-  if(dma_time_thing != NULL)
-  {
-   *dma_time_thing -= 13;
-  }
-
-  if(time_thing != NULL)
-  {
-   BBus_SH2_WriteFinishTS +=  17;
-  }
-
-   SOUND_Write8(A & 0x1FFFFF, *DB >> (((A & 1) ^ 1) << 3));
-
-  return;
- }
- //
- //
- //
- if(sh2_dma_time_thing != NULL)
-  *sh2_dma_time_thing += 1;
-
- if(dma_time_thing != NULL)
-  *dma_time_thing -= 1;
-
- *DB = 0;
-}
-
-static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
-{
- 
-
- if(time_thing != NULL)
- {
-  
  }
 
  //
@@ -2211,6 +1996,221 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
  if(dma_time_thing != NULL)
   *dma_time_thing -= 1;
 
+}
+
+static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+{
+ 
+
+ if(time_thing != NULL)
+ {
+  
+   *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
+
+ }
+
+ //
+ // VDP1
+ //
+ if(A >= 0x05C00000 && A <= 0x05D7FFFF)
+ {
+  if(sh2_dma_time_thing != NULL)
+   *sh2_dma_time_thing +=  10;
+
+  if(dma_time_thing != NULL)
+  {
+   *dma_time_thing -= 1;
+
+  }
+
+  //if(IsWrite && (A & 0x100000) && SH32)
+  //{
+  // assert(0);
+  //}
+
+  if(time_thing != NULL)
+  {
+   
+    *time_thing += 14;
+
+   CheckEventsByMemTS();
+  }
+
+   if(time_thing != NULL)
+    VDP1_Read_CheckDrawSlowdown(A, *time_thing);
+   else if(sh2_dma_time_thing != NULL)
+    VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
+
+   *DB = VDP1_Read16_DB(A);
+
+  return;
+ }
+
+ //
+ // VDP2
+ //
+ if(A >= 0x05E00000 && A <= 0x05FBFFFF)
+ {
+  if(sh2_dma_time_thing != NULL)
+   *sh2_dma_time_thing +=  10;
+
+  if(dma_time_thing != NULL)
+  {
+   *dma_time_thing -= 1;
+   //if(A & 0x00100000)
+   // *dma_time_thing -= 1;
+  }
+
+  if(time_thing != NULL)
+  {
+   *time_thing += 20;
+
+   CheckEventsByMemTS();
+  }
+
+   *DB = VDP2_Read16_DB(A);
+
+  return;
+ }
+
+ //
+ // SCSP
+ // 
+ if(A >= 0x05A00000 && A <= 0x05BFFFFF)
+ {
+  if(sh2_dma_time_thing != NULL)
+   *sh2_dma_time_thing += 13;
+
+  if(dma_time_thing != NULL)
+  {
+   *dma_time_thing -= 13;
+  }
+
+  if(time_thing != NULL)
+  {
+   *time_thing += 24;
+  }
+
+  *DB = SOUND_Read16(A & 0x1FFFFF); 
+
+  return;
+ }
+ //
+ //
+ //
+ if(sh2_dma_time_thing != NULL)
+  *sh2_dma_time_thing += 1;
+
+ if(dma_time_thing != NULL)
+  *dma_time_thing -= 1;
+
+ *DB = 0;
+}
+
+static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+{
+ 
+
+ if(time_thing != NULL)
+ {
+  
+ }
+
+ //
+ // VDP1
+ //
+ if(A >= 0x05C00000 && A <= 0x05D7FFFF)
+ {
+  if(sh2_dma_time_thing != NULL)
+   *sh2_dma_time_thing +=  10;
+
+  if(dma_time_thing != NULL)
+  {
+   *dma_time_thing -= 1;
+
+  }
+
+  //if(IsWrite && (A & 0x100000) && SH32)
+  //{
+  // assert(0);
+  //}
+
+  if(time_thing != NULL)
+  {
+   
+    *time_thing += 14;
+
+   CheckEventsByMemTS();
+  }
+
+   if(time_thing != NULL)
+    VDP1_Read_CheckDrawSlowdown(A, *time_thing);
+   else if(sh2_dma_time_thing != NULL)
+    VDP1_Read_CheckDrawSlowdown(A, *sh2_dma_time_thing);
+
+   *DB = VDP1_Read16_DB(A);
+
+  return;
+ }
+
+ //
+ // VDP2
+ //
+ if(A >= 0x05E00000 && A <= 0x05FBFFFF)
+ {
+  if(sh2_dma_time_thing != NULL)
+   *sh2_dma_time_thing +=  10;
+
+  if(dma_time_thing != NULL)
+  {
+   *dma_time_thing -= 1;
+   //if(A & 0x00100000)
+   // *dma_time_thing -= 1;
+  }
+
+  if(time_thing != NULL)
+  {
+   *time_thing += 20;
+
+   CheckEventsByMemTS();
+  }
+
+   *DB = VDP2_Read16_DB(A);
+
+  return;
+ }
+
+ //
+ // SCSP
+ // 
+ if(A >= 0x05A00000 && A <= 0x05BFFFFF)
+ {
+  if(sh2_dma_time_thing != NULL)
+   *sh2_dma_time_thing += 13;
+
+  if(dma_time_thing != NULL)
+  {
+   *dma_time_thing -= 13;
+  }
+
+  if(time_thing != NULL)
+  {
+   *time_thing += 24;
+  }
+
+  *DB = SOUND_Read16(A & 0x1FFFFF); 
+
+  return;
+ }
+ //
+ //
+ //
+ if(sh2_dma_time_thing != NULL)
+  *sh2_dma_time_thing += 1;
+
+ if(dma_time_thing != NULL)
+  *dma_time_thing -= 1;
+
  *DB = 0;
 }
 
@@ -2228,15 +2228,15 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
    if(time_thing != NULL)
    {
-    if(true && ((buscfg >> 15) & 0x1))
+    if(false && ((buscfg >> 15) & 0x1))
     {
      // TODO/FIXME
      *time_thing += 2;
     }
     else
     {
-     if(false || !((buscfg >> 2) & 0x3))
-      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
+     if(true || !((buscfg >> 2) & 0x3))
+      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
      else
       *time_thing += 2 + ((buscfg >> 8) & 0xF);
     }
@@ -2252,11 +2252,11 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
     if((buscfg >> 2) & 0x3)
      *dma_time_thing -= 2 + ((buscfg >> 8) & 0xF);
     else
-     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
+     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
    }
   }
 
-  CART_CS01_Read16_DB(A, DB);
+   CART_CS01_Write8_DB(A, DB);
 
   return;
  }
@@ -2298,15 +2298,14 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
   if((A & 0x7FFF) < 0x1000)
   {
    const uint32_t offset = (A & 0x3F) >> 2;
-   const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+   const uint32_t mask = (false) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
-    if(false || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
-     *DB = CDB_Read(offset);
+    CDB_Write_DBM(offset, *DB, mask);
    
    return;
   }
 
-  CART_CS2_Read16_DB(A, DB);
+   CART_CS2_Write8_DB(A, DB);
 
   return;
  }
@@ -2330,7 +2329,7 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
    if(time_thing != NULL)
    {
-    if(true && ((buscfg >> 15) & 0x1))
+    if(false && ((buscfg >> 15) & 0x1))
     {
      // TODO/FIXME
      *time_thing += 2;
@@ -2338,7 +2337,7 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     else
     {
      if(true || !((buscfg >> 2) & 0x3))
-      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
+      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
      else
       *time_thing += 2 + ((buscfg >> 8) & 0xF);
     }
@@ -2354,11 +2353,11 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     if((buscfg >> 2) & 0x3)
      *dma_time_thing -= 2 + ((buscfg >> 8) & 0xF);
     else
-     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
+     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
    }
   }
 
-  CART_CS01_Read16_DB(A, DB);
+   CART_CS01_Write16_DB(A, DB);
 
   return;
  }
@@ -2402,13 +2401,12 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
    const uint32_t offset = (A & 0x3F) >> 2;
    const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
-    if(true || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
-     *DB = CDB_Read(offset);
+    CDB_Write_DBM(offset, *DB, mask);
    
    return;
   }
 
-  CART_CS2_Read16_DB(A, DB);
+   CART_CS2_Write16_DB(A, DB);
 
   return;
  }
@@ -2533,7 +2531,7 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
    if(time_thing != NULL)
    {
-    if(false && ((buscfg >> 15) & 0x1))
+    if(true && ((buscfg >> 15) & 0x1))
     {
      // TODO/FIXME
      *time_thing += 2;
@@ -2541,7 +2539,7 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     else
     {
      if(true || !((buscfg >> 2) & 0x3))
-      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
+      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
      else
       *time_thing += 2 + ((buscfg >> 8) & 0xF);
     }
@@ -2557,11 +2555,11 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     if((buscfg >> 2) & 0x3)
      *dma_time_thing -= 2 + ((buscfg >> 8) & 0xF);
     else
-     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
+     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
    }
   }
 
-   CART_CS01_Write16_DB(A, DB);
+  CART_CS01_Read16_DB(A, DB);
 
   return;
  }
@@ -2605,12 +2603,13 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
    const uint32_t offset = (A & 0x3F) >> 2;
    const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
-    CDB_Write_DBM(offset, *DB, mask);
+    if(true || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
+     *DB = CDB_Read(offset);
    
    return;
   }
 
-   CART_CS2_Write16_DB(A, DB);
+  CART_CS2_Read16_DB(A, DB);
 
   return;
  }
@@ -2634,15 +2633,15 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
    if(time_thing != NULL)
    {
-    if(false && ((buscfg >> 15) & 0x1))
+    if(true && ((buscfg >> 15) & 0x1))
     {
      // TODO/FIXME
      *time_thing += 2;
     }
     else
     {
-     if(true || !((buscfg >> 2) & 0x3))
-      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
+     if(false || !((buscfg >> 2) & 0x3))
+      *time_thing += 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
      else
       *time_thing += 2 + ((buscfg >> 8) & 0xF);
     }
@@ -2658,11 +2657,11 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
     if((buscfg >> 2) & 0x3)
      *dma_time_thing -= 2 + ((buscfg >> 8) & 0xF);
     else
-     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + true)) & 1);
+     *dma_time_thing -= 5 + ((buscfg >> 4) & 0xF) + ((buscfg >> (13 + false)) & 1);
    }
   }
 
-   CART_CS01_Write8_DB(A, DB);
+  CART_CS01_Read16_DB(A, DB);
 
   return;
  }
@@ -2704,14 +2703,15 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
   if((A & 0x7FFF) < 0x1000)
   {
    const uint32_t offset = (A & 0x3F) >> 2;
-   const uint32_t mask = (false) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
+   const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
-    CDB_Write_DBM(offset, *DB, mask);
+    if(false || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
+     *DB = CDB_Read(offset);
    
    return;
   }
 
-   CART_CS2_Write8_DB(A, DB);
+  CART_CS2_Read16_DB(A, DB);
 
   return;
  }
