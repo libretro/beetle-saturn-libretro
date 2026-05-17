@@ -207,26 +207,13 @@ void SH7095_Construct(SH7095* z, const char* const name_arg, const unsigned even
 
  if(z == &CPU[1])
  {
-  for(unsigned dm = 0; dm < 2; dm++)
-  {
-   /* Very fragile, be careful. */
-   z->ResumePoint = NULL;
-   z->ResumeTableP[dm] = NULL;
-   z->timestamp = -1;
-   z->FRT_WDT_NextTS = 0x7FFFFFFF;
-   z->Pipe_ID = 0xFEU << 24;
-
-   if(dm)
-    SH7095_RunSlaveUntil_Debug(z, 0);
-   else
-    SH7095_RunSlaveUntil(z, 0);
-
-   assert(z->ResumePoint == NULL);
-   assert(z->ResumeTableP[dm] != NULL);
-   assert(z->timestamp == -1);
-   assert(z->FRT_WDT_NextTS == 0x7FFFFFFF);
-   assert(z->Pipe_ID == (0xFEU << 24));
-  }
+  /* Slave CPU resume state: no runtime initialization needed any
+   * more.  Phase-9 conversion replaced the GCC `&&Resume_NNNN`
+   * label-address table with a portable `switch (z->resume_id)`
+   * dispatch, so the one-time `SH7095_RunSlaveUntil(z, 0)` call
+   * with bound_timestamp=0 (whose only purpose was to walk into
+   * PSEUDO_DMABURST and populate z->ResumeTableP[]) is gone. */
+  z->resume_id = 0;
  }
 
  SH7095_Init(z, false, false);
@@ -374,7 +361,7 @@ void SH7095_Init(SH7095* z, const bool EmulateICache, const bool CacheBypassHack
  z->ExtHalt = false;
  z->ExtHaltDMA = false;
 
- z->ResumePoint = NULL;
+ z->resume_id = 0;
 
  SH7095_TruePowerOn(z);
 }
@@ -422,7 +409,7 @@ void SH7095_TruePowerOn(SH7095* z)
  //
  //
  //
- z->ResumePoint = NULL;
+ z->resume_id = 0;
  z->Resume_cent = NULL;
  z->Resume_instr = 0;
  z->Resume_way_match = 0;
@@ -478,7 +465,7 @@ void SH7095_TruePowerOn(SH7095* z)
  //
  //
  //
- z->ResumePoint = NULL;
+ z->resume_id = 0;
  //
  //
  //
@@ -4532,7 +4519,7 @@ NO_INLINE void SH7095_Reset(SH7095* z, bool power_on_reset, bool from_internal_w
  z->EPending = 0;
  SH7095_SetPEX(z, power_on_reset ? SH7095_PEX_POWERON : SH7095_PEX_RESET);
  z->Pipe_ID = z->EPending;
- z->ResumePoint = NULL;
+ z->resume_id = 0;
 }
 
 static NO_INLINE void SH7095_INTC_Reset(SH7095* z)
@@ -5214,7 +5201,7 @@ do {                                                    \
 	{					\
 	 if(z->timestamp >= bound_timestamp)	\
 	 {					\
-	  z->ResumePoint = &&Resume_ ## n;		\
+	  z->resume_id = (n);			\
 	  return;				\
 	 }					\
 	 Resume_ ## n:;				\
@@ -5474,20 +5461,26 @@ static void SH7095_StateAction_SlaveResume(SH7095* z, StateMem* sm, const unsign
  int32_t ResumePointI = -1;
  uint32_t Resume_cent_I = 0;
 
+ /* Savestate format compatibility: the persisted field is still
+  * `ResumePointI` (int32_t), holding the 0..511 index that the
+  * pre-conversion code used as a lookup into the now-deleted
+  * `ResumeTable[512]` array.  The table mapped index N to label
+  * `&&Resume_(top - N)` where `top` is 5512 (non-debug) or 10512
+  * (debug).  Now that the resume mechanism stores an integer id
+  * directly (5001..5512 or 10001..10512), translate to/from the
+  * legacy index form on save/load:
+  *
+  *    ResumePointI = top - resume_id     (save)
+  *    resume_id    = top - ResumePointI  (load)
+  *
+  * with -1 / 0 standing in for "no resume pending".  Old saves
+  * load to the same instruction-handler resume point as before. */
+ const uint16_t top = z->DM_Setting ? 10512 : 5512;
+
  if(!load)
  {
-  if(z->ResumePoint)
-  {
-   for(uint32_t i = 0; i < 512; i++)
-   {
-    if(z->ResumeTableP[z->DM_Setting][i] == z->ResumePoint)
-    {
-     ResumePointI = i;
-     break;
-    }
-   }
-   assert(ResumePointI >= 0);
-  }
+  if(z->resume_id)
+   ResumePointI = (int32_t)top - (int32_t)z->resume_id;
 
   if(z->Resume_cent)
   {
@@ -5535,13 +5528,9 @@ static void SH7095_StateAction_SlaveResume(SH7095* z, StateMem* sm, const unsign
 
  if(load)
  {
-  z->ResumePoint = NULL;
-
-  if(ResumePointI >= 0)
-  {
-   z->ResumePoint = z->ResumeTableP[z->DM_Setting][ResumePointI & 511];
-   assert(z->ResumePoint != NULL);
-  }
+  z->resume_id = (ResumePointI >= 0)
+                 ? (uint16_t)((int32_t)top - (ResumePointI & 511))
+                 : 0;
   z->Resume_uint16_A &= ~1;
   z->Resume_uint32_A &= ~3;
   z->Resume_cent = &z->Cache[Resume_cent_I & 0x3F];

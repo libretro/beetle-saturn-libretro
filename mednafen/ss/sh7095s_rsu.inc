@@ -13,11 +13,19 @@
  if(MDFN_UNLIKELY(z->timestamp >= bound_timestamp))
   return;
 
- if(z->ResumePoint)
+ if(z->resume_id)
  {
-  const void* const tmp = z->ResumePoint;
-  z->ResumePoint = NULL;
-  goto *tmp;
+  const uint16_t id = z->resume_id;
+  z->resume_id = 0;
+  switch (id)
+  {
+#if SH7095_DEBUG_MODE
+   #include "sh7095s_ctable_dm.inc"
+#else
+   #include "sh7095s_ctable.inc"
+#endif
+   default: MDFN_UNREACHABLE;
+  }
  }
 
  do

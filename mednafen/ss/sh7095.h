@@ -351,7 +351,7 @@ struct SH7095
  //
  // Exit/Resume stuff for slave CPU with icache emulation(RunSlaveUntil())
  //
- const void* ResumePoint;
+ uint16_t resume_id;
  SH7095_CacheEntry* Resume_cent;
  uint32_t Resume_instr;
  int Resume_way_match;
@@ -544,7 +544,6 @@ struct SH7095
  bool DM_Setting;
  uint32_t PC_IF, PC_ID;	// Debug-related variables.
  const char* cpu_name;
- const void*const* ResumeTableP[2];
 };
 
 /* Phase-9 step 4: SH7095 public API as free functions. */

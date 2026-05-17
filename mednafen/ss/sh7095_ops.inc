@@ -2053,27 +2053,6 @@ switch(z->Pipe_ID >> 24)
  END_OP
 
  BEGIN_OP_DLYIDIF(PSEUDO_DMABURST)
-#ifdef SH7095_NEED_RESUME_TABLE_INIT
-	if(MDFN_UNLIKELY(!z->ResumeTableP[DebugMode]))
-	{
-	 MDFN_STATIC_ASSERT(__COUNTER__ == ((DebugMode ? 10000 : 5000) + 393), "Unexpected __COUNTER__");
-
-	 static const void* const ResumeTable[512] =
-	 {
-#if SH7095_DEBUG_MODE
-	  #include "sh7095s_ctable_dm.inc"
-#else
-	  #include "sh7095s_ctable.inc"
-#endif
-	 };
-	 //static_assert(__COUNTER__ <= 11025, "Unexpected __COUNTER__");
-
-	 assert(z == &CPU[1]);
-
-         z->ResumeTableP[DebugMode] = ResumeTable;
-	 return;
-	}
-#endif
 	if(MDFN_LIKELY(SH7095_DMA_InBurst(z) || z->ExtHalt))
 	{
 	 z->timestamp += 7;
@@ -2104,7 +2083,7 @@ z->PC += 2;
 SkipPCInc:;
 
 #ifdef SH7095_NEED_RESUME_TABLE_INIT
-MDFN_STATIC_ASSERT(__COUNTER__ == ((DebugMode ? 10000 : 5000) + 393 + 512 + 1), "Unexpected __COUNTER__");
+MDFN_STATIC_ASSERT(__COUNTER__ == ((DebugMode ? 10000 : 5000) + 393), "Unexpected __COUNTER__");
 #endif
 
 #undef PART_OP_NORMIDIF
