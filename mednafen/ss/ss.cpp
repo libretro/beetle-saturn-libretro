@@ -202,9 +202,13 @@ int ActiveCartType;		// Used in save states.
 //
 // When BurstHax is true and we're accessing high work RAM, don't add anything.
 //
-template<typename T, bool IsWrite>
-static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+/* Phase-8r2: BusRW_DB_CS0 retired into 4 named variants
+ * via source-fold.  Only (u8/u16) x (W0/W1) tuples are
+ * invoked by callers in sh7095.inc; no u32 CS0 access. */
+
+static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
+
  //
  // Low(and kinda slow) work RAM 
  //
@@ -225,21 +229,17 @@ static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool Burst
   //
   if(MDFN_UNLIKELY(A & 0x100000))
   {
-   if(!IsWrite)
-    DB = DB | 0xFFFF;
 
    return;
   }
 
-  if(IsWrite)
   {
    /* ne16_wbo_be<T>(WorkRAML, byte_off, val) folded.  T can be
     * uint8_t, uint16_t, or uint32_t; sizeof(T) dispatches the right
     * write width.  Compiler folds away the dead branches per
     * template instantiation. */
    const uint32_t boff_ = A & 0xFFFFF;
-   const T val_ = DB >> (((A & 1) ^ (2 - sizeof(T))) << 3);
-   if(sizeof(T) == 1)
+   const uint8_t val_ = DB >> (((A & 1) ^ (2 - 1)) << 3);
    {
 #ifdef MSB_FIRST
     ((uint8_t*)WorkRAML)[boff_] = val_;
@@ -247,19 +247,6 @@ static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool Burst
     ((uint8_t*)WorkRAML)[boff_ ^ 1] = val_;
 #endif
    }
-   else if(sizeof(T) == 2)
-    WorkRAML[boff_ >> 1] = val_;
-   else /* sizeof(T) == 4 */
-   {
-    WorkRAML[(boff_ >> 1) + 0] = (uint32_t)val_ >> 16;
-    WorkRAML[(boff_ >> 1) + 1] = val_;
-   }
-  }
-  else
-  {
-   /* ne16_rbo_be<uint16_t>(WorkRAML, byte_off): aligned u16 read
-    * — host-endian-stored slot, direct index. */
-   DB = (DB & 0xFFFF0000) | WorkRAML[(A & 0xFFFFE) >> 1];
   }
 
   return;
@@ -274,9 +261,6 @@ static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool Burst
    SH7095_mem_timestamp += 8;
   else
    *SH2DMAHax += 8;
-
-  if(!IsWrite) 
-   DB = (DB & 0xFFFF0000) | BIOSROM[(A & 0x7FFFE) >> 1];
 
   return;
  }
@@ -294,13 +278,10 @@ static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool Burst
    CheckEventsByMemTS();
   }
 
-  if(IsWrite)
   {
-   if(sizeof(T) == 2 || (A & 1))
+   if(false || (A & 1))
     SMPC_Write(SH7095_mem_timestamp, SMPC_A, DB);
   }
-  else
-   DB = (DB & 0xFFFF0000) | 0xFF00 | SMPC_Read(SH7095_mem_timestamp, SMPC_A);
 
   return;
  }
@@ -315,9 +296,8 @@ static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool Burst
   else
    *SH2DMAHax += 8;
 
-  if(IsWrite)
   {
-   if(sizeof(T) != 1 || (A & 1))
+   if(false || (A & 1))
    {
     uint8_t* const brp = &BackupRAM[(A >> 1) & 0x7FFF];
 
@@ -328,8 +308,6 @@ static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool Burst
     }
    }
   }
-  else
-   DB = (DB & 0xFFFF0000) | 0xFF00 | BackupRAM[(A >> 1) & 0x7FFF];
 
   return;
  }
@@ -344,9 +322,158 @@ static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool Burst
   else
    *SH2DMAHax += 8;
 
-  if(IsWrite)
   {
-   if(sizeof(T) != 1)
+   
+  }
+  return;
+ }
+
+ //
+ // ST-V IOGA (gamepad / coin / service / test / EEPROM mux)
+ //
+ // ST-V wires the IOGA chip into the Saturn A-bus CS0 region at
+ // 0x00400000-0x0040007F as 64 byte-wide registers on every other
+ // address (the low bit selects within a 16-bit word). Only meaningful
+ // when an ST-V cart is loaded -- on Saturn this region returns the
+ // default open-bus byte.
+ //
+ if(A >= 0x00400000 && A <= 0x0040007F && ActiveCartType == CART_STV)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  const uint8_t IOGA_A = (A >> 1) & 0x3F;
+
+  {
+   if(false || (A & 1))
+    STVIO_WriteIOGA(SH7095_mem_timestamp, IOGA_A, (uint8_t)DB);
+  }
+
+  return;
+ }
+
+ //
+ //
+ //
+ if(!SH2DMAHax)
+  SH7095_mem_timestamp += 4;
+ else
+  *SH2DMAHax += 4;
+}
+
+static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // Low(and kinda slow) work RAM 
+ //
+ if(A >= 0x00200000 && A <= 0x003FFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 7;
+  else
+   *SH2DMAHax += 7;
+
+  //
+  // VA0 and VA1 don't map DRAM in the upper 1MiB of the 2MiB region, and return 0xFFFF(~0) on reads.
+  // VA2 mirrors DRAM into the upper 1MiB for both reads and writes, which incidentally breaks "Myst" in the generator room due to
+  //	it trying to load a file that's too large to fit, wrapping around and corrupting essential data in the process.
+  // VA3+ behavior is untested.
+  //
+  // VA0/VA1 behavior is emulated here.
+  //
+  if(MDFN_UNLIKELY(A & 0x100000))
+  {
+
+   return;
+  }
+
+  {
+   /* ne16_wbo_be<T>(WorkRAML, byte_off, val) folded.  T can be
+    * uint8_t, uint16_t, or uint32_t; sizeof(T) dispatches the right
+    * write width.  Compiler folds away the dead branches per
+    * template instantiation. */
+   const uint32_t boff_ = A & 0xFFFFF;
+   const uint16_t val_ = DB >> (((A & 1) ^ (2 - 2)) << 3);
+   WorkRAML[boff_ >> 1] = val_;
+  }
+
+  return;
+ }
+
+ //
+ // BIOS ROM
+ //
+ if(A >= 0x00000000 && A <= 0x000FFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  return;
+ }
+
+ //
+ // SMPC
+ //
+ if(A >= 0x00100000 && A <= 0x0017FFFF)
+ {
+  const uint32_t SMPC_A = (A & 0x7F) >> 1;
+
+  if(!SH2DMAHax)
+  {
+   // SH7095_mem_timestamp += 2;
+   CheckEventsByMemTS();
+  }
+
+  {
+   if(true || (A & 1))
+    SMPC_Write(SH7095_mem_timestamp, SMPC_A, DB);
+  }
+
+  return;
+ }
+
+ //
+ // Backup RAM
+ //
+ if(A >= 0x00180000 && A <= 0x001FFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  {
+   if(true || (A & 1))
+   {
+    uint8_t* const brp = &BackupRAM[(A >> 1) & 0x7FFF];
+
+    if(*brp != (uint8_t)DB)
+    {
+     *brp = (uint8_t)DB;
+     BackupRAM_Dirty = true;
+    }
+   }
+  }
+
+  return;
+ }
+
+ //
+ // FRT trigger region
+ //
+ if(A >= 0x01000000 && A <= 0x01FFFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  {
    {
     const unsigned c = ((A >> 23) & 1) ^ 1;
 
@@ -375,13 +502,10 @@ static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool Burst
 
   const uint8_t IOGA_A = (A >> 1) & 0x3F;
 
-  if(IsWrite)
   {
-   if(sizeof(T) == 2 || (A & 1))
+   if(true || (A & 1))
     STVIO_WriteIOGA(SH7095_mem_timestamp, IOGA_A, (uint8_t)DB);
   }
-  else
-   DB = (DB & 0xFFFF0000) | 0xFF00 | STVIO_ReadIOGA(SH7095_mem_timestamp, IOGA_A);
 
   return;
  }
@@ -395,37 +519,371 @@ static INLINE void BusRW_DB_CS0(const uint32_t A, uint32_t& DB, const bool Burst
   *SH2DMAHax += 4;
 }
 
-template<typename T, bool IsWrite>
-static INLINE void BusRW_DB_CS12(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
+
+ //
+ // Low(and kinda slow) work RAM 
+ //
+ if(A >= 0x00200000 && A <= 0x003FFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 7;
+  else
+   *SH2DMAHax += 7;
+
+  //
+  // VA0 and VA1 don't map DRAM in the upper 1MiB of the 2MiB region, and return 0xFFFF(~0) on reads.
+  // VA2 mirrors DRAM into the upper 1MiB for both reads and writes, which incidentally breaks "Myst" in the generator room due to
+  //	it trying to load a file that's too large to fit, wrapping around and corrupting essential data in the process.
+  // VA3+ behavior is untested.
+  //
+  // VA0/VA1 behavior is emulated here.
+  //
+  if(MDFN_UNLIKELY(A & 0x100000))
+  {
+   DB = DB | 0xFFFF;
+
+   return;
+  }
+
+  {
+   /* ne16_rbo_be<uint16_t>(WorkRAML, byte_off): aligned u16 read
+    * — host-endian-stored slot, direct index. */
+   DB = (DB & 0xFFFF0000) | WorkRAML[(A & 0xFFFFE) >> 1];
+  }
+
+  return;
+ }
+
+ //
+ // BIOS ROM
+ //
+ if(A >= 0x00000000 && A <= 0x000FFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  DB = (DB & 0xFFFF0000) | BIOSROM[(A & 0x7FFFE) >> 1];
+
+  return;
+ }
+
+ //
+ // SMPC
+ //
+ if(A >= 0x00100000 && A <= 0x0017FFFF)
+ {
+  const uint32_t SMPC_A = (A & 0x7F) >> 1;
+
+  if(!SH2DMAHax)
+  {
+   // SH7095_mem_timestamp += 2;
+   CheckEventsByMemTS();
+  }
+
+  DB = (DB & 0xFFFF0000) | 0xFF00 | SMPC_Read(SH7095_mem_timestamp, SMPC_A);
+
+  return;
+ }
+
+ //
+ // Backup RAM
+ //
+ if(A >= 0x00180000 && A <= 0x001FFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  DB = (DB & 0xFFFF0000) | 0xFF00 | BackupRAM[(A >> 1) & 0x7FFF];
+
+  return;
+ }
+
+ //
+ // FRT trigger region
+ //
+ if(A >= 0x01000000 && A <= 0x01FFFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  return;
+ }
+
+ //
+ // ST-V IOGA (gamepad / coin / service / test / EEPROM mux)
+ //
+ // ST-V wires the IOGA chip into the Saturn A-bus CS0 region at
+ // 0x00400000-0x0040007F as 64 byte-wide registers on every other
+ // address (the low bit selects within a 16-bit word). Only meaningful
+ // when an ST-V cart is loaded -- on Saturn this region returns the
+ // default open-bus byte.
+ //
+ if(A >= 0x00400000 && A <= 0x0040007F && ActiveCartType == CART_STV)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  const uint8_t IOGA_A = (A >> 1) & 0x3F;
+
+  DB = (DB & 0xFFFF0000) | 0xFF00 | STVIO_ReadIOGA(SH7095_mem_timestamp, IOGA_A);
+
+  return;
+ }
+
+ //
+ //
+ //
+ if(!SH2DMAHax)
+  SH7095_mem_timestamp += 4;
+ else
+  *SH2DMAHax += 4;
+}
+
+static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // Low(and kinda slow) work RAM 
+ //
+ if(A >= 0x00200000 && A <= 0x003FFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 7;
+  else
+   *SH2DMAHax += 7;
+
+  //
+  // VA0 and VA1 don't map DRAM in the upper 1MiB of the 2MiB region, and return 0xFFFF(~0) on reads.
+  // VA2 mirrors DRAM into the upper 1MiB for both reads and writes, which incidentally breaks "Myst" in the generator room due to
+  //	it trying to load a file that's too large to fit, wrapping around and corrupting essential data in the process.
+  // VA3+ behavior is untested.
+  //
+  // VA0/VA1 behavior is emulated here.
+  //
+  if(MDFN_UNLIKELY(A & 0x100000))
+  {
+   DB = DB | 0xFFFF;
+
+   return;
+  }
+
+  {
+   /* ne16_rbo_be<uint16_t>(WorkRAML, byte_off): aligned u16 read
+    * — host-endian-stored slot, direct index. */
+   DB = (DB & 0xFFFF0000) | WorkRAML[(A & 0xFFFFE) >> 1];
+  }
+
+  return;
+ }
+
+ //
+ // BIOS ROM
+ //
+ if(A >= 0x00000000 && A <= 0x000FFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  DB = (DB & 0xFFFF0000) | BIOSROM[(A & 0x7FFFE) >> 1];
+
+  return;
+ }
+
+ //
+ // SMPC
+ //
+ if(A >= 0x00100000 && A <= 0x0017FFFF)
+ {
+  const uint32_t SMPC_A = (A & 0x7F) >> 1;
+
+  if(!SH2DMAHax)
+  {
+   // SH7095_mem_timestamp += 2;
+   CheckEventsByMemTS();
+  }
+
+  DB = (DB & 0xFFFF0000) | 0xFF00 | SMPC_Read(SH7095_mem_timestamp, SMPC_A);
+
+  return;
+ }
+
+ //
+ // Backup RAM
+ //
+ if(A >= 0x00180000 && A <= 0x001FFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  DB = (DB & 0xFFFF0000) | 0xFF00 | BackupRAM[(A >> 1) & 0x7FFF];
+
+  return;
+ }
+
+ //
+ // FRT trigger region
+ //
+ if(A >= 0x01000000 && A <= 0x01FFFFFF)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  return;
+ }
+
+ //
+ // ST-V IOGA (gamepad / coin / service / test / EEPROM mux)
+ //
+ // ST-V wires the IOGA chip into the Saturn A-bus CS0 region at
+ // 0x00400000-0x0040007F as 64 byte-wide registers on every other
+ // address (the low bit selects within a 16-bit word). Only meaningful
+ // when an ST-V cart is loaded -- on Saturn this region returns the
+ // default open-bus byte.
+ //
+ if(A >= 0x00400000 && A <= 0x0040007F && ActiveCartType == CART_STV)
+ {
+  if(!SH2DMAHax)
+   SH7095_mem_timestamp += 8;
+  else
+   *SH2DMAHax += 8;
+
+  const uint8_t IOGA_A = (A >> 1) & 0x3F;
+
+  DB = (DB & 0xFFFF0000) | 0xFF00 | STVIO_ReadIOGA(SH7095_mem_timestamp, IOGA_A);
+
+  return;
+ }
+
+ //
+ //
+ //
+ if(!SH2DMAHax)
+  SH7095_mem_timestamp += 4;
+ else
+  *SH2DMAHax += 4;
+}
+
+
+/* Phase-8r2: BusRW_DB_CS12 retired into 6 named variants
+ * via source-fold.  Phase-8q3 sizeof(T)+IsWrite dispatch
+ * ladder to SCU_FromSH2_BusRW_DB_* collapses to one
+ * direct named call per variant. */
+
+static INLINE void BusRW_DB_CS12_u8_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
  //
  // CS1 and CS2: SCU
  //
- if(!IsWrite)
-  DB = 0;
+ DB = 0;
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * template instantiation. */
- if(IsWrite) {
-  if(sizeof(T) == 1)      SCU_FromSH2_BusRW_DB_u8_W1 (A, &DB, SH2DMAHax);
-  else if(sizeof(T) == 2) SCU_FromSH2_BusRW_DB_u16_W1(A, &DB, SH2DMAHax);
-  else                    SCU_FromSH2_BusRW_DB_u32_W1(A, &DB, SH2DMAHax);
- } else {
-  if(sizeof(T) == 1)      SCU_FromSH2_BusRW_DB_u8_W0 (A, &DB, SH2DMAHax);
-  else if(sizeof(T) == 2) SCU_FromSH2_BusRW_DB_u16_W0(A, &DB, SH2DMAHax);
-  else                    SCU_FromSH2_BusRW_DB_u32_W0(A, &DB, SH2DMAHax);
+ {
+  SCU_FromSH2_BusRW_DB_u8_W0 (A, &DB, SH2DMAHax);
  }
 }
 
-template<typename T, bool IsWrite>
-static INLINE void BusRW_DB_CS3(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u8_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
+
+ //
+ // CS1 and CS2: SCU
+ //
+
+ /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+  * template instantiation. */
+ {
+  SCU_FromSH2_BusRW_DB_u8_W1 (A, &DB, SH2DMAHax);
+ }
+}
+
+static INLINE void BusRW_DB_CS12_u16_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // CS1 and CS2: SCU
+ //
+ DB = 0;
+
+ /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+  * template instantiation. */
+ {
+  SCU_FromSH2_BusRW_DB_u16_W0(A, &DB, SH2DMAHax);
+ }
+}
+
+static INLINE void BusRW_DB_CS12_u16_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // CS1 and CS2: SCU
+ //
+
+ /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+  * template instantiation. */
+ {
+  SCU_FromSH2_BusRW_DB_u16_W1(A, &DB, SH2DMAHax);
+ }
+}
+
+static INLINE void BusRW_DB_CS12_u32_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // CS1 and CS2: SCU
+ //
+ DB = 0;
+
+ /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+  * template instantiation. */
+ {
+  SCU_FromSH2_BusRW_DB_u32_W0(A, &DB, SH2DMAHax);
+ }
+}
+
+static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // CS1 and CS2: SCU
+ //
+
+ /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+  * template instantiation. */
+ {
+  SCU_FromSH2_BusRW_DB_u32_W1(A, &DB, SH2DMAHax);
+ }
+}
+
+
+/* Phase-8r2: BusRW_DB_CS3 retired into 6 named variants
+ * via source-fold. */
+
+static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
  //
  // CS3: High work RAM/SDRAM, 0x06000000 ... 0x07FFFFFF
  //
  //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
  //
- if(!IsWrite || sizeof(T) == 4)
  {
   /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, &DB) folded:
    * aligned uint32_t BE bus read or write over uint16_t array.  Two
@@ -433,21 +891,23 @@ static INLINE void BusRW_DB_CS3(const uint32_t A, uint32_t& DB, const bool Burst
    * BE and LE hosts (host-endian uint16s combined in MSB-first
    * order). */
   const uint32_t idx_ = (A & 0xFFFFC) >> 1;
-  if(IsWrite)
-  {
-   WorkRAMH[idx_ + 0] = DB >> 16;
-   WorkRAMH[idx_ + 1] = DB;
-  }
-  else
-   DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
+  DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
  }
- else
+}
+
+static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // CS3: High work RAM/SDRAM, 0x06000000 ... 0x07FFFFFF
+ //
+ //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
+ //
  {
   /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded.  T is uint8_t
    * or uint16_t here (uint32_t caught above). */
   const uint32_t boff_ = A & 0xFFFFF;
-  const T val_ = DB >> (((A & 3) ^ (4 - sizeof(T))) << 3);
-  if(sizeof(T) == 1)
+  const uint8_t val_ = DB >> (((A & 3) ^ (4 - 1)) << 3);
   {
 #ifdef MSB_FIRST
    ((uint8_t*)WorkRAMH)[boff_] = val_;
@@ -455,10 +915,86 @@ static INLINE void BusRW_DB_CS3(const uint32_t A, uint32_t& DB, const bool Burst
    ((uint8_t*)WorkRAMH)[boff_ ^ 1] = val_;
 #endif
   }
-  else /* sizeof(T) == 2 */
-   WorkRAMH[boff_ >> 1] = val_;
  }
 }
+
+static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // CS3: High work RAM/SDRAM, 0x06000000 ... 0x07FFFFFF
+ //
+ //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
+ //
+ {
+  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, &DB) folded:
+   * aligned uint32_t BE bus read or write over uint16_t array.  Two
+   * uint16_t halves: upper at index, lower at index+1.  Same on
+   * BE and LE hosts (host-endian uint16s combined in MSB-first
+   * order). */
+  const uint32_t idx_ = (A & 0xFFFFC) >> 1;
+  DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
+ }
+}
+
+static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // CS3: High work RAM/SDRAM, 0x06000000 ... 0x07FFFFFF
+ //
+ //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
+ //
+ {
+  /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded.  T is uint8_t
+   * or uint16_t here (uint32_t caught above). */
+  const uint32_t boff_ = A & 0xFFFFF;
+  const uint16_t val_ = DB >> (((A & 3) ^ (4 - 2)) << 3);
+  WorkRAMH[boff_ >> 1] = val_;
+ }
+}
+
+static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // CS3: High work RAM/SDRAM, 0x06000000 ... 0x07FFFFFF
+ //
+ //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
+ //
+ {
+  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, &DB) folded:
+   * aligned uint32_t BE bus read or write over uint16_t array.  Two
+   * uint16_t halves: upper at index, lower at index+1.  Same on
+   * BE and LE hosts (host-endian uint16s combined in MSB-first
+   * order). */
+  const uint32_t idx_ = (A & 0xFFFFC) >> 1;
+  DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
+ }
+}
+
+static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+{
+
+ //
+ // CS3: High work RAM/SDRAM, 0x06000000 ... 0x07FFFFFF
+ //
+ //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
+ //
+ {
+  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, &DB) folded:
+   * aligned uint32_t BE bus read or write over uint16_t array.  Two
+   * uint16_t halves: upper at index, lower at index+1.  Same on
+   * BE and LE hosts (host-endian uint16s combined in MSB-first
+   * order). */
+  const uint32_t idx_ = (A & 0xFFFFC) >> 1;
+  {
+   WorkRAMH[idx_ + 0] = DB >> 16;
+   WorkRAMH[idx_ + 1] = DB;
+  }
+ }
+}
+
 
 //
 //
@@ -540,9 +1076,13 @@ static void ForceEventUpdates(const sscpu_timestamp_t timestamp)
  #pragma GCC push_options
  #pragma GCC optimize("O2,no-unroll-loops,no-peel-loops,no-crossjumping")
 #endif
-template<bool EmulateICache>
-static NO_INLINE MDFN_HOT int32_t RunLoop(EmulateSpecStruct* espec)
+/* Phase-8r2: RunLoop<bool EmulateICache> retired into 2
+ * named variants via source-fold.  The extern "C"
+ * wrappers call them directly. */
+
+static NO_INLINE MDFN_HOT int32_t RunLoop_ICache(EmulateSpecStruct* espec)
 {
+
  sscpu_timestamp_t eff_ts = 0;
 
  do
@@ -559,15 +1099,47 @@ static NO_INLINE MDFN_HOT int32_t RunLoop(EmulateSpecStruct* espec)
     /* Phase-8p2: master Step dispatch.  RunLoop is templated on
      * EmulateICache so this folds to one direct call per
      * instantiation. */
-    if(EmulateICache) CPU[0].Step_w0_C1();
-    else              CPU[0].Step_w0_C0();
+    CPU[0].Step_w0_C1();
     CPU[0].DMA_BusTimingKludge();
 
-    if(EmulateICache)
     {
       CPU[1].RunSlaveUntil(CPU[0].timestamp);
     }
+
+    eff_ts = CPU[0].timestamp;
+    if(SH7095_mem_timestamp > eff_ts)
+     eff_ts = SH7095_mem_timestamp;
     else
+     SH7095_mem_timestamp = eff_ts;
+   } while(MDFN_LIKELY(eff_ts < next_event_ts));
+  } while(MDFN_LIKELY(EventHandler(eff_ts)));
+ } while(MDFN_LIKELY(Running != 0));
+
+ return eff_ts;
+}
+
+static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
+{
+
+ sscpu_timestamp_t eff_ts = 0;
+
+ do
+ {
+  SMPC_ProcessSlaveOffOn();
+  //
+  //
+  Running = true;
+  ForceEventUpdates(eff_ts);
+  do
+  {
+   do
+   {
+    /* Phase-8p2: master Step dispatch.  RunLoop is templated on
+     * EmulateICache so this folds to one direct call per
+     * instantiation. */
+    CPU[0].Step_w0_C0();
+    CPU[0].DMA_BusTimingKludge();
+
     {
      while(MDFN_LIKELY(CPU[0].timestamp > CPU[1].timestamp))
      {
@@ -587,6 +1159,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop(EmulateSpecStruct* espec)
  return eff_ts;
 }
 
+
 #if defined(__GNUC__) && !defined(__clang__)
  #pragma GCC pop_options
 #endif
@@ -605,8 +1178,8 @@ static NO_INLINE MDFN_HOT int32_t RunLoop(EmulateSpecStruct* espec)
  * first loop calls CPU[c].ForceInternalEventUpdates (an SH7095 class
  * method); SH7095_{M,S}_AdjustTS wraps CPU[0/1].AdjustTS.  All four
  * retire once the SH7095 class becomes a C struct. */
-extern "C" int32_t SS_RunLoop_ICache(EmulateSpecStruct* espec)                                   { return RunLoop<true>(espec); }
-extern "C" int32_t SS_RunLoop_NoICache(EmulateSpecStruct* espec)                                 { return RunLoop<false>(espec); }
+extern "C" int32_t SS_RunLoop_ICache(EmulateSpecStruct* espec)                                   { return RunLoop_ICache(espec); }
+extern "C" int32_t SS_RunLoop_NoICache(EmulateSpecStruct* espec)                                 { return RunLoop_NoICache(espec); }
 extern "C" void    SS_ForceEventUpdates(int32_t timestamp)                                       { ForceEventUpdates(timestamp); }
 extern "C" void    SH7095_M_AdjustTS(int32_t delta)                                              { CPU[0].AdjustTS(delta); }
 extern "C" void    SH7095_S_AdjustTS(int32_t delta)                                              { CPU[1].AdjustTS(delta); }
