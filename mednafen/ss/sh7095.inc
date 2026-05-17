@@ -129,7 +129,7 @@ static bool SH7095_DMA_InBurst(SH7095* z);
 static bool SH7095_DMA_RunCond(SH7095* z, unsigned ch);
 static void SH7095_DMA_CheckEnterBurstHack(SH7095* z);
 static void SH7095_SetCCR(SH7095* z, uint8_t V);
-static void SH7095_SetIRL(SH7095* z, unsigned level);
+// SH7095_SetIRL is declared extern in sh7095.h since scu.inc calls it.
 static void SH7095_SetFTCI(SH7095* z, bool state);
 static void SH7095_StateAction_SlaveResume(SH7095* z, StateMem* sm, const unsigned load, const bool data_only, const char* sname);
 static void SH7095_RunSlaveUntil_Debug(SH7095* z, const sscpu_timestamp_t bound_timestamp);
@@ -212,9 +212,9 @@ SH7095::SH7095(const char* const name_arg, const unsigned event_id_dma_arg, uint
    Pipe_ID = 0xFEU << 24;
    //
    if(dm)
-    RunSlaveUntil_Debug(0);
+    SH7095_RunSlaveUntil_Debug(this, 0);
    else
-    RunSlaveUntil(0);
+    SH7095_RunSlaveUntil(this, 0);
    //
    assert(ResumePoint == nullptr);
    assert(ResumeTableP[dm] != nullptr);
@@ -225,7 +225,7 @@ SH7095::SH7095(const char* const name_arg, const unsigned event_id_dma_arg, uint
  }
  //
  //
- Init(false, false);
+ SH7095_Init(this, false, false);
 }
 
 /* Phase-9 step 4 cont.: forward declarations for the free-template
@@ -4614,7 +4614,7 @@ void SH7095_SetMD5(SH7095* z, bool level)
  z->BSC.BCR1 = (z->BSC.BCR1 & 0x7FFF) | (level << 15);
 }
 
-static void SH7095_SetIRL(SH7095* z, unsigned level)
+void SH7095_SetIRL(SH7095* z, unsigned level)
 {
  assert(level < 16);
 

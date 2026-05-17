@@ -32,27 +32,6 @@ struct SH7095 final
 
  SH7095(const char* const name_arg, const unsigned dma_event_id_arg, uint8_t (*exivecfn_arg)(void)) MDFN_COLD;
  ~SH7095() MDFN_COLD;
-
- void Init(const bool EmulateICache, const bool CacheBypassHack) MDFN_COLD;
-
- void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
- void StateAction_SlaveResume(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
- void PostStateLoad(const unsigned state_version, const bool recorded_needicache, const bool needicache) MDFN_COLD;
-
- void ForceInternalEventUpdates(void);
- void AdjustTS(int32_t delta);
- void SetActive(bool active);
-
- void TruePowerOn(void) MDFN_COLD;
- void Reset(bool power_on_reset, bool from_internal_wdt = false) MDFN_COLD;
- void SetNMI(bool level);
- void SetIRL(unsigned level);
- void SetMD5(bool level);
-
- void SetFTI(bool state);
- void SetFTCI(bool state);
-
-
  /* Phase-8p2: Step<which, EmulateICache> retired into 3 named
   * variants (only the (w, C) tuples invoked by ss.cpp's RunLoop).
   * EmulateICache must still match what was passed to Init(). */
@@ -154,9 +133,6 @@ struct SH7095 final
   EPENDING_E_SHIFT = 16,	// 8 bits
   EPENDING_IPRIOLEV_SHIFT = 28	// 4 bits
  };
-
- uint32_t Exception(const unsigned exnum, const unsigned vecnum);
-
  //
  //
  //
@@ -173,10 +149,6 @@ struct SH7095 final
  void (MDFN_FASTCALL *MWFP8[8])(uint32_t A, uint8_t);
  void (MDFN_FASTCALL *MWFP16[8])(uint32_t A, uint16_t);
  void (MDFN_FASTCALL *MWFP32[8])(uint32_t A, uint32_t);
-
- void RecalcMRWFP_0(void);
- void RecalcMRWFP_1_7(void);
-
  sscpu_timestamp_t WB_until[16];
 
  //
@@ -197,8 +169,6 @@ struct SH7095 final
  int32_t CCRC_Replace_OR[2];	// Cached cache var, calculated from the ID and OD bits of CCR in SetCCR()
  uint8_t CCRC_Replace_AND;	// Cached cache var, calculated from the TW bit of CCR in SetCCR()
  uint8_t CCR;
-
- void SetCCR(uint8_t V);
  enum { CCR_CE = 0x01 };	// Cache Enable
  enum { CCR_ID = 0x02 };	// Instruction Replacement Disable
  enum { CCR_OD = 0x04 };	// Data Replacement Disable
@@ -206,11 +176,6 @@ struct SH7095 final
  enum { CCR_CP = 0x10 };	// Cache Purge
  enum { CCR_W0 = 0x40 };	//
  enum { CCR_W1 = 0x80 };	//
-
- void Cache_AssocPurge(const uint32_t A);
-
- int Cache_FindWay(CacheEntry* const cent, const uint32_t ATM);
-
  /* Phase-8h: Cache_WriteAddressArray, Cache_ReadAddressArray,
   * and Cache_CheckReadIncoherency lost their `template<typename T>`
   * parameter -- none of their bodies use T.  The two address-array
@@ -227,21 +192,6 @@ struct SH7095 final
   * uint16_t / uint32_t).  Callers at template instantiation
   * sites pick the right one via a `sizeof(T)` if-chain that
   * gcc -O2 folds when T is known at macro-expansion time. */
- void Cache_WriteAddressArray(uint32_t A, uint32_t V);
-
- void Cache_WriteDataArray_u8 (uint32_t A, uint8_t  V);
- void Cache_WriteDataArray_u16(uint32_t A, uint16_t V);
- void Cache_WriteDataArray_u32(uint32_t A, uint32_t V);
-
- uint32_t Cache_ReadAddressArray(uint32_t A);
-
- uint8_t  Cache_ReadDataArray_u8 (uint32_t A);
- uint16_t Cache_ReadDataArray_u16(uint32_t A);
- uint32_t Cache_ReadDataArray_u32(uint32_t A);
-
- void Cache_WriteUpdate_u8 (uint32_t A, uint8_t  V);
- void Cache_WriteUpdate_u16(uint32_t A, uint16_t V);
- void Cache_WriteUpdate_u32(uint32_t A, uint32_t V);
  //
  // End cache stuff
  //
@@ -321,8 +271,6 @@ struct SH7095 final
  // Interrupt controller registers and related state
  //
  //
- void INTC_Reset(void) MDFN_COLD;
-
  bool NMILevel;
  uint8_t IRL;
 
@@ -363,14 +311,6 @@ struct SH7095 final
   uint8_t TOCR;
   uint8_t RW_Temp;
  } FRT;
-
- void FRT_Reset(void) MDFN_COLD;
-
- void FRT_CheckOCR(void);
- void FRT_ClockFRC(void);
-
- void FRT_WDT_Update(void);
- void FRT_WDT_Recalc_NET(void);
  uint32_t FRT_WDT_ClockDivider;
  sscpu_timestamp_t FRT_WDT_NextTS;
 
@@ -389,21 +329,10 @@ struct SH7095 final
  } WDT;
 
  void WDT_Reset(bool from_internal_wdt) MDFN_COLD;	// Reset-reset only, NOT standby reset!
- void WDT_StandbyReset(void) MDFN_COLD;
-
  //
  // DMA unit registers and related state
  //
- bool DMA_RunCond(unsigned ch);
- bool DMA_InBurst(void);
- void DMA_CheckEnterBurstHack(void);
- void DMA_DoTransfer(unsigned ch);
  sscpu_timestamp_t DMA_Update(sscpu_timestamp_t);	// Takes/return external timestamp
- void DMA_StartSG(void);
-
- void DMA_RecalcRunning(void);
- void DMA_BusTimingKludge(void);
-
  const unsigned event_id_dma;
  sscpu_timestamp_t DMA_Timestamp;
  sscpu_timestamp_t DMA_SGEndTimestamp; // For smaller granularity scheduling for DMA_Update() after start of DMA.
@@ -432,9 +361,6 @@ struct SH7095 final
  // Division unit registers and related state
  //
  //
- void DIVU_S32_S32(void);
- void DIVU_S64_S32(void);
-
  sscpu_timestamp_t divide_finish_timestamp;
  uint32_t DVSR;
  uint32_t DVDNT;
@@ -457,9 +383,6 @@ struct SH7095 final
   uint8_t RSR;	// Receive shift register
   uint8_t TSR;	// Transmit shift register
  } SCI;
-
- void SCI_Reset(void) MDFN_COLD;
-
  //
  //
  //
@@ -467,8 +390,6 @@ struct SH7095 final
  uint8_t ExtHaltDMA;
 
  uint8_t (*const ExIVecFetch)(void);
- void RecalcPendingIntPEX(void);
-
  /* Phase-8n: DoIDIF_NI<EmulateICache, IntPreventNext> retired
   * into 4 named NO_INLINE variants (one per bool-pair).
   * Phase-8p2: DoIDIF_INLINE<EmulateICache, IntPreventNext>
@@ -477,11 +398,6 @@ struct SH7095 final
   * expansions (FetchIF / DoID reference EmulateICache by name)
   * resolve cleanly without the previous template-parameter
   * name lookup. */
- INLINE void DoIDIF_INLINE_C0_I0(void);
- INLINE void DoIDIF_INLINE_C0_I1(void);
- INLINE void DoIDIF_INLINE_C1_I0(void);
- INLINE void DoIDIF_INLINE_C1_I1(void);
-
  NO_INLINE void DoIDIF_NI_C0_I0(void) MDFN_HOT;
  NO_INLINE void DoIDIF_NI_C0_I1(void) MDFN_HOT;
  NO_INLINE void DoIDIF_NI_C1_I0(void) MDFN_HOT;
@@ -606,8 +522,6 @@ struct SH7095 final
  };
 
  uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len);
- void SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
-
  void CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr), void (*MWrite)(unsigned len, uint32_t addr)) const;
  /* Phase-9b: formerly `private:` -- access modifier dropped. */
  bool CBH_Setting;
@@ -619,6 +533,7 @@ struct SH7095 final
 };
 
 /* Phase-9 step 4: SH7095 public API as free functions. */
+void SH7095_SetIRL                     (SH7095* z, unsigned level);
 void SH7095_Init                       (SH7095* z, bool EmulateICache, bool CacheBypassHack) MDFN_COLD;
 void SH7095_Reset                      (SH7095* z, bool power_on_reset, bool from_internal_wdt = false) MDFN_COLD;
 void SH7095_TruePowerOn                (SH7095* z) MDFN_COLD;

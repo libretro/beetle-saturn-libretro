@@ -266,7 +266,7 @@ static uint8_t SCU_MSH2VectorFetch(void)
 
  IMask = 0xBFFF;
  ILevel = 0;
- CPU[0].SetIRL(ILevel);
+ SH7095_SetIRL(&CPU[0], ILevel);
 
  return ret;
 }
@@ -290,7 +290,7 @@ static INLINE void ABusIRQCheck(void)
  if(tt)
  {
   if(CheckDoMasterInt())
-   CPU[0].SetIRL(ILevel);
+   SH7095_SetIRL(&CPU[0], ILevel);
  }
 }
 
@@ -311,7 +311,7 @@ static INLINE void SetInt(unsigned which, bool active)
    IPending |= 1U << which;
    CheckDMASFByInt(which);
    if(CheckDoMasterInt())
-    CPU[0].SetIRL(ILevel);
+    SH7095_SetIRL(&CPU[0], ILevel);
   }
  }
 }
@@ -375,7 +375,7 @@ int32_t SCU_SetHBVB(int32_t pclocks, bool new_HB_FromVDP2, bool new_VB_FromVDP2)
 
  //
  //
- CPU[1].SetIRL(((new_VB_FromVDP2 | new_HB_FromVDP2) << 1) | (new_VB_FromVDP2 << 2));
+ SH7095_SetIRL(&CPU[1], ((new_VB_FromVDP2 | new_HB_FromVDP2) << 1) | (new_VB_FromVDP2 << 2));
  //
  //
  //
@@ -582,7 +582,7 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 	  SS_SetEventNT(&events[SS_EVENT_SCU_INT], SH7095_mem_timestamp + 8);
 	 else
 */
-	  CPU[0].SetIRL(ILevel);
+	  SH7095_SetIRL(&CPU[0], ILevel);
 	}
 	break;
 
@@ -936,7 +936,7 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 	  SS_SetEventNT(&events[SS_EVENT_SCU_INT], SH7095_mem_timestamp + 8);
 	 else
 */
-	  CPU[0].SetIRL(ILevel);
+	  SH7095_SetIRL(&CPU[0], ILevel);
 	}
 	break;
 
@@ -1290,7 +1290,7 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
 	  SS_SetEventNT(&events[SS_EVENT_SCU_INT], SH7095_mem_timestamp + 8);
 	 else
 */
-	  CPU[0].SetIRL(ILevel);
+	  SH7095_SetIRL(&CPU[0], ILevel);
 	}
 	break;
 
@@ -4303,7 +4303,7 @@ void SCU_Reset(bool powering_up)
  DSP_Reset(powering_up);
  //
  //
- CPU[0].SetIRL(ILevel);
+ SH7095_SetIRL(&CPU[0], ILevel);
 }
 
 /* Phase-7d: promoted from file-static -- ss_state.c calls this. */
@@ -4743,5 +4743,5 @@ void SCU_SetRegister(const unsigned id, const uint32_t value)
  }
 
  if(CheckDoMasterInt())
-  CPU[0].SetIRL(ILevel);
+  SH7095_SetIRL(&CPU[0], ILevel);
 }
