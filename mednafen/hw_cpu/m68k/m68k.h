@@ -525,8 +525,9 @@ struct M68K
  template<typename T, AddressMode DAM>
  void NOT(HAM<T, DAM> &dst);
 
- template<typename T, AddressMode DAM>
- void EXT(HAM<T, DAM> &dst);
+ /* Phase-9d-9: EXT retired from struct M68K scope.  Now a free
+  * template living after struct M68K's definition; see the
+  * declaration below the struct. */
 
  void SWAP(const unsigned dr);
 
@@ -631,6 +632,20 @@ struct M68K
   * m68k.cpp.  The whole `#ifdef __cplusplus` sub-block here used to
   * hold those two declarations alone; it's gone now. */
 };
+
+/* Phase-9d-9: Free-template op declarations live at file scope,
+ * outside struct M68K, taking an explicit M68K* `z` first parameter.
+ * First entry in this list is EXT; the rest of the 50-op family
+ * follows in subsequent Phase-9d commits.  Bodies are in
+ * m68k_private.h; the m68k_instr*.inc call sites pass `this` as
+ * the M68K pointer (the .inc files are #included inside
+ * M68K::Run() where `this` is in scope).  The HAM<T,AM>& parameter
+ * type still references M68K::HAM (HAM detempleting is a later
+ * commit). */
+#ifdef __cplusplus
+template<typename T, AddressMode DAM>
+void EXT(M68K* z, M68K::HAM<T, DAM> &dst);
+#endif /* __cplusplus */
 
 /* M68K_* free-function API exposed to consumers of m68k.h.
  *

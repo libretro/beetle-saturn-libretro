@@ -27147,7 +27147,7 @@ case 0x4885:
 case 0x4886:
 case 0x4887:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EXT(dst);
+	 HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EXT(this, dst);
 	}
 	break;
 
@@ -27224,7 +27224,7 @@ case 0x48c5:
 case 0x48c6:
 case 0x48c7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EXT(dst);
+	 HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EXT(this, dst);
 	}
 	break;
 

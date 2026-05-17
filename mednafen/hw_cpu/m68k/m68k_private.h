@@ -1729,8 +1729,17 @@ INLINE void M68K::NOT(HAM<T, DAM> &dst)
 //
 // EXT
 //
+// Phase-9d-9: moved out of M68K class scope to a free template
+// taking M68K* z + a still-templated HAM<T, DAM>& dst.  This is the
+// first step into the load-bearing template surface; it lets the
+// pattern get verified on a small, isolated op (4 call sites across
+// the three .inc files) before being applied to the rest of the 50-
+// op family.  HAM itself is unchanged -- still M68K::HAM<T, AM> --
+// because detempleting HAM is a separate (bigger) commit that
+// touches all 8,527 call sites in one go.
+//
 template<typename T, AddressMode DAM>
-INLINE void M68K::EXT(HAM<T, DAM> &dst)
+INLINE void EXT(M68K* z, M68K::HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint16_t>::value || std::is_same<T, uint32_t>::value, "Wrong type");
  T result = dst.read();
@@ -1740,9 +1749,9 @@ INLINE void M68K::EXT(HAM<T, DAM> &dst)
  else
   result = (int16_t)result;
 
- CALC_ZN(this, T, result);
- Flag_C = false;
- Flag_V = false;
+ CALC_ZN(z, T, result);
+ z->Flag_C = false;
+ z->Flag_V = false;
 
  dst.write(result);
 }
