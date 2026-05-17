@@ -56,8 +56,9 @@ ifeq ($(NEED_TREMOR), 1)
 endif
 
 SOURCES_CXX += \
-	$(CORE_EMU_DIR)/sound_glue.cpp \
-	$(CORE_EMU_DIR)/ss.cpp
+	$(CORE_EMU_DIR)/sound_glue.cpp
+
+SOURCES_C += $(CORE_EMU_DIR)/ss.c
 
 # sound.cpp -> sound.c + sound_glue.cpp.  The orchestration half
 # (SOUND_* public ABI, the SOUND_Update 32.32 fixed-point cycle
