@@ -108,12 +108,12 @@ SH7095 CPU[2]{ {"SH2-M", SS_EVENT_SH2_M_DMA, SCU_MSH2VectorFetch}, {"SH2-S", SS_
  * operations need C-callable proxies they should be added here. */
 extern "C" void SH7095_SetActive(int cpu, bool active)
 {
- CPU[cpu].SetActive(active);
+ SH7095_SetActive(&CPU[cpu], active);
 }
 
 extern "C" void SH7095_SetNMI(int cpu, bool level)
 {
- CPU[cpu].SetNMI(level);
+ SH7095_SetNMI(&CPU[cpu], level);
 }
 
 /* Used by vdp2.c (converted from C++) for the HORRIBLEHACK_NOSH2DMA-
@@ -122,7 +122,7 @@ extern "C" void SH7095_SetNMI(int cpu, bool level)
  * proxies above; cpu index picks master (0) / slave (1). */
 extern "C" void SH7095_SetExtHaltDMAKludge(int cpu, bool state)
 {
- CPU[cpu].SetExtHaltDMAKludgeFromVDP2(state);
+ SH7095_SetExtHaltDMAKludgeFromVDP2(&CPU[cpu], state);
 }
 
 /* Phase-7f: promoted from file-static -- ss_init.c's InitCommon
@@ -477,8 +477,8 @@ static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t& DB, const boo
    {
     const unsigned c = ((A >> 23) & 1) ^ 1;
 
-    CPU[c].SetFTI(true);
-    CPU[c].SetFTI(false);
+    SH7095_SetFTI(&CPU[c], true);
+    SH7095_SetFTI(&CPU[c], false);
    }
   }
   return;
@@ -1022,7 +1022,7 @@ static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
    {
     for(uint32_t Abase = 0x00000000; Abase < 0x20000000; Abase += 0x08000000)
     {
-     CPU[c].Cache_WriteUpdate_u8(Abase + A, V);
+     SH7095_Cache_WriteUpdate_u8(&CPU[c], Abase + A, V);
     }
    }
   }
@@ -1043,13 +1043,13 @@ static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
  * SS_RequestMLExit) moved to ss_init.c.  ss.cpp drives the loop
  * via the externs declared in ss_init.h and provides the two
  * extern "C" SH7095_{M,S}_DMA_Update helpers below that wrap the
- * C++-only CPU[c].DMA_Update(et) method dispatch. */
+ * C++-only SH7095_DMA_Update(&CPU[c], et) method dispatch. */
 
-extern "C" int32_t SH7095_M_DMA_Update(int32_t et) { return CPU[0].DMA_Update(et); }
-extern "C" int32_t SH7095_S_DMA_Update(int32_t et) { return CPU[1].DMA_Update(et); }
+extern "C" int32_t SH7095_M_DMA_Update(int32_t et) { return SH7095_DMA_Update(&CPU[0], et); }
+extern "C" int32_t SH7095_S_DMA_Update(int32_t et) { return SH7095_DMA_Update(&CPU[1], et); }
 
 /* ForceEventUpdates stays in ss.cpp -- the first loop dispatches into
- * CPU[c].ForceInternalEventUpdates(), which is an SH7095 class method
+ * SH7095_ForceInternalEventUpdates(&CPU[c]), which is an SH7095 class method
  * and not yet a C-callable wrapper.  After the SH7095 class -> struct
  * conversion (later phase) this function migrates to ss_init.c too.
  *
@@ -1060,7 +1060,7 @@ static void ForceEventUpdates(const sscpu_timestamp_t timestamp)
  unsigned c;
  unsigned evnum;
  for(c = 0; c < 2; c++)
-  CPU[c].ForceInternalEventUpdates();
+  SH7095_ForceInternalEventUpdates(&CPU[c]);
 
  for(evnum = SS_EVENT__SYNFIRST + 1; evnum < SS_EVENT__SYNLAST; evnum++)
  {
@@ -1099,11 +1099,11 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_ICache(EmulateSpecStruct* espec)
     /* Phase-8p2: master Step dispatch.  RunLoop is templated on
      * EmulateICache so this folds to one direct call per
      * instantiation. */
-    CPU[0].Step_w0_C1();
-    CPU[0].DMA_BusTimingKludge();
+    SH7095_Step_w0_C1(&CPU[0]);
+    SH7095_DMA_BusTimingKludge(&CPU[0]);
 
     {
-      CPU[1].RunSlaveUntil(CPU[0].timestamp);
+      SH7095_RunSlaveUntil(&CPU[1], CPU[0].timestamp);
     }
 
     eff_ts = CPU[0].timestamp;
@@ -1137,13 +1137,13 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
     /* Phase-8p2: master Step dispatch.  RunLoop is templated on
      * EmulateICache so this folds to one direct call per
      * instantiation. */
-    CPU[0].Step_w0_C0();
-    CPU[0].DMA_BusTimingKludge();
+    SH7095_Step_w0_C0(&CPU[0]);
+    SH7095_DMA_BusTimingKludge(&CPU[0]);
 
     {
      while(MDFN_LIKELY(CPU[0].timestamp > CPU[1].timestamp))
      {
-      CPU[1].Step_w1_C0();
+      SH7095_Step_w1_C0(&CPU[1]);
      }
     }
 
@@ -1181,19 +1181,19 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
 extern "C" int32_t SS_RunLoop_ICache(EmulateSpecStruct* espec)                                   { return RunLoop_ICache(espec); }
 extern "C" int32_t SS_RunLoop_NoICache(EmulateSpecStruct* espec)                                 { return RunLoop_NoICache(espec); }
 extern "C" void    SS_ForceEventUpdates(int32_t timestamp)                                       { ForceEventUpdates(timestamp); }
-extern "C" void    SH7095_M_AdjustTS(int32_t delta)                                              { CPU[0].AdjustTS(delta); }
-extern "C" void    SH7095_S_AdjustTS(int32_t delta)                                              { CPU[1].AdjustTS(delta); }
+extern "C" void    SH7095_M_AdjustTS(int32_t delta)                                              { SH7095_AdjustTS(&CPU[0], delta); }
+extern "C" void    SH7095_S_AdjustTS(int32_t delta)                                              { SH7095_AdjustTS(&CPU[1], delta); }
 
 /* Phase-7f: SH7095 wrappers used by InitCommon (Init / SetMD5 /
  * TruePowerOn) and SS_Reset (TruePowerOn / Reset).  Retires when
  * SH7095 becomes a C struct. */
-extern "C" MDFN_COLD void SH7095_M_Init(const bool emumode_full, const bool emumode_cb_only)     { CPU[0].Init(emumode_full, emumode_cb_only); }
-extern "C" MDFN_COLD void SH7095_S_Init(const bool emumode_full, const bool emumode_cb_only)     { CPU[1].Init(emumode_full, emumode_cb_only); }
-extern "C" void           SH7095_M_SetMD5(bool level)                                            { CPU[0].SetMD5(level); }
-extern "C" void           SH7095_S_SetMD5(bool level)                                            { CPU[1].SetMD5(level); }
-extern "C" MDFN_COLD void SH7095_M_TruePowerOn(void)                                             { CPU[0].TruePowerOn(); }
-extern "C" MDFN_COLD void SH7095_S_TruePowerOn(void)                                             { CPU[1].TruePowerOn(); }
-extern "C" MDFN_COLD void SH7095_M_Reset(bool power_on_reset)                                    { CPU[0].Reset(power_on_reset); }
+extern "C" MDFN_COLD void SH7095_M_Init(const bool emumode_full, const bool emumode_cb_only)     { SH7095_Init(&CPU[0], emumode_full, emumode_cb_only); }
+extern "C" MDFN_COLD void SH7095_S_Init(const bool emumode_full, const bool emumode_cb_only)     { SH7095_Init(&CPU[1], emumode_full, emumode_cb_only); }
+extern "C" void           SH7095_M_SetMD5(bool level)                                            { SH7095_SetMD5(&CPU[0], level); }
+extern "C" void           SH7095_S_SetMD5(bool level)                                            { SH7095_SetMD5(&CPU[1], level); }
+extern "C" MDFN_COLD void SH7095_M_TruePowerOn(void)                                             { SH7095_TruePowerOn(&CPU[0]); }
+extern "C" MDFN_COLD void SH7095_S_TruePowerOn(void)                                             { SH7095_TruePowerOn(&CPU[1]); }
+extern "C" MDFN_COLD void SH7095_M_Reset(bool power_on_reset)                                    { SH7095_Reset(&CPU[0], power_on_reset); }
 
 
 //
@@ -1225,22 +1225,22 @@ extern "C" MDFN_COLD void SH7095_M_Reset(bool power_on_reset)                   
 
 extern "C" void SH7095_M_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
 {
- CPU[0].StateAction(sm, load, data_only, sname);
+ SH7095_StateAction(&CPU[0], sm, load, data_only, sname);
 }
 
 extern "C" void SH7095_S_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
 {
- CPU[1].StateAction(sm, load, data_only, sname);
+ SH7095_StateAction(&CPU[1], sm, load, data_only, sname);
 }
 
 extern "C" void SH7095_M_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache)
 {
- CPU[0].PostStateLoad(load, prev_NeedEmuICache, current_NeedEmuICache);
+ SH7095_PostStateLoad(&CPU[0], load, prev_NeedEmuICache, current_NeedEmuICache);
 }
 
 extern "C" void SH7095_S_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache)
 {
- CPU[1].PostStateLoad(load, prev_NeedEmuICache, current_NeedEmuICache);
+ SH7095_PostStateLoad(&CPU[1], load, prev_NeedEmuICache, current_NeedEmuICache);
 }
 
 static const MDFNSetting_EnumList RTCLang_List[] =

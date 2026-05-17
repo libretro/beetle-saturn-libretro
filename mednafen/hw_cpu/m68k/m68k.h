@@ -554,19 +554,19 @@ struct M68K
  * m68k_private.h / m68k.cpp for now and will be converted to true
  * free functions in a later phase (gated on retirement of the
  * HAM cascade). */
-static INLINE void M68K_SetIPL             (M68K* z, uint8_t ipl_new)             { z->SetIPL(ipl_new); }
-static INLINE void M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)                { z->SignalDTACKHalted(addr); }
-static INLINE void M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type)  { z->SignalAddressError(addr, type); }
+static FORCE_INLINE void M68K_SetIPL             (M68K* z, uint8_t ipl_new)             { z->SetIPL(ipl_new); }
+static FORCE_INLINE void M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)                { z->SignalDTACKHalted(addr); }
+static FORCE_INLINE void M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type)  { z->SignalAddressError(addr, type); }
 
-static INLINE void M68K_Reset              (M68K* z, bool pwr)                     { z->Reset(pwr); }
-static INLINE void M68K_Run                (M68K* z, int32_t until)                { z->Run(until); }
-static INLINE void M68K_SetExtHalted       (M68K* z, bool state)                   { z->SetExtHalted(state); }
-static INLINE void M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
+static FORCE_INLINE void M68K_Reset              (M68K* z, bool pwr)                     { z->Reset(pwr); }
+static FORCE_INLINE void M68K_Run                (M68K* z, int32_t until)                { z->Run(until); }
+static FORCE_INLINE void M68K_SetExtHalted       (M68K* z, bool state)                   { z->SetExtHalted(state); }
+static FORCE_INLINE void M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
                                             const bool data_only, const char* sname)
  { z->StateAction(sm, load, data_only, sname); }
-static INLINE uint32_t M68K_GetRegister    (M68K* z, const unsigned id, char* const special, const uint32_t special_len)
+static FORCE_INLINE uint32_t M68K_GetRegister    (M68K* z, const unsigned id, char* const special, const uint32_t special_len)
  { return z->GetRegister(id, special, special_len); }
-static INLINE void M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value)
+static FORCE_INLINE void M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value)
  { z->SetRegister(id, value); }
 
 

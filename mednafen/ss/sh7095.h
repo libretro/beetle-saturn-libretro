@@ -684,4 +684,34 @@ struct SH7095 final
  const char* const cpu_name;
  const void*const* ResumeTableP[2];
 };
+
+/* Phase-9 step 3: free-function wrappers around SH7095 members used by
+ * ss.cpp.  Pure inline forwarders; codegen folds to direct member
+ * access under -O2.  Member function bodies remain in sh7095.cpp /
+ * sh7095.inc for now and will be converted to true free functions
+ * in a later phase (gated on retirement of the 6 remaining
+ * mega-templates: MemReadRT, MemWriteRT, C_MemReadRT, C_MemWriteRT
+ * + decls). */
+static FORCE_INLINE void SH7095_SetActive                  (SH7095* z, bool active)  { z->SetActive(active); }
+static FORCE_INLINE void SH7095_SetNMI                     (SH7095* z, bool level)   { z->SetNMI(level); }
+static FORCE_INLINE void SH7095_SetMD5                     (SH7095* z, bool level)   { z->SetMD5(level); }
+static FORCE_INLINE void SH7095_SetFTI                     (SH7095* z, bool state)   { z->SetFTI(state); }
+static FORCE_INLINE void SH7095_SetExtHaltDMAKludgeFromVDP2(SH7095* z, bool state)   { z->SetExtHaltDMAKludgeFromVDP2(state); }
+static FORCE_INLINE void SH7095_AdjustTS                   (SH7095* z, int32_t d)    { z->AdjustTS(d); }
+static FORCE_INLINE void SH7095_Cache_WriteUpdate_u8       (SH7095* z, uint32_t A, uint8_t V)  { z->Cache_WriteUpdate_u8(A, V); }
+static FORCE_INLINE sscpu_timestamp_t SH7095_DMA_Update    (SH7095* z, sscpu_timestamp_t ts)   { return z->DMA_Update(ts); }
+static FORCE_INLINE void SH7095_ForceInternalEventUpdates  (SH7095* z) { z->ForceInternalEventUpdates(); }
+static FORCE_INLINE void SH7095_Step_w0_C0                 (SH7095* z) { z->Step_w0_C0(); }
+static FORCE_INLINE void SH7095_Step_w0_C1                 (SH7095* z) { z->Step_w0_C1(); }
+static FORCE_INLINE void SH7095_Step_w1_C0                 (SH7095* z) { z->Step_w1_C0(); }
+static FORCE_INLINE void SH7095_DMA_BusTimingKludge        (SH7095* z) { z->DMA_BusTimingKludge(); }
+static FORCE_INLINE void SH7095_RunSlaveUntil              (SH7095* z, sscpu_timestamp_t ts)   { z->RunSlaveUntil(ts); }
+static FORCE_INLINE void SH7095_TruePowerOn                (SH7095* z) { z->TruePowerOn(); }
+static FORCE_INLINE void SH7095_Reset                      (SH7095* z, bool por)                { z->Reset(por); }
+static FORCE_INLINE void SH7095_Init                       (SH7095* z, bool emumode_full, bool cb_only) { z->Init(emumode_full, cb_only); }
+static FORCE_INLINE void SH7095_StateAction                (SH7095* z, StateMem* sm, unsigned load, bool data_only, const char* sname)
+ { z->StateAction(sm, load, data_only, sname); }
+static FORCE_INLINE void SH7095_PostStateLoad              (SH7095* z, unsigned state_version, bool recorded_ni, bool ni)
+ { z->PostStateLoad(state_version, recorded_ni, ni); }
+
 #endif

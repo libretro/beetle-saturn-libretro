@@ -375,10 +375,10 @@ FORCE_INLINE void     SS_SCSP_RW_W8 (SS_SCSP* z, uint32_t A, uint8_t  v) { z->RW
 FORCE_INLINE void     SS_SCSP_RW_W16(SS_SCSP* z, uint32_t A, uint16_t v) { z->RW_u16_W1(A, v); }
 
 /* Caller must ensure appropriate timing. */
-static INLINE void SS_SCSP_WriteMIDI(SS_SCSP* z, uint8_t V) { z->MIDI_WriteInput(V); }
+static FORCE_INLINE void SS_SCSP_WriteMIDI(SS_SCSP* z, uint8_t V) { z->MIDI_WriteInput(V); }
 
-static INLINE uint16_t* SS_SCSP_GetEXTSPtr(SS_SCSP* z) { return z->EXTS; }
-static INLINE uint16_t* SS_SCSP_GetRAMPtr (SS_SCSP* z) { return z->RAM;  }
+static FORCE_INLINE uint16_t* SS_SCSP_GetEXTSPtr(SS_SCSP* z) { return z->EXTS; }
+static FORCE_INLINE uint16_t* SS_SCSP_GetRAMPtr (SS_SCSP* z) { return z->RAM;  }
 
 /* Phase-9 step 3, slice 2: non-trivial public methods.  These wrap
  * the existing struct methods one-to-one; the FORCE_INLINE / INLINE
@@ -389,21 +389,21 @@ static INLINE uint16_t* SS_SCSP_GetRAMPtr (SS_SCSP* z) { return z->RAM;  }
  * free-function form (rewriting `this->` accesses with explicit
  * `z->`) is a separate, larger refactor scheduled for after the
  * SH7095 mega-template and M68K HAM cascade work concludes. */
-static INLINE void     SS_SCSP_Reset      (SS_SCSP* z, bool pwr)
+static FORCE_INLINE void     SS_SCSP_Reset      (SS_SCSP* z, bool pwr)
  { z->Reset(pwr); }
 
-static INLINE void     SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load,
+static FORCE_INLINE void     SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load,
                                            const bool data_only, const char* sname)
  { z->StateAction(sm, load, data_only, sname); }
 
-static INLINE void     SS_SCSP_RunSample  (SS_SCSP* z, int16_t* outlr)
+static FORCE_INLINE void     SS_SCSP_RunSample  (SS_SCSP* z, int16_t* outlr)
  { z->RunSample(outlr); }
 
-static INLINE uint32_t SS_SCSP_GetRegister(SS_SCSP* z, const unsigned id,
+static FORCE_INLINE uint32_t SS_SCSP_GetRegister(SS_SCSP* z, const unsigned id,
                                            char* const special, const uint32_t special_len)
  { return z->GetRegister(id, special, special_len); }
 
-static INLINE void     SS_SCSP_SetRegister(SS_SCSP* z, const unsigned id, const uint32_t value)
+static FORCE_INLINE void     SS_SCSP_SetRegister(SS_SCSP* z, const unsigned id, const uint32_t value)
  { z->SetRegister(id, value); }
 
 
