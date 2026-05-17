@@ -137,11 +137,11 @@ static uint8_t SS_SCSP_MIDI_ReadInput(SS_SCSP* z);
 static void SS_SCSP_RunDMA(SS_SCSP* z);
 static void SS_SCSP_RunDSP(SS_SCSP* z);
 static void SS_SCSP_DecodeMPROG(SS_SCSP* z);
-static void SS_SCSP_RunEG(SS_SCSP* z, Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc);
-static uint8_t SS_SCSP_GetALFO(SS_SCSP* z, Slot* s);
-static int SS_SCSP_GetPLFO(SS_SCSP* z, Slot* s);
-static void SS_SCSP_RunLFO(SS_SCSP* z, Slot* s);
-static void SS_SCSP_RecalcShortWaveMask(SS_SCSP* z, Slot* s);
+static void SS_SCSP_RunEG(SS_SCSP* z, SS_SCSP_Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc);
+static uint8_t SS_SCSP_GetALFO(SS_SCSP* z, SS_SCSP_Slot* s);
+static int SS_SCSP_GetPLFO(SS_SCSP* z, SS_SCSP_Slot* s);
+static void SS_SCSP_RunLFO(SS_SCSP* z, SS_SCSP_Slot* s);
+static void SS_SCSP_RecalcShortWaveMask(SS_SCSP* z, SS_SCSP_Slot* s);
 
 
 static void SS_SCSP_RecalcSoundInt(SS_SCSP* z)	// Sound CPU interrupts
@@ -182,7 +182,7 @@ static void SS_SCSP_RecalcMainInt(SS_SCSP* z)	// Main CPU interrupts
  SCSP_MainIntChanged(z, (bool)(z->MCIPD & z->MCIEB));
 }
 
-static INLINE void SS_SCSP_RecalcShortWaveMask(SS_SCSP* z, Slot* s)
+static INLINE void SS_SCSP_RecalcShortWaveMask(SS_SCSP* z, SS_SCSP_Slot* s)
 {
  const unsigned lev = s->LoopEnd & 0x780;
 
@@ -455,7 +455,7 @@ INLINE void SS_SCSP_RW_u8_W0(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
  if(A < 0x400)
  {
   //
-  // Slot regs
+  // SS_SCSP_Slot regs
   //
   const unsigned slotnum = (A >> 5) & 0x1F;
 
@@ -746,7 +746,7 @@ INLINE void SS_SCSP_RW_u16_W0(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
  if(A < 0x400)
  {
   //
-  // Slot regs
+  // SS_SCSP_Slot regs
   //
   const unsigned slotnum = (A >> 5) & 0x1F;
 
@@ -1018,7 +1018,7 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
  if(A < 0x400)
  {
   //
-  // Slot regs
+  // SS_SCSP_Slot regs
   //
   const unsigned slotnum = (A >> 5) & 0x1F;
 
@@ -1489,7 +1489,7 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
  if(A < 0x400)
  {
   //
-  // Slot regs
+  // SS_SCSP_Slot regs
   //
   const unsigned slotnum = (A >> 5) & 0x1F;
 
@@ -1973,7 +1973,7 @@ static NO_INLINE void SS_SCSP_RunDMA(SS_SCSP* z)
 }
 
 
-static INLINE void SS_SCSP_RunEG(SS_SCSP* z, Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc)
+static INLINE void SS_SCSP_RunEG(SS_SCSP* z, SS_SCSP_Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc)
 {
  const uint32_t EnvLevelCache = s->EnvLevel;
  const unsigned ERateNoScale = s->EnvRates[s->EnvPhase];
@@ -2032,7 +2032,7 @@ static INLINE void SS_SCSP_RunEG(SS_SCSP* z, Slot* s, const unsigned key_eg_scal
 // Take care in handling LFSR, or else the volume of noise-ALFO-modulated noise will
 // be quite off, or have a DC bias.
 //
-static INLINE uint8_t SS_SCSP_GetALFO(SS_SCSP* z, Slot* s)
+static INLINE uint8_t SS_SCSP_GetALFO(SS_SCSP* z, SS_SCSP_Slot* s)
 {
  uint8_t ret;
 
@@ -2064,7 +2064,7 @@ static INLINE uint8_t SS_SCSP_GetALFO(SS_SCSP* z, Slot* s)
  return ret;
 }
 
-static INLINE int SS_SCSP_GetPLFO(SS_SCSP* z, Slot* s)
+static INLINE int SS_SCSP_GetPLFO(SS_SCSP* z, SS_SCSP_Slot* s)
 {
  int ret;
 
@@ -2098,7 +2098,7 @@ static INLINE int SS_SCSP_GetPLFO(SS_SCSP* z, Slot* s)
  return ret;
 }
 
-static INLINE void SS_SCSP_RunLFO(SS_SCSP* z, Slot* s)
+static INLINE void SS_SCSP_RunLFO(SS_SCSP* z, SS_SCSP_Slot* s)
 {
  s->LFOTimeCounter--;
  if(!s->LFOTimeCounter)
@@ -2185,7 +2185,7 @@ static void SS_SCSP_DecodeMPROG(SS_SCSP* z)
  for(unsigned step = 0; step < 128; step++)
  {
   const uint64_t instr = z->DSP.MPROG[step];
-  DSPStep& s = z->DSP.MPROG_Decoded[step];
+  SS_SCSP_DSPStep& s = z->DSP.MPROG_Decoded[step];
 
   s.MASA = (instr >>  2) & 0x1F;
   s.CRA  = (instr >>  9) & 0x3F;
@@ -2238,8 +2238,8 @@ static void SS_SCSP_DecodeMPROG(SS_SCSP* z)
  // [0x32..0x3F]; otherwise the step writes INPUTS via MEMS/MIXS/z->EXTS.
  for(unsigned step = 0; step < 128; step++)
  {
-  const DSPStep& cur = z->DSP.MPROG_Decoded[step];
-  const DSPStep& nxt = z->DSP.MPROG_Decoded[(step + 1) & 0x7F];
+  const SS_SCSP_DSPStep& cur = z->DSP.MPROG_Decoded[step];
+  const SS_SCSP_DSPStep& nxt = z->DSP.MPROG_Decoded[(step + 1) & 0x7F];
   const uint32_t nf = nxt.flags;
 
   const bool has_other_writes  = (cur.writes & ~(unsigned)DSPW_SFT) != 0;
@@ -2277,7 +2277,7 @@ static INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
 
  for(unsigned step = 0; step < 128; step++)
  {
-  const DSPStep& s = z->DSP.MPROG_Decoded[step];
+  const SS_SCSP_DSPStep& s = z->DSP.MPROG_Decoded[step];
   if(!s.live) continue;
   const uint32_t f = s.flags;
   const unsigned IRA = s.IRA;

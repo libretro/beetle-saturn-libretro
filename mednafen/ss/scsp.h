@@ -57,7 +57,7 @@ enum
  ENV_PHASE_RELEASE = 3
 };
 
-struct Slot
+struct SS_SCSP_Slot
 {
  uint32_t StartAddr;	// 20 bits, memory address.
  uint16_t LoopStart;	// 16 bits, in samples.
@@ -147,7 +147,7 @@ enum
  MIDIF_OUTPUT_FULL = 0x10
 };
 
-struct DSPStep
+struct SS_SCSP_DSPStep
 {
  uint8_t IRA;	// 6 bits
  uint8_t IWA;	// 5 bits
@@ -199,10 +199,10 @@ enum
  DSPW_RAM   = 1u << 7	// RAM pipeline state advanced (MRT or MWT)
 };
 
-struct DSPS
+struct SS_SCSP_DSPS
 {
  uint64_t MPROG[0x80];
- DSPStep MPROG_Decoded[0x80];
+ SS_SCSP_DSPStep MPROG_Decoded[0x80];
  uint32_t TEMP[0x80];	// 24 bit
  uint32_t MEMS[0x20];	// 24 bit
  uint16_t COEF[64];	// 13 bit
@@ -254,7 +254,7 @@ struct SS_SCSP
 
  uint16_t SlotRegs[0x20][0x10];
 
- Slot Slots[32];
+ SS_SCSP_Slot Slots[32];
 
  uint16_t EXTS[2];
  uint16_t SoundStack[0x40];
@@ -330,7 +330,7 @@ struct SS_SCSP
  //
  //
 
- DSPS DSP;
+ SS_SCSP_DSPS DSP;
 
  uint16_t RAM[262144 * 2];	// *2 for dummy so we don't have to have so many conditionals in the playback code.
 
