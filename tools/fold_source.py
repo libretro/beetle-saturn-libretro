@@ -383,10 +383,16 @@ def fold_if(text):
             chosen = then_stmt
         else:  # false
             chosen = else_stmt if else_stmt is not None else ''
-        # If chosen is a block, unwrap it (we want the contents inline so the
-        # next iteration can see new fold opportunities; also avoids stacking
-        # block braces).  Caller's scope is still well-defined.
-        chosen = unwrap_block(chosen) if chosen else ''
+        # Don't unwrap blocks: keeping the `{...}` around the chosen body
+        # preserves scope.  Stripping the braces caused a scope-leakage bug
+        # in cases like switch-case bodies with variable declarations --
+        # `case X: if(false) {...} else { uint16_t tmp = ...; }; break;`
+        # would unwrap to `case X: uint16_t tmp = ...; break;` and the next
+        # `case` label would cross `tmp`'s initialization (compile error
+        # "jump to case label").  Variable scope leakage can also cause
+        # silent shadowing bugs.  fold_if's iteration still finds nested
+        # `if(true|false)` inside a kept `{...}` block, so unwrapping is
+        # not needed for fold correctness.
         out.append(chosen)
         i = else_end
     return ''.join(out)
