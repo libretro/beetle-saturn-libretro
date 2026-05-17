@@ -2748,99 +2748,102 @@ INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
 //
 void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bool data_only, const char* sname)
 {
+ /* Field-name strings below intentionally omit the "z->" prefix:
+  * they are persisted into savestate files, so they must match
+  * the pre-phase-9 (member-function StateAction) spelling. */
  SFORMAT StateRegs[] =
  {
-  SFPTR16N(&(z->SlotRegs)[0][0], (sizeof(z->SlotRegs) / sizeof(uint16_t)), "z->SlotRegs"),
+  SFPTR16N(&(z->SlotRegs)[0][0], (sizeof(z->SlotRegs) / sizeof(uint16_t)), "SlotRegs"),
 
-  SFVAR(z->Slots->PhaseWhacker, 32, sizeof(*z->Slots), z->Slots),
-  SFVAR(z->Slots->CurrentAddr, 32, sizeof(*z->Slots), z->Slots),
-  SFVAR(z->Slots->InLoop, 32, sizeof(*z->Slots), z->Slots),
-  SFVAR(z->Slots->LoopSub, 32, sizeof(*z->Slots), z->Slots),
-  SFVAR(z->Slots->WFAllowAccess, 32, sizeof(*z->Slots), z->Slots),
-  SFVAR(z->Slots->EnvLevel, 32, sizeof(*z->Slots), z->Slots),
-  SFVAR(z->Slots->EnvPhase, 32, sizeof(*z->Slots), z->Slots),
-  SFVAR(z->Slots->LFOCounter, 32, sizeof(*z->Slots), z->Slots),
-  SFVAR(z->Slots->LFOTimeCounter, 32, sizeof(*z->Slots), z->Slots),
+  SFVARN(z->Slots->PhaseWhacker,   32, sizeof(*z->Slots), z->Slots, "Slots->PhaseWhacker"),
+  SFVARN(z->Slots->CurrentAddr,    32, sizeof(*z->Slots), z->Slots, "Slots->CurrentAddr"),
+  SFVARN(z->Slots->InLoop,         32, sizeof(*z->Slots), z->Slots, "Slots->InLoop"),
+  SFVARN(z->Slots->LoopSub,        32, sizeof(*z->Slots), z->Slots, "Slots->LoopSub"),
+  SFVARN(z->Slots->WFAllowAccess,  32, sizeof(*z->Slots), z->Slots, "Slots->WFAllowAccess"),
+  SFVARN(z->Slots->EnvLevel,       32, sizeof(*z->Slots), z->Slots, "Slots->EnvLevel"),
+  SFVARN(z->Slots->EnvPhase,       32, sizeof(*z->Slots), z->Slots, "Slots->EnvPhase"),
+  SFVARN(z->Slots->LFOCounter,     32, sizeof(*z->Slots), z->Slots, "Slots->LFOCounter"),
+  SFVARN(z->Slots->LFOTimeCounter, 32, sizeof(*z->Slots), z->Slots, "Slots->LFOTimeCounter"),
 
-  SFPTR16N(&(z->EXTS)[0], (sizeof(z->EXTS) / sizeof(uint16_t)), "z->EXTS"),
+  SFPTR16N(&(z->EXTS)[0], (sizeof(z->EXTS) / sizeof(uint16_t)), "EXTS"),
 
-  SFPTR16N(&(z->SoundStack)[0], (sizeof(z->SoundStack) / sizeof(uint16_t)), "z->SoundStack"),
-  SFPTR16N(&(z->SoundStackDelayer)[0], (sizeof(z->SoundStackDelayer) / sizeof(uint16_t)), "z->SoundStackDelayer"),
+  SFPTR16N(&(z->SoundStack)[0], (sizeof(z->SoundStack) / sizeof(uint16_t)), "SoundStack"),
+  SFPTR16N(&(z->SoundStackDelayer)[0], (sizeof(z->SoundStackDelayer) / sizeof(uint16_t)), "SoundStackDelayer"),
 
-  SFVAR(z->MasterVolume),
-  SFVAR(z->MVOL),
-  SFVAR(z->DAC18bit),
-  SFVAR(z->Mem4Mb),
+  SFVARN(z->MasterVolume, "MasterVolume"),
+  SFVARN(z->MVOL,         "MVOL"),
+  SFVARN(z->DAC18bit,     "DAC18bit"),
+  SFVARN(z->Mem4Mb,       "Mem4Mb"),
 
-  SFVAR(z->SlotMonitorWhich),
-  SFVAR(z->SlotMonitorData),
+  SFVARN(z->SlotMonitorWhich, "SlotMonitorWhich"),
+  SFVARN(z->SlotMonitorData,  "SlotMonitorData"),
 
-  SFVAR(z->KeyExecute),
-  SFVAR(z->LFSR),
-  SFVAR(z->GlobalCounter),
+  SFVARN(z->KeyExecute,    "KeyExecute"),
+  SFVARN(z->LFSR,          "LFSR"),
+  SFVARN(z->GlobalCounter, "GlobalCounter"),
 
-  SFPTR8N(&(z->MIDI.InputFIFO)[0], (sizeof(z->MIDI.InputFIFO) / sizeof(uint8_t)), "z->MIDI.InputFIFO"),
-  SFVAR(z->MIDI.InputRP),
-  SFVAR(z->MIDI.InputWP),
-  SFVAR(z->MIDI.InputCount),
-  SFPTR8N(&(z->MIDI.OutputFIFO)[0], (sizeof(z->MIDI.OutputFIFO) / sizeof(uint8_t)), "z->MIDI.OutputFIFO"),
-  SFVAR(z->MIDI.OutputRP),
-  SFVAR(z->MIDI.OutputWP),
-  SFVAR(z->MIDI.OutputCount),
-  SFVAR(z->MIDI.Flags),
-  SFVAR(z->MIDI.SimuClockDivider),
-  SFVAR(z->MIDI.TransmitBitCounter),
-  SFVAR(z->MIDI.TransmitBuffer),
+  SFPTR8N(&(z->MIDI.InputFIFO)[0], (sizeof(z->MIDI.InputFIFO) / sizeof(uint8_t)), "MIDI.InputFIFO"),
+  SFVARN(z->MIDI.InputRP,    "MIDI.InputRP"),
+  SFVARN(z->MIDI.InputWP,    "MIDI.InputWP"),
+  SFVARN(z->MIDI.InputCount, "MIDI.InputCount"),
+  SFPTR8N(&(z->MIDI.OutputFIFO)[0], (sizeof(z->MIDI.OutputFIFO) / sizeof(uint8_t)), "MIDI.OutputFIFO"),
+  SFVARN(z->MIDI.OutputRP,           "MIDI.OutputRP"),
+  SFVARN(z->MIDI.OutputWP,           "MIDI.OutputWP"),
+  SFVARN(z->MIDI.OutputCount,        "MIDI.OutputCount"),
+  SFVARN(z->MIDI.Flags,              "MIDI.Flags"),
+  SFVARN(z->MIDI.SimuClockDivider,   "MIDI.SimuClockDivider"),
+  SFVARN(z->MIDI.TransmitBitCounter, "MIDI.TransmitBitCounter"),
+  SFVARN(z->MIDI.TransmitBuffer,     "MIDI.TransmitBuffer"),
 
-  SFVAR(z->SCIEB),
-  SFVAR(z->SCIPD),
+  SFVARN(z->SCIEB, "SCIEB"),
+  SFVARN(z->SCIPD, "SCIPD"),
 
-  SFVAR(z->MCIEB),
-  SFVAR(z->MCIPD),
+  SFVARN(z->MCIEB, "MCIEB"),
+  SFVARN(z->MCIPD, "MCIPD"),
 
-  SFPTR8N(&(z->SCILV)[0], (sizeof(z->SCILV) / sizeof(uint8_t)), "z->SCILV"),
+  SFPTR8N(&(z->SCILV)[0], (sizeof(z->SCILV) / sizeof(uint8_t)), "SCILV"),
 
-  SFVAR(z->Timers->Control, 3, sizeof(*z->Timers), z->Timers),
-  SFVAR(z->Timers->Counter, 3, sizeof(*z->Timers), z->Timers),
-  SFVAR(z->Timers->Reload, 3, sizeof(*z->Timers), z->Timers),
+  SFVARN(z->Timers->Control, 3, sizeof(*z->Timers), z->Timers, "Timers->Control"),
+  SFVARN(z->Timers->Counter, 3, sizeof(*z->Timers), z->Timers, "Timers->Counter"),
+  SFVARN(z->Timers->Reload,  3, sizeof(*z->Timers), z->Timers, "Timers->Reload"),
 
-  SFVAR(z->DMEA),
-  SFVAR(z->DRGA),
-  SFVAR(z->DTLG),
+  SFVARN(z->DMEA, "DMEA"),
+  SFVARN(z->DRGA, "DRGA"),
+  SFVARN(z->DTLG, "DTLG"),
 
-  SFVAR(z->DMA_Execute),
-  SFVAR(z->DMA_Direction),
-  SFVAR(z->DMA_Gate),
+  SFVARN(z->DMA_Execute,   "DMA_Execute"),
+  SFVARN(z->DMA_Direction, "DMA_Direction"),
+  SFVARN(z->DMA_Gate,      "DMA_Gate"),
 
-  SFVAR(z->RBP),
-  SFVAR(z->RBL),
+  SFVARN(z->RBP, "RBP"),
+  SFVARN(z->RBL, "RBL"),
 
-  SFPTR64N(&(z->DSP.MPROG)[0], (sizeof(z->DSP.MPROG) / sizeof(uint64_t)), "z->DSP.MPROG"),
-  SFPTR32N(&(z->DSP.TEMP)[0], (sizeof(z->DSP.TEMP) / sizeof(uint32_t)), "z->DSP.TEMP"),
-  SFPTR32N(&(z->DSP.MEMS)[0], (sizeof(z->DSP.MEMS) / sizeof(uint32_t)), "z->DSP.MEMS"),
-  SFPTR16N(&(z->DSP.COEF)[0], (sizeof(z->DSP.COEF) / sizeof(uint16_t)), "z->DSP.COEF"),
-  SFPTR16N(&(z->DSP.MADRS)[0], (sizeof(z->DSP.MADRS) / sizeof(uint16_t)), "z->DSP.MADRS"),
-  SFPTR32N(&(z->DSP.MIXS)[0], (sizeof(z->DSP.MIXS) / sizeof(uint32_t)), "z->DSP.MIXS"),
-  SFPTR16N(&(z->DSP.EFREG)[0], (sizeof(z->DSP.EFREG) / sizeof(uint16_t)), "z->DSP.EFREG"),
+  SFPTR64N(&(z->DSP.MPROG)[0], (sizeof(z->DSP.MPROG) / sizeof(uint64_t)), "DSP.MPROG"),
+  SFPTR32N(&(z->DSP.TEMP)[0],  (sizeof(z->DSP.TEMP)  / sizeof(uint32_t)), "DSP.TEMP"),
+  SFPTR32N(&(z->DSP.MEMS)[0],  (sizeof(z->DSP.MEMS)  / sizeof(uint32_t)), "DSP.MEMS"),
+  SFPTR16N(&(z->DSP.COEF)[0],  (sizeof(z->DSP.COEF)  / sizeof(uint16_t)), "DSP.COEF"),
+  SFPTR16N(&(z->DSP.MADRS)[0], (sizeof(z->DSP.MADRS) / sizeof(uint16_t)), "DSP.MADRS"),
+  SFPTR32N(&(z->DSP.MIXS)[0],  (sizeof(z->DSP.MIXS)  / sizeof(uint32_t)), "DSP.MIXS"),
+  SFPTR16N(&(z->DSP.EFREG)[0], (sizeof(z->DSP.EFREG) / sizeof(uint16_t)), "DSP.EFREG"),
 
-  SFVAR(z->DSP.INPUTS),
+  SFVARN(z->DSP.INPUTS, "DSP.INPUTS"),
 
-  SFVAR(z->DSP.SFT_REG),
-  SFVAR(z->DSP.FRC_REG),
-  SFVAR(z->DSP.Y_REG),
-  SFVAR(z->DSP.ADRS_REG),
+  SFVARN(z->DSP.SFT_REG,  "DSP.SFT_REG"),
+  SFVARN(z->DSP.FRC_REG,  "DSP.FRC_REG"),
+  SFVARN(z->DSP.Y_REG,    "DSP.Y_REG"),
+  SFVARN(z->DSP.ADRS_REG, "DSP.ADRS_REG"),
 
-  SFVAR(z->DSP.MDEC_CT),
+  SFVARN(z->DSP.MDEC_CT,  "DSP.MDEC_CT"),
 
-  SFVAR(z->DSP.RWAddr),
+  SFVARN(z->DSP.RWAddr,   "DSP.RWAddr"),
 
-  SFVAR(z->DSP.WritePending),
-  SFVAR(z->DSP.WriteValue),
+  SFVARN(z->DSP.WritePending, "DSP.WritePending"),
+  SFVARN(z->DSP.WriteValue,   "DSP.WriteValue"),
 
-  SFVAR(z->DSP.ReadPending),
-  SFVAR(z->DSP.ReadValue),
+  SFVARN(z->DSP.ReadPending,  "DSP.ReadPending"),
+  SFVARN(z->DSP.ReadValue,    "DSP.ReadValue"),
   //
-  SFPTR16(z->RAM, 262144),
+  SFPTR16N(z->RAM, 262144, "RAM"),
 
   SFEND
  };
