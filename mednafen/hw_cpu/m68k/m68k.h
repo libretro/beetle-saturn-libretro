@@ -33,12 +33,29 @@
  * former class-scoped `M68K::BUS_INT_ACK_AUTO` exactly. */
 enum { M68K_BUS_INT_ACK_AUTO = -1 };
 
+/* C-compat typedef: in C the struct tag is not auto-aliased to a
+ * type name, so the bare `M68K*` spellings used in the data-
+ * member BusRMW function-pointer signature (inside this struct)
+ * and in the M68K_* free-function declarations (after this struct)
+ * fail to parse from a C TU.  Forward-declare the typedef up
+ * front; same pattern scsp.h uses for SS_SCSP_Slot / SS_SCSP_Timer
+ * / SS_SCSP / etc. */
+typedef struct M68K M68K;
+
 /* Phase-9c: class -> struct.  See Phase-9a comment in scsp.h
  * for rationale.  M68K already had `//private:` (commented out)
  * markers, so all members were de facto public; this commit
  * simply formalizes the access. */
 struct M68K
 {
+
+#ifdef __cplusplus
+ /* C++-only: class methods reachable on this struct.  C
+  * consumers see this header as a plain data struct (same
+  * layout, same member offsets).  All bodies live in
+  * m68k.cpp / m68k_instr.inc / m68k_instr_split{0,1}.cpp;
+  * C consumers reach them via the `extern "C"` M68K_* free
+  * functions declared at the bottom of this header. */
 
  M68K(const bool rev_e = false) MDFN_COLD;
  ~M68K() MDFN_COLD;
@@ -72,6 +89,8 @@ struct M68K
  }
 
  void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname);
+
+#endif /* __cplusplus */
 
  //
  //
@@ -128,6 +147,7 @@ struct M68K
   * convention, not by compiler-enforced const-correctness. */
  bool Revision_E;
 
+#ifdef __cplusplus
  //private:
  void RecalcInt(void);
 
@@ -167,6 +187,8 @@ struct M68K
  void RunSplit1(uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
 #endif
 
+#endif /* __cplusplus */
+
  enum AddressMode
  {
   DATA_REG_DIR,
@@ -189,6 +211,7 @@ struct M68K
   IMMEDIATE
  };
 
+#ifdef __cplusplus
  //
  // MOVE byte and word: instructions, 2 cycle penalty for source predecrement only
  //  	2 cycle penalty for (d8, An, Xn) for both source and dest ams
@@ -232,6 +255,7 @@ struct M68K
  void SetSR(uint16_t val);
 
  bool GetSVisor(void);
+#endif /* __cplusplus */
 
  //
  //
@@ -275,6 +299,7 @@ struct M68K
   EXCEPTION_TRAP
  };
 
+#ifdef __cplusplus
  void NO_INLINE Exception(unsigned which, unsigned vecnum);
 
  template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
@@ -508,6 +533,7 @@ struct M68K
  void STOP(void);
 
  bool CheckPrivilege(void);
+#endif /* __cplusplus */
  //
  //
  //
@@ -559,8 +585,10 @@ struct M68K
   GSREG_USP
  };
 
+#ifdef __cplusplus
  uint32_t GetRegister(unsigned which, char* special = nullptr, const uint32_t special_len = 0);
  void SetRegister(unsigned which, uint32_t value);
+#endif /* __cplusplus */
 };
 
 /* M68K_* free-function API exposed to consumers of m68k.h.
