@@ -57,6 +57,17 @@ enum
  ENV_PHASE_RELEASE = 3
 };
 
+/* C-compat typedefs: in C the struct tag is not auto-aliased to a
+ * type name, so a plain `SS_SCSP*` parameter at file scope fails to
+ * parse without an explicit typedef.  Forward-declare all four
+ * tag-to-typename aliases up front so the struct bodies below can
+ * reference each other and the function decls further down can
+ * spell `SS_SCSP*` directly. */
+typedef struct SS_SCSP_Slot    SS_SCSP_Slot;
+typedef struct SS_SCSP_DSPStep SS_SCSP_DSPStep;
+typedef struct SS_SCSP_DSPS    SS_SCSP_DSPS;
+typedef struct SS_SCSP         SS_SCSP;
+
 struct SS_SCSP_Slot
 {
  uint32_t StartAddr;	// 20 bits, memory address.
