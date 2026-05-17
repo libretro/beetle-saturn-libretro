@@ -4345,9 +4345,11 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
  {										\
   case 0:									\
 	if(MDFN_LIKELY(CacheEnabled))						\
-	 if(sizeof(T) == 1) SH7095_Cache_WriteUpdate_u8(z, A, V);				\
-	 else if(sizeof(T) == 2) SH7095_Cache_WriteUpdate_u16(z, A, V);			\
-	 else SH7095_Cache_WriteUpdate_u32(z, A, V);					\
+	{									\
+	 if(sizeof(T) == 1) SH7095_Cache_WriteUpdate_u8(z, A, V);		\
+	 else if(sizeof(T) == 2) SH7095_Cache_WriteUpdate_u16(z, A, V);		\
+	 else SH7095_Cache_WriteUpdate_u32(z, A, V);				\
+	}									\
 	/* Fall-through, no break */						\
   case 1:									\
   	if((z->write_finish_timestamp + 1) > z->MA_until) z->MA_until = (z->write_finish_timestamp + 1);	\
