@@ -1509,7 +1509,7 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
  * for its tuple -- no constexpr-shadow indirection. */
 
 /* === BBusRW_DB variants (6 used tuples) === */
-static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  
 
@@ -1635,7 +1635,7 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
 }
 
-static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  
 
@@ -1761,7 +1761,7 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
 }
 
-static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  
 
@@ -1882,7 +1882,7 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
 }
 
-static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  
 
@@ -2008,7 +2008,7 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
 }
 
-static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  
 
@@ -2117,7 +2117,7 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
  *DB = 0;
 }
 
-static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  
 
@@ -2226,7 +2226,7 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
 
 /* === ABusRW_DB variants (5 used tuples) === */
-static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  //
  // A-Bus CS0 and CS1
@@ -2327,7 +2327,7 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
   *dma_time_thing -= 1;
 }
 
-static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  //
  // A-Bus CS0 and CS1
@@ -2428,7 +2428,7 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
   *dma_time_thing -= 1;
 }
 
-static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  //
  // A-Bus CS0 and CS1
@@ -2529,7 +2529,7 @@ static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
   *dma_time_thing -= 1;
 }
 
-static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  //
  // A-Bus CS0 and CS1
@@ -2631,7 +2631,7 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
   *dma_time_thing -= 1;
 }
 
-static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)	// add to time_thing, subtract from dma_time_thing
+static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
  //
  // A-Bus CS0 and CS1
@@ -2753,21 +2753,21 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
  * the u8/u16 bodies are now concrete-T template
  * instantiations (uint8_t / uint16_t respectively).
  */
-static INLINE void ABus_Write_DB32_u8(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)
+static INLINE void ABus_Write_DB32_u8(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)
 {
  uint16_t tmp = DB32 >> (((A & 2) ^ 2) << 3);
 
  ABusRW_DB_u8_W1_SH0(A, &tmp, time_thing, dma_time_thing, sh2_dma_time_thing);
 }
 
-static INLINE void ABus_Write_DB32_u16(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)
+static INLINE void ABus_Write_DB32_u16(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)
 {
  uint16_t tmp = DB32 >> (((A & 2) ^ 2) << 3);
 
  ABusRW_DB_u16_W1_SH0(A, &tmp, time_thing, dma_time_thing, sh2_dma_time_thing);
 }
 
-static INLINE void ABus_Write_DB32_u32(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)
+static INLINE void ABus_Write_DB32_u32(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)
 {
  uint16_t tmp;
 
@@ -2779,7 +2779,7 @@ static INLINE void ABus_Write_DB32_u32(uint32_t A, uint32_t DB32, int32_t* time_
 }
 
 // Lower 2 bits of A should be 0
-static INLINE uint32_t ABus_Read(uint32_t A, int32_t* time_thing, int32_t* dma_time_thing = NULL, int32_t* sh2_dma_time_thing = NULL)
+static INLINE uint32_t ABus_Read(uint32_t A, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)
 {
  uint32_t ret;
  uint16_t tmp = 0xFFFF;
@@ -3208,7 +3208,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u32_W1(uint32_t A, uint32_t* DB, int32_t
 //
 static uint32_t DMA_ReadABus(uint32_t offset)
 {
- return ABus_Read(offset, NULL, &SCU_DMA_ReadOverhead);
+ return ABus_Read(offset, NULL, &SCU_DMA_ReadOverhead, NULL);
 }
 
 static uint32_t DMA_ReadBBus(uint32_t offset)
@@ -3216,10 +3216,10 @@ static uint32_t DMA_ReadBBus(uint32_t offset)
  uint32_t ret;
  uint16_t tmp = 0;
 
- BBusRW_DB_u16_W0_SH0(offset | 0, &tmp, NULL, &SCU_DMA_ReadOverhead);
+ BBusRW_DB_u16_W0_SH0(offset | 0, &tmp, NULL, &SCU_DMA_ReadOverhead, NULL);
  ret = tmp << 16;
 
- BBusRW_DB_u16_W0_SH1(offset | 2, &tmp, NULL, &SCU_DMA_ReadOverhead);
+ BBusRW_DB_u16_W0_SH1(offset | 2, &tmp, NULL, &SCU_DMA_ReadOverhead, NULL);
  ret |= tmp << 0;
 
  return ret;
@@ -3528,7 +3528,7 @@ static INLINE void DMA_Write_WB0_u8(DMALevelS* d, uint32_t DB)
  int32_t WriteOverhead = 0;
 
   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
-  ABus_Write_DB32_u8 (A, DB, NULL, &WriteOverhead);
+  ABus_Write_DB32_u8 (A, DB, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
  SCU_DMA_ReadOverhead = ((int32_t)(0) < (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead) ? (int32_t)(0) : (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead));
@@ -3541,7 +3541,7 @@ static INLINE void DMA_Write_WB0_u16(DMALevelS* d, uint32_t DB)
  int32_t WriteOverhead = 0;
 
   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
-  ABus_Write_DB32_u16(A, DB, NULL, &WriteOverhead);
+  ABus_Write_DB32_u16(A, DB, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
  SCU_DMA_ReadOverhead = ((int32_t)(0) < (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead) ? (int32_t)(0) : (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead));
@@ -3554,7 +3554,7 @@ static INLINE void DMA_Write_WB0_u32(DMALevelS* d, uint32_t DB)
  int32_t WriteOverhead = 0;
 
   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
-  ABus_Write_DB32_u32(A, DB, NULL, &WriteOverhead);
+  ABus_Write_DB32_u32(A, DB, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
  SCU_DMA_ReadOverhead = ((int32_t)(0) < (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead) ? (int32_t)(0) : (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead));
@@ -3570,7 +3570,7 @@ static INLINE void DMA_Write_WB1_u8(DMALevelS* d, uint32_t DB)
 
   DB16 = DB >> (((A & 0x2) ^ 0x2) * 8);
   /* Phase-8q1: sizeof(T) folds at DMA_Write template instantiation. */
-  BBusRW_DB_u8_W1_SH0 (A, &DB16, NULL, &WriteOverhead);
+  BBusRW_DB_u8_W1_SH0 (A, &DB16, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
  SCU_DMA_ReadOverhead = ((int32_t)(0) < (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead) ? (int32_t)(0) : (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead));
@@ -3586,7 +3586,7 @@ static INLINE void DMA_Write_WB1_u16(DMALevelS* d, uint32_t DB)
 
   DB16 = DB >> (((A & 0x2) ^ 0x2) * 8);
   /* Phase-8q1: sizeof(T) folds at DMA_Write template instantiation. */
-  BBusRW_DB_u16_W1_SH0(A, &DB16, NULL, &WriteOverhead);
+  BBusRW_DB_u16_W1_SH0(A, &DB16, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
  SCU_DMA_ReadOverhead = ((int32_t)(0) < (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead) ? (int32_t)(0) : (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead));
@@ -3602,7 +3602,7 @@ static INLINE void DMA_Write_WB1_u32(DMALevelS* d, uint32_t DB)
 
   DB16 = DB >> (((A & 0x2) ^ 0x2) * 8);
   /* Phase-8q1: sizeof(T) folds at DMA_Write template instantiation. */
-  BBusRW_DB_u32_W1_SH0(A, &DB16, NULL, &WriteOverhead);
+  BBusRW_DB_u32_W1_SH0(A, &DB16, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
  SCU_DMA_ReadOverhead = ((int32_t)(0) < (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead) ? (int32_t)(0) : (int32_t)(SCU_DMA_ReadOverhead - WriteOverhead));
@@ -4111,18 +4111,18 @@ void DSP_FinishPRAMDMA(void)
     uint16_t DB16;                                                                                 \
                                                                                                    \
     DB16 = DB >> 16;                                                                               \
-    BBusRW_DB_u16_W1_SH0(addr, &DB16, NULL, &dsp->T0_Until);                                  \
+    BBusRW_DB_u16_W1_SH0(addr, &DB16, NULL, &dsp->T0_Until, NULL);                                  \
                                                                                                    \
     addr += addr_add_amount;                                                                       \
                                                                                                    \
     DB16 = DB;                                                                                     \
-    BBusRW_DB_u16_W1_SH1(addr, &DB16, NULL, &dsp->T0_Until);                            \
+    BBusRW_DB_u16_W1_SH1(addr, &DB16, NULL, &dsp->T0_Until, NULL);                            \
                                                                                                    \
     addr += addr_add_amount;                                                                       \
    }                                                                                               \
    else if(WriteBus == 0)                                                                          \
    {                                                                                               \
-    ABus_Write_DB32_u32(addr, DB, NULL, &dsp->T0_Until);                                     \
+    ABus_Write_DB32_u32(addr, DB, NULL, &dsp->T0_Until, NULL);                                     \
                                                                                                    \
     addr += addr_add_amount;                                                                       \
    }                                                                                               \
@@ -4162,17 +4162,17 @@ void DSP_FinishPRAMDMA(void)
    {                                                                                               \
     uint16_t tmp = 0;                                                                              \
                                                                                                    \
-    BBusRW_DB_u16_W0_SH0(addr | 0, &tmp, NULL, &dsp->T0_Until);                              \
+    BBusRW_DB_u16_W0_SH0(addr | 0, &tmp, NULL, &dsp->T0_Until, NULL);                              \
     DB = tmp << 16;                                                                                \
                                                                                                    \
-    BBusRW_DB_u16_W0_SH1(addr | 2, &tmp, NULL, &dsp->T0_Until);                        \
+    BBusRW_DB_u16_W0_SH1(addr | 2, &tmp, NULL, &dsp->T0_Until, NULL);                        \
     DB |= tmp << 0;                                                                                \
                                                                                                    \
     addr += 4;                                                                                     \
    }                                                                                               \
    else if(ReadBus == 0)                                                                           \
    {                                                                                               \
-    DB = ABus_Read(addr, NULL, &dsp->T0_Until);                                                    \
+    DB = ABus_Read(addr, NULL, &dsp->T0_Until, NULL);                                                    \
                                                                                                    \
     addr += addr_add_amount;                                                                       \
    }                                                                                               \
