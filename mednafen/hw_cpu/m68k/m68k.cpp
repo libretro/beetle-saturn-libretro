@@ -106,23 +106,15 @@ void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t val
 
 } /* extern "C" */
 
-M68K::M68K(const bool rev_e) : Revision_E(rev_e),
-	       BusReadInstr(nullptr), BusRead8(nullptr), BusRead16(nullptr),
-	       BusWrite8(nullptr), BusWrite16(nullptr),
-	       BusRMW(nullptr),
-	       BusIntAck(nullptr),
-	       BusRESET(Dummy_BusRESET)
-{
- timestamp = 0;
- XPending = 0;
- IPL = 0;
- Reset(true);
-}
-
-M68K::~M68K()
-{
-
-}
+/* Phase-9 cleanup: M68K::M68K(const bool) and M68K::~M68K() retired.
+ * Zero remaining callers after sound_glue.cpp -> sound_glue.c
+ * (fd5bf98) switched from `static M68K SoundCPU(true);` to a
+ * zero-initialised SoundCPU plus an explicit M68K_Construct call
+ * in SoundGlue_Init().  The ctor body matched M68K_Construct's
+ * body 1:1 (the prep commit 5cafd34's free-function counterpart
+ * for the same work).  The dtor body was empty.  M68K is a pure-
+ * data struct now -- no class methods need calling at end-of-
+ * scope, no class methods need calling at construction. */
 
 void M68K::StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
 {

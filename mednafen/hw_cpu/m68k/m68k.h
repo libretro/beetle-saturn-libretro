@@ -57,8 +57,11 @@ struct M68K
   * C consumers reach them via the `extern "C"` M68K_* free
   * functions declared at the bottom of this header. */
 
- M68K(const bool rev_e = false) MDFN_COLD;
- ~M68K() MDFN_COLD;
+ /* Phase-9: M68K::M68K(rev_e) and M68K::~M68K() retired.  Zero
+  * callers after sound_glue.cpp -> sound_glue.c switched to
+  * M68K_Construct.  M68K is pure-data now; instances are
+  * zero-initialised at file scope and finalised with an
+  * explicit M68K_Construct(&inst, rev_e) call. */
 
  void Run(int32_t run_until_time);
 
