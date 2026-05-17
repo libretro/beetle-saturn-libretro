@@ -232,41 +232,31 @@ void SH7095_Construct(SH7095* z, const char* const name_arg, const unsigned even
  SH7095_Init(z, false, false);
 }
 
-/* Phase-9 step 4 cont.: forward declarations for the free-template
- * memory-access routines.  They used to be class-method templates
- * (SH7095::MemReadRT, SH7095::MemWriteRT) and are now free
- * templates with an explicit `SH7095* z` first parameter. */
-template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
-static INLINE T SH7095_MemReadRT(SH7095* z, uint32_t A);
-
-template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
-static INLINE void SH7095_MemWriteRT(SH7095* z, uint32_t A, T V);
-
-template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
-static NO_INLINE MDFN_FASTCALL T C_MemReadRT(uint32_t A) MDFN_HOT;
-
-template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
-static NO_INLINE MDFN_FASTCALL void C_MemWriteRT(uint32_t A, T V) MDFN_HOT;
-
+/* Phase-9 step 5 part 2: the four SH7095 mega-templates (SH7095_MemReadRT,
+ * SH7095_MemWriteRT and the C_ thunk wrappers) are retired here.  Their
+ * 211 demangled instantiations -> 196 unique tuples (after deduping the
+ * [clone .cold] variants GCC emits for MDFN_COLD) are now explicit named
+ * C functions in sh7095_mem_dispatch.inc.  Forward decls live in
+ * sh7095_mem_dispatch_proto.inc so the MAHL / MAHL_P assignments below
+ * compile before the definitions arrive (the defs need MemRead / MemWrite
+ * macros in scope, which is far below).  See tools/gen_mem_dispatch.py. */
+#include "sh7095_mem_dispatch_proto.inc"
 // WARNING: Template arguments CacheEnabled and CacheBypassHack are only valid for region==0.
 static void SH7095_RecalcMRWFP_0(SH7095* z)
 {
- #define MAHL_(bs,w,nsc,cbh)									\
-		 if(z->CCR & SH7095_CCR_CE)								\
-		 {										\
-		  if(bs == 16) { z->MRFP16_I[0] = C_MemReadRT<w, nsc, cbh, uint16_t, 0x0, true, -1>; }	\
-		  if(bs == 32) { z->MRFP32_I[0] = C_MemReadRT<w, nsc, cbh, uint32_t, 0x0, true, -1>; }	\
-		  z->MRFP##bs[0] = C_MemReadRT <w, nsc, cbh, uint##bs##_t, 0x0, true, false>;		\
-		  z->MRFPI[0]    = C_MemReadRT <w, nsc, cbh, uint32_t,   0x0, true, true>;		\
-		  z->MWFP##bs[0] = C_MemWriteRT<w, nsc, uint##bs##_t, 0x0, true>;			\
-		 }										\
-		 else										\
-		 {										\
-		  if(bs == 16) { z->MRFP16_I[0] = C_MemReadRT<w, nsc, cbh, uint16_t, 0x0, false, false>; }\
-		  if(bs == 32) { z->MRFP32_I[0] = C_MemReadRT<w, nsc, cbh, uint32_t, 0x0, false, false>; }\
-		  z->MRFP##bs[0] =  C_MemReadRT <w, nsc, cbh, uint##bs##_t, 0x0, false, false>;		\
-		  z->MRFPI[0]    =  C_MemReadRT <w, nsc, cbh, uint32_t,   0x0, false, true>;		\
-		  z->MWFP##bs[0] =  C_MemWriteRT<w, nsc, uint##bs##_t, 0x0, false>;			\
+ #define MAHL_(bs,w,nsc,cbh) \
+		 if(z->CCR & SH7095_CCR_CE) { \
+		  if(bs == 16) { z->MRFP16_I[0] = C_MemReadRT_w##w##_n##nsc##_c##cbh##_u16_r0_e1_im1; } \
+		  if(bs == 32) { z->MRFP32_I[0] = C_MemReadRT_w##w##_n##nsc##_c##cbh##_u32_r0_e1_im1; } \
+		  z->MRFP##bs[0] = C_MemReadRT_w##w##_n##nsc##_c##cbh##_u##bs##_r0_e1_i0; \
+		  z->MRFPI[0]    = C_MemReadRT_w##w##_n##nsc##_c##cbh##_u32_r0_e1_i1; \
+		  z->MWFP##bs[0] = C_MemWriteRT_w##w##_n##nsc##_u##bs##_r0_e1; \
+		 } else { \
+		  if(bs == 16) { z->MRFP16_I[0] = C_MemReadRT_w##w##_n##nsc##_c##cbh##_u16_r0_e0_i0; } \
+		  if(bs == 32) { z->MRFP32_I[0] = C_MemReadRT_w##w##_n##nsc##_c##cbh##_u32_r0_e0_i0; } \
+		  z->MRFP##bs[0] = C_MemReadRT_w##w##_n##nsc##_c##cbh##_u##bs##_r0_e0_i0; \
+		  z->MRFPI[0]    = C_MemReadRT_w##w##_n##nsc##_c##cbh##_u32_r0_e0_i1; \
+		  z->MWFP##bs[0] = C_MemWriteRT_w##w##_n##nsc##_u##bs##_r0_e0; \
 		 }
 
  #define MAHL(w, nsc, cbh)		\
@@ -281,7 +271,7 @@ static void SH7095_RecalcMRWFP_0(SH7095* z)
   if(z->EIC_Setting)
   {
    if(z->DM_Setting)
-    MAHL(0,   -1, false)
+    MAHL(0, m1, false)
    else
     MAHL(0, true, false)
   }
@@ -311,16 +301,16 @@ static void SH7095_RecalcMRWFP_0(SH7095* z)
 
 static void SH7095_RecalcMRWFP_1_7(SH7095* z)
 {
- #define MAHL_P(w, nsc, region) {								\
-		  z->MRFP8[region]  = C_MemReadRT<w, nsc, false, uint8_t,  region, false, false>;	\
-		  z->MRFP16[region] = C_MemReadRT<w, nsc, false, uint16_t, region, false, false>;	\
-		  z->MRFP32[region] = C_MemReadRT<w, nsc, false, uint32_t, region, false, false>;	\
-		  z->MRFP16_I[region] = C_MemReadRT<w, nsc, false, uint16_t, region, false, false>;	\
-		  z->MRFP32_I[region] = C_MemReadRT<w, nsc, false, uint32_t, region, false, false>;	\
-		  z->MRFPI[region]  = C_MemReadRT<w, nsc, false, uint32_t, region, false, true>;	\
-		  z->MWFP8[region]  = C_MemWriteRT<w, nsc, uint8_t,  region, false>;	\
-		  z->MWFP16[region] = C_MemWriteRT<w, nsc, uint16_t, region, false>;	\
-		  z->MWFP32[region] = C_MemWriteRT<w, nsc, uint32_t, region, false>;	\
+ #define MAHL_P(w, nsc, region) { \
+		  z->MRFP8[region]    = C_MemReadRT_w##w##_n##nsc##_cfalse_u8_r##region##_e0_i0; \
+		  z->MRFP16[region]   = C_MemReadRT_w##w##_n##nsc##_cfalse_u16_r##region##_e0_i0; \
+		  z->MRFP32[region]   = C_MemReadRT_w##w##_n##nsc##_cfalse_u32_r##region##_e0_i0; \
+		  z->MRFP16_I[region] = C_MemReadRT_w##w##_n##nsc##_cfalse_u16_r##region##_e0_i0; \
+		  z->MRFP32_I[region] = C_MemReadRT_w##w##_n##nsc##_cfalse_u32_r##region##_e0_i0; \
+		  z->MRFPI[region]    = C_MemReadRT_w##w##_n##nsc##_cfalse_u32_r##region##_e0_i1; \
+		  z->MWFP8[region]    = C_MemWriteRT_w##w##_n##nsc##_u8_r##region##_e0; \
+		  z->MWFP16[region]   = C_MemWriteRT_w##w##_n##nsc##_u16_r##region##_e0; \
+		  z->MWFP32[region]   = C_MemWriteRT_w##w##_n##nsc##_u32_r##region##_e0; \
 		  }
 
  #define MAHL(nsc, region)					\
@@ -333,7 +323,7 @@ static void SH7095_RecalcMRWFP_1_7(SH7095* z)
  {
   if(z->DM_Setting)
   {
-   MAHL(-1,  1)
+   MAHL(m1, 1)
   }
   else
   {
@@ -4425,47 +4415,16 @@ do {                                                                            
   else if(sizeof(T) == 2) { if(which) ExtBusWrite_NI_w1_SP0_u16(A, V); else ExtBusWrite_NI_w0_SP0_u16(A, V); }      \
   else                    { if(which) ExtBusWrite_NI_w1_SP0_u32(A, V); else ExtBusWrite_NI_w0_SP0_u32(A, V); }      \
 } while(0)
-template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
-static INLINE T SH7095_MemReadRT(SH7095* z, uint32_t A)
-{
- static_assert(region < 0x8, "Wrong region argument.");
- static_assert(!NeedSlaveCall || (!which && region < 2), "Wrong arguments.");
- static_assert(IsInstr >= 0 || (CacheEnabled && region == 0x0), "Wrong arguments.");
- T ret;
- uint32_t unmasked_A;
- SH7095_CacheEntry* cent;
- int way_match;
+/* Phase-9 step 5 part 2: 196 named C functions replace the four
+ * mega-templates that used to live here.  Position matches the old
+ * defs -- MemRead / MemWrite / ExtBusRead / ExtBusWrite / OnChipRegRead /
+ * CHECK_EXIT_RESUME macros are all in scope at this point. */
+#include "sh7095_mem_dispatch.inc"
 
- MemRead(IsInstr, T, region, CacheEnabled, A, ret, A, unmasked_A, cent, way_match);
-
- return ret;
-}
-
-template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
-static INLINE void SH7095_MemWriteRT(SH7095* z, uint32_t A, T V)
-{
- static_assert(region < 0x8, "Wrong region argument.");
- static_assert(!NeedSlaveCall || (!which && region < 2), "Wrong arguments.");
- uint32_t unmasked_A;
-
- MemWrite(T, region, CacheEnabled, A, V, A, unmasked_A, V);
-}
 #undef CHECK_EXIT_RESUME
 #undef OnChipRegRead
 #undef ExtBusRead
 #undef ExtBusWrite
-
-template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
-static NO_INLINE MDFN_HOT MDFN_FASTCALL T C_MemReadRT(uint32_t A)
-{
- return SH7095_MemReadRT<which, NeedSlaveCall, CacheBypassHack, T, region, CacheEnabled, IsInstr>(&CPU[which], A);
-}
-
-template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
-static NO_INLINE MDFN_HOT MDFN_FASTCALL void C_MemWriteRT(uint32_t A, T V)
-{
- SH7095_MemWriteRT<which, NeedSlaveCall, T, region, CacheEnabled>(&CPU[which], A, V);
-}
 
 static INLINE void SH7095_SetCCR(SH7095* z, uint8_t V)
 {
