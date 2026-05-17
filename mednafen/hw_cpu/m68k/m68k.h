@@ -42,6 +42,130 @@ enum { M68K_BUS_INT_ACK_AUTO = -1 };
  * / SS_SCSP / etc. */
 typedef struct M68K M68K;
 
+/* Phase-9d-7: enums that previously lived inside struct M68K hoisted
+ * to file scope.  Anonymous enums inside a struct generate a
+ * "declaration does not declare anything" warning under -Wall in
+ * both C and C++; the values were only ever reachable as M68K::X
+ * from C++ TUs (the anonymous-enum-in-struct pattern doesn't
+ * inject names at file scope in C, so C consumers couldn't see
+ * them at all).  File-scope placement makes them visible to both
+ * C and C++ consumers under their plain names and silences the
+ * 5 advisory warnings sound_glue.c was reporting against m68k.h.
+ *
+ * The named `enum AddressMode` also moves out; it's used as a
+ * template parameter type by the HAM struct and the op templates,
+ * which now reference plain `AddressMode` instead of
+ * `AddressMode`.  In C++ a regular (non-class) enum
+ * introduces its members into the enclosing scope, so
+ * bare-name references inside class methods (e.g. `case
+ * PC_DISP:` inside HAM's switch on `am`) continue to work
+ * via file-scope lookup. */
+
+enum  /* XPENDING_MASK -- bits of M68K::XPending */
+{
+ XPENDING_MASK_INT          = 0x0001,
+ XPENDING_MASK_NMI          = 0x0002,
+ XPENDING_MASK_RESET        = 0x0010,
+ XPENDING_MASK_ADDRESS      = 0x0020,
+ XPENDING_MASK_BUS          = 0x0040,
+ XPENDING_MASK_STOPPED      = 0x0100, /* via STOP instruction */
+
+ XPENDING_MASK_ERRORHALTED  = 0x0400, /* address/bus error during address/bus error handling */
+
+ XPENDING_MASK_DTACKHALTED  = 0x0800,
+ XPENDING_MASK_EXTHALTED    = 0x1000,
+
+ /* For save-state sanitising: */
+ XPENDING_MASK__VALID = XPENDING_MASK_INT | XPENDING_MASK_NMI | XPENDING_MASK_RESET | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_STOPPED | XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED | XPENDING_MASK_EXTHALTED
+};
+
+enum AddressMode
+{
+ DATA_REG_DIR,
+ ADDR_REG_DIR,
+
+ ADDR_REG_INDIR,
+ ADDR_REG_INDIR_POST,
+ ADDR_REG_INDIR_PRE,
+
+ ADDR_REG_INDIR_DISP,
+
+ ADDR_REG_INDIR_INDX,
+
+ ABS_SHORT,
+ ABS_LONG,
+
+ PC_DISP,
+ PC_INDEX,
+
+ IMMEDIATE
+};
+
+enum  /* VECNUM -- vector numbers for Exception() */
+{
+ VECNUM_RESET_SSP     = 0,
+ VECNUM_RESET_PC      = 1,
+ VECNUM_BUS_ERROR     = 2,
+ VECNUM_ADDRESS_ERROR = 3,
+ VECNUM_ILLEGAL       = 4,
+ VECNUM_ZERO_DIVIDE   = 5,
+ VECNUM_CHK           = 6,
+ VECNUM_TRAPV         = 7,
+ VECNUM_PRIVILEGE     = 8,
+ VECNUM_TRACE         = 9,
+ VECNUM_LINEA         = 10,
+ VECNUM_LINEF         = 11,
+
+ VECNUM_UNINI_INT     = 15,
+
+ VECNUM_SPURIOUS_INT  = 24,
+ VECNUM_INT_BASE      = 24,
+
+ VECNUM_TRAP_BASE     = 32
+};
+
+enum  /* EXCEPTION class -- first arg to Exception() */
+{
+ EXCEPTION_RESET = 0,
+ EXCEPTION_BUS_ERROR,
+ EXCEPTION_ADDRESS_ERROR,
+ EXCEPTION_ILLEGAL,
+ EXCEPTION_ZERO_DIVIDE,
+ EXCEPTION_CHK,
+ EXCEPTION_TRAPV,
+ EXCEPTION_PRIVILEGE,
+ EXCEPTION_TRACE,
+
+ EXCEPTION_INT,
+ EXCEPTION_TRAP
+};
+
+enum  /* GSREG -- id parameter of M68K_GetRegister / M68K_SetRegister */
+{
+ GSREG_D0 = 0,
+ GSREG_D1,
+ GSREG_D2,
+ GSREG_D3,
+ GSREG_D4,
+ GSREG_D5,
+ GSREG_D6,
+ GSREG_D7,
+
+ GSREG_A0 = 8,
+ GSREG_A1,
+ GSREG_A2,
+ GSREG_A3,
+ GSREG_A4,
+ GSREG_A5,
+ GSREG_A6,
+ GSREG_A7,
+
+ GSREG_PC = 16,
+ GSREG_SR,
+ GSREG_SSP,
+ GSREG_USP
+};
+
 /* Phase-9c: class -> struct.  See Phase-9a comment in scsp.h
  * for rationale.  M68K already had `//private:` (commented out)
  * markers, so all members were de facto public; this commit
@@ -121,23 +245,9 @@ struct M68K
 
  uint32_t SP_Inactive;
  uint32_t XPending;
- enum
- {
-  XPENDING_MASK_INT 	= 0x0001,
-  XPENDING_MASK_NMI	= 0x0002,
-  XPENDING_MASK_RESET	= 0x0010,
-  XPENDING_MASK_ADDRESS = 0x0020,
-  XPENDING_MASK_BUS	= 0x0040,
-  XPENDING_MASK_STOPPED	= 0x0100,	// via STOP instruction
 
-  XPENDING_MASK_ERRORHALTED = 0x0400,	// address/bus error during address/bus error handling.
-
-  XPENDING_MASK_DTACKHALTED = 0x0800,
-  XPENDING_MASK_EXTHALTED   = 0x1000,
-
-  // For save state sanitizing:
-  XPENDING_MASK__VALID = XPENDING_MASK_INT | XPENDING_MASK_NMI | XPENDING_MASK_RESET | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_STOPPED | XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED | XPENDING_MASK_EXTHALTED
- };
+ /* Phase-9d-7: XPENDING_MASK_* enum hoisted to file scope above
+  * struct M68K. */
 
  /* Set by M68K_Construct / M68K::M68K from the `rev_e` parameter
   * and never written again.  Was `const bool` -- contractual
@@ -190,27 +300,11 @@ struct M68K
 
 #endif /* __cplusplus */
 
- enum AddressMode
- {
-  DATA_REG_DIR,
-  ADDR_REG_DIR,
-
-  ADDR_REG_INDIR,
-  ADDR_REG_INDIR_POST,
-  ADDR_REG_INDIR_PRE,
-
-  ADDR_REG_INDIR_DISP,
-
-  ADDR_REG_INDIR_INDX,
-
-  ABS_SHORT,
-  ABS_LONG,
-
-  PC_DISP,
-  PC_INDEX,
-
-  IMMEDIATE
- };
+ /* Phase-9d-7: enum AddressMode hoisted to file scope above
+  * struct M68K.  Bare-name references (DATA_REG_DIR etc.)
+  * inside class methods continue to resolve via file-scope
+  * lookup; `AddressMode` is used as a template parameter type
+  * (was `AddressMode`) by HAM and the op templates. */
 
 #ifdef __cplusplus
  //
@@ -222,7 +316,7 @@ struct M68K
  //
  // Careful on declaration order of HAM objects(needs to be source then dest).
  //
- template<typename T, M68K::AddressMode am>
+ template<typename T, AddressMode am>
  struct HAM;
 
  bool GetC(void);
@@ -262,86 +356,50 @@ struct M68K
 #endif /* __cplusplus */
 
  //
- //
- //
- enum
- {
-  VECNUM_RESET_SSP = 0,
-  VECNUM_RESET_PC  = 1,
-  VECNUM_BUS_ERROR = 2,
-  VECNUM_ADDRESS_ERROR = 3,
-  VECNUM_ILLEGAL = 4,
-  VECNUM_ZERO_DIVIDE = 5,
-  VECNUM_CHK = 6,
-  VECNUM_TRAPV = 7,
-  VECNUM_PRIVILEGE = 8,
-  VECNUM_TRACE = 9,
-  VECNUM_LINEA = 10,
-  VECNUM_LINEF = 11,
-
-  VECNUM_UNINI_INT = 15,
-
-  VECNUM_SPURIOUS_INT = 24,
-  VECNUM_INT_BASE = 24,
-
-  VECNUM_TRAP_BASE = 32
- };
-
- enum
- {
-  EXCEPTION_RESET = 0,
-  EXCEPTION_BUS_ERROR,
-  EXCEPTION_ADDRESS_ERROR,
-  EXCEPTION_ILLEGAL,
-  EXCEPTION_ZERO_DIVIDE,
-  EXCEPTION_CHK,
-  EXCEPTION_TRAPV,
-  EXCEPTION_PRIVILEGE,
-  EXCEPTION_TRACE,
-
-  EXCEPTION_INT,
-  EXCEPTION_TRAP
- };
+ /* Phase-9d-7: VECNUM_* and EXCEPTION_* enums hoisted to file
+  * scope above struct M68K.  Used by the Exception() method
+  * (declared just below in the __cplusplus block) and by every
+  * op-body that raises an exception. */
 
 #ifdef __cplusplus
  void NO_INLINE Exception(unsigned which, unsigned vecnum);
 
- template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
  void ADD(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
 
- template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, AddressMode SAM, AddressMode DAM>
  void ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
  /* Phase-8e: Subtract's `bool X_form` template parameter moved to
   * a runtime first-arg.  T, DT, SAM, DAM stay HAM-locked. */
- template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
  DT Subtract(bool X_form, HAM<T, SAM> &src, HAM<DT, DAM> &dst);
 
- template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
  void SUB(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
 
- template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
  void SUBX(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
 
- template<typename DT, M68K::AddressMode DAM>
+ template<typename DT, AddressMode DAM>
  void NEG(HAM<DT, DAM> &dst);
 
- template<typename DT, M68K::AddressMode DAM>
+ template<typename DT, AddressMode DAM>
  void NEGX(HAM<DT, DAM> &dst);
 
- template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
  void CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
 
- template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, AddressMode SAM, AddressMode DAM>
  void CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, AddressMode SAM, AddressMode DAM>
  void OR(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, AddressMode SAM, AddressMode DAM>
  void EOR(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, AddressMode SAM, AddressMode DAM>
  void AND(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
  void ORI_CCR(void);
@@ -351,10 +409,10 @@ struct M68K
  void EORI_CCR(void);
  void EORI_SR(void);
 
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void MULU(HAM<T, SAM> &src, const unsigned dr);
 
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void MULS(HAM<T, SAM> &src, const unsigned dr);
 
  /* Phase-8b: Divide<sdiv> retired -- two callers (DIVU, DIVS) each
@@ -362,21 +420,21 @@ struct M68K
  void Divide_u(uint16_t divisor, const unsigned dr);
  void Divide_s(uint16_t divisor, const unsigned dr);
 
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void DIVU(HAM<T, SAM> &src, const unsigned dr);
 
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void DIVS(HAM<T, SAM> &src, const unsigned dr);
 
- template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, AddressMode SAM, AddressMode DAM>
  void ABCD(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
  uint8_t DecimalSubtractX(const uint8_t src_data, const uint8_t dst_data);
 
- template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, AddressMode SAM, AddressMode DAM>
  void SBCD(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode DAM>
+ template<typename T, AddressMode DAM>
  void NBCD(HAM<T, DAM> &dst);
 
  /* Phase-8d: MOVEP<T, reg_to_mem> retired.  Only 4 instantiations
@@ -390,30 +448,30 @@ struct M68K
  void MOVEP_w_reg_to_mem(const unsigned ar, const unsigned dr);
  void MOVEP_l_reg_to_mem(const unsigned ar, const unsigned dr);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void BTST(HAM<T, TAM> &targ, unsigned wb);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void BCHG(HAM<T, TAM> &targ, unsigned wb);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void BCLR(HAM<T, TAM> &targ, unsigned wb);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void BSET(HAM<T, TAM> &targ, unsigned wb);
 
- template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+ template<typename T, AddressMode SAM, AddressMode DAM>
  void MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void MOVEA(HAM<T, SAM> &src, const unsigned ar);
 
  /* Phase-8e: MOVEM_to_MEM's `bool pseudo_predec` moved to runtime. */
- template<typename T, M68K::AddressMode DAM>
+ template<typename T, AddressMode DAM>
  void MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T, DAM> &dst);
 
  /* Phase-8e: MOVEM_to_REGS's `bool pseudo_postinc` moved to runtime. */
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uint16_t reglist);
 
  /* Phase-8e: ShiftBase's `bool Arithmetic, bool ShiftLeft` moved
@@ -423,51 +481,51 @@ struct M68K
   * and constprops the bools, so callsites generate identical
   * instruction streams to the previous template-instantiation
   * form. */
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void ASL(HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void ASR(HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void LSL(HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void LSR(HAM<T, TAM> &targ, unsigned count);
 
  /* Phase-8e: RotateBase's `bool X_Form, bool ShiftLeft` moved
   * to runtime first-args.  Same shape as ShiftBase. */
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void RotateBase(bool X_Form, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void ROL(HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void ROR(HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void ROXL(HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void ROXR(HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, M68K::AddressMode DAM>
+ template<typename T, AddressMode DAM>
  void TAS(HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode DAM>
+ template<typename T, AddressMode DAM>
  void TST(HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode DAM>
+ template<typename T, AddressMode DAM>
  void CLR(HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode DAM>
+ template<typename T, AddressMode DAM>
  void NOT(HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode DAM>
+ template<typename T, AddressMode DAM>
  void EXT(HAM<T, DAM> &dst);
 
  void SWAP(const unsigned dr);
@@ -492,22 +550,22 @@ struct M68K
  void Bxx(unsigned cc, uint32_t disp);
  void DBcc(unsigned cc, const unsigned dr);
 
- template<typename T, M68K::AddressMode DAM>
+ template<typename T, AddressMode DAM>
  void Scc(unsigned cc, HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void JSR(HAM<T, TAM> &targ);
 
- template<typename T, M68K::AddressMode TAM>
+ template<typename T, AddressMode TAM>
  void JMP(HAM<T, TAM> &targ);
 
- template <typename T, M68K::AddressMode DAM>
+ template <typename T, AddressMode DAM>
  void MOVE_from_SR(HAM<T, DAM> &dst);
 
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void MOVE_to_CCR(HAM<T, SAM> &src);
 
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void MOVE_to_SR(HAM<T, SAM> &src);
 
  /* Phase-8d: MOVE_USP bool template parameter -> runtime arg.
@@ -517,10 +575,10 @@ struct M68K
   * folding the bool.  Cleaner as a runtime first-arg. */
  void MOVE_USP(bool direction, const unsigned ar);
 
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void LEA(HAM<T, SAM> &src, const unsigned ar);
 
- template<typename T, M68K::AddressMode SAM>
+ template<typename T, AddressMode SAM>
  void PEA(HAM<T, SAM> &src);
  void UNLK(const unsigned ar);
  void LINK(const unsigned ar);
@@ -563,31 +621,10 @@ struct M68K
  //
  //
  /* Phase-9c: access modifier dropped. */
- enum
- {
-  GSREG_D0 = 0,
-  GSREG_D1,
-  GSREG_D2,
-  GSREG_D3,
-  GSREG_D4,
-  GSREG_D5,
-  GSREG_D6,
-  GSREG_D7,
-
-  GSREG_A0 = 8,
-  GSREG_A1,
-  GSREG_A2,
-  GSREG_A3,
-  GSREG_A4,
-  GSREG_A5,
-  GSREG_A6,
-  GSREG_A7,
-
-  GSREG_PC = 16,
-  GSREG_SR,
-  GSREG_SSP,
-  GSREG_USP
- };
+ /* Phase-9d-7: GSREG_* enum hoisted to file scope above struct M68K.
+  * Consumers (sh7095.inc, vdp2.c via sh-side dispatch) pass these
+  * values into M68K_GetRegister/M68K_SetRegister.  File-scope
+  * placement lets C callers refer to them directly. */
 
  /* Phase-9d-3: GetRegister / SetRegister retired -- bodies moved to
   * the M68K_GetRegister / M68K_SetRegister extern "C" wrappers in

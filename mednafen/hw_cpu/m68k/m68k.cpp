@@ -93,9 +93,9 @@ void M68K_Construct(M68K* z, bool rev_e)
 void     M68K_SetIPL             (M68K* z, uint8_t ipl_new)
 {
  if(z->IPL < 0x7 && ipl_new == 0x7)
-  z->XPending |= M68K::XPENDING_MASK_NMI;
+  z->XPending |= XPENDING_MASK_NMI;
  else if(ipl_new < 0x7)
-  z->XPending &= ~M68K::XPENDING_MASK_NMI;
+  z->XPending &= ~XPENDING_MASK_NMI;
 
  z->IPL = ipl_new;
  z->RecalcInt();
@@ -107,19 +107,19 @@ void     M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)
   * here but kept in the API signature to leave room for richer
   * bus-error diagnostics. */
  (void)addr;
- z->XPending |= M68K::XPENDING_MASK_DTACKHALTED;
+ z->XPending |= XPENDING_MASK_DTACKHALTED;
 }
 void     M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type)
 {
  /* Same external-bus-handler entry path as SignalDTACKHalted; the
   * (addr, type) tuple is reserved for future bus-error reporting. */
  (void)addr; (void)type;
- if(z->XPending & (M68K::XPENDING_MASK_ADDRESS | M68K::XPENDING_MASK_BUS | M68K::XPENDING_MASK_RESET))
+ if(z->XPending & (XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_RESET))
  {
-  z->XPending |= M68K::XPENDING_MASK_ERRORHALTED;
+  z->XPending |= XPENDING_MASK_ERRORHALTED;
  }
 
- z->XPending |= M68K::XPENDING_MASK_ADDRESS;
+ z->XPending |= XPENDING_MASK_ADDRESS;
 }
 void     M68K_Reset              (M68K* z, bool pwr)
 {
@@ -142,14 +142,14 @@ void     M68K_Reset              (M68K* z, bool pwr)
 
   z->SetSR(0);
  }
- z->XPending = (z->XPending & ~(M68K::XPENDING_MASK_STOPPED | M68K::XPENDING_MASK_NMI | M68K::XPENDING_MASK_ADDRESS | M68K::XPENDING_MASK_BUS | M68K::XPENDING_MASK_ERRORHALTED | M68K::XPENDING_MASK_DTACKHALTED)) | M68K::XPENDING_MASK_RESET;
+ z->XPending = (z->XPending & ~(XPENDING_MASK_STOPPED | XPENDING_MASK_NMI | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED)) | XPENDING_MASK_RESET;
 }
 void     M68K_Run                (M68K* z, int32_t until)               { z->Run(until); }
 void     M68K_SetExtHalted       (M68K* z, bool state)
 {
- z->XPending &= ~M68K::XPENDING_MASK_EXTHALTED;
+ z->XPending &= ~XPENDING_MASK_EXTHALTED;
  if(state)
-  z->XPending |= M68K::XPENDING_MASK_EXTHALTED;
+  z->XPending |= XPENDING_MASK_EXTHALTED;
 }
 void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
                                   const bool data_only, const char* sname)
@@ -181,7 +181,7 @@ void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
  MDFNSS_StateAction(sm, load, data_only, StateRegs, sname, false);
 
  if(load)
-  z->XPending &= M68K::XPENDING_MASK__VALID;
+  z->XPending &= XPENDING_MASK__VALID;
 }
 uint32_t M68K_GetRegister        (M68K* z, const unsigned id, char* const special, const uint32_t special_len)
 {
@@ -191,27 +191,27 @@ uint32_t M68K_GetRegister        (M68K* z, const unsigned id, char* const specia
   default:
 	return 0xDEADBEEF;
 
-  case M68K::GSREG_D0: case M68K::GSREG_D1: case M68K::GSREG_D2: case M68K::GSREG_D3:
-  case M68K::GSREG_D4: case M68K::GSREG_D5: case M68K::GSREG_D6: case M68K::GSREG_D7:
-	return z->D[id - M68K::GSREG_D0];
+  case GSREG_D0: case GSREG_D1: case GSREG_D2: case GSREG_D3:
+  case GSREG_D4: case GSREG_D5: case GSREG_D6: case GSREG_D7:
+	return z->D[id - GSREG_D0];
 
-  case M68K::GSREG_A0: case M68K::GSREG_A1: case M68K::GSREG_A2: case M68K::GSREG_A3:
-  case M68K::GSREG_A4: case M68K::GSREG_A5: case M68K::GSREG_A6: case M68K::GSREG_A7:
-	return z->A[id - M68K::GSREG_A0];
+  case GSREG_A0: case GSREG_A1: case GSREG_A2: case GSREG_A3:
+  case GSREG_A4: case GSREG_A5: case GSREG_A6: case GSREG_A7:
+	return z->A[id - GSREG_A0];
 
-  case M68K::GSREG_PC:
+  case GSREG_PC:
 	return z->PC;
 
-  case M68K::GSREG_SR:
+  case GSREG_SR:
 	return z->GetSR();
 
-  case M68K::GSREG_SSP:
+  case GSREG_SSP:
 	if(z->GetSVisor())
 	 return z->A[7];
 	else
 	 return z->SP_Inactive;
 
-  case M68K::GSREG_USP:
+  case GSREG_USP:
 	if(!z->GetSVisor())
 	 return z->A[7];
 	else
@@ -222,32 +222,32 @@ void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t val
 {
  switch(id)
  {
-  case M68K::GSREG_D0: case M68K::GSREG_D1: case M68K::GSREG_D2: case M68K::GSREG_D3:
-  case M68K::GSREG_D4: case M68K::GSREG_D5: case M68K::GSREG_D6: case M68K::GSREG_D7:
-	z->D[id - M68K::GSREG_D0] = value;
+  case GSREG_D0: case GSREG_D1: case GSREG_D2: case GSREG_D3:
+  case GSREG_D4: case GSREG_D5: case GSREG_D6: case GSREG_D7:
+	z->D[id - GSREG_D0] = value;
 	break;
 
-  case M68K::GSREG_A0: case M68K::GSREG_A1: case M68K::GSREG_A2: case M68K::GSREG_A3:
-  case M68K::GSREG_A4: case M68K::GSREG_A5: case M68K::GSREG_A6: case M68K::GSREG_A7:
-	z->A[id - M68K::GSREG_A0] = value;
+  case GSREG_A0: case GSREG_A1: case GSREG_A2: case GSREG_A3:
+  case GSREG_A4: case GSREG_A5: case GSREG_A6: case GSREG_A7:
+	z->A[id - GSREG_A0] = value;
 	break;
 
-  case M68K::GSREG_PC:
+  case GSREG_PC:
 	z->PC = value;
 	break;
 
-  case M68K::GSREG_SR:
+  case GSREG_SR:
 	z->SetSR(value);
 	break;
 
-  case M68K::GSREG_SSP:
+  case GSREG_SSP:
 	if(z->GetSVisor())
 	 z->A[7] = value;
 	else
 	 z->SP_Inactive = value;
 	break;
 
-  case M68K::GSREG_USP:
+  case GSREG_USP:
 	if(!z->GetSVisor())
 	 z->A[7] = value;
 	else
@@ -274,47 +274,11 @@ void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t val
  * Class declarations dropped from m68k.h's `#ifdef __cplusplus`
  * gated region 1. */
 
-//
-//
-//
-enum
-{
- VECNUM_RESET_SSP = 0,
- VECNUM_RESET_PC  = 1,
- VECNUM_BUS_ERROR = 2,
- VECNUM_ADDRESS_ERROR = 3,
- VECNUM_ILLEGAL = 4,
- VECNUM_ZERO_DIVIDE = 5,
- VECNUM_CHK = 6,
- VECNUM_TRAPV = 7,
- VECNUM_PRIVILEGE = 8,
- VECNUM_TRACE = 9,
- VECNUM_LINEA = 10,
- VECNUM_LINEF = 11,
-
- VECNUM_UNINI_INT = 15,
-
- VECNUM_SPURIOUS_INT = 24,
- VECNUM_INT_BASE = 24,
-
- VECNUM_TRAP_BASE = 32
-};
-
-enum
-{
- EXCEPTION_RESET = 0,
- EXCEPTION_BUS_ERROR,
- EXCEPTION_ADDRESS_ERROR,
- EXCEPTION_ILLEGAL,
- EXCEPTION_ZERO_DIVIDE,
- EXCEPTION_CHK,
- EXCEPTION_TRAPV,
- EXCEPTION_PRIVILEGE,
- EXCEPTION_TRACE,
-
- EXCEPTION_INT,
- EXCEPTION_TRAP
-};
+/* Phase-9d-7: previously had duplicate file-scope copies of the
+ * VECNUM_* and EXCEPTION_* enums here, redundant with the ones
+ * inside struct M68K's `#ifdef __cplusplus`-gated region.  Both
+ * sets now hoisted out of struct M68K and into file scope at
+ * m68k.h, so this m68k.cpp-local copy is no longer needed. */
 
 //
 // Instruction traps(TRAP, TRAPV, CHK, DIVS, DIVU):

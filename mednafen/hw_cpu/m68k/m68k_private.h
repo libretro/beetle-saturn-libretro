@@ -122,7 +122,7 @@ INLINE uint32_t M68K::Pull_u32(void)
 //
 // Careful on declaration order of HAM objects(needs to be source then dest).
 //
-template<typename T, M68K::AddressMode am>
+template<typename T, AddressMode am>
 struct M68K::HAM
 {
  INLINE HAM(M68K* z) : zptr(z), reg(0), have_ea(false)
@@ -531,7 +531,7 @@ INLINE bool M68K::GetSVisor(void)
 //
 // ADD
 //
-template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::ADD(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 {
  static_assert(DAM == ADDR_REG_DIR || std::is_same<T, DT>::value, "Type mismatch");
@@ -569,7 +569,7 @@ INLINE void M68K::ADD(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 //
 // ADDX
 //
-template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 {
  uint32_t const src_data = src.read();
@@ -609,7 +609,7 @@ INLINE void M68K::ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 //      Z-only-clears form) and CalcZN<DT, false> (the
 //      full-Z form).
 //
-template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
 INLINE DT M68K::Subtract(bool X_form, HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 {
  static_assert(DAM == ADDR_REG_DIR || std::is_same<T, DT>::value, "Type mismatch");
@@ -665,7 +665,7 @@ INLINE DT M68K::Subtract(bool X_form, HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 //
 // SUB
 //
-template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::SUB(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 {
  dst.write(Subtract(false, src, dst));
@@ -675,7 +675,7 @@ INLINE void M68K::SUB(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 //
 // SUBX
 //
-template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::SUBX(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 {
  dst.write(Subtract(true, src, dst));
@@ -685,7 +685,7 @@ INLINE void M68K::SUBX(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 //
 // NEG
 //
-template<typename DT, M68K::AddressMode DAM>
+template<typename DT, AddressMode DAM>
 INLINE void M68K::NEG(HAM<DT, DAM> &dst)
 {
  HAM<DT, IMMEDIATE> dummy_zero(this, 0);
@@ -697,7 +697,7 @@ INLINE void M68K::NEG(HAM<DT, DAM> &dst)
 //
 // NEGX
 //
-template<typename DT, M68K::AddressMode DAM>
+template<typename DT, AddressMode DAM>
 INLINE void M68K::NEGX(HAM<DT, DAM> &dst)
 {
  HAM<DT, IMMEDIATE> dummy_zero(this, 0);
@@ -709,7 +709,7 @@ INLINE void M68K::NEGX(HAM<DT, DAM> &dst)
 //
 // CMP
 //
-template<typename T, typename DT, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 {
  static_assert(DAM == ADDR_REG_DIR || std::is_same<T, DT>::value, "Type mismatch");
@@ -729,7 +729,7 @@ INLINE void M68K::CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 // CHK
 //
 // Exception on dst < 0 || dst > src
-template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 {
  uint32_t const src_data = src.read();
@@ -762,7 +762,7 @@ INLINE void M68K::CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 //
 // OR
 //
-template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::OR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 {
  T const src_data = src.read();
@@ -788,7 +788,7 @@ INLINE void M68K::OR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 //
 // EOR
 //
-template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::EOR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 {
  T const src_data = src.read();
@@ -814,7 +814,7 @@ INLINE void M68K::EOR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 //
 // AND
 //
-template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::AND(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 {
  T const src_data = src.read();
@@ -942,7 +942,7 @@ INLINE void M68K::EORI_SR(void)
 //
 // MULU
 //
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::MULU(HAM<T, SAM> &src, const unsigned dr)
 {
  // Doesn't affect X flag
@@ -967,7 +967,7 @@ INLINE void M68K::MULU(HAM<T, SAM> &src, const unsigned dr)
 //
 // MULS
 //
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::MULS(HAM<T, SAM> &src, const unsigned dr)
 {
  // Doesn't affect X flag
@@ -1112,7 +1112,7 @@ INLINE void M68K::Divide_s(uint16_t divisor, const unsigned dr)
 //
 // DIVU
 //
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::DIVU(HAM<T, SAM> &src, const unsigned dr)
 {
  static_assert(sizeof(T) == 2, "Wrong type.");
@@ -1126,7 +1126,7 @@ INLINE void M68K::DIVU(HAM<T, SAM> &src, const unsigned dr)
 //
 // DIVS
 //
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::DIVS(HAM<T, SAM> &src, const unsigned dr)
 {
  // Doesn't affect X flag
@@ -1141,7 +1141,7 @@ INLINE void M68K::DIVS(HAM<T, SAM> &src, const unsigned dr)
 //
 // ABCD
 //
-template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::ABCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)	// ...XYZ, now I know my ABCs~
 {
  static_assert(sizeof(T) == 1, "Wrong size.");
@@ -1214,7 +1214,7 @@ INLINE uint8_t M68K::DecimalSubtractX(const uint8_t src_data, const uint8_t dst_
 //
 // SBCD
 //
-template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::SBCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 {
  static_assert(sizeof(T) == 1, "Wrong size.");
@@ -1233,7 +1233,7 @@ INLINE void M68K::SBCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 //
 // NBCD
 //
-template<typename T, M68K::AddressMode DAM>
+template<typename T, AddressMode DAM>
 INLINE void M68K::NBCD(HAM<T, DAM> &dst)
 {
  static_assert(sizeof(T) == 1, "Wrong size.");
@@ -1320,7 +1320,7 @@ INLINE void M68K::MOVEP_l_mem_to_reg(const unsigned ar, const unsigned dr)
 }
 
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::BTST(HAM<T, TAM> &targ, unsigned wb)
 {
  T const src_data = targ.read();
@@ -1329,7 +1329,7 @@ INLINE void M68K::BTST(HAM<T, TAM> &targ, unsigned wb)
  Flag_Z = (((src_data >> wb) & 1) == 0);
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::BCHG(HAM<T, TAM> &targ, unsigned wb)
 {
  T const src_data = targ.read();
@@ -1340,7 +1340,7 @@ INLINE void M68K::BCHG(HAM<T, TAM> &targ, unsigned wb)
  targ.write(src_data ^ (1U << wb));
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::BCLR(HAM<T, TAM> &targ, unsigned wb)
 {
  T const src_data = targ.read();
@@ -1351,7 +1351,7 @@ INLINE void M68K::BCLR(HAM<T, TAM> &targ, unsigned wb)
  targ.write(src_data & ~(1U << wb));
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::BSET(HAM<T, TAM> &targ, unsigned wb)
 {
  T const src_data = targ.read();
@@ -1367,7 +1367,7 @@ INLINE void M68K::BSET(HAM<T, TAM> &targ, unsigned wb)
 //
 // MOVE
 //
-template<typename T, M68K::AddressMode SAM, M68K::AddressMode DAM>
+template<typename T, AddressMode SAM, AddressMode DAM>
 INLINE void M68K::MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 {
  T const tmp = src.read();
@@ -1382,7 +1382,7 @@ INLINE void M68K::MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst)
  dst.write(tmp);
 }
 
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::MOVEA(HAM<T, SAM> &src, const unsigned ar)
 {
  uint32_t const src_data = static_cast<typename std::make_signed<T>::type>(src.read());
@@ -1403,7 +1403,7 @@ INLINE void M68K::MOVEA(HAM<T, SAM> &src, const unsigned ar)
 // need to be compile-time).  T stays a template parameter so
 // the sizeof(T) ladder folds.
 //
-template<typename T, M68K::AddressMode DAM>
+template<typename T, AddressMode DAM>
 INLINE void M68K::MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T, DAM> &dst)
 {
  static_assert(DAM != ADDR_REG_INDIR_PRE && DAM != ADDR_REG_INDIR_POST, "Wrong address mode.");
@@ -1446,7 +1446,7 @@ INLINE void M68K::MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T
 //
 // Phase-8e: `bool pseudo_postinc` moved to runtime first-arg.
 //
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uint16_t reglist)
 {
  static_assert(SAM != ADDR_REG_INDIR_PRE && SAM != ADDR_REG_INDIR_POST, "Wrong address mode.");
@@ -1488,7 +1488,7 @@ INLINE void M68K::MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uin
 // m68k_split0 TU which holds the bulk of the shift/rotate
 // dispatch).
 //
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count)
 {
  T vchange = 0;
@@ -1548,25 +1548,25 @@ INLINE void M68K::ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, 
  targ.write(result);
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::ASL(HAM<T, TAM> &targ, unsigned count)
 {
  ShiftBase(true, true, targ, count);
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::ASR(HAM<T, TAM> &targ, unsigned count)
 {
  ShiftBase(true, false, targ, count);
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::LSL(HAM<T, TAM> &targ, unsigned count)
 {
  ShiftBase(false, true, targ, count);
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::LSR(HAM<T, TAM> &targ, unsigned count)
 {
  ShiftBase(false, false, targ, count);
@@ -1576,7 +1576,7 @@ INLINE void M68K::LSR(HAM<T, TAM> &targ, unsigned count)
 // Phase-8e: RotateBase's `bool X_Form, bool ShiftLeft` template
 // parameters moved to runtime first-args.  Same shape as ShiftBase.
 //
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::RotateBase(bool X_Form, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count)
 {
  T result = targ.read();
@@ -1628,25 +1628,25 @@ INLINE void M68K::RotateBase(bool X_Form, bool ShiftLeft, HAM<T, TAM> &targ, uns
  targ.write(result);
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::ROL(HAM<T, TAM> &targ, unsigned count)
 {
  RotateBase(false, true, targ, count);
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::ROR(HAM<T, TAM> &targ, unsigned count)
 {
  RotateBase(false, false, targ, count);
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::ROXL(HAM<T, TAM> &targ, unsigned count)
 {
  RotateBase(true, true, targ, count);
 }
 
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::ROXR(HAM<T, TAM> &targ, unsigned count)
 {
  RotateBase(true, false, targ, count);
@@ -1662,7 +1662,7 @@ MDFN_FASTCALL uint8_t TAS_Callback(M68K* zptr, uint8_t data);
 //
 //
 
-template<typename T, M68K::AddressMode DAM>
+template<typename T, AddressMode DAM>
 INLINE void M68K::TAS(HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint8_t>::value, "Wrong type");
@@ -1673,7 +1673,7 @@ INLINE void M68K::TAS(HAM<T, DAM> &dst)
 //
 // TST
 //
-template<typename T, M68K::AddressMode DAM>
+template<typename T, AddressMode DAM>
 INLINE void M68K::TST(HAM<T, DAM> &dst)
 {
  T const dst_data = dst.read();
@@ -1688,7 +1688,7 @@ INLINE void M68K::TST(HAM<T, DAM> &dst)
 //
 // CLR
 //
-template<typename T, M68K::AddressMode DAM>
+template<typename T, AddressMode DAM>
 INLINE void M68K::CLR(HAM<T, DAM> &dst)
 {
  dst.read();
@@ -1708,7 +1708,7 @@ INLINE void M68K::CLR(HAM<T, DAM> &dst)
 //
 // NOT
 //
-template<typename T, M68K::AddressMode DAM>
+template<typename T, AddressMode DAM>
 INLINE void M68K::NOT(HAM<T, DAM> &dst)
 {
  T result = dst.read();
@@ -1729,7 +1729,7 @@ INLINE void M68K::NOT(HAM<T, DAM> &dst)
 //
 // EXT
 //
-template<typename T, M68K::AddressMode DAM>
+template<typename T, AddressMode DAM>
 INLINE void M68K::EXT(HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint16_t>::value || std::is_same<T, uint32_t>::value, "Wrong type");
@@ -1895,7 +1895,7 @@ INLINE void M68K::DBcc(unsigned cc, const unsigned dr)
 //
 // Scc
 //
-template<typename T, M68K::AddressMode DAM>
+template<typename T, AddressMode DAM>
 INLINE void M68K::Scc(unsigned cc, HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint8_t>::value, "Wrong type");
@@ -1912,7 +1912,7 @@ INLINE void M68K::Scc(unsigned cc, HAM<T, DAM> &dst)
 //
 // JSR
 //
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::JSR(HAM<T, TAM> &targ)
 {
  Push_u32(PC);
@@ -1923,7 +1923,7 @@ INLINE void M68K::JSR(HAM<T, TAM> &targ)
 //
 // JMP
 //
-template<typename T, M68K::AddressMode TAM>
+template<typename T, AddressMode TAM>
 INLINE void M68K::JMP(HAM<T, TAM> &targ)
 {
  targ.jump();
@@ -1933,7 +1933,7 @@ INLINE void M68K::JMP(HAM<T, TAM> &targ)
 //
 // MOVE from SR
 //
-template <typename T, M68K::AddressMode DAM>
+template <typename T, AddressMode DAM>
 INLINE void M68K::MOVE_from_SR(HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint16_t>::value, "Wrong type");
@@ -1950,7 +1950,7 @@ INLINE void M68K::MOVE_from_SR(HAM<T, DAM> &dst)
 //
 // MOVE to CCR
 //
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::MOVE_to_CCR(HAM<T, SAM> &src)
 {
  static_assert(std::is_same<T, uint16_t>::value, "Wrong type");
@@ -1963,7 +1963,7 @@ INLINE void M68K::MOVE_to_CCR(HAM<T, SAM> &src)
 //
 // MOVE to SR
 //
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::MOVE_to_SR(HAM<T, SAM> &src)
 {
  static_assert(std::is_same<T, uint16_t>::value, "Wrong type");
@@ -1989,7 +1989,7 @@ INLINE void M68K::MOVE_USP(bool direction, const unsigned ar)
 //
 // LEA
 //
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::LEA(HAM<T, SAM> &src, const unsigned ar)
 {
  const uint32_t ea = src.getea();
@@ -2001,7 +2001,7 @@ INLINE void M68K::LEA(HAM<T, SAM> &src, const unsigned ar)
 //
 // PEA
 //
-template<typename T, M68K::AddressMode SAM>
+template<typename T, AddressMode SAM>
 INLINE void M68K::PEA(HAM<T, SAM> &src)
 {
  const uint32_t ea = src.getea();
