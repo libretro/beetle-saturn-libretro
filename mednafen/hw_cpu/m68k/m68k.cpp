@@ -112,11 +112,108 @@ void     M68K_SetExtHalted       (M68K* z, bool state)
 }
 void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
                                   const bool data_only, const char* sname)
- { z->StateAction(sm, load, data_only, sname); }
+{
+ /* Field-name strings below intentionally use the pre-Phase-9d
+  * spelling (no `z->` prefix): they are persisted into savestate
+  * files, so they must match the strings the member-function
+  * StateAction implicitly produced via SFVAR(X) -> SFVARN((X), #X). */
+ SFORMAT StateRegs[] =
+ {
+  SFPTR32N(&(z->DA)[0], (sizeof(z->DA) / sizeof(uint32_t)), "DA"),
+  SFVARN(z->PC,          "PC"),
+  SFVARN(z->SRHB,        "SRHB"),
+  SFVARN(z->IPL,         "IPL"),
+
+  SFVARN(z->Flag_Z,      "Flag_Z"),
+  SFVARN(z->Flag_N,      "Flag_N"),
+  SFVARN(z->Flag_X,      "Flag_X"),
+  SFVARN(z->Flag_C,      "Flag_C"),
+  SFVARN(z->Flag_V,      "Flag_V"),
+
+  SFVARN(z->SP_Inactive, "SP_Inactive"),
+
+  SFVARN(z->XPending,    "XPending"),
+
+  SFEND
+ };
+
+ MDFNSS_StateAction(sm, load, data_only, StateRegs, sname, false);
+
+ if(load)
+  z->XPending &= M68K::XPENDING_MASK__VALID;
+}
 uint32_t M68K_GetRegister        (M68K* z, const unsigned id, char* const special, const uint32_t special_len)
- { return z->GetRegister(id, special, special_len); }
+{
+ (void)special; (void)special_len; /* reserved-for-future-use, unused today */
+ switch(id)
+ {
+  default:
+	return 0xDEADBEEF;
+
+  case M68K::GSREG_D0: case M68K::GSREG_D1: case M68K::GSREG_D2: case M68K::GSREG_D3:
+  case M68K::GSREG_D4: case M68K::GSREG_D5: case M68K::GSREG_D6: case M68K::GSREG_D7:
+	return z->D[id - M68K::GSREG_D0];
+
+  case M68K::GSREG_A0: case M68K::GSREG_A1: case M68K::GSREG_A2: case M68K::GSREG_A3:
+  case M68K::GSREG_A4: case M68K::GSREG_A5: case M68K::GSREG_A6: case M68K::GSREG_A7:
+	return z->A[id - M68K::GSREG_A0];
+
+  case M68K::GSREG_PC:
+	return z->PC;
+
+  case M68K::GSREG_SR:
+	return z->GetSR();
+
+  case M68K::GSREG_SSP:
+	if(z->GetSVisor())
+	 return z->A[7];
+	else
+	 return z->SP_Inactive;
+
+  case M68K::GSREG_USP:
+	if(!z->GetSVisor())
+	 return z->A[7];
+	else
+	 return z->SP_Inactive;
+ }
+}
 void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value)
- { z->SetRegister(id, value); }
+{
+ switch(id)
+ {
+  case M68K::GSREG_D0: case M68K::GSREG_D1: case M68K::GSREG_D2: case M68K::GSREG_D3:
+  case M68K::GSREG_D4: case M68K::GSREG_D5: case M68K::GSREG_D6: case M68K::GSREG_D7:
+	z->D[id - M68K::GSREG_D0] = value;
+	break;
+
+  case M68K::GSREG_A0: case M68K::GSREG_A1: case M68K::GSREG_A2: case M68K::GSREG_A3:
+  case M68K::GSREG_A4: case M68K::GSREG_A5: case M68K::GSREG_A6: case M68K::GSREG_A7:
+	z->A[id - M68K::GSREG_A0] = value;
+	break;
+
+  case M68K::GSREG_PC:
+	z->PC = value;
+	break;
+
+  case M68K::GSREG_SR:
+	z->SetSR(value);
+	break;
+
+  case M68K::GSREG_SSP:
+	if(z->GetSVisor())
+	 z->A[7] = value;
+	else
+	 z->SP_Inactive = value;
+	break;
+
+  case M68K::GSREG_USP:
+	if(!z->GetSVisor())
+	 z->A[7] = value;
+	else
+	 z->SP_Inactive = value;
+	break;
+ }
+}
 
 } /* extern "C" */
 
@@ -130,33 +227,11 @@ void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t val
  * data struct now -- no class methods need calling at end-of-
  * scope, no class methods need calling at construction. */
 
-void M68K::StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
-{
- SFORMAT StateRegs[] =
- {
-  SFPTR32N(&(DA)[0], (sizeof(DA) / sizeof(uint32_t)), "DA"),
-  SFVAR(PC),
-  SFVAR(SRHB),
-  SFVAR(IPL),
-
-  SFVAR(Flag_Z),
-  SFVAR(Flag_N),
-  SFVAR(Flag_X),
-  SFVAR(Flag_C),
-  SFVAR(Flag_V),
-
-  SFVAR(SP_Inactive),
-
-  SFVAR(XPending),
-
-  SFEND
- };
-
- MDFNSS_StateAction(sm, load, data_only, StateRegs, sname, false);
-
- if(load)
-  XPending &= XPENDING_MASK__VALID;
-}
+/* Phase-9d-3: M68K::StateAction, M68K::GetRegister, M68K::SetRegister
+ * retired -- bodies live in their M68K_* extern "C" wrappers above.
+ * Same incremental-fold pattern as Phase-9d-1 (SetIPL/SetExtHalted).
+ * Class declarations dropped from m68k.h's `#ifdef __cplusplus`
+ * gated region 1. */
 
 //
 //
@@ -365,77 +440,7 @@ void M68K::Reset(bool powering_up)
 
 
 //
+// Phase-9d-3: M68K::GetRegister / M68K::SetRegister bodies retired -- both
+// now live in the M68K_GetRegister / M68K_SetRegister extern "C" wrappers
+// at the top of this file.  See the matching note further up.
 //
-//
-uint32_t M68K::GetRegister(unsigned which, char* special, const uint32_t special_len)
-{
- switch(which)
- {
-  default:
-	return 0xDEADBEEF;
-
-  case GSREG_D0: case GSREG_D1: case GSREG_D2: case GSREG_D3:
-  case GSREG_D4: case GSREG_D5: case GSREG_D6: case GSREG_D7:
-	return D[which - GSREG_D0];
-
-  case GSREG_A0: case GSREG_A1: case GSREG_A2: case GSREG_A3:
-  case GSREG_A4: case GSREG_A5: case GSREG_A6: case GSREG_A7:
-	return A[which - GSREG_A0];
-
-  case GSREG_PC:
-	return PC;
-
-  case GSREG_SR:
-	return GetSR();
-
-  case GSREG_SSP:
-	if(GetSVisor())
-	 return A[7];
-	else
-	 return SP_Inactive;
-
-  case GSREG_USP:
-	if(!GetSVisor())
-	 return A[7];
-	else
-	 return SP_Inactive;
- }
-}
-
-void M68K::SetRegister(unsigned which, uint32_t value)
-{
- switch(which)
- {
-  case GSREG_D0: case GSREG_D1: case GSREG_D2: case GSREG_D3:
-  case GSREG_D4: case GSREG_D5: case GSREG_D6: case GSREG_D7:
-	D[which - GSREG_D0] = value;
-	break;
-
-  case GSREG_A0: case GSREG_A1: case GSREG_A2: case GSREG_A3:
-  case GSREG_A4: case GSREG_A5: case GSREG_A6: case GSREG_A7:
-	A[which - GSREG_A0] = value;
-	break;
-
-  case GSREG_PC:
-	PC = value;
-	break;
-
-  case GSREG_SR:
-	SetSR(value);
-	break;
-
-  case GSREG_SSP:
-	if(GetSVisor())
-	 A[7] = value;
-	else
-	 SP_Inactive = value;
-	break;
-
-  case GSREG_USP:
-	if(!GetSVisor())
-	 A[7] = value;
-	else
-	 SP_Inactive = value;
-	break;
- }
-}

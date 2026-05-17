@@ -94,7 +94,11 @@ struct M68K
   XPending |= XPENDING_MASK_ADDRESS;
  }
 
- void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname);
+ /* Phase-9d-3: StateAction retired -- body moved to the
+  * M68K_StateAction extern "C" wrapper in m68k.cpp (parallel to
+  * Phase-9d-1's SetIPL/SetExtHalted treatment).  Field-name strings
+  * in the savestate SFORMAT array intentionally keep their pre-9d
+  * spellings so on-disk savestate compat is preserved. */
 
 #endif /* __cplusplus */
 
@@ -591,10 +595,10 @@ struct M68K
   GSREG_USP
  };
 
-#ifdef __cplusplus
- uint32_t GetRegister(unsigned which, char* special = nullptr, const uint32_t special_len = 0);
- void SetRegister(unsigned which, uint32_t value);
-#endif /* __cplusplus */
+ /* Phase-9d-3: GetRegister / SetRegister retired -- bodies moved to
+  * the M68K_GetRegister / M68K_SetRegister extern "C" wrappers in
+  * m68k.cpp.  The whole `#ifdef __cplusplus` sub-block here used to
+  * hold those two declarations alone; it's gone now. */
 };
 
 /* M68K_* free-function API exposed to consumers of m68k.h.
