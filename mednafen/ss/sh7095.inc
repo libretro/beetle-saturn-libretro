@@ -5237,7 +5237,30 @@ do {                                                    \
 #define opexec_exnum z->Resume_exnum
 #define opexec_vecnum z->Resume_vecnum
 #define CONST_VAR(T, n) T n; n
-#define RESUME_VAR(T, n) static_assert(std::is_same<T,decltype(n)>::value, "Resume variable type mismatch.")
+/* RESUME_VAR(T, n) -- compile-time check that the declared type T
+ * matches the actual type of `n` (which is z->Resume_<something>
+ * once the opexec_* macros have expanded).  Two language paths:
+ *
+ *   C++  -- std::is_same<T, decltype(n)>::value
+ *           (decltype is C++11, std::is_same lives in <type_traits>
+ *           which mednafen-types.h already pulls in for C++ TUs).
+ *
+ *   C    -- __builtin_types_compatible_p(T, __typeof__(n))
+ *           (both are GCC extensions, available since gcc 2.x, also
+ *           accepted by clang -- no C11 / C23 dependency).
+ *
+ * The condition expression is wrapped in an extra set of parens so
+ * the comma inside `std::is_same<T, decltype(n)>` / inside
+ * `__builtin_types_compatible_p(T, __typeof__(n))` is not seen by
+ * the preprocessor as a MDFN_STATIC_ASSERT argument separator.
+ * Either branch funnels through MDFN_STATIC_ASSERT, so the actual
+ * static_assert / _Static_assert / negative-array fallback choice
+ * is the macro's problem, not ours. */
+#ifdef __cplusplus
+ #define RESUME_VAR(T, n) MDFN_STATIC_ASSERT((std::is_same<T, decltype(n)>::value), "Resume variable type mismatch.")
+#else
+ #define RESUME_VAR(T, n) MDFN_STATIC_ASSERT((__builtin_types_compatible_p(T, __typeof__(n))), "Resume variable type mismatch.")
+#endif
 #define SH7095_NEED_RESUME_TABLE_INIT 1
 
 #define SH7095_DEBUG_MODE 0
