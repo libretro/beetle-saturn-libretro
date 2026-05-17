@@ -44,8 +44,13 @@ class SS_SCSP
   * member, and leaves no behaviour change. */
  void RunSample(int16_t* outlr);
 
- template<typename T, bool IsWrite>
- void RW(uint32_t A, T& V); //, void (*time_sucker)();
+ /* Phase-8r1: 4 named member methods replace
+  *   template<T, IsWrite> void RW(uint32_t, T&);
+  * Source-folded per (T, IsWrite) tuple. */
+ void RW_u8_W0 (uint32_t A, uint8_t&  DBV);
+ void RW_u16_W0(uint32_t A, uint16_t& DBV);
+ void RW_u8_W1 (uint32_t A, uint8_t&  DBV);
+ void RW_u16_W1(uint32_t A, uint16_t& DBV);
 
  /* Phase-6b: non-template entry points for the four <T,IsWrite>
   * instantiations sound.cpp uses.  They forward to the template;
@@ -56,10 +61,10 @@ class SS_SCSP
   * the four wrappers exposed in sound_glue.cpp can call these
   * by their non-template names without needing to know the
   * template syntax. */
- FORCE_INLINE uint8_t  RW_R8 (uint32_t A) { uint8_t  v; RW<uint8_t,  false>(A, v); return v; }
- FORCE_INLINE uint16_t RW_R16(uint32_t A) { uint16_t v; RW<uint16_t, false>(A, v); return v; }
- FORCE_INLINE void     RW_W8 (uint32_t A, uint8_t  v) { RW<uint8_t,  true >(A, v); }
- FORCE_INLINE void     RW_W16(uint32_t A, uint16_t v) { RW<uint16_t, true >(A, v); }
+ FORCE_INLINE uint8_t  RW_R8 (uint32_t A) { uint8_t  v; RW_u8_W0 (A, v); return v; }
+ FORCE_INLINE uint16_t RW_R16(uint32_t A) { uint16_t v; RW_u16_W0(A, v); return v; }
+ FORCE_INLINE void     RW_W8 (uint32_t A, uint8_t  v) { RW_u8_W1 (A, v); }
+ FORCE_INLINE void     RW_W16(uint32_t A, uint16_t v) { RW_u16_W1(A, v); }
 
  // Caller must ensure appropriate timing.
  INLINE void WriteMIDI(uint8_t V)
