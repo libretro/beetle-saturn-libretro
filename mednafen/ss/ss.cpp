@@ -21,9 +21,14 @@
 
 // WARNING: Be careful with 32-bit access to 16-bit space, bus locking, etc. in respect to DMA and event updates(and where they can occur).
 
-#include "../mednafen.h"
 #include "../mempatcher.h"
-#include "../git.h"
+/* Phase-9 step 6: mednafen.h / git.h dropped to avoid pulling
+ * <algorithm>, <string>, <vector>, <map> into a TU whose body is
+ * already pure C in everything except the #include surface.  The
+ * MDFNGI typedef ss.cpp needs for `extern MDFNGI EmulatedSS;` lives
+ * in mdfn_gameinfo.h which is C-clean (factored out of git.h
+ * specifically so C TUs can include it). */
+#include "../mdfn_gameinfo.h"
 #include "../general.h"
 #include "../cdrom/cdromif.h"
 #include "../cdstream.h"
