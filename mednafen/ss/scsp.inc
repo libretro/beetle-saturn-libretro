@@ -2852,10 +2852,16 @@ void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bo
 
  if(load)
  {
-  for(auto& s : z->Slots)
+  /* Range-based `for(auto& s : z->Slots)` retired for C-compat
+   * (will be needed once sound_glue.cpp -> .c).  Same iteration. */
   {
-   s.EnvLevel &= 0x3FF;
-   s.EnvPhase &= 0x3;
+   unsigned i;
+   for(i = 0; i < 32; i++)
+   {
+    SS_SCSP_Slot* s = &z->Slots[i];
+    s->EnvLevel &= 0x3FF;
+    s->EnvPhase &= 0x3;
+   }
   }
 
   z->SlotMonitorWhich &= 0x1F;
