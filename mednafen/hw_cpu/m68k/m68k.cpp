@@ -57,20 +57,19 @@
 
 static MDFN_FASTCALL void Dummy_BusRESET(bool state) { }
 
-/* Phase-9 prep for sound_glue.cpp -> sound_glue.c: free-function
- * counterpart to the M68K::M68K(rev_e) constructor.  Body matches
- * what the constructor did via member-initializer list + body:
- * stash Revision_E, null the 7 bus-callback slots, install
- * Dummy_BusRESET as the BusRESET default, zero the runtime state
- * scalars, then power-on Reset.
+/* All M68K_* free-function wrappers exposed by m68k.h live in this
+ * `extern "C" { ... }` block so the symbol names are C-mangled
+ * (i.e. unmangled).  Required because m68k.h's declarations are
+ * also wrapped in `extern "C"` for C-consumer compatibility --
+ * the definition and declaration linkage must match or the linker
+ * gets two different mangled symbols and fails to resolve.
  *
- * Once sound_glue.cpp becomes sound_glue.c (no C++ constructor
- * call syntax there), it will switch to `static M68K SoundCPU
- * = {0};` + `M68K_Construct(&SoundCPU, true);`.  The C++ ctor
- * stays around in this commit for callers that still use it
- * (currently sound_glue.cpp's `static M68K SoundCPU(true);` at
- * line 45 -- that's the sole consumer; once it migrates, the
- * ctor + dtor pair becomes retire-able). */
+ * The bodies are pure thunks: each forwards to the matching
+ * struct M68K member method.  Bodies are in this TU (m68k.cpp)
+ * because they reach Dummy_BusRESET / member methods / sources
+ * not exposed in the public header. */
+extern "C" {
+
 void M68K_Construct(M68K* z, bool rev_e)
 {
    z->Revision_E   = rev_e;
@@ -90,6 +89,22 @@ void M68K_Construct(M68K* z, bool rev_e)
 
    z->Reset(true);
 }
+
+void     M68K_SetIPL             (M68K* z, uint8_t ipl_new)             { z->SetIPL(ipl_new); }
+void     M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)               { z->SignalDTACKHalted(addr); }
+void     M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type) { z->SignalAddressError(addr, type); }
+void     M68K_Reset              (M68K* z, bool pwr)                    { z->Reset(pwr); }
+void     M68K_Run                (M68K* z, int32_t until)               { z->Run(until); }
+void     M68K_SetExtHalted       (M68K* z, bool state)                  { z->SetExtHalted(state); }
+void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
+                                  const bool data_only, const char* sname)
+ { z->StateAction(sm, load, data_only, sname); }
+uint32_t M68K_GetRegister        (M68K* z, const unsigned id, char* const special, const uint32_t special_len)
+ { return z->GetRegister(id, special, special_len); }
+void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value)
+ { z->SetRegister(id, value); }
+
+} /* extern "C" */
 
 M68K::M68K(const bool rev_e) : Revision_E(rev_e),
 	       BusReadInstr(nullptr), BusRead8(nullptr), BusRead16(nullptr),

@@ -563,36 +563,49 @@ struct M68K
  void SetRegister(unsigned which, uint32_t value);
 };
 
-/* Phase-9 step 3: free-function wrappers around M68K members used by
- * sound_glue.cpp.  Pure inline forwarders; codegen folds to direct
- * member access under -O2.  Member function bodies remain in
- * m68k_private.h / m68k.cpp for now and will be converted to true
- * free functions in a later phase (gated on retirement of the
- * HAM cascade). */
-static FORCE_INLINE void M68K_SetIPL             (M68K* z, uint8_t ipl_new)             { z->SetIPL(ipl_new); }
-static FORCE_INLINE void M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)                { z->SignalDTACKHalted(addr); }
-static FORCE_INLINE void M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type)  { z->SignalAddressError(addr, type); }
+/* M68K_* free-function API exposed to consumers of m68k.h.
+ *
+ * All declarations live inside an `extern "C" { ... }` block (gated
+ * by __cplusplus so plain C consumers can include this header
+ * directly) -- the matching definitions in m68k.cpp also use
+ * `extern "C"` linkage.  This makes the wrappers callable from
+ * both C++ and C TUs, with one well-defined ABI symbol per name.
+ *
+ * Trade-off vs the previous `static FORCE_INLINE` header-side
+ * definitions:  we lose call-site inlining of the thunk body
+ * (each wrapper became a real function call to a 1-2 instruction
+ * out-of-line body in m68k.cpp), but gain a C-callable surface
+ * that sound_glue.cpp -> sound_glue.c needs.  None of these
+ * wrappers are on the M68K::Run inner loop -- they're called
+ * from external orchestration code (IRQ change, savestate,
+ * reset, scheduler step, debugger register read/write) -- so
+ * the per-call function-call overhead is negligible in profile
+ * terms.  Phase-9 step 3's original comment about codegen
+ * folding under -O2 stops applying here; cross-TU inlining is
+ * now LTO-dependent.
+ */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* M68K_Construct: free-function counterpart to the M68K(rev_e)
- * constructor.  Out-of-line in m68k.cpp because the body installs
- * the file-static `Dummy_BusRESET` default callback (not reachable
- * from this header) and invokes the multi-thousand-line Reset
- * path.  Once sound_glue.cpp becomes sound_glue.c the existing
- * `static M68K SoundCPU(true);` declaration will become a
- * zero-init followed by an explicit `M68K_Construct(&SoundCPU,
- * true)` call from SoundGlue_Init. */
-void M68K_Construct(M68K* z, bool rev_e) MDFN_COLD;
+void     M68K_Construct          (M68K* z, bool rev_e) MDFN_COLD;
 
-static FORCE_INLINE void M68K_Reset              (M68K* z, bool pwr)                     { z->Reset(pwr); }
-static FORCE_INLINE void M68K_Run                (M68K* z, int32_t until)                { z->Run(until); }
-static FORCE_INLINE void M68K_SetExtHalted       (M68K* z, bool state)                   { z->SetExtHalted(state); }
-static FORCE_INLINE void M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
-                                            const bool data_only, const char* sname)
- { z->StateAction(sm, load, data_only, sname); }
-static FORCE_INLINE uint32_t M68K_GetRegister    (M68K* z, const unsigned id, char* const special, const uint32_t special_len)
- { return z->GetRegister(id, special, special_len); }
-static FORCE_INLINE void M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value)
- { z->SetRegister(id, value); }
+void     M68K_SetIPL             (M68K* z, uint8_t ipl_new);
+void     M68K_SignalDTACKHalted  (M68K* z, uint32_t addr);
+void     M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type);
+
+void     M68K_Reset              (M68K* z, bool pwr) MDFN_COLD;
+void     M68K_Run                (M68K* z, int32_t until);
+void     M68K_SetExtHalted       (M68K* z, bool state);
+void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
+                                  const bool data_only, const char* sname);
+uint32_t M68K_GetRegister        (M68K* z, const unsigned id, char* const special,
+                                  const uint32_t special_len);
+void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 
 #endif
