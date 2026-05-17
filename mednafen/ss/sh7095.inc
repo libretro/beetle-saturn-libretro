@@ -3114,7 +3114,6 @@ static INLINE uint32_t SH7095_OnChipRegRead_INLINE_u32(SH7095* z, uint32_t A)
  else
  {
   const unsigned Am = (uint8_t)A;
-  const unsigned shift = ((((A & 1) ^ 1) << 3));
   uint16_t ret = 0;
 
   if(Am < 0x20)

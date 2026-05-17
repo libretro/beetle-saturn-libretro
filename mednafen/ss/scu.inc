@@ -435,10 +435,6 @@ void SCU_AdjustTS(const int32_t delta)
 /* === SCU_RegRW_DB variants (3 T x 2 IsWrite) === */
 static INLINE void SCU_RegRW_DB_u8_W0(uint32_t A, uint32_t* DB)
 {
- unsigned mask;
-
-  mask = 0xFF << (((A & 3) ^ 3) << 3); 
-
   switch(A & 0xFC)
   {
    default:
@@ -789,10 +785,6 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 
 static INLINE void SCU_RegRW_DB_u16_W0(uint32_t A, uint32_t* DB)
 {
- unsigned mask;
-
-  mask = 0xFFFF << (((A & 2) ^ 2) << 3); 
-
   switch(A & 0xFC)
   {
    default:
@@ -1143,10 +1135,6 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 
 static INLINE void SCU_RegRW_DB_u32_W0(uint32_t A, uint32_t* DB)
 {
- unsigned mask;
-
-  mask = 0xFFFFFFFF; 
-
   switch(A & 0xFC)
   {
    default:
@@ -2611,7 +2599,6 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
   if((A & 0x7FFF) < 0x1000)
   {
    const uint32_t offset = (A & 0x3F) >> 2;
-   const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
     if(true || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
      *DB = CDB_Read(offset);
@@ -2713,7 +2700,6 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
   if((A & 0x7FFF) < 0x1000)
   {
    const uint32_t offset = (A & 0x3F) >> 2;
-   const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
     if(false || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
      *DB = CDB_Read(offset);
