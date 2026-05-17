@@ -24,6 +24,15 @@
 
 #include "../../mednafen.h"
 
+/* M68K_BUS_INT_ACK_AUTO -- BusIntAck callback can return this to
+ * tell M68K to use automatic interrupt-acknowledge vectoring (auto-
+ * vector mode) instead of supplying an explicit vector number.
+ * File-scope so consumers can spell it without the `M68K::` class-
+ * scope qualifier (needed once sound_glue.cpp becomes sound_glue.c
+ * -- C has no class-scope qualifier syntax).  Value matches the
+ * former class-scoped `M68K::BUS_INT_ACK_AUTO` exactly. */
+enum { M68K_BUS_INT_ACK_AUTO = -1 };
+
 /* Phase-9c: class -> struct.  See Phase-9a comment in scsp.h
  * for rationale.  M68K already had `//private:` (commented out)
  * markers, so all members were de facto public; this commit
@@ -498,7 +507,6 @@ struct M68K
  //
  //
  // These externally-provided functions should add >= 4 to M68K::timestamp per call:
- enum { BUS_INT_ACK_AUTO = -1 };
 
  uint16_t (MDFN_FASTCALL *BusReadInstr)(uint32_t A);
  uint8_t (MDFN_FASTCALL *BusRead8)(uint32_t A);

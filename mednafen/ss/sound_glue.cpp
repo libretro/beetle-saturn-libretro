@@ -210,7 +210,7 @@ static MDFN_FASTCALL unsigned SoundCPU_BusIntAck(uint8_t level)
 {
  SoundCPU.timestamp += 10;
 
- return M68K::BUS_INT_ACK_AUTO;
+ return M68K_BUS_INT_ACK_AUTO;
 }
 
 static MDFN_FASTCALL void SoundCPU_BusRESET(bool state)
