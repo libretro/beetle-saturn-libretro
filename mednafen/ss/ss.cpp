@@ -221,7 +221,7 @@ int ActiveCartType;		// Used in save states.
  * via source-fold.  Only (u8/u16) x (W0/W1) tuples are
  * invoked by callers in sh7095.inc; no u32 CS0 access. */
 
-static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -254,7 +254,7 @@ static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t& DB, const bool
     * write width.  Compiler folds away the dead branches per
     * template instantiation. */
    const uint32_t boff_ = A & 0xFFFFF;
-   const uint8_t val_ = DB >> (((A & 1) ^ (2 - 1)) << 3);
+   const uint8_t val_ = *DB >> (((A & 1) ^ (2 - 1)) << 3);
    {
 #ifdef MSB_FIRST
     ((uint8_t*)WorkRAML)[boff_] = val_;
@@ -295,7 +295,7 @@ static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t& DB, const bool
 
   {
    if(false || (A & 1))
-    SMPC_Write(SH7095_mem_timestamp, SMPC_A, DB);
+    SMPC_Write(SH7095_mem_timestamp, SMPC_A, *DB);
   }
 
   return;
@@ -316,9 +316,9 @@ static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t& DB, const bool
    {
     uint8_t* const brp = &BackupRAM[(A >> 1) & 0x7FFF];
 
-    if(*brp != (uint8_t)DB)
+    if(*brp != (uint8_t)*DB)
     {
-     *brp = (uint8_t)DB;
+     *brp = (uint8_t)*DB;
      BackupRAM_Dirty = true;
     }
    }
@@ -363,7 +363,7 @@ static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t& DB, const bool
 
   {
    if(false || (A & 1))
-    STVIO_WriteIOGA(SH7095_mem_timestamp, IOGA_A, (uint8_t)DB);
+    STVIO_WriteIOGA(SH7095_mem_timestamp, IOGA_A, (uint8_t)*DB);
   }
 
   return;
@@ -378,7 +378,7 @@ static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t& DB, const bool
   *SH2DMAHax += 4;
 }
 
-static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -411,7 +411,7 @@ static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t& DB, const boo
     * write width.  Compiler folds away the dead branches per
     * template instantiation. */
    const uint32_t boff_ = A & 0xFFFFF;
-   const uint16_t val_ = DB >> (((A & 1) ^ (2 - 2)) << 3);
+   const uint16_t val_ = *DB >> (((A & 1) ^ (2 - 2)) << 3);
    WorkRAML[boff_ >> 1] = val_;
   }
 
@@ -446,7 +446,7 @@ static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t& DB, const boo
 
   {
    if(true || (A & 1))
-    SMPC_Write(SH7095_mem_timestamp, SMPC_A, DB);
+    SMPC_Write(SH7095_mem_timestamp, SMPC_A, *DB);
   }
 
   return;
@@ -467,9 +467,9 @@ static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t& DB, const boo
    {
     uint8_t* const brp = &BackupRAM[(A >> 1) & 0x7FFF];
 
-    if(*brp != (uint8_t)DB)
+    if(*brp != (uint8_t)*DB)
     {
-     *brp = (uint8_t)DB;
+     *brp = (uint8_t)*DB;
      BackupRAM_Dirty = true;
     }
    }
@@ -519,7 +519,7 @@ static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t& DB, const boo
 
   {
    if(true || (A & 1))
-    STVIO_WriteIOGA(SH7095_mem_timestamp, IOGA_A, (uint8_t)DB);
+    STVIO_WriteIOGA(SH7095_mem_timestamp, IOGA_A, (uint8_t)*DB);
   }
 
   return;
@@ -534,7 +534,7 @@ static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t& DB, const boo
   *SH2DMAHax += 4;
 }
 
-static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -557,7 +557,7 @@ static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t& DB, const bool
   //
   if(MDFN_UNLIKELY(A & 0x100000))
   {
-   DB = DB | 0xFFFF;
+   *DB = *DB | 0xFFFF;
 
    return;
   }
@@ -565,7 +565,7 @@ static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t& DB, const bool
   {
    /* ne16_rbo_be<uint16_t>(WorkRAML, byte_off): aligned u16 read
     * — host-endian-stored slot, direct index. */
-   DB = (DB & 0xFFFF0000) | WorkRAML[(A & 0xFFFFE) >> 1];
+   *DB = (*DB & 0xFFFF0000) | WorkRAML[(A & 0xFFFFE) >> 1];
   }
 
   return;
@@ -581,7 +581,7 @@ static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t& DB, const bool
   else
    *SH2DMAHax += 8;
 
-  DB = (DB & 0xFFFF0000) | BIOSROM[(A & 0x7FFFE) >> 1];
+  *DB = (*DB & 0xFFFF0000) | BIOSROM[(A & 0x7FFFE) >> 1];
 
   return;
  }
@@ -599,7 +599,7 @@ static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t& DB, const bool
    CheckEventsByMemTS();
   }
 
-  DB = (DB & 0xFFFF0000) | 0xFF00 | SMPC_Read(SH7095_mem_timestamp, SMPC_A);
+  *DB = (*DB & 0xFFFF0000) | 0xFF00 | SMPC_Read(SH7095_mem_timestamp, SMPC_A);
 
   return;
  }
@@ -614,7 +614,7 @@ static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t& DB, const bool
   else
    *SH2DMAHax += 8;
 
-  DB = (DB & 0xFFFF0000) | 0xFF00 | BackupRAM[(A >> 1) & 0x7FFF];
+  *DB = (*DB & 0xFFFF0000) | 0xFF00 | BackupRAM[(A >> 1) & 0x7FFF];
 
   return;
  }
@@ -650,7 +650,7 @@ static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t& DB, const bool
 
   const uint8_t IOGA_A = (A >> 1) & 0x3F;
 
-  DB = (DB & 0xFFFF0000) | 0xFF00 | STVIO_ReadIOGA(SH7095_mem_timestamp, IOGA_A);
+  *DB = (*DB & 0xFFFF0000) | 0xFF00 | STVIO_ReadIOGA(SH7095_mem_timestamp, IOGA_A);
 
   return;
  }
@@ -664,7 +664,7 @@ static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t& DB, const bool
   *SH2DMAHax += 4;
 }
 
-static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -687,7 +687,7 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t& DB, const boo
   //
   if(MDFN_UNLIKELY(A & 0x100000))
   {
-   DB = DB | 0xFFFF;
+   *DB = *DB | 0xFFFF;
 
    return;
   }
@@ -695,7 +695,7 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t& DB, const boo
   {
    /* ne16_rbo_be<uint16_t>(WorkRAML, byte_off): aligned u16 read
     * — host-endian-stored slot, direct index. */
-   DB = (DB & 0xFFFF0000) | WorkRAML[(A & 0xFFFFE) >> 1];
+   *DB = (*DB & 0xFFFF0000) | WorkRAML[(A & 0xFFFFE) >> 1];
   }
 
   return;
@@ -711,7 +711,7 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t& DB, const boo
   else
    *SH2DMAHax += 8;
 
-  DB = (DB & 0xFFFF0000) | BIOSROM[(A & 0x7FFFE) >> 1];
+  *DB = (*DB & 0xFFFF0000) | BIOSROM[(A & 0x7FFFE) >> 1];
 
   return;
  }
@@ -729,7 +729,7 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t& DB, const boo
    CheckEventsByMemTS();
   }
 
-  DB = (DB & 0xFFFF0000) | 0xFF00 | SMPC_Read(SH7095_mem_timestamp, SMPC_A);
+  *DB = (*DB & 0xFFFF0000) | 0xFF00 | SMPC_Read(SH7095_mem_timestamp, SMPC_A);
 
   return;
  }
@@ -744,7 +744,7 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t& DB, const boo
   else
    *SH2DMAHax += 8;
 
-  DB = (DB & 0xFFFF0000) | 0xFF00 | BackupRAM[(A >> 1) & 0x7FFF];
+  *DB = (*DB & 0xFFFF0000) | 0xFF00 | BackupRAM[(A >> 1) & 0x7FFF];
 
   return;
  }
@@ -780,7 +780,7 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t& DB, const boo
 
   const uint8_t IOGA_A = (A >> 1) & 0x3F;
 
-  DB = (DB & 0xFFFF0000) | 0xFF00 | STVIO_ReadIOGA(SH7095_mem_timestamp, IOGA_A);
+  *DB = (*DB & 0xFFFF0000) | 0xFF00 | STVIO_ReadIOGA(SH7095_mem_timestamp, IOGA_A);
 
   return;
  }
@@ -800,22 +800,22 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t& DB, const boo
  * ladder to SCU_FromSH2_BusRW_DB_* collapses to one
  * direct named call per variant. */
 
-static INLINE void BusRW_DB_CS12_u8_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u8_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
  // CS1 and CS2: SCU
  //
- DB = 0;
+ *DB = 0;
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * template instantiation. */
  {
-  SCU_FromSH2_BusRW_DB_u8_W0 (A, &DB, SH2DMAHax);
+  SCU_FromSH2_BusRW_DB_u8_W0 (A, DB, SH2DMAHax);
  }
 }
 
-static INLINE void BusRW_DB_CS12_u8_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u8_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -825,26 +825,26 @@ static INLINE void BusRW_DB_CS12_u8_W1(const uint32_t A, uint32_t& DB, const boo
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * template instantiation. */
  {
-  SCU_FromSH2_BusRW_DB_u8_W1 (A, &DB, SH2DMAHax);
+  SCU_FromSH2_BusRW_DB_u8_W1 (A, DB, SH2DMAHax);
  }
 }
 
-static INLINE void BusRW_DB_CS12_u16_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u16_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
  // CS1 and CS2: SCU
  //
- DB = 0;
+ *DB = 0;
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * template instantiation. */
  {
-  SCU_FromSH2_BusRW_DB_u16_W0(A, &DB, SH2DMAHax);
+  SCU_FromSH2_BusRW_DB_u16_W0(A, DB, SH2DMAHax);
  }
 }
 
-static INLINE void BusRW_DB_CS12_u16_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u16_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -854,26 +854,26 @@ static INLINE void BusRW_DB_CS12_u16_W1(const uint32_t A, uint32_t& DB, const bo
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * template instantiation. */
  {
-  SCU_FromSH2_BusRW_DB_u16_W1(A, &DB, SH2DMAHax);
+  SCU_FromSH2_BusRW_DB_u16_W1(A, DB, SH2DMAHax);
  }
 }
 
-static INLINE void BusRW_DB_CS12_u32_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u32_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
  // CS1 and CS2: SCU
  //
- DB = 0;
+ *DB = 0;
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * template instantiation. */
  {
-  SCU_FromSH2_BusRW_DB_u32_W0(A, &DB, SH2DMAHax);
+  SCU_FromSH2_BusRW_DB_u32_W0(A, DB, SH2DMAHax);
  }
 }
 
-static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -883,7 +883,7 @@ static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t& DB, const bo
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * template instantiation. */
  {
-  SCU_FromSH2_BusRW_DB_u32_W1(A, &DB, SH2DMAHax);
+  SCU_FromSH2_BusRW_DB_u32_W1(A, DB, SH2DMAHax);
  }
 }
 
@@ -891,7 +891,7 @@ static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t& DB, const bo
 /* Phase-8r2: BusRW_DB_CS3 retired into 6 named variants
  * via source-fold. */
 
-static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -900,17 +900,17 @@ static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t& DB, const bool
  //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
  //
  {
-  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, &DB) folded:
+  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, DB) folded:
    * aligned uint32_t BE bus read or write over uint16_t array.  Two
    * uint16_t halves: upper at index, lower at index+1.  Same on
    * BE and LE hosts (host-endian uint16s combined in MSB-first
    * order). */
   const uint32_t idx_ = (A & 0xFFFFC) >> 1;
-  DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
+  *DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
  }
 }
 
-static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -922,7 +922,7 @@ static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t& DB, const bool
   /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded.  T is uint8_t
    * or uint16_t here (uint32_t caught above). */
   const uint32_t boff_ = A & 0xFFFFF;
-  const uint8_t val_ = DB >> (((A & 3) ^ (4 - 1)) << 3);
+  const uint8_t val_ = *DB >> (((A & 3) ^ (4 - 1)) << 3);
   {
 #ifdef MSB_FIRST
    ((uint8_t*)WorkRAMH)[boff_] = val_;
@@ -933,7 +933,7 @@ static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t& DB, const bool
  }
 }
 
-static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -942,17 +942,17 @@ static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t& DB, const boo
  //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
  //
  {
-  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, &DB) folded:
+  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, DB) folded:
    * aligned uint32_t BE bus read or write over uint16_t array.  Two
    * uint16_t halves: upper at index, lower at index+1.  Same on
    * BE and LE hosts (host-endian uint16s combined in MSB-first
    * order). */
   const uint32_t idx_ = (A & 0xFFFFC) >> 1;
-  DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
+  *DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
  }
 }
 
-static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -964,12 +964,12 @@ static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t& DB, const boo
   /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded.  T is uint8_t
    * or uint16_t here (uint32_t caught above). */
   const uint32_t boff_ = A & 0xFFFFF;
-  const uint16_t val_ = DB >> (((A & 3) ^ (4 - 2)) << 3);
+  const uint16_t val_ = *DB >> (((A & 3) ^ (4 - 2)) << 3);
   WorkRAMH[boff_ >> 1] = val_;
  }
 }
 
-static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -978,17 +978,17 @@ static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t& DB, const boo
  //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
  //
  {
-  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, &DB) folded:
+  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, DB) folded:
    * aligned uint32_t BE bus read or write over uint16_t array.  Two
    * uint16_t halves: upper at index, lower at index+1.  Same on
    * BE and LE hosts (host-endian uint16s combined in MSB-first
    * order). */
   const uint32_t idx_ = (A & 0xFFFFC) >> 1;
-  DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
+  *DB = ((uint32_t)WorkRAMH[idx_] << 16) | WorkRAMH[idx_ + 1];
  }
 }
 
-static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t& DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
@@ -997,15 +997,15 @@ static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t& DB, const boo
  //  Timing is handled in BSC_BusWrite() and BSC_BusRead() in sh7095.inc
  //
  {
-  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, &DB) folded:
+  /* ne16_rwbo_be<uint32_t, IsWrite>(WorkRAMH, byte_off, DB) folded:
    * aligned uint32_t BE bus read or write over uint16_t array.  Two
    * uint16_t halves: upper at index, lower at index+1.  Same on
    * BE and LE hosts (host-endian uint16s combined in MSB-first
    * order). */
   const uint32_t idx_ = (A & 0xFFFFC) >> 1;
   {
-   WorkRAMH[idx_ + 0] = DB >> 16;
-   WorkRAMH[idx_ + 1] = DB;
+   WorkRAMH[idx_ + 0] = *DB >> 16;
+   WorkRAMH[idx_ + 1] = *DB;
   }
  }
 }
