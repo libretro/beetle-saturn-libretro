@@ -9,7 +9,7 @@
  if(z->ResumePoint)
  {
   const void* const tmp = z->ResumePoint;
-  z->ResumePoint = nullptr;
+  z->ResumePoint = NULL;
   goto *tmp;
  }
 

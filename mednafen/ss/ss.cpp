@@ -92,7 +92,17 @@ static uint8_t SCU_SSH2VectorFetch(void);
 /* CheckEventsByMemTS forward decl removed (phase 7c): canonical
  * decl in ss_init.h; definition lives in ss_init.c. */
 
-SH7095 CPU[2]{ {"SH2-M", SS_EVENT_SH2_M_DMA, SCU_MSH2VectorFetch}, {"SH2-S", SS_EVENT_SH2_S_DMA, SCU_SSH2VectorFetch}};
+SH7095 CPU[2];
+
+/* Phase-9 step 5: SH7095 ctor dropped; CPU[2] is now zero-initialized
+ * (static storage duration) and the once-only per-CPU init that the
+ * ctor used to do moves into SH7095_ConstructAll below.  Called from
+ * InitCommon() before either CPU is touched. */
+extern "C" MDFN_COLD void SH7095_ConstructAll(void)
+{
+ SH7095_Construct(&CPU[0], "SH2-M", SS_EVENT_SH2_M_DMA, SCU_MSH2VectorFetch);
+ SH7095_Construct(&CPU[1], "SH2-S", SS_EVENT_SH2_S_DMA, SCU_SSH2VectorFetch);
+}
 
 /* C-linkage proxies bridging the SH7095 class to C consumers.  Used
  * by smpc.c (the converted SMPC TU) to drive slave-CPU enable/disable
@@ -1018,7 +1028,7 @@ static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
 
   for(unsigned c = 0; c < 2; c++)
   {
-   if(CPU[c].CCR & SH7095::CCR_CE)
+   if(CPU[c].CCR & SH7095_CCR_CE)
    {
     for(uint32_t Abase = 0x00000000; Abase < 0x20000000; Abase += 0x08000000)
     {

@@ -27,21 +27,190 @@
 /* Phase-9b: class -> struct.  See Phase-9a comment in scsp.h
  * for rationale.  The `final` keyword is preserved (allowed on
  * struct in C++11); it will be dropped in the C migration. */
-struct SH7095 final
+/* Phase-9 step 5: SH7095-scoped enums + CacheEntry hoisted to file
+ * scope for C compatibility.  All enumerators carry the SH7095_
+ * prefix (avoids EXCEPTION_RESET collision with m68k.h). */
+
+ struct SH7095_CacheEntry
+ {
+  // Rather than have separate validity bits, we're putting an INvalidity bit(invalid when =1)
+  // in the lower bit of the Tag variables.
+  uint32_t Tag[4];
+  uint8_t Data[4][16];
+ };
+
+
+
+ enum // must be in range of 0 ... 7
+ {
+  SH7095_PEX_POWERON = 0,
+  SH7095_PEX_RESET   = 1,
+  SH7095_PEX_CPUADDR = 2,
+  SH7095_PEX_DMAADDR = 3,
+  SH7095_PEX_INT     = 4,
+  SH7095_PEX_NMI     = 5,
+  SH7095_PEX_PSEUDO_DMABURST = 6,
+  SH7095_PEX_PSEUDO_EXTHALT = 7
+ };
+
+ enum { SH7095_EPENDING_PEXBITS_SHIFT = 16 };
+
+ enum { SH7095_EPENDING_OP_OR = 0xFF000000 };
+
+
+ enum
+ {
+  SH7095_EXCEPTION_POWERON = 0,// Power-on
+  SH7095_EXCEPTION_RESET,	// "Manual" reset
+  SH7095_EXCEPTION_ILLINSTR,	// General illegal instruction
+  SH7095_EXCEPTION_ILLSLOT,	// Slot illegal instruction
+  SH7095_EXCEPTION_CPUADDR,	// CPU address error
+  SH7095_EXCEPTION_DMAADDR,	// DMA Address error
+  SH7095_EXCEPTION_NMI,	// NMI
+  SH7095_EXCEPTION_BREAK,	// User break
+  SH7095_EXCEPTION_TRAP,	// Trap instruction
+  SH7095_EXCEPTION_INT,	// Interrupt
+ };
+
+
+ enum
+ {
+  SH7095_VECNUM_POWERON   =  0,	// Power-on
+  SH7095_VECNUM_RESET     =  2,	// "Manual" reset
+  SH7095_VECNUM_ILLINSTR  =  4,	// General illegal instruction
+  SH7095_VECNUM_ILLSLOT   =  6,	// Slot illegal instruction
+  SH7095_VECNUM_CPUADDR   =  9,	// CPU address error
+  SH7095_VECNUM_DMAADDR   = 10,	// DMA Address error
+  SH7095_VECNUM_NMI	   = 11,	// NMI
+  SH7095_VECNUM_BREAK     = 12,	// User break
+
+  SH7095_VECNUM_TRAP_BASE = 32,	// Trap instruction
+  SH7095_VECNUM_INT_BASE  = 64,	// Interrupt
+ };
+
+
+ enum
+ {
+  SH7095_EPENDING_IVECNUM_SHIFT = 8,	// 8 bits
+  SH7095_EPENDING_E_SHIFT = 16,	// 8 bits
+  SH7095_EPENDING_IPRIOLEV_SHIFT = 28	// 4 bits
+ };
+
+ enum { SH7095_CCR_CE = 0x01 };
+
+ enum { SH7095_CCR_ID = 0x02 };
+
+ enum { SH7095_CCR_OD = 0x04 };
+
+ enum { SH7095_CCR_TW = 0x08 };
+
+ enum { SH7095_CCR_CP = 0x10 };
+
+ enum { SH7095_CCR_W0 = 0x40 };
+
+ enum { SH7095_CCR_W1 = 0x80 };
+
+ enum
+ {
+  // SH7095_GSREG_PC_ID and SH7095_GSREG_PC_IF are only valid when Step<true>() was called most recently(but they may be invalid
+  // for a while after <false>, too...).
+  SH7095_GSREG_PC_ID = 0,
+  SH7095_GSREG_PC_IF,
+
+  SH7095_GSREG_PID,
+  SH7095_GSREG_PIF,
+
+  SH7095_GSREG_EP,
+
+  SH7095_GSREG_RPC,
+
+  SH7095_GSREG_R0,  SH7095_GSREG_R1,  SH7095_GSREG_R2,  SH7095_GSREG_R3,  SH7095_GSREG_R4,  SH7095_GSREG_R5,  SH7095_GSREG_R6,  SH7095_GSREG_R7,
+  SH7095_GSREG_R8,  SH7095_GSREG_R9,  SH7095_GSREG_R10, SH7095_GSREG_R11, SH7095_GSREG_R12, SH7095_GSREG_R13, SH7095_GSREG_R14, SH7095_GSREG_R15,
+
+  SH7095_GSREG_SR,
+  SH7095_GSREG_GBR,
+  SH7095_GSREG_VBR,
+
+  SH7095_GSREG_MACH,
+  SH7095_GSREG_MACL,
+  SH7095_GSREG_PR,
+  //
+  //
+  //
+  SH7095_GSREG_NMIL,
+  SH7095_GSREG_IRL,
+  SH7095_GSREG_IPRA,
+  SH7095_GSREG_IPRB,
+  SH7095_GSREG_VCRWDT,
+  SH7095_GSREG_VCRA,
+  SH7095_GSREG_VCRB,
+  SH7095_GSREG_VCRC,
+  SH7095_GSREG_VCRD,
+  SH7095_GSREG_ICR,
+  //
+  //
+  //
+  SH7095_GSREG_DVSR,
+  SH7095_GSREG_DVDNT,
+  SH7095_GSREG_DVDNTH,
+  SH7095_GSREG_DVDNTL,
+  SH7095_GSREG_DVDNTHS,
+  SH7095_GSREG_DVDNTLS,
+  SH7095_GSREG_VCRDIV,
+  SH7095_GSREG_DVCR,
+
+  //
+  //
+  //
+  SH7095_GSREG_WTCSR,
+  SH7095_GSREG_WTCSRM,
+  SH7095_GSREG_WTCNT,
+  SH7095_GSREG_RSTCSR,
+  SH7095_GSREG_RSTCSRM,
+  //
+  //
+  //
+  SH7095_GSREG_DMAOR,
+  SH7095_GSREG_DMAORM,
+
+  SH7095_GSREG_DMA0_SAR,
+  SH7095_GSREG_DMA0_DAR,
+  SH7095_GSREG_DMA0_TCR,
+  SH7095_GSREG_DMA0_CHCR,
+  SH7095_GSREG_DMA0_CHCRM,
+  SH7095_GSREG_DMA0_VCR,
+  SH7095_GSREG_DMA0_DRCR,
+
+  SH7095_GSREG_DMA1_SAR,
+  SH7095_GSREG_DMA1_DAR,
+  SH7095_GSREG_DMA1_TCR,
+  SH7095_GSREG_DMA1_CHCR,
+  SH7095_GSREG_DMA1_CHCRM,
+  SH7095_GSREG_DMA1_VCR,
+  SH7095_GSREG_DMA1_DRCR,
+
+  SH7095_GSREG_FRC,
+  SH7095_GSREG_OCR0,
+  SH7095_GSREG_OCR1,
+  SH7095_GSREG_FICR,
+  SH7095_GSREG_TIER,
+  SH7095_GSREG_FTCSR,
+  SH7095_GSREG_FTCSRM,
+  SH7095_GSREG_TCR,
+  SH7095_GSREG_TOCR,
+  SH7095_GSREG_RWT,
+
+  SH7095_GSREG_CCR,
+  SH7095_GSREG_SBYCR
+ };
+struct SH7095
 {
 
- SH7095(const char* const name_arg, const unsigned dma_event_id_arg, uint8_t (*exivecfn_arg)(void)) MDFN_COLD;
- ~SH7095() MDFN_COLD;
  /* Phase-8p2: Step<which, EmulateICache> retired into 3 named
   * variants (only the (w, C) tuples invoked by ss.cpp's RunLoop).
   * EmulateICache must still match what was passed to Init(). */
- void Step_w0_C0(void);  // master CPU, no ICache emulation
- void Step_w0_C1(void);  // master CPU, ICache emulation
- void Step_w1_C0(void);  // slave  CPU, no ICache emulation
 
  // Slave only
- NO_CLONE NO_INLINE void RunSlaveUntil(sscpu_timestamp_t bound_timestamp) MDFN_HOT;
- NO_CLONE NO_INLINE void RunSlaveUntil_Debug(sscpu_timestamp_t bound_timestamp) MDFN_COLD;
 
  //private:
  uint32_t R[16];
@@ -78,61 +247,10 @@ struct SH7095 final
   uint32_t SysRegs[3];
  };
 
-
- enum // must be in range of 0 ... 7
- {
-  PEX_POWERON = 0,
-  PEX_RESET   = 1,
-  PEX_CPUADDR = 2,
-  PEX_DMAADDR = 3,
-  PEX_INT     = 4,
-  PEX_NMI     = 5,
-  PEX_PSEUDO_DMABURST = 6,
-  PEX_PSEUDO_EXTHALT = 7
- };
- enum { EPENDING_PEXBITS_SHIFT = 16 };
- enum { EPENDING_OP_OR = 0xFF000000 };
-
  uint32_t EPending;
 
  uint32_t Pipe_ID;
  uint32_t Pipe_IF;
-
- enum
- {
-  EXCEPTION_POWERON = 0,// Power-on
-  EXCEPTION_RESET,	// "Manual" reset
-  EXCEPTION_ILLINSTR,	// General illegal instruction
-  EXCEPTION_ILLSLOT,	// Slot illegal instruction
-  EXCEPTION_CPUADDR,	// CPU address error
-  EXCEPTION_DMAADDR,	// DMA Address error
-  EXCEPTION_NMI,	// NMI
-  EXCEPTION_BREAK,	// User break
-  EXCEPTION_TRAP,	// Trap instruction
-  EXCEPTION_INT,	// Interrupt
- };
-
- enum
- {
-  VECNUM_POWERON   =  0,	// Power-on
-  VECNUM_RESET     =  2,	// "Manual" reset
-  VECNUM_ILLINSTR  =  4,	// General illegal instruction
-  VECNUM_ILLSLOT   =  6,	// Slot illegal instruction
-  VECNUM_CPUADDR   =  9,	// CPU address error
-  VECNUM_DMAADDR   = 10,	// DMA Address error
-  VECNUM_NMI	   = 11,	// NMI
-  VECNUM_BREAK     = 12,	// User break
-
-  VECNUM_TRAP_BASE = 32,	// Trap instruction
-  VECNUM_INT_BASE  = 64,	// Interrupt
- };
-
- enum
- {
-  EPENDING_IVECNUM_SHIFT = 8,	// 8 bits
-  EPENDING_E_SHIFT = 16,	// 8 bits
-  EPENDING_IPRIOLEV_SHIFT = 28	// 4 bits
- };
  //
  //
  //
@@ -156,26 +274,12 @@ struct SH7095 final
  // Cache:
  //
  //
- struct CacheEntry
- {
-  // Rather than have separate validity bits, we're putting an INvalidity bit(invalid when =1)
-  // in the lower bit of the Tag variables.
-  uint32_t Tag[4];
-  uint8_t Data[4][16];
- };
- alignas(16) CacheEntry Cache[64];
+ alignas(16) SH7095_CacheEntry Cache[64];
 
  uint8_t Cache_LRU[64];
  int32_t CCRC_Replace_OR[2];	// Cached cache var, calculated from the ID and OD bits of CCR in SetCCR()
  uint8_t CCRC_Replace_AND;	// Cached cache var, calculated from the TW bit of CCR in SetCCR()
- uint8_t CCR;
- enum { CCR_CE = 0x01 };	// Cache Enable
- enum { CCR_ID = 0x02 };	// Instruction Replacement Disable
- enum { CCR_OD = 0x04 };	// Data Replacement Disable
- enum { CCR_TW = 0x08 };	// Two-Way Mode
- enum { CCR_CP = 0x10 };	// Cache Purge
- enum { CCR_W0 = 0x40 };	//
- enum { CCR_W1 = 0x80 };	//
+ uint8_t CCR;	// Cache Enable	// Instruction Replacement Disable	// Data Replacement Disable	// Two-Way Mode	// Cache Purge	//	//
  /* Phase-8h: Cache_WriteAddressArray, Cache_ReadAddressArray,
   * and Cache_CheckReadIncoherency lost their `template<typename T>`
   * parameter -- none of their bodies use T.  The two address-array
@@ -241,7 +345,7 @@ struct SH7095 final
  // Exit/Resume stuff for slave CPU with icache emulation(RunSlaveUntil())
  //
  const void* ResumePoint;
- CacheEntry* Resume_cent;
+ SH7095_CacheEntry* Resume_cent;
  uint32_t Resume_instr;
  int Resume_way_match;
  uint32_t Resume_uint8_A;
@@ -328,12 +432,10 @@ struct SH7095 final
   uint8_t RSTCSRM;
  } WDT;
 
- void WDT_Reset(bool from_internal_wdt) MDFN_COLD;	// Reset-reset only, NOT standby reset!
  //
  // DMA unit registers and related state
  //
- sscpu_timestamp_t DMA_Update(sscpu_timestamp_t);	// Takes/return external timestamp
- const unsigned event_id_dma;
+ unsigned event_id_dma;
  sscpu_timestamp_t DMA_Timestamp;
  sscpu_timestamp_t DMA_SGEndTimestamp; // For smaller granularity scheduling for DMA_Update() after start of DMA.
  bool DMA_RoundRobinRockinBoppin;
@@ -389,7 +491,7 @@ struct SH7095 final
  bool ExtHalt;
  uint8_t ExtHaltDMA;
 
- uint8_t (*const ExIVecFetch)(void);
+ uint8_t (*ExIVecFetch)(void);
  /* Phase-8n: DoIDIF_NI<EmulateICache, IntPreventNext> retired
   * into 4 named NO_INLINE variants (one per bool-pair).
   * Phase-8p2: DoIDIF_INLINE<EmulateICache, IntPreventNext>
@@ -427,108 +529,13 @@ struct SH7095 final
  //
  //
  /* Phase-9b: access modifier dropped. */
- enum
- {
-  // GSREG_PC_ID and GSREG_PC_IF are only valid when Step<true>() was called most recently(but they may be invalid
-  // for a while after <false>, too...).
-  GSREG_PC_ID = 0,
-  GSREG_PC_IF,
 
-  GSREG_PID,
-  GSREG_PIF,
-
-  GSREG_EP,
-
-  GSREG_RPC,
-
-  GSREG_R0,  GSREG_R1,  GSREG_R2,  GSREG_R3,  GSREG_R4,  GSREG_R5,  GSREG_R6,  GSREG_R7,
-  GSREG_R8,  GSREG_R9,  GSREG_R10, GSREG_R11, GSREG_R12, GSREG_R13, GSREG_R14, GSREG_R15,
-
-  GSREG_SR,
-  GSREG_GBR,
-  GSREG_VBR,
-
-  GSREG_MACH,
-  GSREG_MACL,
-  GSREG_PR,
-  //
-  //
-  //
-  GSREG_NMIL,
-  GSREG_IRL,
-  GSREG_IPRA,
-  GSREG_IPRB,
-  GSREG_VCRWDT,
-  GSREG_VCRA,
-  GSREG_VCRB,
-  GSREG_VCRC,
-  GSREG_VCRD,
-  GSREG_ICR,
-  //
-  //
-  //
-  GSREG_DVSR,
-  GSREG_DVDNT,
-  GSREG_DVDNTH,
-  GSREG_DVDNTL,
-  GSREG_DVDNTHS,
-  GSREG_DVDNTLS,
-  GSREG_VCRDIV,
-  GSREG_DVCR,
-
-  //
-  //
-  //
-  GSREG_WTCSR,
-  GSREG_WTCSRM,
-  GSREG_WTCNT,
-  GSREG_RSTCSR,
-  GSREG_RSTCSRM,
-  //
-  //
-  //
-  GSREG_DMAOR,
-  GSREG_DMAORM,
-
-  GSREG_DMA0_SAR,
-  GSREG_DMA0_DAR,
-  GSREG_DMA0_TCR,
-  GSREG_DMA0_CHCR,
-  GSREG_DMA0_CHCRM,
-  GSREG_DMA0_VCR,
-  GSREG_DMA0_DRCR,
-
-  GSREG_DMA1_SAR,
-  GSREG_DMA1_DAR,
-  GSREG_DMA1_TCR,
-  GSREG_DMA1_CHCR,
-  GSREG_DMA1_CHCRM,
-  GSREG_DMA1_VCR,
-  GSREG_DMA1_DRCR,
-
-  GSREG_FRC,
-  GSREG_OCR0,
-  GSREG_OCR1,
-  GSREG_FICR,
-  GSREG_TIER,
-  GSREG_FTCSR,
-  GSREG_FTCSRM,
-  GSREG_TCR,
-  GSREG_TOCR,
-  GSREG_RWT,
-
-  GSREG_CCR,
-  GSREG_SBYCR
- };
-
- uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len);
- void CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr), void (*MWrite)(unsigned len, uint32_t addr)) const;
  /* Phase-9b: formerly `private:` -- access modifier dropped. */
  bool CBH_Setting;
  bool EIC_Setting;
  bool DM_Setting;
  uint32_t PC_IF, PC_ID;	// Debug-related variables.
- const char* const cpu_name;
+ const char* cpu_name;
  const void*const* ResumeTableP[2];
 };
 
@@ -569,20 +576,20 @@ static FORCE_INLINE uint64_t SH7095_GetMAC64  (const SH7095* z)        { return 
 static FORCE_INLINE void     SH7095_SetMAC64  (SH7095* z, uint64_t nv) { z->MACL = nv; z->MACH = nv >> 32; }
 static FORCE_INLINE void     SH7095_SetPEX    (SH7095* z, const unsigned which)
 {
- z->EPending |= (1U << (which + SH7095::EPENDING_PEXBITS_SHIFT));
- z->EPending |= SH7095::EPENDING_OP_OR;
+ z->EPending |= (1U << (which + SH7095_EPENDING_PEXBITS_SHIFT));
+ z->EPending |= SH7095_EPENDING_OP_OR;
 }
 static FORCE_INLINE void     SH7095_ClearPEX  (SH7095* z, const unsigned which)
 {
- z->EPending &= ~(1U << (which + SH7095::EPENDING_PEXBITS_SHIFT));
- if(!(z->EPending & (0xFF << SH7095::EPENDING_PEXBITS_SHIFT)))
+ z->EPending &= ~(1U << (which + SH7095_EPENDING_PEXBITS_SHIFT));
+ if(!(z->EPending & (0xFF << SH7095_EPENDING_PEXBITS_SHIFT)))
   z->EPending = 0;
 }
 static FORCE_INLINE void SH7095_SetExtHalt(SH7095* z, bool state)
 {
  z->ExtHalt = state;
  if(z->ExtHalt)
-  SH7095_SetPEX(z, SH7095::PEX_PSEUDO_EXTHALT);
+  SH7095_SetPEX(z, SH7095_PEX_PSEUDO_EXTHALT);
  z->ExtHaltDMA = (z->ExtHaltDMA & ~1) | state;
 }
 static FORCE_INLINE void SH7095_SetExtHaltDMAKludgeFromVDP2(SH7095* z, bool state)
@@ -592,4 +599,15 @@ static FORCE_INLINE void SH7095_SetExtHaltDMAKludgeFromVDP2(SH7095* z, bool stat
 /* SH7095_GetPendingInt is defined in sh7095.inc; call sites in
  * sh7095_ops.inc (which is itself included inside sh7095.inc)
  * see the definition through the chain. */
+
+/* Phase-9 step 5: free-function API for the dropped class methods.
+ * Only the methods actually called from outside sh7095.inc need a
+ * decl here; WDT_Reset/GetRegister/CheckRWBreakpoints are internal
+ * and stay file-static.  SetExtHaltDMAKludgeFromVDP2 is the existing
+ * static FORCE_INLINE helper above (unchanged). */
+void SH7095_Construct  (SH7095* z, const char* name, unsigned event_id_dma, uint8_t (*exivecfn)(void)) MDFN_COLD;
+void SH7095_Step_w0_C0 (SH7095* z);
+void SH7095_Step_w0_C1 (SH7095* z);
+void SH7095_Step_w1_C0 (SH7095* z);
+
 #endif

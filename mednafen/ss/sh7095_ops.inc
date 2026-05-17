@@ -1919,7 +1919,7 @@ switch(z->Pipe_ID >> 24)
 	RESUME_VAR(uint32_t, opexec_new_PC);
 
 	z->PC -= 4;
-	Exception(SH7095::VECNUM_ILLINSTR, opexec_new_PC);
+	Exception(SH7095_VECNUM_ILLINSTR, opexec_new_PC);
 	Branch(opexec_new_PC);
  END_OP
 
@@ -1932,7 +1932,7 @@ switch(z->Pipe_ID >> 24)
 	RESUME_VAR(uint32_t, opexec_new_PC);
 
 	z->PC -= 2;
-	Exception(SH7095::VECNUM_ILLSLOT, opexec_new_PC);
+	Exception(SH7095_VECNUM_ILLSLOT, opexec_new_PC);
 	Branch(opexec_new_PC);
  END_OP
 
@@ -1956,48 +1956,48 @@ switch(z->Pipe_ID >> 24)
 	//        NMI
 	//         Interrupt (final else, may be called quasi-spuriously)
 	//
-	#define TPP(x) (z->Pipe_ID & (1U << ((x) + SH7095::EPENDING_PEXBITS_SHIFT)))
+	#define TPP(x) (z->Pipe_ID & (1U << ((x) + SH7095_EPENDING_PEXBITS_SHIFT)))
 	//
 	// Test against z->Pipe_ID, reset bits in z->EPending(if appropriate).
 	//
-	if(MDFN_UNLIKELY(TPP(SH7095::PEX_PSEUDO_EXTHALT)))
+	if(MDFN_UNLIKELY(TPP(SH7095_PEX_PSEUDO_EXTHALT)))
 	{
 	 z->Pipe_ID = (z->Pipe_ID & 0x00FFFFFF) | (0xFEU << 24);
 	 goto SkipPCInc;
 	}
-	else if(MDFN_UNLIKELY(TPP(SH7095::PEX_POWERON) || TPP(SH7095::PEX_RESET)))
+	else if(MDFN_UNLIKELY(TPP(SH7095_PEX_POWERON) || TPP(SH7095_PEX_RESET)))
 	{
 	 z->EPending = 0;
-	 opexec_vecnum = SH7095::VECNUM_POWERON;
+	 opexec_vecnum = SH7095_VECNUM_POWERON;
 
-	 if(TPP(SH7095::PEX_RESET))
-	  opexec_vecnum = SH7095::VECNUM_RESET;
+	 if(TPP(SH7095_PEX_RESET))
+	  opexec_vecnum = SH7095_VECNUM_RESET;
 
 	 Exception_ResPow(opexec_vecnum, opexec_new_PC);
 	}
-	else if(MDFN_UNLIKELY(TPP(SH7095::PEX_PSEUDO_DMABURST)))
+	else if(MDFN_UNLIKELY(TPP(SH7095_PEX_PSEUDO_DMABURST)))
 	{
 	 z->Pipe_ID = (z->Pipe_ID & 0x00FFFFFF) | (0xFEU << 24);
 	 goto SkipPCInc;
 	}
-	else if(MDFN_UNLIKELY(TPP(SH7095::PEX_CPUADDR)))
+	else if(MDFN_UNLIKELY(TPP(SH7095_PEX_CPUADDR)))
 	{
 	 z->PC -= 4;
-	 SH7095_ClearPEX(z, SH7095::PEX_CPUADDR);
-	 Exception(SH7095::VECNUM_CPUADDR, opexec_new_PC);
-	 SH7095_ClearPEX(z, SH7095::PEX_CPUADDR);	// Infinite recursive address errors are not good(stack wraparound could clobber backup memory).
+	 SH7095_ClearPEX(z, SH7095_PEX_CPUADDR);
+	 Exception(SH7095_VECNUM_CPUADDR, opexec_new_PC);
+	 SH7095_ClearPEX(z, SH7095_PEX_CPUADDR);	// Infinite recursive address errors are not good(stack wraparound could clobber backup memory).
 	}
-	else if(MDFN_UNLIKELY(TPP(SH7095::PEX_DMAADDR)))
+	else if(MDFN_UNLIKELY(TPP(SH7095_PEX_DMAADDR)))
 	{
 	 z->PC -= 4;
-	 SH7095_ClearPEX(z, SH7095::PEX_DMAADDR);
-	 Exception(SH7095::VECNUM_DMAADDR, opexec_new_PC);
+	 SH7095_ClearPEX(z, SH7095_PEX_DMAADDR);
+	 Exception(SH7095_VECNUM_DMAADDR, opexec_new_PC);
 	}
-	else if(TPP(SH7095::PEX_NMI))
+	else if(TPP(SH7095_PEX_NMI))
 	{
 	 z->PC -= 4;
-	 SH7095_ClearPEX(z, SH7095::PEX_NMI);
-	 Exception(SH7095::VECNUM_NMI, opexec_new_PC);
+	 SH7095_ClearPEX(z, SH7095_PEX_NMI);
+	 Exception(SH7095_VECNUM_NMI, opexec_new_PC);
 	 //
 	 //
 	 //
@@ -2081,19 +2081,19 @@ switch(z->Pipe_ID >> 24)
 	}
 	else
 	{
-	 SH7095_ClearPEX(z, SH7095::PEX_PSEUDO_DMABURST);
-	 SH7095_ClearPEX(z, SH7095::PEX_PSEUDO_EXTHALT);
+	 SH7095_ClearPEX(z, SH7095_PEX_PSEUDO_DMABURST);
+	 SH7095_ClearPEX(z, SH7095_PEX_PSEUDO_EXTHALT);
 
 	 //
 	 // Recover z->Pipe_ID opcode field; only use z->Pipe_ID for z, not z->EPending, otherwise
 	 // we may accidentally allow an interrupt to occur immediately after an interrupt-disabled instruction.
 	 //
 	 z->Pipe_ID &= 0x00FFFFFF;
-	 z->Pipe_ID &= ~(1U << (SH7095::PEX_PSEUDO_DMABURST + SH7095::EPENDING_PEXBITS_SHIFT));
-	 z->Pipe_ID &= ~(1U << (SH7095::PEX_PSEUDO_EXTHALT + SH7095::EPENDING_PEXBITS_SHIFT));
+	 z->Pipe_ID &= ~(1U << (SH7095_PEX_PSEUDO_DMABURST + SH7095_EPENDING_PEXBITS_SHIFT));
+	 z->Pipe_ID &= ~(1U << (SH7095_PEX_PSEUDO_EXTHALT + SH7095_EPENDING_PEXBITS_SHIFT));
 	 z->Pipe_ID |= InstrDecodeTab[(uint16_t)z->Pipe_ID] << 24;
-	 if(z->Pipe_ID & (0xFF << SH7095::EPENDING_PEXBITS_SHIFT))
-	  z->Pipe_ID |= SH7095::EPENDING_OP_OR;
+	 if(z->Pipe_ID & (0xFF << SH7095_EPENDING_PEXBITS_SHIFT))
+	  z->Pipe_ID |= SH7095_EPENDING_OP_OR;
 
 	 goto SkipPCInc;
 	}

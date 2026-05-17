@@ -508,6 +508,7 @@ extern sha256_digest BIOS_SHA256;
 extern char retro_base_directory[4096];
 
 /* SH7095 method dispatch wrappers (extern "C" defined in ss.cpp). */
+void SH7095_ConstructAll(void) MDFN_COLD;
 void SH7095_M_Init(const bool emumode_full, const bool emumode_cb_only) MDFN_COLD;
 void SH7095_S_Init(const bool emumode_full, const bool emumode_cb_only) MDFN_COLD;
 void SH7095_M_SetMD5(bool level);
@@ -601,6 +602,12 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    }
 
    NeedEmuICache = (cpucache_emumode == CPUCACHE_EMUMODE_FULL);
+   /* Phase-9 step 5: SH7095 ctor dropped, so the once-only per-CPU
+    * member init that the ctor used to do has to run BEFORE the first
+    * SH7095_*_Init call.  SH7095_ConstructAll is idempotent in the
+    * sense that calling it twice would just re-init the same fields,
+    * but call sites should be single. */
+   SH7095_ConstructAll();
    SH7095_M_Init((cpucache_emumode == CPUCACHE_EMUMODE_FULL), (cpucache_emumode == CPUCACHE_EMUMODE_DATA_CB));
    SH7095_S_Init((cpucache_emumode == CPUCACHE_EMUMODE_FULL), (cpucache_emumode == CPUCACHE_EMUMODE_DATA_CB));
    SH7095_M_SetMD5(false);

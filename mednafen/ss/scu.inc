@@ -86,8 +86,8 @@ static const char* IntNames[0x20] =
  "L0DMA",
  "DMA_ILL",
  "VDP1",
- nullptr,
- nullptr,
+ NULL,
+ NULL,
 
  "EXT0", "EXT1", "EXT2", "EXT3", "EXT4", "EXT5", "EXT6", "EXT7", "EXT8", "EXT9", "EXTA", "EXTB", "EXTC", "EXTD", "EXTE", "EXTF"
 };
