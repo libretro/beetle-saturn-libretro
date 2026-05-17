@@ -233,9 +233,6 @@ struct DSPS
 
 struct SS_SCSP
 {
-
- SS_SCSP() MDFN_COLD;
- ~SS_SCSP() MDFN_COLD;
  /* Phase-8f: RunSample's `template<typename T_out = int16_t>` form
   * was the only path-traveled instantiation -- sound_glue.cpp's
   * one and only caller passes an int16_t* (the IBuffer slot) and

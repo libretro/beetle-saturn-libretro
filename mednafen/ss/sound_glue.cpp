@@ -227,6 +227,13 @@ extern "C" {
 
 void SoundGlue_Init(void)
 {
+ /* Phase-9: replace what SS_SCSP::SS_SCSP() used to do implicitly
+  * at program load: zero the dummy half of RAM (so out-of-range
+  * playback reads return 0) and reset SS_SCSP state.  The ctor/dtor
+  * thunks have been dropped now that the struct is pure data. */
+ memset(SS_SCSP_GetRAMPtr(&SCSP) + 0x40000, 0x00, 0x40000 * sizeof(uint16_t));
+ SS_SCSP_Reset(&SCSP, true);
+
  SoundCPU.BusRead8 = SoundCPU_BusRead_u8;
  SoundCPU.BusRead16 = SoundCPU_BusRead_u16;
 

@@ -143,20 +143,6 @@ static int SS_SCSP_GetPLFO(SS_SCSP* z, Slot* s);
 static void SS_SCSP_RunLFO(SS_SCSP* z, Slot* s);
 static void SS_SCSP_RecalcShortWaveMask(SS_SCSP* z, Slot* s);
 
-SS_SCSP::SS_SCSP()
-{
- /* Phase-9 thunk: forwards to the free function form.  When sound_glue
-  * becomes C and the implicit `static SS_SCSP SCSP;` construct/destruct
-  * is replaced with explicit init/deinit calls, the thunks can be
-  * removed entirely. */
- memset(&this->RAM[0x40000], 0x00, 0x40000 * sizeof(uint16_t));
- SS_SCSP_Reset(this, true);
-}
-
-SS_SCSP::~SS_SCSP()
-{
- /* Phase-9 thunk: destruction was a no-op pre-conversion; preserved. */
-}
 
 static void SS_SCSP_RecalcSoundInt(SS_SCSP* z)	// Sound CPU interrupts
 {
