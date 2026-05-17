@@ -102,7 +102,7 @@ static INLINE void SCSP_MainIntChanged(SS_SCSP* s, bool state)
  if(MDFN_UNLIKELY(SoundCPU.timestamp >= SOUND_next_scsp_time))                                     \
   SOUND_RunSCSP();                                                                                 \
                                                                                                    \
- ret = SCSP.RW_R##WIDTH_TAG(A & 0x1FFFFF);                                                         \
+ ret = SS_SCSP_RW_R##WIDTH_TAG(&SCSP, A & 0x1FFFFF);                                                         \
                                                                                                    \
  SoundCPU.timestamp += 2;                                                                          \
                                                                                                    \
@@ -140,9 +140,9 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
  // so fall back to SCSP.RW only for the unlikely pathological case (which
  // preserves its existing open-bus-returns-0 / register-read behavior).
  if(MDFN_LIKELY(A < 0x80000))
-  ret = SCSP.GetRAMPtr()[A >> 1];
+  ret = SS_SCSP_GetRAMPtr(&SCSP)[A >> 1];
  else
-  ret = SCSP.RW_R16(A & 0x1FFFFF);
+  ret = SS_SCSP_RW_R16(&SCSP, A & 0x1FFFFF);
 
  SoundCPU.timestamp += 2;
 
@@ -170,7 +170,7 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
                                                                                                    \
  SoundCPU.timestamp += 2;                                                                          \
                                                                                                    \
- SCSP.RW_W##WIDTH_TAG(A & 0x1FFFFF, V);                                                            \
+ SS_SCSP_RW_W##WIDTH_TAG(&SCSP, A & 0x1FFFFF, V);                                                            \
  SoundCPU.timestamp += 2;                                                                          \
 }
 
@@ -195,13 +195,13 @@ static MDFN_FASTCALL void SoundCPU_BusRMW(uint32_t A, uint8_t (MDFN_FASTCALL *cb
  if(MDFN_UNLIKELY(SoundCPU.timestamp >= SOUND_next_scsp_time))
   SOUND_RunSCSP();
 
- tmp = SCSP.RW_R8(A & 0x1FFFFF);
+ tmp = SS_SCSP_RW_R8(&SCSP, A & 0x1FFFFF);
 
  tmp = cb(&SoundCPU, tmp);
 
  SoundCPU.timestamp += 6;
 
- SCSP.RW_W8(A & 0x1FFFFF, tmp);
+ SS_SCSP_RW_W8(&SCSP, A & 0x1FFFFF, tmp);
 
  SoundCPU.timestamp += 2;
 }
@@ -240,8 +240,8 @@ void SoundGlue_Init(void)
  SoundCPU.BusIntAck = SoundCPU_BusIntAck;
  SoundCPU.BusRESET = SoundCPU_BusRESET;
 
- SS_SetPhysMemMap(0x05A00000, 0x05A7FFFF, SCSP.GetRAMPtr(), 0x80000, true);
- // TODO: MEM4B: SS_SetPhysMemMap(0x05A00000, 0x05AFFFFF, SCSP.GetRAMPtr(), 0x40000, true);
+ SS_SetPhysMemMap(0x05A00000, 0x05A7FFFF, SS_SCSP_GetRAMPtr(&SCSP), 0x80000, true);
+ // TODO: MEM4B: SS_SetPhysMemMap(0x05A00000, 0x05AFFFFF, SS_SCSP_GetRAMPtr(&SCSP), 0x40000, true);
 }
 
 /* M68K SoundCPU accessors / forwarders. */
@@ -269,17 +269,17 @@ void SoundGlue_M68K_SetRegister(const unsigned id, const uint32_t value)
 
 /* SS_SCSP forwarders. */
 void     SoundGlue_SCSP_Reset(bool pwr)              { SCSP.Reset(pwr); }
-uint16_t SoundGlue_SCSP_RW_R16(uint32_t A)           { return SCSP.RW_R16(A); }
-void     SoundGlue_SCSP_RW_W8 (uint32_t A, uint8_t  V) { SCSP.RW_W8 (A, V); }
-void     SoundGlue_SCSP_RW_W16(uint32_t A, uint16_t V) { SCSP.RW_W16(A, V); }
+uint16_t SoundGlue_SCSP_RW_R16(uint32_t A)           { return SS_SCSP_RW_R16(&SCSP, A); }
+void     SoundGlue_SCSP_RW_W8 (uint32_t A, uint8_t  V) { SS_SCSP_RW_W8(&SCSP, A, V); }
+void     SoundGlue_SCSP_RW_W16(uint32_t A, uint16_t V) { SS_SCSP_RW_W16(&SCSP, A, V); }
 
 uint8_t SoundGlue_SCSP_PeekRAM(uint32_t A)
 {
  /* ne16_rbo_be<uint8_t> folded. */
 #ifdef MSB_FIRST
- return ((const uint8_t*)SCSP.GetRAMPtr())[A & 0x7FFFF];
+ return ((const uint8_t*)SS_SCSP_GetRAMPtr(&SCSP))[A & 0x7FFFF];
 #else
- return ((const uint8_t*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1];
+ return ((const uint8_t*)SS_SCSP_GetRAMPtr(&SCSP))[(A & 0x7FFFF) ^ 1];
 #endif
 }
 
@@ -287,9 +287,9 @@ void SoundGlue_SCSP_PokeRAM(uint32_t A, uint8_t V)
 {
  /* ne16_wbo_be<uint8_t> folded. */
 #ifdef MSB_FIRST
- ((uint8_t*)SCSP.GetRAMPtr())[A & 0x7FFFF] = V;
+ ((uint8_t*)SS_SCSP_GetRAMPtr(&SCSP))[A & 0x7FFFF] = V;
 #else
- ((uint8_t*)SCSP.GetRAMPtr())[(A & 0x7FFFF) ^ 1] = V;
+ ((uint8_t*)SS_SCSP_GetRAMPtr(&SCSP))[(A & 0x7FFFF) ^ 1] = V;
 #endif
 }
 
@@ -314,7 +314,7 @@ void SoundGlue_SCSP_SetRegister(const unsigned id, const uint32_t value)
  * accesses SCSP (C++ class instance). */
 void SOUND_RunSCSP(void)
 {
- CDB_GetCDDA(SCSP.GetEXTSPtr());
+ CDB_GetCDDA(SS_SCSP_GetEXTSPtr(&SCSP));
  //
  //
  int16_t* const bp = IBuffer[IBufferCount];

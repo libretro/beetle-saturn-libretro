@@ -56,35 +56,9 @@ struct SS_SCSP
  void RW_u8_W1 (uint32_t A, uint8_t&  DBV);
  void RW_u16_W1(uint32_t A, uint16_t& DBV);
 
- /* Phase-6b: non-template entry points for the four <T,IsWrite>
-  * instantiations sound.cpp uses.  They forward to the template;
-  * with FORCE_INLINE the call is folded away under -O2, so codegen
-  * matches the template-method form byte for byte.  Returning
-  * the read value (rather than taking T&) keeps the signature
-  * C-compatible -- once sound.cpp becomes sound.c in phase 6c
-  * the four wrappers exposed in sound_glue.cpp can call these
-  * by their non-template names without needing to know the
-  * template syntax. */
- FORCE_INLINE uint8_t  RW_R8 (uint32_t A) { uint8_t  v; RW_u8_W0 (A, v); return v; }
- FORCE_INLINE uint16_t RW_R16(uint32_t A) { uint16_t v; RW_u16_W0(A, v); return v; }
- FORCE_INLINE void     RW_W8 (uint32_t A, uint8_t  v) { RW_u8_W1 (A, v); }
- FORCE_INLINE void     RW_W16(uint32_t A, uint16_t v) { RW_u16_W1(A, v); }
-
- // Caller must ensure appropriate timing.
- INLINE void WriteMIDI(uint8_t V)
- {
-  MIDI_WriteInput(V);
- }
-
- INLINE uint16_t* GetEXTSPtr(void)
- {
-  return EXTS;
- }
-
- INLINE uint16_t* GetRAMPtr(void)
- {
-  return RAM;
- }
+ /* Phase-9 step 3: GetEXTSPtr / GetRAMPtr / WriteMIDI and the
+  * RW_R8/R16/W8/W16 wrappers are now free functions after the
+  * struct definition -- see SS_SCSP_* helpers below. */
 
  enum
  {
@@ -388,4 +362,22 @@ struct SS_SCSP
  alignas(8) uint8_t DynaRecPool[65536];
 #endif
 };
+
+/* Phase-9 step 3: free-function wrappers around SS_SCSP members.
+ * These are the only API surface sound_glue.cpp uses; they prepare
+ * for the eventual C migration when SS_SCSP becomes a plain C
+ * struct and SS_SCSP_* the only callable interface.  Codegen is
+ * byte-identical under -O2 (FORCE_INLINE on the wrappers folds
+ * away the call). */
+FORCE_INLINE uint8_t  SS_SCSP_RW_R8 (SS_SCSP* z, uint32_t A) { uint8_t  v; z->RW_u8_W0 (A, v); return v; }
+FORCE_INLINE uint16_t SS_SCSP_RW_R16(SS_SCSP* z, uint32_t A) { uint16_t v; z->RW_u16_W0(A, v); return v; }
+FORCE_INLINE void     SS_SCSP_RW_W8 (SS_SCSP* z, uint32_t A, uint8_t  v) { z->RW_u8_W1 (A, v); }
+FORCE_INLINE void     SS_SCSP_RW_W16(SS_SCSP* z, uint32_t A, uint16_t v) { z->RW_u16_W1(A, v); }
+
+/* Caller must ensure appropriate timing. */
+static INLINE void SS_SCSP_WriteMIDI(SS_SCSP* z, uint8_t V) { z->MIDI_WriteInput(V); }
+
+static INLINE uint16_t* SS_SCSP_GetEXTSPtr(SS_SCSP* z) { return z->EXTS; }
+static INLINE uint16_t* SS_SCSP_GetRAMPtr (SS_SCSP* z) { return z->RAM;  }
+
 
