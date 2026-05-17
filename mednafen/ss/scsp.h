@@ -31,11 +31,6 @@ struct SS_SCSP
 
  SS_SCSP() MDFN_COLD;
  ~SS_SCSP() MDFN_COLD;
-
- void StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
-
- void Reset(bool powering_up) MDFN_COLD;
-
  /* Phase-8f: RunSample's `template<typename T_out = int16_t>` form
   * was the only path-traveled instantiation -- sound_glue.cpp's
   * one and only caller passes an int16_t* (the IBuffer slot) and
@@ -46,16 +41,9 @@ struct SS_SCSP
   * gained no actual precision -- it was dead code.  Hard-coding
   * int16_t retires the template, makes the method a regular class
   * member, and leaves no behaviour change. */
- void RunSample(int16_t* outlr);
-
  /* Phase-8r1: 4 named member methods replace
   *   template<T, IsWrite> void RW(uint32_t, T&);
   * Source-folded per (T, IsWrite) tuple. */
- void RW_u8_W0 (uint32_t A, uint8_t&  DBV);
- void RW_u16_W0(uint32_t A, uint16_t& DBV);
- void RW_u8_W1 (uint32_t A, uint8_t&  DBV);
- void RW_u16_W1(uint32_t A, uint16_t& DBV);
-
  /* Phase-9 step 3: GetEXTSPtr / GetRAMPtr / WriteMIDI and the
   * RW_R8/R16/W8/W16 wrappers are now free functions after the
   * struct definition -- see SS_SCSP_* helpers below. */
@@ -76,14 +64,7 @@ struct SS_SCSP
   GSREG_EFREG0, GSREG_EFREG1, GSREG_EFREG2, GSREG_EFREG3, GSREG_EFREG4, GSREG_EFREG5, GSREG_EFREG6, GSREG_EFREG7,
   GSREG_EFREG8, GSREG_EFREG9, GSREG_EFREGA, GSREG_EFREGB, GSREG_EFREGC, GSREG_EFREGD, GSREG_EFREGE, GSREG_EFREGF
  };
-
- uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
- void SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
-
  /* Phase-9a: formerly `private:` -- access modifier dropped. */
- void RecalcSoundInt(void);
- void RecalcMainInt(void);
-
  enum
  {
   ENV_PHASE_ATTACK = 0,
@@ -176,15 +157,6 @@ struct SS_SCSP
  } Slots[32];
 
  uint16_t EXTS[2];
-
- void RecalcShortWaveMask(Slot* s);
-
- void RunEG(Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc);
-
- uint8_t GetALFO(Slot* s);
- int GetPLFO(Slot* s);
- void RunLFO(Slot* s);
-
  uint16_t SoundStack[0x40];
  uint16_t SoundStackDelayer[4];
 
@@ -227,11 +199,6 @@ struct SS_SCSP
   uint16_t TransmitBuffer;
 
  } MIDI;
- uint8_t MIDI_ReadInput(void);
- void MIDI_WriteInput(uint8_t V);
- void MIDI_WriteOutput(uint8_t V);
- void MIDI_Reset(void);
- void MIDI_Run(void);
  //
  //
  uint16_t SCIEB;
@@ -260,15 +227,10 @@ struct SS_SCSP
  bool DMA_Execute;
  bool DMA_Direction;
  bool DMA_Gate;
-
- void RunDMA(void);
  //
  //
  uint8_t RBP;
  uint8_t RBL;
- void RunDSP(void);
- void DecodeMPROG(void);
-
  struct DSPStep
  {
   uint8_t IRA;	// 6 bits
@@ -363,47 +325,31 @@ struct SS_SCSP
 #endif
 };
 
-/* Phase-9 step 3: free-function wrappers around SS_SCSP members.
- * These are the only API surface sound_glue.cpp uses; they prepare
- * for the eventual C migration when SS_SCSP becomes a plain C
- * struct and SS_SCSP_* the only callable interface.  Codegen is
- * byte-identical under -O2 (FORCE_INLINE on the wrappers folds
- * away the call). */
-FORCE_INLINE uint8_t  SS_SCSP_RW_R8 (SS_SCSP* z, uint32_t A) { uint8_t  v; z->RW_u8_W0 (A, v); return v; }
-FORCE_INLINE uint16_t SS_SCSP_RW_R16(SS_SCSP* z, uint32_t A) { uint16_t v; z->RW_u16_W0(A, v); return v; }
-FORCE_INLINE void     SS_SCSP_RW_W8 (SS_SCSP* z, uint32_t A, uint8_t  v) { z->RW_u8_W1 (A, v); }
-FORCE_INLINE void     SS_SCSP_RW_W16(SS_SCSP* z, uint32_t A, uint16_t v) { z->RW_u16_W1(A, v); }
+/* Phase-9 step 3 (final): SS_SCSP public API as free functions.
+ * The struct methods have moved to free-function form in scsp.inc;
+ * the ctor/dtor remain on the struct so that `static SS_SCSP SCSP;`
+ * in sound_glue.cpp constructs/destructs unchanged.  When
+ * sound_glue.cpp becomes sound_glue.c, the thunks drop entirely
+ * and an explicit SS_SCSP_Init(&SCSP) call replaces them. */
+void SS_SCSP_Reset      (SS_SCSP* z, bool pwr) MDFN_COLD;
+void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
+void SS_SCSP_RunSample  (SS_SCSP* z, int16_t* outlr);
+uint32_t SS_SCSP_GetRegister(SS_SCSP* z, const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
+void SS_SCSP_SetRegister(SS_SCSP* z, const unsigned id, const uint32_t value) MDFN_COLD;
+void SS_SCSP_MIDI_WriteInput(SS_SCSP* z, uint8_t V);
 
-/* Caller must ensure appropriate timing. */
-static FORCE_INLINE void SS_SCSP_WriteMIDI(SS_SCSP* z, uint8_t V) { z->MIDI_WriteInput(V); }
+void SS_SCSP_RW_u8_W0 (SS_SCSP* z, uint32_t A, uint8_t*  DBV_p);
+void SS_SCSP_RW_u16_W0(SS_SCSP* z, uint32_t A, uint16_t* DBV_p);
+void SS_SCSP_RW_u8_W1 (SS_SCSP* z, uint32_t A, uint8_t*  DBV_p);
+void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p);
 
+/* Inline trivial getters. */
 static FORCE_INLINE uint16_t* SS_SCSP_GetEXTSPtr(SS_SCSP* z) { return z->EXTS; }
 static FORCE_INLINE uint16_t* SS_SCSP_GetRAMPtr (SS_SCSP* z) { return z->RAM;  }
 
-/* Phase-9 step 3, slice 2: non-trivial public methods.  These wrap
- * the existing struct methods one-to-one; the FORCE_INLINE / INLINE
- * keyword folds the wrapper away under -O2 so codegen matches the
- * pre-conversion form byte-for-byte.  The bodies of Reset /
- * StateAction / RunSample / GetRegister / SetRegister remain in
- * scsp.inc as struct methods for now; converting THOSE bodies to
- * free-function form (rewriting `this->` accesses with explicit
- * `z->`) is a separate, larger refactor scheduled for after the
- * SH7095 mega-template and M68K HAM cascade work concludes. */
-static FORCE_INLINE void     SS_SCSP_Reset      (SS_SCSP* z, bool pwr)
- { z->Reset(pwr); }
-
-static FORCE_INLINE void     SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load,
-                                           const bool data_only, const char* sname)
- { z->StateAction(sm, load, data_only, sname); }
-
-static FORCE_INLINE void     SS_SCSP_RunSample  (SS_SCSP* z, int16_t* outlr)
- { z->RunSample(outlr); }
-
-static FORCE_INLINE uint32_t SS_SCSP_GetRegister(SS_SCSP* z, const unsigned id,
-                                           char* const special, const uint32_t special_len)
- { return z->GetRegister(id, special, special_len); }
-
-static FORCE_INLINE void     SS_SCSP_SetRegister(SS_SCSP* z, const unsigned id, const uint32_t value)
- { z->SetRegister(id, value); }
-
+/* RW front-ends -- pointer-arg form replaces former reference-arg `T&`. */
+static FORCE_INLINE uint8_t  SS_SCSP_RW_R8 (SS_SCSP* z, uint32_t A)             { uint8_t  v; SS_SCSP_RW_u8_W0 (z, A, &v); return v; }
+static FORCE_INLINE uint16_t SS_SCSP_RW_R16(SS_SCSP* z, uint32_t A)             { uint16_t v; SS_SCSP_RW_u16_W0(z, A, &v); return v; }
+static FORCE_INLINE void     SS_SCSP_RW_W8 (SS_SCSP* z, uint32_t A, uint8_t  V) { SS_SCSP_RW_u8_W1 (z, A, &V); }
+static FORCE_INLINE void     SS_SCSP_RW_W16(SS_SCSP* z, uint32_t A, uint16_t V) { SS_SCSP_RW_u16_W1(z, A, &V); }
 
