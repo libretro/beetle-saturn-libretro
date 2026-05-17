@@ -69,6 +69,37 @@ typedef struct SS_SCSP_DSPStep SS_SCSP_DSPStep;
 typedef struct SS_SCSP_DSPS    SS_SCSP_DSPS;
 typedef struct SS_SCSP         SS_SCSP;
 
+/* Phase-9d-8: enums that previously lived inside struct SS_SCSP_Slot
+ * hoisted to file scope.  Parallel to the m68k.h treatment in 78d3f2d
+ * (Phase-9d-7): anonymous-enums-in-struct trigger a "declaration does
+ * not declare anything" warning under -Wall in both C and C++, and the
+ * values aren't visible at file scope from a C TU under the old
+ * placement.
+ *
+ * LOOP_* describes valid values for SS_SCSP_Slot::LoopMode (uint8_t)
+ * and SOURCE_* for SS_SCSP_Slot::SourceControl (uint8_t).  Neither
+ * enum is currently referenced by name anywhere in the tree -- they
+ * exist purely as documentary constants for the byte fields above
+ * them.  Keeping them at file scope preserves that documentation
+ * while clearing the two final warnings sound_glue.c was reporting
+ * (m68k.h's set of 5 was retired in 78d3f2d). */
+
+enum  /* LOOP -- valid SS_SCSP_Slot::LoopMode values */
+{
+ LOOP_DISABLED    = 0,
+ LOOP_NORMAL      = 1,
+ LOOP_REVERSE     = 2,
+ LOOP_ALTERNATING = 3
+};
+
+enum  /* SOURCE -- valid SS_SCSP_Slot::SourceControl values */
+{
+ SOURCE_MEMORY    = 0,
+ SOURCE_NOISE     = 1,
+ SOURCE_ZERO      = 2,
+ SOURCE_UNDEFINED = 3
+};
+
 struct SS_SCSP_Slot
 {
  uint32_t StartAddr;	// 20 bits, memory address.
@@ -79,22 +110,12 @@ struct SS_SCSP_Slot
  //
  bool WF8Bit;
  uint8_t LoopMode;
- enum
- {
-  LOOP_DISABLED = 0,
-  LOOP_NORMAL = 1,
-  LOOP_REVERSE = 2,
-  LOOP_ALTERNATING = 3
- };
+ /* Phase-9d-8: LOOP_* enum hoisted to file scope above struct
+  * SS_SCSP_Slot.  See note there. */
 
  uint8_t SourceControl;
- enum
- {
-  SOURCE_MEMORY = 0,
-  SOURCE_NOISE = 1,
-  SOURCE_ZERO = 2,
-  SOURCE_UNDEFINED = 3
- };
+ /* Phase-9d-8: SOURCE_* enum hoisted to file scope above struct
+  * SS_SCSP_Slot.  See note there. */
 
  uint16_t SBXOR;
 
