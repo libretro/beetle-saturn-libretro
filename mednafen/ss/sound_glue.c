@@ -1,12 +1,14 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* sound_glue.cpp - C++ side of the Saturn sound module.  Phase-6c split out
-**                  from sound.cpp so the orchestration half can become C
-**                  (see sound.c); this file keeps the SS_SCSP / M68K class
-**                  instances, the M68K bus callbacks (which need C++-side
-**                  access to the class globals), and exposes everything
-**                  the C side needs through extern "C" SoundGlue_* wrappers.
+/* sound_glue.c - Saturn sound-module glue (Phase-6c split from
+**                sound.cpp, Phase-9 renamed from sound_glue.cpp
+**                once SS_SCSP and M68K both shed their C++ class
+**                surface).  Keeps the SS_SCSP / M68K struct
+**                instances, the eight M68K bus callbacks (which
+**                need access to those file-static globals), and
+**                exposes everything sound.c needs through plain
+**                SoundGlue_* C-linkage wrappers.
 **
 **  Copyright (C) 2015-2021 Mednafen Team
 **
@@ -37,12 +39,17 @@
 
 #include "scsp.h"
 
-/* The two C++ class instances that drive the Saturn sound module.
- * Both are file-static here; sound.c never sees the class types
- * directly -- it only reaches them through the extern "C" wrappers
- * below. */
+/* The two file-static struct instances that drive the Saturn
+ * sound module.  Both are zero-initialised at program load
+ * (file scope -> implicit zero); SoundGlue_Init() finishes the
+ * setup by calling M68K_Construct() on SoundCPU (in lieu of the
+ * C++ ctor-call this used to spell as `static M68K SoundCPU
+ * (true);`) and SS_SCSP_Reset(&SCSP, true) (in lieu of what
+ * SS_SCSP::SS_SCSP() used to do implicitly).  sound.c never
+ * sees these struct types directly -- it only reaches them
+ * through the SoundGlue_* wrappers below. */
 static SS_SCSP SCSP;
-static M68K SoundCPU(true);
+static M68K SoundCPU;
 
 /* SCSP IRQ-line and main-CPU-int callbacks.  These get pulled in
  * by scsp.inc and called from the SCSP state machine; they touch
@@ -67,12 +74,13 @@ static INLINE void SCSP_MainIntChanged(SS_SCSP* s, bool state)
  * fields from SoundGlue_Init().  M68K execution dispatches into these
  * for every external memory access.
  *
- * They live on the C++ side because the bodies reach SCSP.RW_* (member
- * call, needs class visibility) and the global SoundCPU and SCSP
- * instances.  Their function-pointer addresses are stored in M68K's
- * fields; the calling code (M68K::Run, deep in m68k.cpp) only sees
- * the pointer values, so the calling convention is the only ABI
- * constraint -- MDFN_FASTCALL on both sides.
+ * They live in this TU because the bodies reach SS_SCSP_RW_* (need
+ * scsp.h's SS_SCSP type visible -- it lives in this file via scsp.inc)
+ * and the file-static SoundCPU and SCSP instances.  Their function-
+ * pointer addresses are stored in M68K's fields; the calling code
+ * (M68K::Run, deep in m68k.cpp) only sees the pointer values, so
+ * the calling convention is the only ABI constraint -- MDFN_FASTCALL
+ * on both sides.
  *
  * The bus-access bodies need three pieces of cross-TU state owned
  * by sound.c: SOUND_next_scsp_time (the SCSP-sample boundary timer
@@ -220,17 +228,34 @@ static MDFN_FASTCALL void SoundCPU_BusRESET(bool state)
 }
 
 /* ===================================================================
- * extern "C" wrappers exposed to sound.c
+ * SoundGlue_* wrappers exposed to sound.c
+ *
+ * No `extern "C" { ... }` block any more -- this file is now C
+ * (post Phase-9 rename from sound_glue.cpp to sound_glue.c).
+ * sound_internal.h still wraps the matching declarations in
+ * `#ifdef __cplusplus extern "C" { ... } #endif` so any future
+ * C++ consumer would see the C-linkage names; for this TU plain
+ * C linkage is the default and matches what sound.c expects.
  * =================================================================== */
-
-extern "C" {
 
 void SoundGlue_Init(void)
 {
- /* Phase-9: replace what SS_SCSP::SS_SCSP() used to do implicitly
-  * at program load: zero the dummy half of RAM (so out-of-range
-  * playback reads return 0) and reset SS_SCSP state.  The ctor/dtor
-  * thunks have been dropped now that the struct is pure data. */
+ /* Phase-9: replace what M68K::M68K(true) and SS_SCSP::SS_SCSP()
+  * used to do implicitly at program load.  M68K_Construct does
+  * what the M68K(rev_e=true) constructor did: stash Revision_E,
+  * null the 7 bus-callback slots, install Dummy_BusRESET as
+  * BusRESET's default, zero timestamp/XPending/IPL, then power-
+  * on Reset.  The 8 Bus-callback slots below overwrite the
+  * nulls that M68K_Construct just installed (BusRESET overwrites
+  * Dummy_BusRESET, which was just a stop-gap default for code
+  * paths that fire before SoundGlue_Init -- there are no such
+  * paths in practice). */
+ M68K_Construct(&SoundCPU, true);
+
+ /* Zero the dummy half of RAM (so out-of-range playback reads
+  * return 0) and reset SS_SCSP state -- what SS_SCSP::SS_SCSP()
+  * used to do.  The struct itself is zero-initialised at program
+  * load via the file-scope `static SS_SCSP SCSP;` declaration. */
  memset(SS_SCSP_GetRAMPtr(&SCSP) + 0x40000, 0x00, 0x40000 * sizeof(uint16_t));
  SS_SCSP_Reset(&SCSP, true);
 
@@ -345,5 +370,3 @@ void SOUND_RunSCSP(void)
  IBufferCount = (IBufferCount + 1) & 1023;
  SOUND_next_scsp_time += 256;
 }
-
-} /* extern "C" */

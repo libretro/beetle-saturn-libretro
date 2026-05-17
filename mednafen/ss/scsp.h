@@ -257,6 +257,18 @@ struct SS_SCSP_Timer
  int32_t Reload;
 };
 
+/* SS_SCSP_SB_XOR_Table -- the 4-entry sign-bit XOR lookup used in
+ * the CTL register-write paths to decode the per-slot
+ * source-bit-XOR field (the (*SRV >> 9) & 0x3 selector picks one
+ * of these 4 constants for s->SBXOR).  Used to live as
+ * `const uint16_t SS_SCSP::SB_XOR_Table[4] = { ... };` inside the
+ * struct -- a C++11 in-class default-member-initializer that C
+ * doesn't parse.  Moved to file scope so both C and C++ TUs
+ * compile.  Marked `static const` so each TU gets its own
+ * 8-byte read-only copy (the data is identical across instances
+ * and across TUs; no aliasing concern). */
+static const uint16_t SS_SCSP_SB_XOR_Table[4] = { 0x0000, 0x7FFF, 0x8000, 0xFFFF };
+
 struct SS_SCSP
 {
  /* Phase-8f: RunSample's `template<typename T_out = int16_t>` form
@@ -297,8 +309,6 @@ struct SS_SCSP
  bool KeyExecute;
  uint32_t LFSR;
  uint32_t GlobalCounter;
-
- const uint16_t SB_XOR_Table[4] = { 0x0000, 0x7FFF, 0x8000, 0xFFFF };
 
  //
  //

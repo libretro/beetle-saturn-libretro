@@ -1035,7 +1035,7 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
 	*SRV &= 0x0FFF;
 
 	s->KeyBit = (*SRV >> 11) & 0x1;
-	s->SBXOR = z->SB_XOR_Table[(*SRV >> 9) & 0x3];
+	s->SBXOR = SS_SCSP_SB_XOR_Table[(*SRV >> 9) & 0x3];
 	s->SourceControl = (*SRV >> 7) & 0x3;
 	s->LoopMode = (*SRV >> 5) & 0x3;
 	s->WF8Bit = (*SRV >> 4) & 0x1;
@@ -1506,7 +1506,7 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
 	*SRV &= 0x0FFF;
 
 	s->KeyBit = (*SRV >> 11) & 0x1;
-	s->SBXOR = z->SB_XOR_Table[(*SRV >> 9) & 0x3];
+	s->SBXOR = SS_SCSP_SB_XOR_Table[(*SRV >> 9) & 0x3];
 	s->SourceControl = (*SRV >> 7) & 0x3;
 	s->LoopMode = (*SRV >> 5) & 0x3;
 	s->WF8Bit = (*SRV >> 4) & 0x1;
@@ -2185,16 +2185,16 @@ static void SS_SCSP_DecodeMPROG(SS_SCSP* z)
  for(unsigned step = 0; step < 128; step++)
  {
   const uint64_t instr = z->DSP.MPROG[step];
-  SS_SCSP_DSPStep& s = z->DSP.MPROG_Decoded[step];
+  SS_SCSP_DSPStep* s = &z->DSP.MPROG_Decoded[step];
 
-  s.MASA = (instr >>  2) & 0x1F;
-  s.CRA  = (instr >>  9) & 0x3F;
-  s.EWA  = (instr >> 24) & 0x0F;
-  s.IWA  = (instr >> 32) & 0x1F;
-  s.IRA  = (instr >> 38) & 0x3F;
-  s.YSEL = (instr >> 45) & 0x03;
-  s.TWA  = (instr >> 48) & 0x7F;
-  s.TRA  = (instr >> 56) & 0x7F;
+  s->MASA = (instr >>  2) & 0x1F;
+  s->CRA  = (instr >>  9) & 0x3F;
+  s->EWA  = (instr >> 24) & 0x0F;
+  s->IWA  = (instr >> 32) & 0x1F;
+  s->IRA  = (instr >> 38) & 0x3F;
+  s->YSEL = (instr >> 45) & 0x03;
+  s->TWA  = (instr >> 48) & 0x7F;
+  s->TRA  = (instr >> 56) & 0x7F;
 
   uint32_t f = 0;
   f |= ((instr >>  0) & 1) ? DSPF_NXADDR : 0;
@@ -2215,9 +2215,9 @@ static void SS_SCSP_DecodeMPROG(SS_SCSP* z)
   f |= ((instr >> 37) & 1) ? DSPF_IWT    : 0;
   f |= ((instr >> 47) & 1) ? DSPF_XSEL   : 0;
   f |= ((instr >> 55) & 1) ? DSPF_TWT    : 0;
-  s.flags = f;
+  s->flags = f;
 
-  s.reads = (f & (DSPF_EWT | DSPF_TWT | DSPF_FRCL | DSPF_ADRL | DSPF_MWT | DSPF_BSEL)) ? DSPR_SFT : 0;
+  s->reads = (f & (DSPF_EWT | DSPF_TWT | DSPF_FRCL | DSPF_ADRL | DSPF_MWT | DSPF_BSEL)) ? DSPR_SFT : 0;
 
   uint8_t writes = DSPW_SFT;
   if(f & DSPF_FRCL)                  writes |= DSPW_FRC;
@@ -2227,9 +2227,9 @@ static void SS_SCSP_DecodeMPROG(SS_SCSP* z)
   if(f & DSPF_IWT)                   writes |= DSPW_MEMS;
   if(f & DSPF_EWT)                   writes |= DSPW_EFREG;
   if(f & (DSPF_MRT | DSPF_MWT))      writes |= DSPW_RAM;
-  s.writes = writes;
+  s->writes = writes;
 
-  s.live = 1;		// filled in by liveness pass
+  s->live = 1;		// filled in by liveness pass
  }
 
  // Liveness pass: a step is dead if its only observable writes are SFT_REG and/or
@@ -2238,15 +2238,15 @@ static void SS_SCSP_DecodeMPROG(SS_SCSP* z)
  // [0x32..0x3F]; otherwise the step writes INPUTS via MEMS/MIXS/z->EXTS.
  for(unsigned step = 0; step < 128; step++)
  {
-  const SS_SCSP_DSPStep& cur = z->DSP.MPROG_Decoded[step];
-  const SS_SCSP_DSPStep& nxt = z->DSP.MPROG_Decoded[(step + 1) & 0x7F];
-  const uint32_t nf = nxt.flags;
+  const SS_SCSP_DSPStep* cur = &z->DSP.MPROG_Decoded[step];
+  const SS_SCSP_DSPStep* nxt = &z->DSP.MPROG_Decoded[(step + 1) & 0x7F];
+  const uint32_t nf = nxt->flags;
 
-  const bool has_other_writes  = (cur.writes & ~(unsigned)DSPW_SFT) != 0;
-  const bool sft_observed      = (nxt.reads & DSPR_SFT) != 0;
+  const bool has_other_writes  = (cur->writes & ~(unsigned)DSPW_SFT) != 0;
+  const bool sft_observed      = (nxt->reads & DSPR_SFT) != 0;
 
-  const bool cur_writes_inputs    = !((cur.IRA & 0x30) == 0x30 && (cur.IRA & 0x0E) != 0);
-  const bool nxt_preserves_inputs =  ((nxt.IRA & 0x30) == 0x30 && (nxt.IRA & 0x0E) != 0);
+  const bool cur_writes_inputs    = !((cur->IRA & 0x30) == 0x30 && (cur->IRA & 0x0E) != 0);
+  const bool nxt_preserves_inputs =  ((nxt->IRA & 0x30) == 0x30 && (nxt->IRA & 0x0E) != 0);
   const bool nxt_uses_inputs      = (nf & DSPF_YRL) || (nf & DSPF_XSEL) ||
                                     ((nf & DSPF_ADRL) && !((nf & DSPF_SHFT0) && (nf & DSPF_SHFT1)));
   const bool inputs_observed      = cur_writes_inputs && nxt_preserves_inputs && nxt_uses_inputs;
@@ -2277,12 +2277,12 @@ static INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
 
  for(unsigned step = 0; step < 128; step++)
  {
-  const SS_SCSP_DSPStep& s = z->DSP.MPROG_Decoded[step];
-  if(!s.live) continue;
-  const uint32_t f = s.flags;
-  const unsigned IRA = s.IRA;
-  const unsigned TEMPWriteAddr = (s.TWA + z->DSP.MDEC_CT) & 0x7F;
-  const unsigned TEMPReadAddr  = (s.TRA + z->DSP.MDEC_CT) & 0x7F;
+  const SS_SCSP_DSPStep* s = &z->DSP.MPROG_Decoded[step];
+  if(!s->live) continue;
+  const uint32_t f = s->flags;
+  const unsigned IRA = s->IRA;
+  const unsigned TEMPWriteAddr = (s->TWA + z->DSP.MDEC_CT) & 0x7F;
+  const unsigned TEMPReadAddr  = (s->TRA + z->DSP.MDEC_CT) & 0x7F;
 
   //
   //
@@ -2311,12 +2311,12 @@ static INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
   // variable index — a store-to-load forwarding stall, the single hottest
   // line in SS_SCSP_RunDSP.  A csel chain keeps the four candidates in registers.
   const uint16_t y_frc   = z->DSP.FRC_REG;
-  const uint16_t y_coef  = z->DSP.COEF[s.CRA];
+  const uint16_t y_coef  = z->DSP.COEF[s->CRA];
   const uint16_t y_yhi   = (z->DSP.Y_REG >> 11) & 0x1FFF;
   const uint16_t y_ylo   = (z->DSP.Y_REG >>  4) & 0x0FFF;
-  const uint16_t y_lopr  = (s.YSEL & 1) ? y_coef : y_frc;
-  const uint16_t y_hipr  = (s.YSEL & 1) ? y_ylo  : y_yhi;
-  const uint16_t y_input = (s.YSEL & 2) ? y_hipr : y_lopr;
+  const uint16_t y_lopr  = (s->YSEL & 1) ? y_coef : y_frc;
+  const uint16_t y_hipr  = (s->YSEL & 1) ? y_ylo  : y_yhi;
+  const uint16_t y_input = (s->YSEL & 2) ? y_hipr : y_lopr;
   //
   //
   //
@@ -2368,14 +2368,14 @@ static INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
   //
   //
   if(f & DSPF_EWT)
-   z->DSP.EFREG[s.EWA] = (ShifterOutput >> 8);
+   z->DSP.EFREG[s->EWA] = (ShifterOutput >> 8);
 
   if(f & DSPF_TWT)
    z->DSP.TEMP[TEMPWriteAddr] = ShifterOutput;
 
   if(f & DSPF_IWT)
   {
-   z->DSP.MEMS[s.IWA] = z->DSP.ReadValue;
+   z->DSP.MEMS[s->IWA] = z->DSP.ReadValue;
   }
   //
   //
@@ -2396,7 +2396,7 @@ static INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
   {
    uint16_t addr;
 
-   addr = z->DSP.MADRS[s.MASA];
+   addr = z->DSP.MADRS[s->MASA];
    addr += (f & DSPF_NXADDR) ? 1 : 0;
 
    if(f & DSPF_ADRGB)
@@ -2885,7 +2885,13 @@ void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bo
 
   for(uint32_t A = 0x100000; A < 0x100400; A += 2)
   {
-   SS_SCSP_RW_u16_W1(z, A, MDAP(z->SlotRegs) + ((A & 0x3FE) >> 1));
+   /* MDAP(z->SlotRegs) -- mednafen-types.h's
+    * `template<typename T> T* MDAP(T (*v)[N])` helper -- isn't
+    * parseable in C.  z->SlotRegs is `uint16_t[0x20][0x10]`, so
+    * `&z->SlotRegs[0][0]` yields the same flat-array pointer
+    * to the first uint16_t with no template machinery (parallels
+    * the scu.inc MDAP(DSP.DataRAM) -> explicit-cast fix). */
+   SS_SCSP_RW_u16_W1(z, A, &z->SlotRegs[0][0] + ((A & 0x3FE) >> 1));
   }
   SS_SCSP_RecalcSoundInt(z);
   SS_SCSP_RecalcMainInt(z);
