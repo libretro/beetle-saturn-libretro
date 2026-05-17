@@ -31,6 +31,14 @@
  * scope for C compatibility.  All enumerators carry the SH7095_
  * prefix (avoids EXCEPTION_RESET collision with m68k.h). */
 
+/* C-compat typedefs: in C the struct tag is not auto-aliased to a
+ * type name (that aliasing is C++ name-injection).  Forward-declare
+ * the tags as typedefs so `SH7095*` and `SH7095_CacheEntry*` work
+ * as type references in both languages, and so SH7095_CacheEntry
+ * inside the SH7095 struct body parses cleanly in C. */
+typedef struct SH7095 SH7095;
+typedef struct SH7095_CacheEntry SH7095_CacheEntry;
+
  struct SH7095_CacheEntry
  {
   // Rather than have separate validity bits, we're putting an INvalidity bit(invalid when =1)
@@ -542,7 +550,7 @@ struct SH7095
 /* Phase-9 step 4: SH7095 public API as free functions. */
 void SH7095_SetIRL                     (SH7095* z, unsigned level);
 void SH7095_Init                       (SH7095* z, bool EmulateICache, bool CacheBypassHack) MDFN_COLD;
-void SH7095_Reset                      (SH7095* z, bool power_on_reset, bool from_internal_wdt = false) MDFN_COLD;
+void SH7095_Reset                      (SH7095* z, bool power_on_reset, bool from_internal_wdt) MDFN_COLD;
 void SH7095_TruePowerOn                (SH7095* z) MDFN_COLD;
 void SH7095_AdjustTS                   (SH7095* z, int32_t delta);
 void SH7095_SetActive                  (SH7095* z, bool active);
