@@ -1,3 +1,5 @@
+#include <tuple>
+
 #include "../../mednafen.h"
 #include "m68k.h"
 #include "m68k_private.h"
