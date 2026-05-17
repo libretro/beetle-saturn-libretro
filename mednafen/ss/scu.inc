@@ -101,6 +101,15 @@ enum { DMA_UpdateTimingGran = 127 };
 
 enum { DSP_UpdateTimingGran = 64 };	// Probably should keep it a multiple of 2.
 
+/* C-compat typedefs for the two DMA struct types defined below.
+ * In C the struct tag is not auto-aliased to a type name, so
+ * uses of `DMAWriteTabS` / `DMALevelS` without the `struct` keyword
+ * fail to parse.  Forward-declare both typedefs here so the
+ * struct bodies below and the function-level uses (`DMALevelS*
+ * d = &DMALevel[...]`) all resolve in either language. */
+typedef struct DMAWriteTabS DMAWriteTabS;
+typedef struct DMALevelS DMALevelS;
+
 struct DMAWriteTabS
 {
  int16_t write_addr_delta;
@@ -390,10 +399,11 @@ void SCU_AdjustTS(const int32_t delta)
 {
  SCU_DMA_TimeCounter += delta;
  SCU_DMA_RunUntil += delta;
- for(auto& d : DMALevel)
+ for(unsigned level___ = 0; level___ < 3; level___++)
  {
-  if(d.Active < 0)
-   d.FinishTime += delta;
+  DMALevelS* d = &DMALevel[level___];
+  if(d->Active < 0)
+   d->FinishTime += delta;
  }
 
  //
@@ -457,9 +467,9 @@ static INLINE void SCU_RegRW_DB_u8_W0(uint32_t A, uint32_t* DB)
    case 0x20:
    case 0x40:
 	{
-	 auto const& d = DMALevel[(A >> 5) & 0x3];
+	 const DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 *DB = d.StartReadAddr;
+	 *DB = d->StartReadAddr;
 	}
 	break;
 
@@ -467,9 +477,9 @@ static INLINE void SCU_RegRW_DB_u8_W0(uint32_t A, uint32_t* DB)
    case 0x24:
    case 0x44:
 	{
-	 auto const& d = DMALevel[(A >> 5) & 0x3];
+	 const DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 *DB = d.StartWriteAddr;
+	 *DB = d->StartWriteAddr;
 	}
 	break;
 
@@ -479,9 +489,9 @@ static INLINE void SCU_RegRW_DB_u8_W0(uint32_t A, uint32_t* DB)
 
 	 for(unsigned level = 0; level < 3; level++)
 	 {
-	  auto& d = DMALevel[level];
+	  DMALevelS* d = &DMALevel[level];
 
-	  if(d.Active)
+	  if(d->Active)
 	  {
 	   tmp |= 0x10 << (level << 2);
 	  }
@@ -618,9 +628,9 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
    case 0x20:
    case 0x40:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 d.StartReadAddr = (d.StartReadAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
+	 d->StartReadAddr = (d->StartReadAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
 	}
 	break;
 
@@ -628,9 +638,9 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
    case 0x24:
    case 0x44:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 d.StartWriteAddr = (d.StartWriteAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
+	 d->StartWriteAddr = (d->StartWriteAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
 	}
 	break;
 
@@ -639,9 +649,9 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
    case 0x48:
 	{
 	 const unsigned level = (A >> 5) & 0x3;
-	 auto& d = DMALevel[level];
+	 DMALevelS* d = &DMALevel[level];
 
-	 d.StartByteCount = (d.StartByteCount &~ mask) | (*DB & mask & (level ? 0x00000FFF : 0x000FFFFF));
+	 d->StartByteCount = (d->StartByteCount &~ mask) | (*DB & mask & (level ? 0x00000FFF : 0x000FFFFF));
         }
 	break;
 
@@ -649,13 +659,13 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
    case 0x2C:
    case 0x4C:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
-	 uint32_t tmp = (d.ReadAdd << 8) | (d.WriteAdd << 0);
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
+	 uint32_t tmp = (d->ReadAdd << 8) | (d->WriteAdd << 0);
 
 	 tmp = (tmp &~ mask) | (*DB & mask);
 
-	 d.ReadAdd = (tmp >> 8) & 0x1;
-	 d.WriteAdd = (tmp >> 0) & 0x7;
+	 d->ReadAdd = (tmp >> 8) & 0x1;
+	 d->WriteAdd = (tmp >> 0) & 0x7;
 	}
 	break;
 
@@ -664,18 +674,18 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
    case 0x50:
 	{
 	 const unsigned level = (A >> 5) & 0x3;
-	 auto& d = DMALevel[level];
-	 uint32_t tmp = (d.Enable << 8);
+	 DMALevelS* d = &DMALevel[level];
+	 uint32_t tmp = (d->Enable << 8);
 
 	 tmp = (tmp &~ mask) | (*DB & mask);	 
-	 d.Enable = (tmp >> 8) & 0x1;
+	 d->Enable = (tmp >> 8) & 0x1;
 
-	 if((tmp & 0x1) && d.Enable && d.SF == 0x7)
+	 if((tmp & 0x1) && d->Enable && d->SF == 0x7)
 	 {
 	  SCU_UpdateDMA(SH7095_mem_timestamp);
 
-	  d.GoGoGadget = true;
-	  CheckDMAStart(&d);
+	  d->GoGoGadget = true;
+	  CheckDMAStart(d);
 
 	  SS_SetEventNT(&events[SS_EVENT_SCU_DMA], SCU_UpdateDMA(SH7095_mem_timestamp));
 	 }
@@ -686,15 +696,15 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
    case 0x34:
    case 0x54:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
-	 uint32_t tmp = (d.Indirect << 24) | (d.ReadUpdate << 16) | (d.WriteUpdate << 8) | (d.SF << 0);
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
+	 uint32_t tmp = (d->Indirect << 24) | (d->ReadUpdate << 16) | (d->WriteUpdate << 8) | (d->SF << 0);
 
 	 tmp = (tmp &~ mask) | (*DB & mask);
 
-	 d.Indirect = (tmp >> 24) & 0x1;
-	 d.ReadUpdate = (tmp >> 16) & 0x1;
-	 d.WriteUpdate = (tmp >> 8) & 0x1;
-	 d.SF = (tmp >> 0) & 0x7;
+	 d->Indirect = (tmp >> 24) & 0x1;
+	 d->ReadUpdate = (tmp >> 16) & 0x1;
+	 d->WriteUpdate = (tmp >> 8) & 0x1;
+	 d->SF = (tmp >> 0) & 0x7;
 	}
 	break;
 
@@ -705,10 +715,10 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 	 SCU_DMA_ReadOverhead = 0;
 	 for(unsigned level = 0; level < 3; level++)
 	 {
-	  auto& d = DMALevel[level];
+	  DMALevelS* d = &DMALevel[level];
 
-	  d.Active = false;
-	  d.GoGoGadget = false;
+	  d->Active = false;
+	  d->GoGoGadget = false;
 	 }
 	 RecalcDMAHalt();
 	}
@@ -811,9 +821,9 @@ static INLINE void SCU_RegRW_DB_u16_W0(uint32_t A, uint32_t* DB)
    case 0x20:
    case 0x40:
 	{
-	 auto const& d = DMALevel[(A >> 5) & 0x3];
+	 const DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 *DB = d.StartReadAddr;
+	 *DB = d->StartReadAddr;
 	}
 	break;
 
@@ -821,9 +831,9 @@ static INLINE void SCU_RegRW_DB_u16_W0(uint32_t A, uint32_t* DB)
    case 0x24:
    case 0x44:
 	{
-	 auto const& d = DMALevel[(A >> 5) & 0x3];
+	 const DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 *DB = d.StartWriteAddr;
+	 *DB = d->StartWriteAddr;
 	}
 	break;
 
@@ -833,9 +843,9 @@ static INLINE void SCU_RegRW_DB_u16_W0(uint32_t A, uint32_t* DB)
 
 	 for(unsigned level = 0; level < 3; level++)
 	 {
-	  auto& d = DMALevel[level];
+	  DMALevelS* d = &DMALevel[level];
 
-	  if(d.Active)
+	  if(d->Active)
 	  {
 	   tmp |= 0x10 << (level << 2);
 	  }
@@ -972,9 +982,9 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
    case 0x20:
    case 0x40:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 d.StartReadAddr = (d.StartReadAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
+	 d->StartReadAddr = (d->StartReadAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
 	}
 	break;
 
@@ -982,9 +992,9 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
    case 0x24:
    case 0x44:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 d.StartWriteAddr = (d.StartWriteAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
+	 d->StartWriteAddr = (d->StartWriteAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
 	}
 	break;
 
@@ -993,9 +1003,9 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
    case 0x48:
 	{
 	 const unsigned level = (A >> 5) & 0x3;
-	 auto& d = DMALevel[level];
+	 DMALevelS* d = &DMALevel[level];
 
-	 d.StartByteCount = (d.StartByteCount &~ mask) | (*DB & mask & (level ? 0x00000FFF : 0x000FFFFF));
+	 d->StartByteCount = (d->StartByteCount &~ mask) | (*DB & mask & (level ? 0x00000FFF : 0x000FFFFF));
         }
 	break;
 
@@ -1003,13 +1013,13 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
    case 0x2C:
    case 0x4C:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
-	 uint32_t tmp = (d.ReadAdd << 8) | (d.WriteAdd << 0);
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
+	 uint32_t tmp = (d->ReadAdd << 8) | (d->WriteAdd << 0);
 
 	 tmp = (tmp &~ mask) | (*DB & mask);
 
-	 d.ReadAdd = (tmp >> 8) & 0x1;
-	 d.WriteAdd = (tmp >> 0) & 0x7;
+	 d->ReadAdd = (tmp >> 8) & 0x1;
+	 d->WriteAdd = (tmp >> 0) & 0x7;
 	}
 	break;
 
@@ -1018,18 +1028,18 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
    case 0x50:
 	{
 	 const unsigned level = (A >> 5) & 0x3;
-	 auto& d = DMALevel[level];
-	 uint32_t tmp = (d.Enable << 8);
+	 DMALevelS* d = &DMALevel[level];
+	 uint32_t tmp = (d->Enable << 8);
 
 	 tmp = (tmp &~ mask) | (*DB & mask);	 
-	 d.Enable = (tmp >> 8) & 0x1;
+	 d->Enable = (tmp >> 8) & 0x1;
 
-	 if((tmp & 0x1) && d.Enable && d.SF == 0x7)
+	 if((tmp & 0x1) && d->Enable && d->SF == 0x7)
 	 {
 	  SCU_UpdateDMA(SH7095_mem_timestamp);
 
-	  d.GoGoGadget = true;
-	  CheckDMAStart(&d);
+	  d->GoGoGadget = true;
+	  CheckDMAStart(d);
 
 	  SS_SetEventNT(&events[SS_EVENT_SCU_DMA], SCU_UpdateDMA(SH7095_mem_timestamp));
 	 }
@@ -1040,15 +1050,15 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
    case 0x34:
    case 0x54:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
-	 uint32_t tmp = (d.Indirect << 24) | (d.ReadUpdate << 16) | (d.WriteUpdate << 8) | (d.SF << 0);
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
+	 uint32_t tmp = (d->Indirect << 24) | (d->ReadUpdate << 16) | (d->WriteUpdate << 8) | (d->SF << 0);
 
 	 tmp = (tmp &~ mask) | (*DB & mask);
 
-	 d.Indirect = (tmp >> 24) & 0x1;
-	 d.ReadUpdate = (tmp >> 16) & 0x1;
-	 d.WriteUpdate = (tmp >> 8) & 0x1;
-	 d.SF = (tmp >> 0) & 0x7;
+	 d->Indirect = (tmp >> 24) & 0x1;
+	 d->ReadUpdate = (tmp >> 16) & 0x1;
+	 d->WriteUpdate = (tmp >> 8) & 0x1;
+	 d->SF = (tmp >> 0) & 0x7;
 	}
 	break;
 
@@ -1059,10 +1069,10 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 	 SCU_DMA_ReadOverhead = 0;
 	 for(unsigned level = 0; level < 3; level++)
 	 {
-	  auto& d = DMALevel[level];
+	  DMALevelS* d = &DMALevel[level];
 
-	  d.Active = false;
-	  d.GoGoGadget = false;
+	  d->Active = false;
+	  d->GoGoGadget = false;
 	 }
 	 RecalcDMAHalt();
 	}
@@ -1165,9 +1175,9 @@ static INLINE void SCU_RegRW_DB_u32_W0(uint32_t A, uint32_t* DB)
    case 0x20:
    case 0x40:
 	{
-	 auto const& d = DMALevel[(A >> 5) & 0x3];
+	 const DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 *DB = d.StartReadAddr;
+	 *DB = d->StartReadAddr;
 	}
 	break;
 
@@ -1175,9 +1185,9 @@ static INLINE void SCU_RegRW_DB_u32_W0(uint32_t A, uint32_t* DB)
    case 0x24:
    case 0x44:
 	{
-	 auto const& d = DMALevel[(A >> 5) & 0x3];
+	 const DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 *DB = d.StartWriteAddr;
+	 *DB = d->StartWriteAddr;
 	}
 	break;
 
@@ -1187,9 +1197,9 @@ static INLINE void SCU_RegRW_DB_u32_W0(uint32_t A, uint32_t* DB)
 
 	 for(unsigned level = 0; level < 3; level++)
 	 {
-	  auto& d = DMALevel[level];
+	  DMALevelS* d = &DMALevel[level];
 
-	  if(d.Active)
+	  if(d->Active)
 	  {
 	   tmp |= 0x10 << (level << 2);
 	  }
@@ -1326,9 +1336,9 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
    case 0x20:
    case 0x40:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 d.StartReadAddr = (d.StartReadAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
+	 d->StartReadAddr = (d->StartReadAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
 	}
 	break;
 
@@ -1336,9 +1346,9 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
    case 0x24:
    case 0x44:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
 
-	 d.StartWriteAddr = (d.StartWriteAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
+	 d->StartWriteAddr = (d->StartWriteAddr &~ mask) | (*DB & mask & 0x07FFFFFF);
 	}
 	break;
 
@@ -1347,9 +1357,9 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
    case 0x48:
 	{
 	 const unsigned level = (A >> 5) & 0x3;
-	 auto& d = DMALevel[level];
+	 DMALevelS* d = &DMALevel[level];
 
-	 d.StartByteCount = (d.StartByteCount &~ mask) | (*DB & mask & (level ? 0x00000FFF : 0x000FFFFF));
+	 d->StartByteCount = (d->StartByteCount &~ mask) | (*DB & mask & (level ? 0x00000FFF : 0x000FFFFF));
         }
 	break;
 
@@ -1357,13 +1367,13 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
    case 0x2C:
    case 0x4C:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
-	 uint32_t tmp = (d.ReadAdd << 8) | (d.WriteAdd << 0);
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
+	 uint32_t tmp = (d->ReadAdd << 8) | (d->WriteAdd << 0);
 
 	 tmp = (tmp &~ mask) | (*DB & mask);
 
-	 d.ReadAdd = (tmp >> 8) & 0x1;
-	 d.WriteAdd = (tmp >> 0) & 0x7;
+	 d->ReadAdd = (tmp >> 8) & 0x1;
+	 d->WriteAdd = (tmp >> 0) & 0x7;
 	}
 	break;
 
@@ -1372,18 +1382,18 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
    case 0x50:
 	{
 	 const unsigned level = (A >> 5) & 0x3;
-	 auto& d = DMALevel[level];
-	 uint32_t tmp = (d.Enable << 8);
+	 DMALevelS* d = &DMALevel[level];
+	 uint32_t tmp = (d->Enable << 8);
 
 	 tmp = (tmp &~ mask) | (*DB & mask);	 
-	 d.Enable = (tmp >> 8) & 0x1;
+	 d->Enable = (tmp >> 8) & 0x1;
 
-	 if((tmp & 0x1) && d.Enable && d.SF == 0x7)
+	 if((tmp & 0x1) && d->Enable && d->SF == 0x7)
 	 {
 	  SCU_UpdateDMA(SH7095_mem_timestamp);
 
-	  d.GoGoGadget = true;
-	  CheckDMAStart(&d);
+	  d->GoGoGadget = true;
+	  CheckDMAStart(d);
 
 	  SS_SetEventNT(&events[SS_EVENT_SCU_DMA], SCU_UpdateDMA(SH7095_mem_timestamp));
 	 }
@@ -1394,15 +1404,15 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
    case 0x34:
    case 0x54:
 	{
-	 auto& d = DMALevel[(A >> 5) & 0x3];
-	 uint32_t tmp = (d.Indirect << 24) | (d.ReadUpdate << 16) | (d.WriteUpdate << 8) | (d.SF << 0);
+	 DMALevelS* d = &DMALevel[(A >> 5) & 0x3];
+	 uint32_t tmp = (d->Indirect << 24) | (d->ReadUpdate << 16) | (d->WriteUpdate << 8) | (d->SF << 0);
 
 	 tmp = (tmp &~ mask) | (*DB & mask);
 
-	 d.Indirect = (tmp >> 24) & 0x1;
-	 d.ReadUpdate = (tmp >> 16) & 0x1;
-	 d.WriteUpdate = (tmp >> 8) & 0x1;
-	 d.SF = (tmp >> 0) & 0x7;
+	 d->Indirect = (tmp >> 24) & 0x1;
+	 d->ReadUpdate = (tmp >> 16) & 0x1;
+	 d->WriteUpdate = (tmp >> 8) & 0x1;
+	 d->SF = (tmp >> 0) & 0x7;
 	}
 	break;
 
@@ -1413,10 +1423,10 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
 	 SCU_DMA_ReadOverhead = 0;
 	 for(unsigned level = 0; level < 3; level++)
 	 {
-	  auto& d = DMALevel[level];
+	  DMALevelS* d = &DMALevel[level];
 
-	  d.Active = false;
-	  d.GoGoGadget = false;
+	  d->Active = false;
+	  d->GoGoGadget = false;
 	 }
 	 RecalcDMAHalt();
 	}
@@ -3408,12 +3418,12 @@ static void CheckDMASFByInt(unsigned int_which)
 
  for(unsigned level = 0; level < 3; level++)
  {
-  auto& d = DMALevel[level];
+  DMALevelS* d = &DMALevel[level];
 
-  if(d.Enable && d.SF < 0x7 && sf_to_int_tab[d.SF] == int_which)
+  if(d->Enable && d->SF < 0x7 && sf_to_int_tab[d->SF] == int_which)
   {
-   d.GoGoGadget = true;
-   CheckDMAStart(&d);
+   d->GoGoGadget = true;
+   CheckDMAStart(d);
   }
  }
 }
@@ -4273,23 +4283,24 @@ void SCU_Reset(bool powering_up)
  if(powering_up)
   memset(DMALevel, 0x00, sizeof(DMALevel));
 
- for(auto& d : DMALevel)
+ for(unsigned level___ = 0; level___ < 3; level___++)
  {
-  d.ReadAdd = true;
-  d.WriteAdd = 0x1;
+  DMALevelS* d = &DMALevel[level___];
+  d->ReadAdd = true;
+  d->WriteAdd = 0x1;
 
-  d.Enable = false;
-  d.GoGoGadget = false;
-  d.Active = false;
+  d->Enable = false;
+  d->GoGoGadget = false;
+  d->Active = false;
 
-  d.Indirect = false;
-  d.ReadUpdate = false;
-  d.WriteUpdate = false;
-  d.SF = 0x7;
+  d->Indirect = false;
+  d->ReadUpdate = false;
+  d->WriteUpdate = false;
+  d->SF = 0x7;
 
-  d.WATable = &dma_write_tab.acb[0][0][0][0][0];
-  d.ReadFunc = rftab[0];
-  d.TableReadFunc = NULL;
+  d->WATable = &dma_write_tab.acb[0][0][0][0][0];
+  d->ReadFunc = rftab[0];
+  d->TableReadFunc = NULL;
  }
  //SCU_DMA_CycleCounter = 0;
  SCU_DMA_ReadOverhead = 0;
@@ -4435,12 +4446,12 @@ MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool dat
 
  for(unsigned level = 0; level < 3; level++)
  {
-  const auto& d = DMALevel[level];
+  const DMALevelS* d = &DMALevel[level];
 
-  if(d.WATable >= dwt_ptrs[0] && d.WATable < (dwt_ptrs[0] + dwt_counts[0]))
-   DMALevel_WATable[level] = d.WATable - dwt_ptrs[0];
-  else if(d.WATable >= dwt_ptrs[1] && d.WATable < (dwt_ptrs[1] + dwt_counts[1]))
-   DMALevel_WATable[level] = 0x80000000 | (d.WATable - dwt_ptrs[1]);
+  if(d->WATable >= dwt_ptrs[0] && d->WATable < (dwt_ptrs[0] + dwt_counts[0]))
+   DMALevel_WATable[level] = d->WATable - dwt_ptrs[0];
+  else if(d->WATable >= dwt_ptrs[1] && d->WATable < (dwt_ptrs[1] + dwt_counts[1]))
+   DMALevel_WATable[level] = 0x80000000 | (d->WATable - dwt_ptrs[1]);
   else
    abort();	// FIXME: NULL pointer on init...
 
@@ -4449,7 +4460,7 @@ MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool dat
    if(rb >= 3)
     abort();
 
-   if(d.ReadFunc == rftab[rb])
+   if(d->ReadFunc == rftab[rb])
    {
     DMALevel_ReadFunc[level] = rb;
     break;
@@ -4459,7 +4470,7 @@ MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool dat
   DMALevel_TableReadFunc[level] = 0xFF;
   for(unsigned trb = 0; trb < 3; trb++)
   {
-   if(d.TableReadFunc == rftab[trb])
+   if(d->TableReadFunc == rftab[trb])
    {
     DMALevel_TableReadFunc[level] = trb;
     break;
@@ -4507,16 +4518,16 @@ MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool dat
   //
   for(unsigned level = 0; level < 3; level++)
   {
-   auto& d = DMALevel[level];
+   DMALevelS* d = &DMALevel[level];
 
-   d.StartReadAddr &= 0x07FFFFFF;
-   d.StartWriteAddr &= 0x07FFFFFF;
-   d.StartByteCount &= level ? 0x00000FFF : 0x000FFFFF;
+   d->StartReadAddr &= 0x07FFFFFF;
+   d->StartWriteAddr &= 0x07FFFFFF;
+   d->StartByteCount &= level ? 0x00000FFF : 0x000FFFFF;
 
-   d.ReadAdd &= 0x1;
-   d.WriteAdd &= 0x7;
+   d->ReadAdd &= 0x1;
+   d->WriteAdd &= 0x7;
 
-   d.WriteBus %= 3;
+   d->WriteBus %= 3;
    //
    //
    {
@@ -4524,16 +4535,16 @@ MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool dat
     uint32_t index = DMALevel_WATable[level] & 0x7FFFFFFF;
 
     if(index < dwt_counts[which]) // || !dwt_ptrs[which][index].write_size)
-     d.WATable = dwt_ptrs[which] + index;
+     d->WATable = dwt_ptrs[which] + index;
    }
 
    if(DMALevel_ReadFunc[level] < 3)
-    d.ReadFunc = rftab[DMALevel_ReadFunc[level]];
+    d->ReadFunc = rftab[DMALevel_ReadFunc[level]];
 
    if(DMALevel_TableReadFunc[level] == 0xFF)
-    d.TableReadFunc = NULL;
+    d->TableReadFunc = NULL;
    else if(DMALevel_TableReadFunc[level] < 3)
-    d.TableReadFunc = rftab[DMALevel_TableReadFunc[level]];
+    d->TableReadFunc = rftab[DMALevel_TableReadFunc[level]];
   }
   //
   //
@@ -4589,9 +4600,9 @@ uint32_t SCU_GetRegister(const unsigned id, char* const special, const uint32_t 
   case SCU_GSREG_D1MD:
   case SCU_GSREG_D2MD:
 	{
-	 auto& d = DMALevel[id - SCU_GSREG_D0MD];
+	 DMALevelS* d = &DMALevel[id - SCU_GSREG_D0MD];
 
-	 ret = (d.Indirect << 24) | (d.ReadUpdate << 16) | (d.WriteUpdate << 8) | (d.SF << 0);
+	 ret = (d->Indirect << 24) | (d->ReadUpdate << 16) | (d->WriteUpdate << 8) | (d->SF << 0);
 	}
 	break;
   //
