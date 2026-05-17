@@ -121,14 +121,26 @@ extern "C" MDFN_COLD void SH7095_ConstructAll(void)
  * C++-only (it exposes the class, and there is no current C TU that
  * needs anything beyond these two methods); when more SH7095
  * operations need C-callable proxies they should be added here. */
-extern "C" void SH7095_SetActive(int cpu, bool active)
+/* Phase-9 follow-up: these C-callable proxies used to shadow the
+ * SH7095*-primary `SH7095_SetActive` / `SH7095_SetNMI` decls in
+ * sh7095.h via C++ overloading (same name, different signature,
+ * different linkage namespace).  Once sh7095.h became C-parseable
+ * the overload collapsed to a redefinition: C has no overloading.
+ *
+ * Both wrappers were always called with hard-coded CPU indices
+ * (SetActive only ever with 1 = slave, SetNMI only ever with
+ * 0 = master), so the right shape is `SH7095_M_*` / `SH7095_S_*`
+ * matching the existing SH7095_M_Init / SH7095_M_Reset naming
+ * convention -- drop the int parameter, encode the CPU in the
+ * function name. */
+extern "C" void SH7095_S_SetActive(bool active)
 {
- SH7095_SetActive(&CPU[cpu], active);
+ SH7095_SetActive(&CPU[1], active);
 }
 
-extern "C" void SH7095_SetNMI(int cpu, bool level)
+extern "C" void SH7095_M_SetNMI(bool level)
 {
- SH7095_SetNMI(&CPU[cpu], level);
+ SH7095_SetNMI(&CPU[0], level);
 }
 
 /* Used by vdp2.c (converted from C++) for the HORRIBLEHACK_NOSH2DMA-

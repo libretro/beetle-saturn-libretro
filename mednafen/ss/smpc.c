@@ -50,8 +50,8 @@
  * methods it needs (SetActive / SetNMI) via the matching extern "C"
  * proxies in ss.cpp (which is where the CPU[2] global lives).  Local
  * forward decls here cover them. */
-extern void SH7095_SetActive(int cpu, bool active);
-extern void SH7095_SetNMI(int cpu, bool level);
+extern void SH7095_S_SetActive(bool active);
+extern void SH7095_M_SetNMI(bool level);
 
 enum
 {
@@ -576,7 +576,7 @@ void SMPC_Reset(bool powering_up)
 {
  SlaveSH2Pending = 0;
  SlaveSH2On = false;
- SH7095_SetActive(1, SlaveSH2On);
+ SH7095_S_SetActive(SlaveSH2On);
  //
  TurnSoundCPUOff();
  CDOn = true; // ? false;
@@ -584,7 +584,7 @@ void SMPC_Reset(bool powering_up)
  ResetButtonCount = 0;
  ResetNMIEnable = false;	// or only on powering_up?
 
- SH7095_SetNMI(0, true);
+ SH7095_M_SetNMI(true);
 
  memset(IREG, 0, sizeof(IREG));
  memset(OREG, 0, sizeof(OREG));
@@ -778,7 +778,7 @@ void SMPC_ProcessSlaveOffOn(void)
  if(SlaveSH2Pending)
  {
   SlaveSH2On = (SlaveSH2Pending > 0);
-  SH7095_SetActive(1, SlaveSH2On);
+  SH7095_S_SetActive(SlaveSH2On);
   SlaveSH2Pending = 0;
   //
  }
@@ -1168,8 +1168,8 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
 
        if(ResetNMIEnable)
        {
-        SH7095_SetNMI(0, false);
-        SH7095_SetNMI(0, true);
+        SH7095_M_SetNMI(false);
+        SH7095_M_SetNMI(true);
 
         ResetButtonCount = -1;
        }
@@ -1259,8 +1259,8 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
      SMPC_WAIT_UNTIL_COND(vsync);
 
      // Send NMI to master SH-2
-     SH7095_SetNMI(0, false);
-     SH7095_SetNMI(0, true);
+     SH7095_M_SetNMI(false);
+     SH7095_M_SetNMI(true);
     }
     else if(ExecutingCommand == CMD_INTBACK)
     {
@@ -1582,8 +1582,8 @@ sscpu_timestamp_t SMPC_Update(sscpu_timestamp_t timestamp)
     }
     else if(ExecutingCommand == CMD_NMIREQ)
     {
-     SH7095_SetNMI(0, false);
-     SH7095_SetNMI(0, true);
+     SH7095_M_SetNMI(false);
+     SH7095_M_SetNMI(true);
     }
     else if(ExecutingCommand == CMD_RESENAB)
     {
