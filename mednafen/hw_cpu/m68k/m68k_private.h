@@ -389,12 +389,13 @@ INLINE void M68K::SetCX(bool val)
 //
 // Z_OnlyClear should be true for ADDX, SUBX, NEGX, ABCD, SBCD, NBCD.
 //
-// Phase-8b: the previous template<typename T, bool Z_OnlyClear>
-// CalcZN body splits into six named methods (three widths, two
-// Z behaviours).  The CalcZN<T, Z_OnlyClear> template below stays
-// as a one-line dispatcher for the 15+ T-parametric call sites
-// in ADD/SUB/etc. -- those retire when their parent templates
-// detemplate (post-HAM phases).
+// History: Phase-8b broke a single template<T, Z_OnlyClear> CalcZN
+// body into the six named methods below (three widths, two Z
+// behaviours) and kept the template as a thin dispatcher.
+// Phase-9d-6 retired the dispatcher entirely; the
+// CALC_ZN(z, T, val) / CALC_ZN_CLEAR(z, T, val) macros further
+// below do the size-keyed dispatch at the call site.  The named
+// methods are the live API now and stay class members of M68K.
 //
 
 INLINE void M68K::CalcZN_u8(const uint8_t val)
@@ -436,25 +437,49 @@ INLINE void M68K::CalcZN_u32_clear(const uint32_t val)
  Flag_N = ((int32_t)val < 0);
 }
 
-template<typename T, bool Z_OnlyClear>
-INLINE void M68K::CalcZN(const T val)
-{
- if(sizeof(T) == 4)
- {
-  if(Z_OnlyClear) CalcZN_u32_clear(val);
-  else            CalcZN_u32(val);
- }
- else if(sizeof(T) == 2)
- {
-  if(Z_OnlyClear) CalcZN_u16_clear(val);
-  else            CalcZN_u16(val);
- }
- else
- {
-  if(Z_OnlyClear) CalcZN_u8_clear(val);
-  else            CalcZN_u8(val);
- }
-}
+/* Phase-9d-6: CalcZN<T, Z_OnlyClear> template retired.
+ *
+ * Previously CalcZN<T, Z_OnlyClear> was a one-line dispatcher template
+ * that selected one of the six concrete CalcZN_uN[_clear] methods
+ * above based on `sizeof(T)` and `Z_OnlyClear`.  Phase-8b broke the
+ * body out into the six named variants and kept the template as the
+ * single entry point for the 15+ T-parametric call sites inside
+ * ADD/SUB/MOVE/etc. op templates.
+ *
+ * The CALC_ZN(z, T, val) / CALC_ZN_CLEAR(z, T, val) macros below
+ * replace the template.  `T` is a type (template parameter of the
+ * enclosing op or a concrete typedef); sizeof(T) is a compile-time
+ * constant in every current caller.  Each macro emits an if/else-if
+ * chain that selects the right named method, and gcc -O2 dead-code-
+ * eliminates the unused arms after sizeof(T) is folded -- producing
+ * byte-equivalent codegen to the prior template instantiation.
+ *
+ * Why macros, not non-template inline:  a free inline taking the
+ * width as a runtime arg would still be constant-foldable for
+ * compile-time-known T, but it adds a function-call frame the
+ * optimizer has to chew through.  Macros keep the call site flat
+ * and identical to what the template was already producing.
+ *
+ * Why the `z->` qualifier:  the called methods (CalcZN_u8 etc.)
+ * are still class members of struct M68K.  When the macro is
+ * expanded inside an M68K method body (which is where every caller
+ * is today), `z` is just `this`; when the op templates eventually
+ * detemplate to free functions taking `M68K* z`, the same spelling
+ * keeps working without macro changes.
+ */
+#define CALC_ZN(z, T, val) \
+ do { \
+  if      (sizeof(T) == 4) (z)->CalcZN_u32((val)); \
+  else if (sizeof(T) == 2) (z)->CalcZN_u16((val)); \
+  else                     (z)->CalcZN_u8 ((val)); \
+ } while(0)
+
+#define CALC_ZN_CLEAR(z, T, val) \
+ do { \
+  if      (sizeof(T) == 4) (z)->CalcZN_u32_clear((val)); \
+  else if (sizeof(T) == 2) (z)->CalcZN_u16_clear((val)); \
+  else                     (z)->CalcZN_u8_clear ((val)); \
+ } while(0)
 
 INLINE uint8_t M68K::GetCCR(void)
 {
@@ -532,7 +557,7 @@ INLINE void M68K::ADD(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 
  if(DAM != ADDR_REG_DIR)
  {
-  CalcZN<DT>(result);
+  CALC_ZN(this, DT, result);
   SetCX((result >> (sizeof(DT) * 8)) & 1);
   Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
  }
@@ -561,7 +586,7 @@ INLINE void M68K::ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst)
    timestamp += 4;
  }
 
- CalcZN<T, true>(result);
+ CALC_ZN_CLEAR(this, T, result);
  SetCX((result >> (sizeof(T) * 8)) & 1);
  Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
 
@@ -626,9 +651,9 @@ INLINE DT M68K::Subtract(bool X_form, HAM<T, SAM> &src, HAM<DT, DAM> &dst)
  if(DAM != ADDR_REG_DIR)
  {
   if(X_form)
-   CalcZN<DT, true>(result);
+   CALC_ZN_CLEAR(this, DT, result);
   else
-   CalcZN<DT, false>(result);
+   CALC_ZN(this, DT, result);
   SetCX((result >> (sizeof(DT) * 8)) & 1);
   Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
  }
@@ -694,7 +719,7 @@ INLINE void M68K::CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
  uint32_t const dst_data = dst.read();
  uint64_t const result = (uint64_t)dst_data - src_data;
 
- CalcZN<DT>(result);
+ CALC_ZN(this, DT, result);
  Flag_C = ((result >> (sizeof(DT) * 8)) & 1);
  Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
 }
@@ -712,7 +737,7 @@ INLINE void M68K::CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst)
  
  timestamp += 6;
 
- CalcZN<T>(dst_data);
+ CALC_ZN(this, T, dst_data);
  if(GetN())
  {
   Exception(EXCEPTION_CHK, VECNUM_CHK);
@@ -722,7 +747,7 @@ INLINE void M68K::CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst)
   // 7 - 1
   uint64_t const result = (uint64_t)dst_data - src_data;
 
-  CalcZN<T>(result);
+  CALC_ZN(this, T, result);
   Flag_C = ((result >> (sizeof(T) * 8)) & 1);
   Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
 
@@ -752,7 +777,7 @@ INLINE void M68K::OR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
    timestamp += 2;
  }
 
- CalcZN<T>(result);
+ CALC_ZN(this, T, result);
  Flag_C = (false);
  Flag_V = false;
 
@@ -778,7 +803,7 @@ INLINE void M68K::EOR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
    timestamp += 2;
  }
 
- CalcZN<T>(result);
+ CALC_ZN(this, T, result);
  Flag_C = false;
  Flag_V = false;
 
@@ -804,7 +829,7 @@ INLINE void M68K::AND(HAM<T, SAM> &src, HAM<T, DAM> &dst)
    timestamp += 2;
  }
 
- CalcZN<T>(result);
+ CALC_ZN(this, T, result);
  Flag_C = false;
  Flag_V = false;
 
@@ -1349,7 +1374,7 @@ INLINE void M68K::MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 
  if(DAM != ADDR_REG_DIR)
  {
-  CalcZN<T>(tmp);
+  CALC_ZN(this, T, tmp);
   Flag_V = false;
   Flag_C = false;
  }
@@ -1513,7 +1538,7 @@ INLINE void M68K::ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, 
   SetCX(shifted_out);
  }
 
- CalcZN<T>(result);
+ CALC_ZN(this, T, result);
 
  if(Arithmetic)
   Flag_V = ((vchange >> (sizeof(T) * 8 - 1)) & 1);
@@ -1597,7 +1622,7 @@ INLINE void M68K::RotateBase(bool X_Form, bool ShiftLeft, HAM<T, TAM> &targ, uns
    Flag_X = shifted_out;
  }
 
- CalcZN<T>(result);
+ CALC_ZN(this, T, result);
  Flag_V = (false);
 
  targ.write(result);
@@ -1653,7 +1678,7 @@ INLINE void M68K::TST(HAM<T, DAM> &dst)
 {
  T const dst_data = dst.read();
 
- CalcZN<T>(dst_data);
+ CALC_ZN(this, T, dst_data);
 
  Flag_C = false;
  Flag_V = false;
@@ -1693,7 +1718,7 @@ INLINE void M68K::NOT(HAM<T, DAM> &dst)
 
  result = ~result;
 
- CalcZN<T>(result);
+ CALC_ZN(this, T, result);
  Flag_C = false;
  Flag_V = false;
 
@@ -1715,7 +1740,7 @@ INLINE void M68K::EXT(HAM<T, DAM> &dst)
  else
   result = (int16_t)result;
 
- CalcZN<T>(result);
+ CALC_ZN(this, T, result);
  Flag_C = false;
  Flag_V = false;
 

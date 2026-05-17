@@ -233,22 +233,25 @@ struct M68K
 
  void SetCX(bool val);
 
- /* Phase-8b: named width-typed CalcZN variants.  The CalcZN<T,
-  * Z_OnlyClear> template below is kept as a thin dispatcher for
-  * the 15+ T-parametric call sites inside ADD/ADDX/SUB/SUBX/etc.
-  * templates that still take a T parameter; concrete-type call
-  * sites use the named methods directly.  The dispatcher retires
-  * when those parent templates also detemplate (much later
-  * phases -- they're all locked behind HAM detempleting). */
+ /* Phase-9d-6: CalcZN<T, Z_OnlyClear> template retired.  The six
+  * named width-typed variants below remain as class methods; the
+  * dispatch that the template was doing now lives in
+  * m68k_private.h's CALC_ZN(z, T, val) and CALC_ZN_CLEAR(z, T, val)
+  * macros which expand to a `sizeof(T)`-keyed if/else-if chain
+  * selecting the right named call.  gcc -O2 constant-folds the
+  * sizeof check so each compile-time-known T at the call site
+  * collapses to the right single call (byte-equivalent to the
+  * prior template instantiation).
+  *
+  * The named methods are still T-typed (uint8_t / uint16_t /
+  * uint32_t) by their parameter so the existing template-op
+  * callers don't need to cast values. */
  void CalcZN_u8       (const uint8_t  val);
  void CalcZN_u8_clear (const uint8_t  val);
  void CalcZN_u16      (const uint16_t val);
  void CalcZN_u16_clear(const uint16_t val);
  void CalcZN_u32      (const uint32_t val);
  void CalcZN_u32_clear(const uint32_t val);
-
- template<typename T, bool Z_OnlyClear = false>
- void CalcZN(const T val);
 
  uint8_t GetCCR(void);
  void SetCCR(uint8_t val);
