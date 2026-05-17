@@ -1026,95 +1026,95 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
 
   {
    SS_SCSP_Slot* s = &z->Slots[slotnum];
-   uint16_t& SRV = z->SlotRegs[slotnum][(A >> 1) & 0xF];
+   uint16_t* SRV = &z->SlotRegs[slotnum][(A >> 1) & 0xF];
 
    switch((A >> 1) & 0xF)
    {
     case 0x00:
-	z->KeyExecute |= (bool)(SRV & 0x1000);
-	SRV &= 0x0FFF;
+	z->KeyExecute |= (bool)(*SRV & 0x1000);
+	*SRV &= 0x0FFF;
 
-	s->KeyBit = (SRV >> 11) & 0x1;
-	s->SBXOR = z->SB_XOR_Table[(SRV >> 9) & 0x3];
-	s->SourceControl = (SRV >> 7) & 0x3;
-	s->LoopMode = (SRV >> 5) & 0x3;
-	s->WF8Bit = (SRV >> 4) & 0x1;
-	s->StartAddr = (s->StartAddr & 0xFFFF) | ((SRV & 0xF) << 16);
+	s->KeyBit = (*SRV >> 11) & 0x1;
+	s->SBXOR = z->SB_XOR_Table[(*SRV >> 9) & 0x3];
+	s->SourceControl = (*SRV >> 7) & 0x3;
+	s->LoopMode = (*SRV >> 5) & 0x3;
+	s->WF8Bit = (*SRV >> 4) & 0x1;
+	s->StartAddr = (s->StartAddr & 0xFFFF) | ((*SRV & 0xF) << 16);
 	break;
 
     case 0x01:
-	s->StartAddr = (s->StartAddr &~ 0xFFFF) | SRV;
+	s->StartAddr = (s->StartAddr &~ 0xFFFF) | *SRV;
 	break;
 
     case 0x02:
-	s->LoopStart = SRV;
+	s->LoopStart = *SRV;
 	break;
 
     case 0x03:
-	s->LoopEnd = SRV;
+	s->LoopEnd = *SRV;
 	//
 	SS_SCSP_RecalcShortWaveMask(z, s);
 	break;
 
     case 0x04:
-	s->EnvRates[ENV_PHASE_ATTACK] = SRV & 0x1F;
-	s->AttackHold = (SRV >> 5) & 0x1;
-	s->EnvRates[ENV_PHASE_DECAY1] = (SRV >> 6) & 0x1F;
-	s->EnvRates[ENV_PHASE_DECAY2] = (SRV >> 11) & 0x1F;
+	s->EnvRates[ENV_PHASE_ATTACK] = *SRV & 0x1F;
+	s->AttackHold = (*SRV >> 5) & 0x1;
+	s->EnvRates[ENV_PHASE_DECAY1] = (*SRV >> 6) & 0x1F;
+	s->EnvRates[ENV_PHASE_DECAY2] = (*SRV >> 11) & 0x1F;
 	break;
 
     case 0x05:
-	s->EnvRates[ENV_PHASE_RELEASE] = SRV & 0x1F;
-	s->DecayLevel = (SRV >> 5) & 0x1F;
-	s->KRS = (SRV >> 10) & 0xF;
-	s->AttackLoopLink = (SRV >> 14) & 0x1;
-	s->EGBypass = (SRV >> 15) & 0x1;
+	s->EnvRates[ENV_PHASE_RELEASE] = *SRV & 0x1F;
+	s->DecayLevel = (*SRV >> 5) & 0x1F;
+	s->KRS = (*SRV >> 10) & 0xF;
+	s->AttackLoopLink = (*SRV >> 14) & 0x1;
+	s->EGBypass = (*SRV >> 15) & 0x1;
 	break;
 
     case 0x06:
-	SRV &= 0x0FFF;
+	*SRV &= 0x0FFF;
 
-	s->TotalLevel = SRV & 0xFF;
-	s->SoundDirect = (SRV >> 8) & 0x1;
-	s->StackWriteInhibit = (SRV >> 9) & 0x1;
+	s->TotalLevel = *SRV & 0xFF;
+	s->SoundDirect = (*SRV >> 8) & 0x1;
+	s->StackWriteInhibit = (*SRV >> 9) & 0x1;
 	break;
 
     case 0x07:
-        s->ModInputY = SRV & 0x3F;
-	s->ModInputX = (SRV >> 6) & 0x3F;
-	s->ModLevel = (SRV >> 12) & 0xF;
+        s->ModInputY = *SRV & 0x3F;
+	s->ModInputX = (*SRV >> 6) & 0x3F;
+	s->ModLevel = (*SRV >> 12) & 0xF;
 	break;
 
     case 0x08:
-	s->FreqNum = SRV & 0x7FF;
-	s->Octave = (SRV >> 11) & 0xF;
-	s->ShortWave = (SRV >> 15) & 0x1;
+	s->FreqNum = *SRV & 0x7FF;
+	s->Octave = (*SRV >> 11) & 0xF;
+	s->ShortWave = (*SRV >> 15) & 0x1;
 	//
 	SS_SCSP_RecalcShortWaveMask(z, s);
 	break;
 
     case 0x09:
-	s->ALFOModLevel = SRV & 0x7;
-	s->ALFOWaveform = (SRV >> 3) & 0x3;
-	s->PLFOModLevel = (SRV >> 5) & 0x7;
-	s->PLFOWaveform = (SRV >> 8) & 0x3;
-	s->LFOFreq = (SRV >> 10) & 0x1F;
-	s->LFOReset = (SRV >> 15) & 0x1;
+	s->ALFOModLevel = *SRV & 0x7;
+	s->ALFOWaveform = (*SRV >> 3) & 0x3;
+	s->PLFOModLevel = (*SRV >> 5) & 0x7;
+	s->PLFOWaveform = (*SRV >> 8) & 0x3;
+	s->LFOFreq = (*SRV >> 10) & 0x1F;
+	s->LFOReset = (*SRV >> 15) & 0x1;
 	break;
 
     case 0x0A:
-	SRV &= 0x00FF;
-	s->ToDSPLevel = SRV & 0x7;
-	s->ToDSPSelect = (SRV >> 3) & 0xF;
+	*SRV &= 0x00FF;
+	s->ToDSPLevel = *SRV & 0x7;
+	s->ToDSPSelect = (*SRV >> 3) & 0xF;
 	break;
 
     case 0x0B:
-	SDL_PAN_ToVolume(s->DirectVolume, (SRV >> 13) & 0x7, (SRV >> 8) & 0x1F);
-	SDL_PAN_ToVolume(s->EffectVolume, (SRV >>  5) & 0x7, (SRV >> 0) & 0x1F);
+	SDL_PAN_ToVolume(s->DirectVolume, (*SRV >> 13) & 0x7, (*SRV >> 8) & 0x1F);
+	SDL_PAN_ToVolume(s->EffectVolume, (*SRV >>  5) & 0x7, (*SRV >> 0) & 0x1F);
 	break;
 
     case 0x0C: case 0x0D: case 0x0E: case 0x0F:
-	SRV = 0;
+	*SRV = 0;
 	break;
    }
   }
@@ -1497,95 +1497,95 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
 
   {
    SS_SCSP_Slot* s = &z->Slots[slotnum];
-   uint16_t& SRV = z->SlotRegs[slotnum][(A >> 1) & 0xF];
+   uint16_t* SRV = &z->SlotRegs[slotnum][(A >> 1) & 0xF];
 
    switch((A >> 1) & 0xF)
    {
     case 0x00:
-	z->KeyExecute |= (bool)(SRV & 0x1000);
-	SRV &= 0x0FFF;
+	z->KeyExecute |= (bool)(*SRV & 0x1000);
+	*SRV &= 0x0FFF;
 
-	s->KeyBit = (SRV >> 11) & 0x1;
-	s->SBXOR = z->SB_XOR_Table[(SRV >> 9) & 0x3];
-	s->SourceControl = (SRV >> 7) & 0x3;
-	s->LoopMode = (SRV >> 5) & 0x3;
-	s->WF8Bit = (SRV >> 4) & 0x1;
-	s->StartAddr = (s->StartAddr & 0xFFFF) | ((SRV & 0xF) << 16);
+	s->KeyBit = (*SRV >> 11) & 0x1;
+	s->SBXOR = z->SB_XOR_Table[(*SRV >> 9) & 0x3];
+	s->SourceControl = (*SRV >> 7) & 0x3;
+	s->LoopMode = (*SRV >> 5) & 0x3;
+	s->WF8Bit = (*SRV >> 4) & 0x1;
+	s->StartAddr = (s->StartAddr & 0xFFFF) | ((*SRV & 0xF) << 16);
 	break;
 
     case 0x01:
-	s->StartAddr = (s->StartAddr &~ 0xFFFF) | SRV;
+	s->StartAddr = (s->StartAddr &~ 0xFFFF) | *SRV;
 	break;
 
     case 0x02:
-	s->LoopStart = SRV;
+	s->LoopStart = *SRV;
 	break;
 
     case 0x03:
-	s->LoopEnd = SRV;
+	s->LoopEnd = *SRV;
 	//
 	SS_SCSP_RecalcShortWaveMask(z, s);
 	break;
 
     case 0x04:
-	s->EnvRates[ENV_PHASE_ATTACK] = SRV & 0x1F;
-	s->AttackHold = (SRV >> 5) & 0x1;
-	s->EnvRates[ENV_PHASE_DECAY1] = (SRV >> 6) & 0x1F;
-	s->EnvRates[ENV_PHASE_DECAY2] = (SRV >> 11) & 0x1F;
+	s->EnvRates[ENV_PHASE_ATTACK] = *SRV & 0x1F;
+	s->AttackHold = (*SRV >> 5) & 0x1;
+	s->EnvRates[ENV_PHASE_DECAY1] = (*SRV >> 6) & 0x1F;
+	s->EnvRates[ENV_PHASE_DECAY2] = (*SRV >> 11) & 0x1F;
 	break;
 
     case 0x05:
-	s->EnvRates[ENV_PHASE_RELEASE] = SRV & 0x1F;
-	s->DecayLevel = (SRV >> 5) & 0x1F;
-	s->KRS = (SRV >> 10) & 0xF;
-	s->AttackLoopLink = (SRV >> 14) & 0x1;
-	s->EGBypass = (SRV >> 15) & 0x1;
+	s->EnvRates[ENV_PHASE_RELEASE] = *SRV & 0x1F;
+	s->DecayLevel = (*SRV >> 5) & 0x1F;
+	s->KRS = (*SRV >> 10) & 0xF;
+	s->AttackLoopLink = (*SRV >> 14) & 0x1;
+	s->EGBypass = (*SRV >> 15) & 0x1;
 	break;
 
     case 0x06:
-	SRV &= 0x0FFF;
+	*SRV &= 0x0FFF;
 
-	s->TotalLevel = SRV & 0xFF;
-	s->SoundDirect = (SRV >> 8) & 0x1;
-	s->StackWriteInhibit = (SRV >> 9) & 0x1;
+	s->TotalLevel = *SRV & 0xFF;
+	s->SoundDirect = (*SRV >> 8) & 0x1;
+	s->StackWriteInhibit = (*SRV >> 9) & 0x1;
 	break;
 
     case 0x07:
-        s->ModInputY = SRV & 0x3F;
-	s->ModInputX = (SRV >> 6) & 0x3F;
-	s->ModLevel = (SRV >> 12) & 0xF;
+        s->ModInputY = *SRV & 0x3F;
+	s->ModInputX = (*SRV >> 6) & 0x3F;
+	s->ModLevel = (*SRV >> 12) & 0xF;
 	break;
 
     case 0x08:
-	s->FreqNum = SRV & 0x7FF;
-	s->Octave = (SRV >> 11) & 0xF;
-	s->ShortWave = (SRV >> 15) & 0x1;
+	s->FreqNum = *SRV & 0x7FF;
+	s->Octave = (*SRV >> 11) & 0xF;
+	s->ShortWave = (*SRV >> 15) & 0x1;
 	//
 	SS_SCSP_RecalcShortWaveMask(z, s);
 	break;
 
     case 0x09:
-	s->ALFOModLevel = SRV & 0x7;
-	s->ALFOWaveform = (SRV >> 3) & 0x3;
-	s->PLFOModLevel = (SRV >> 5) & 0x7;
-	s->PLFOWaveform = (SRV >> 8) & 0x3;
-	s->LFOFreq = (SRV >> 10) & 0x1F;
-	s->LFOReset = (SRV >> 15) & 0x1;
+	s->ALFOModLevel = *SRV & 0x7;
+	s->ALFOWaveform = (*SRV >> 3) & 0x3;
+	s->PLFOModLevel = (*SRV >> 5) & 0x7;
+	s->PLFOWaveform = (*SRV >> 8) & 0x3;
+	s->LFOFreq = (*SRV >> 10) & 0x1F;
+	s->LFOReset = (*SRV >> 15) & 0x1;
 	break;
 
     case 0x0A:
-	SRV &= 0x00FF;
-	s->ToDSPLevel = SRV & 0x7;
-	s->ToDSPSelect = (SRV >> 3) & 0xF;
+	*SRV &= 0x00FF;
+	s->ToDSPLevel = *SRV & 0x7;
+	s->ToDSPSelect = (*SRV >> 3) & 0xF;
 	break;
 
     case 0x0B:
-	SDL_PAN_ToVolume(s->DirectVolume, (SRV >> 13) & 0x7, (SRV >> 8) & 0x1F);
-	SDL_PAN_ToVolume(s->EffectVolume, (SRV >>  5) & 0x7, (SRV >> 0) & 0x1F);
+	SDL_PAN_ToVolume(s->DirectVolume, (*SRV >> 13) & 0x7, (*SRV >> 8) & 0x1F);
+	SDL_PAN_ToVolume(s->EffectVolume, (*SRV >>  5) & 0x7, (*SRV >> 0) & 0x1F);
 	break;
 
     case 0x0C: case 0x0D: case 0x0E: case 0x0F:
-	SRV = 0;
+	*SRV = 0;
 	break;
    }
   }
