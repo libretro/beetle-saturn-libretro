@@ -52,20 +52,6 @@ struct SH7095 final
  void SetFTI(bool state);
  void SetFTCI(bool state);
 
- INLINE void SetExtHalt(bool state)
- {
-  ExtHalt = state;
-
-  if(ExtHalt)
-   SetPEX(PEX_PSEUDO_EXTHALT);	// Only SetPEX() here, ClearPEX() is called in the pseudo exception handling code as necessary.
-
-  ExtHaltDMA = (ExtHaltDMA & ~1) | state;
- }
-
- INLINE void SetExtHaltDMAKludgeFromVDP2(bool state)
- {
-  ExtHaltDMA = (ExtHaltDMA & ~2) | (state << 1);
- }
 
  /* Phase-8p2: Step<which, EmulateICache> retired into 3 named
   * variants (only the (w, C) tuples invoked by ss.cpp's RunLoop).
@@ -99,14 +85,7 @@ struct SH7095 final
  sscpu_timestamp_t MA_until;
  sscpu_timestamp_t write_finish_timestamp;
 
- INLINE void SetT(bool new_value) { SR &= ~1; SR |= new_value; }
- INLINE bool GetT(void) { return SR & 1; }
 
- INLINE bool GetS(void) { return (bool)(SR & 0x002); }
- INLINE bool GetQ(void) { return (bool)(SR & 0x100); }
- INLINE bool GetM(void) { return (bool)(SR & 0x200); }
- INLINE void SetQ(bool new_q) { SR = (SR &~ 0x100) | (new_q << 8); }
- INLINE void SetM(bool new_m) { SR = (SR &~ 0x200) | (new_m << 9); }
 
  // System registers
  union
@@ -120,8 +99,6 @@ struct SH7095 final
   uint32_t SysRegs[3];
  };
 
- INLINE uint64_t GetMAC64(void) { return MACL | ((uint64_t)MACH << 32); }
- INLINE void SetMAC64(uint64_t nv) { MACL = nv; MACH = nv >> 32; }
 
  enum // must be in range of 0 ... 7
  {
@@ -138,20 +115,6 @@ struct SH7095 final
  enum { EPENDING_OP_OR = 0xFF000000 };
 
  uint32_t EPending;
-
- INLINE void SetPEX(const unsigned which)
- {
-  EPending |= (1U << (which + EPENDING_PEXBITS_SHIFT));
-  EPending |= EPENDING_OP_OR;
- }
-
- INLINE void ClearPEX(const unsigned which)
- {
-  EPending &= ~(1U << (which + EPENDING_PEXBITS_SHIFT));
-
-  if(!(EPending & (0xFF << EPENDING_PEXBITS_SHIFT)))
-   EPending = 0;
- }
 
  uint32_t Pipe_ID;
  uint32_t Pipe_IF;
@@ -504,7 +467,6 @@ struct SH7095 final
  uint8_t ExtHaltDMA;
 
  uint8_t (*const ExIVecFetch)(void);
- uint8_t GetPendingInt(uint8_t*);
  void RecalcPendingIntPEX(void);
 
  /* Phase-8n: DoIDIF_NI<EmulateICache, IntPreventNext> retired
@@ -676,5 +638,43 @@ void SH7095_RunSlaveUntil              (SH7095* z, sscpu_timestamp_t ts);
 void SH7095_StateAction                (SH7095* z, StateMem* sm, unsigned load, bool data_only, const char* sname) MDFN_COLD;
 void SH7095_PostStateLoad              (SH7095* z, unsigned state_version, bool recorded_ni, bool ni) MDFN_COLD;
 
-static FORCE_INLINE void SH7095_SetExtHaltDMAKludgeFromVDP2(SH7095* z, bool state) { z->SetExtHaltDMAKludgeFromVDP2(state); }
+
+/* Phase-9 step 4 cont.: small inline helpers (SR/MAC/PEX accessors,
+ * pending-int probe) moved off the SH7095 struct as free functions.
+ * Same bodies, taking SH7095* z explicitly so the struct can be pure
+ * data in the eventual C migration. */
+static FORCE_INLINE void     SH7095_SetT      (SH7095* z, bool v)      { z->SR &= ~1; z->SR |= v; }
+static FORCE_INLINE bool     SH7095_GetT      (const SH7095* z)        { return z->SR & 1; }
+static FORCE_INLINE bool     SH7095_GetS      (const SH7095* z)        { return (bool)(z->SR & 0x002); }
+static FORCE_INLINE bool     SH7095_GetQ      (const SH7095* z)        { return (bool)(z->SR & 0x100); }
+static FORCE_INLINE bool     SH7095_GetM      (const SH7095* z)        { return (bool)(z->SR & 0x200); }
+static FORCE_INLINE void     SH7095_SetQ      (SH7095* z, bool new_q)  { z->SR = (z->SR & ~0x100) | (new_q << 8); }
+static FORCE_INLINE void     SH7095_SetM      (SH7095* z, bool new_m)  { z->SR = (z->SR & ~0x200) | (new_m << 9); }
+static FORCE_INLINE uint64_t SH7095_GetMAC64  (const SH7095* z)        { return z->MACL | ((uint64_t)z->MACH << 32); }
+static FORCE_INLINE void     SH7095_SetMAC64  (SH7095* z, uint64_t nv) { z->MACL = nv; z->MACH = nv >> 32; }
+static FORCE_INLINE void     SH7095_SetPEX    (SH7095* z, const unsigned which)
+{
+ z->EPending |= (1U << (which + SH7095::EPENDING_PEXBITS_SHIFT));
+ z->EPending |= SH7095::EPENDING_OP_OR;
+}
+static FORCE_INLINE void     SH7095_ClearPEX  (SH7095* z, const unsigned which)
+{
+ z->EPending &= ~(1U << (which + SH7095::EPENDING_PEXBITS_SHIFT));
+ if(!(z->EPending & (0xFF << SH7095::EPENDING_PEXBITS_SHIFT)))
+  z->EPending = 0;
+}
+static FORCE_INLINE void SH7095_SetExtHalt(SH7095* z, bool state)
+{
+ z->ExtHalt = state;
+ if(z->ExtHalt)
+  SH7095_SetPEX(z, SH7095::PEX_PSEUDO_EXTHALT);
+ z->ExtHaltDMA = (z->ExtHaltDMA & ~1) | state;
+}
+static FORCE_INLINE void SH7095_SetExtHaltDMAKludgeFromVDP2(SH7095* z, bool state)
+{
+ z->ExtHaltDMA = (z->ExtHaltDMA & ~2) | (state << 1);
+}
+/* SH7095_GetPendingInt is defined in sh7095.inc; call sites in
+ * sh7095_ops.inc (which is itself included inside sh7095.inc)
+ * see the definition through the chain. */
 #endif

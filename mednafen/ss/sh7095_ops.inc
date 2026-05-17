@@ -188,7 +188,7 @@ switch(z->Pipe_ID >> 24)
 	WB_READ8(instr_nyb2, ea);
 
 	FUSE_LOAD_CMPTST_BRANCH(OP_CMP_EQ_IMM_REG0_ID, OP_BF_ID,
-		z->SetT((int32_t)(int8_t)alu_instr == (int32_t)z->R[0]), !z->GetT());
+		SH7095_SetT(z, (int32_t)(int8_t)alu_instr == (int32_t)z->R[0]), !SH7095_GetT(z));
  END_OP
 
 
@@ -352,7 +352,7 @@ switch(z->Pipe_ID >> 24)
 	WB_READ8(0, ea);
 
 	FUSE_LOAD_CMPTST_BRANCH(OP_TST_IMM_REG0_ID, OP_BT_ID,
-		z->SetT(!(z->R[0] & (uint8_t)alu_instr)), z->GetT());
+		SH7095_SetT(z, !(z->R[0] & (uint8_t)alu_instr)), SH7095_GetT(z));
  END_OP
 
 
@@ -536,7 +536,7 @@ switch(z->Pipe_ID >> 24)
 
 	WB_EX_CHECK(n)
 
-	z->R[n] = z->GetT();
+	z->R[n] = SH7095_GetT(z);
  END_OP
 
 
@@ -615,13 +615,13 @@ switch(z->Pipe_ID >> 24)
  BEGIN_OP(ADDC_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint64_t result = (uint64_t)z->R[n] + z->R[m] + z->GetT();
+	const uint64_t result = (uint64_t)z->R[n] + z->R[m] + SH7095_GetT(z);
 
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
 	z->R[n] = result;
-	z->SetT((result >> 32) & 1);
+	SH7095_SetT(z, (result >> 32) & 1);
  END_OP
 
 
@@ -636,7 +636,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	z->SetT(((~(z->R[n] ^ z->R[m])) & (z->R[n] ^ result)) >> 31);
+	SH7095_SetT(z, ((~(z->R[n] ^ z->R[m])) & (z->R[n] ^ result)) >> 31);
 	z->R[n] = result;
  END_OP
 
@@ -649,9 +649,9 @@ switch(z->Pipe_ID >> 24)
 
 	WB_EX_CHECK(0)
 
-	z->SetT(imm == z->R[0]);
+	SH7095_SetT(z, imm == z->R[0]);
 
-	FUSE_COND_BRANCH(OP_BF_ID, !z->GetT());
+	FUSE_COND_BRANCH(OP_BF_ID, !SH7095_GetT(z));
  END_OP
 
 
@@ -665,7 +665,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	z->SetT(z->R[n] == z->R[m]);
+	SH7095_SetT(z, z->R[n] == z->R[m]);
  END_OP
 
 
@@ -679,7 +679,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	z->SetT(z->R[n] >= z->R[m]);
+	SH7095_SetT(z, z->R[n] >= z->R[m]);
  END_OP
 
 
@@ -693,7 +693,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	z->SetT((int32_t)z->R[n] >= (int32_t)z->R[m]);
+	SH7095_SetT(z, (int32_t)z->R[n] >= (int32_t)z->R[m]);
  END_OP
 
 
@@ -707,7 +707,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	z->SetT(z->R[n] > z->R[m]);
+	SH7095_SetT(z, z->R[n] > z->R[m]);
  END_OP
 
 
@@ -721,9 +721,9 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	z->SetT((int32_t)z->R[n] > (int32_t)z->R[m]);
+	SH7095_SetT(z, (int32_t)z->R[n] > (int32_t)z->R[m]);
 
-	FUSE_COND_BRANCH(OP_BT_ID, z->GetT());
+	FUSE_COND_BRANCH(OP_BT_ID, SH7095_GetT(z));
  END_OP
 
 
@@ -735,7 +735,7 @@ switch(z->Pipe_ID >> 24)
 
 	WB_EX_CHECK(n)
 
-	z->SetT((int32_t)z->R[n] >= 0);
+	SH7095_SetT(z, (int32_t)z->R[n] >= 0);
  END_OP
 
 
@@ -747,7 +747,7 @@ switch(z->Pipe_ID >> 24)
 
 	WB_EX_CHECK(n)
 
-	z->SetT((int32_t)z->R[n] > 0);
+	SH7095_SetT(z, (int32_t)z->R[n] > 0);
  END_OP
 
 
@@ -768,7 +768,7 @@ switch(z->Pipe_ID >> 24)
 	if(!(tmp & 0x00FF0000)) new_T = 1;
 	if(!(tmp & 0xFF000000)) new_T = 1;
 
-	z->SetT(new_T);
+	SH7095_SetT(z, new_T);
  END_OP
 
 
@@ -786,12 +786,12 @@ switch(z->Pipe_ID >> 24)
 
 	new_Q = z->R[n] >> 31;
 	z->R[n] <<= 1;
-	z->R[n] |= z->GetT();
+	z->R[n] |= SH7095_GetT(z);
 
 	tmp = z->R[n];
-	new_Q ^= z->GetM();
+	new_Q ^= SH7095_GetM(z);
 
-	if(!(z->GetQ() ^ z->GetM()))
+	if(!(SH7095_GetQ(z) ^ SH7095_GetM(z)))
 	{
 	 z->R[n] -= z->R[m];
 	 new_Q ^= (z->R[n] > tmp);
@@ -802,8 +802,8 @@ switch(z->Pipe_ID >> 24)
 	 new_Q ^= (z->R[n] < tmp);
 	}
 
-	z->SetQ(new_Q);
-	z->SetT(new_Q == z->GetM());
+	SH7095_SetQ(z, new_Q);
+	SH7095_SetT(z, new_Q == SH7095_GetM(z));
  END_OP
 
 
@@ -819,9 +819,9 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	z->SetQ(new_Q);
-	z->SetM(new_M);
-	z->SetT(new_Q != new_M);
+	SH7095_SetQ(z, new_Q);
+	SH7095_SetM(z, new_M);
+	SH7095_SetT(z, new_Q != new_M);
  END_OP
 
 
@@ -829,9 +829,9 @@ switch(z->Pipe_ID >> 24)
  // DIV0U 
  //
  BEGIN_OP(DIV0U)
-	z->SetQ(false);
-	z->SetM(false);
-	z->SetT(false);
+	SH7095_SetQ(z, false);
+	SH7095_SetM(z, false);
+	SH7095_SetT(z, false);
  END_OP
 
 
@@ -844,9 +844,9 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 
 	z->R[n]--;
-	z->SetT(!z->R[n]);
+	SH7095_SetT(z, !z->R[n]);
 
-	FUSE_COND_BRANCH(OP_BF_ID, !z->GetT());
+	FUSE_COND_BRANCH(OP_BF_ID, !SH7095_GetT(z));
  END_OP
 
 
@@ -922,11 +922,11 @@ switch(z->Pipe_ID >> 24)
 	}
 	uint64_t a, b, sum;
 
-	a = z->GetMAC64();
+	a = SH7095_GetMAC64(z);
 	b = (int64_t)opexec_MAC_L_m0 * opexec_MAC_L_m1;
 	sum = a + b;
 
-	if(z->GetS() && sum > 0x00007FFFFFFFFFFFULL && sum < 0xFFFF800000000000ULL)
+	if(SH7095_GetS(z) && sum > 0x00007FFFFFFFFFFFULL && sum < 0xFFFF800000000000ULL)
 	{
 	 if((int32_t)(opexec_MAC_L_m0 ^ opexec_MAC_L_m1) < 0)
 	  sum = 0xFFFF800000000000ULL;
@@ -934,7 +934,7 @@ switch(z->Pipe_ID >> 24)
 	  sum = 0x00007FFFFFFFFFFFULL;
 	}
 
-	z->SetMAC64(sum);
+	SH7095_SetMAC64(z, sum);
 
 	z->timestamp++;
  END_OP
@@ -955,7 +955,7 @@ switch(z->Pipe_ID >> 24)
 	 z->R[instr_nyb2] += 2;
 	}
 
-	if(z->GetS())
+	if(SH7095_GetS(z))
 	{
 	 int32_t b = (int32_t)opexec_MAC_W_m0 * opexec_MAC_W_m1;
 	 uint64_t sum = (int64_t)(int32_t)z->MACL + b;
@@ -973,7 +973,7 @@ switch(z->Pipe_ID >> 24)
 	 z->MACL = sum;
 	}
 	else
-	 z->SetMAC64(z->GetMAC64() + (int64_t)opexec_MAC_W_m0 * opexec_MAC_W_m1);
+	 SH7095_SetMAC64(z, SH7095_GetMAC64(z) + (int64_t)opexec_MAC_W_m0 * opexec_MAC_W_m1);
 
 	z->timestamp++;
  END_OP
@@ -1090,13 +1090,13 @@ switch(z->Pipe_ID >> 24)
  BEGIN_OP(NEGC_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint64_t result = (uint64_t)0 - z->R[m] - z->GetT();
+	const uint64_t result = (uint64_t)0 - z->R[m] - SH7095_GetT(z);
 
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
 	z->R[n] = result;
-	z->SetT((result >> 32) & 1);
+	SH7095_SetT(z, (result >> 32) & 1);
  END_OP
 
 
@@ -1120,13 +1120,13 @@ switch(z->Pipe_ID >> 24)
  BEGIN_OP(SUBC_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
-	const uint64_t result = (uint64_t)z->R[n] - z->R[m] - z->GetT();
+	const uint64_t result = (uint64_t)z->R[n] - z->R[m] - SH7095_GetT(z);
 
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
 	z->R[n] = result;
-	z->SetT((result >> 32) & 1);
+	SH7095_SetT(z, (result >> 32) & 1);
  END_OP
 
 
@@ -1141,7 +1141,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	z->SetT((((z->R[n] ^ z->R[m])) & (z->R[n] ^ result)) >> 31);
+	SH7095_SetT(z, (((z->R[n] ^ z->R[m])) & (z->R[n] ^ result)) >> 31);
 	z->R[n] = result;
  END_OP
 
@@ -1259,7 +1259,7 @@ switch(z->Pipe_ID >> 24)
 	tmp = ExtBusRead(uint8_t, false, opexec_ea);	// FIXME: Address error on invalid address(>= 0x40000000 ?).
 	z->timestamp = SH7095_mem_timestamp;
 
-	z->SetT(!tmp);
+	SH7095_SetT(z, !tmp);
 
 	tmp |= 0x80;
 
@@ -1280,10 +1280,10 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	z->SetT(!(z->R[n] & z->R[m]));
+	SH7095_SetT(z, !(z->R[n] & z->R[m]));
 
-	FUSE_COND_BRANCH(OP_BF_ID, !z->GetT());
-	FUSE_COND_BRANCH(OP_BT_ID, z->GetT());
+	FUSE_COND_BRANCH(OP_BF_ID, !SH7095_GetT(z));
+	FUSE_COND_BRANCH(OP_BT_ID, SH7095_GetT(z));
  END_OP
 
 
@@ -1295,9 +1295,9 @@ switch(z->Pipe_ID >> 24)
 
 	WB_EX_CHECK(0)
 
-	z->SetT(!(z->R[0] & imm));
+	SH7095_SetT(z, !(z->R[0] & imm));
 
-	FUSE_COND_BRANCH(OP_BT_ID, z->GetT());
+	FUSE_COND_BRANCH(OP_BT_ID, SH7095_GetT(z));
  END_OP
 
 
@@ -1310,7 +1310,7 @@ switch(z->Pipe_ID >> 24)
 
 	MemRead8(ea, tmp);
 	z->timestamp++;
-	z->SetT(!(tmp & (uint8_t)instr));
+	SH7095_SetT(z, !(tmp & (uint8_t)instr));
 	z->timestamp++;
  END_OP
 
@@ -1367,7 +1367,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 
 	z->R[n] = (z->R[n] << 1) | rotbit;
-	z->SetT(rotbit);
+	SH7095_SetT(z, rotbit);
  END_OP
 
 
@@ -1381,7 +1381,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 
 	z->R[n] = (z->R[n] >> 1) | (rotbit << 31);
-	z->SetT(rotbit);
+	SH7095_SetT(z, rotbit);
  END_OP
 
 
@@ -1394,8 +1394,8 @@ switch(z->Pipe_ID >> 24)
 
 	WB_EX_CHECK(n)
 
-	z->R[n] = (z->R[n] << 1) | z->GetT();
-	z->SetT(rotbit);
+	z->R[n] = (z->R[n] << 1) | SH7095_GetT(z);
+	SH7095_SetT(z, rotbit);
  END_OP
 
 
@@ -1408,8 +1408,8 @@ switch(z->Pipe_ID >> 24)
 
 	WB_EX_CHECK(n)
 
-	z->R[n] = (z->R[n] >> 1) | (z->GetT() << 31);
-	z->SetT(rotbit);
+	z->R[n] = (z->R[n] >> 1) | (SH7095_GetT(z) << 31);
+	SH7095_SetT(z, rotbit);
  END_OP
 
 
@@ -1423,7 +1423,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 
 	z->R[n] = (int32_t)z->R[n] >> 1;
-	z->SetT(shbit);
+	SH7095_SetT(z, shbit);
  END_OP
 
 
@@ -1437,7 +1437,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 
 	z->R[n] <<= 1;
-	z->SetT(shbit);
+	SH7095_SetT(z, shbit);
  END_OP
 
 
@@ -1451,7 +1451,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 
 	z->R[n] >>= 1;
-	z->SetT(shbit);
+	SH7095_SetT(z, shbit);
  END_OP
 
 
@@ -1531,7 +1531,7 @@ switch(z->Pipe_ID >> 24)
  // BF 
  //
  BEGIN_OP_FUDGEIF(BF)
-	CondRelBranch(!z->GetT(), (uint32_t)(int8_t)instr << 1);
+	CondRelBranch(!SH7095_GetT(z), (uint32_t)(int8_t)instr << 1);
  END_OP
 
 
@@ -1539,7 +1539,7 @@ switch(z->Pipe_ID >> 24)
  // BF/S 
  //
  BEGIN_OP_FUDGEIF(BF_S)
-	CondRelDelayBranch(!z->GetT(), (uint32_t)(int8_t)instr << 1);
+	CondRelDelayBranch(!SH7095_GetT(z), (uint32_t)(int8_t)instr << 1);
 	FUSE_DELAY_SLOT_NOP();
  END_OP
 
@@ -1548,7 +1548,7 @@ switch(z->Pipe_ID >> 24)
  // BT 
  //
  BEGIN_OP_FUDGEIF(BT)
-	CondRelBranch(z->GetT(), (uint32_t)(int8_t)instr << 1);
+	CondRelBranch(SH7095_GetT(z), (uint32_t)(int8_t)instr << 1);
  END_OP
 
 
@@ -1556,7 +1556,7 @@ switch(z->Pipe_ID >> 24)
  // BT/S 
  //
  BEGIN_OP_FUDGEIF(BT_S)
-	CondRelDelayBranch(z->GetT(), (uint32_t)(int8_t)instr << 1);
+	CondRelDelayBranch(SH7095_GetT(z), (uint32_t)(int8_t)instr << 1);
 	FUSE_DELAY_SLOT_NOP();
  END_OP
 
@@ -1634,7 +1634,7 @@ switch(z->Pipe_ID >> 24)
  // CLRT 
  //
  BEGIN_OP(CLRT)
-	z->SetT(false);
+	SH7095_SetT(z, false);
  END_OP
 
 
@@ -1758,7 +1758,7 @@ switch(z->Pipe_ID >> 24)
  // SETT 
  //
  BEGIN_OP(SETT)
-	z->SetT(true);
+	SH7095_SetT(z, true);
  END_OP
 
 
@@ -1983,20 +1983,20 @@ switch(z->Pipe_ID >> 24)
 	else if(MDFN_UNLIKELY(TPP(SH7095::PEX_CPUADDR)))
 	{
 	 z->PC -= 4;
-	 z->ClearPEX(SH7095::PEX_CPUADDR);
+	 SH7095_ClearPEX(z, SH7095::PEX_CPUADDR);
 	 Exception(SH7095::VECNUM_CPUADDR, opexec_new_PC);
-	 z->ClearPEX(SH7095::PEX_CPUADDR);	// Infinite recursive address errors are not good(stack wraparound could clobber backup memory).
+	 SH7095_ClearPEX(z, SH7095::PEX_CPUADDR);	// Infinite recursive address errors are not good(stack wraparound could clobber backup memory).
 	}
 	else if(MDFN_UNLIKELY(TPP(SH7095::PEX_DMAADDR)))
 	{
 	 z->PC -= 4;
-	 z->ClearPEX(SH7095::PEX_DMAADDR);
+	 SH7095_ClearPEX(z, SH7095::PEX_DMAADDR);
 	 Exception(SH7095::VECNUM_DMAADDR, opexec_new_PC);
 	}
 	else if(TPP(SH7095::PEX_NMI))
 	{
 	 z->PC -= 4;
-	 z->ClearPEX(SH7095::PEX_NMI);
+	 SH7095_ClearPEX(z, SH7095::PEX_NMI);
 	 Exception(SH7095::VECNUM_NMI, opexec_new_PC);
 	 //
 	 //
@@ -2008,13 +2008,13 @@ switch(z->Pipe_ID >> 24)
 	{
 	 RESUME_VAR(uint8_t, opexec_ipr);
 
-	 opexec_ipr = z->GetPendingInt(NULL);
+	 opexec_ipr = SH7095_GetPendingInt(z, NULL);
 
 	 if(MDFN_LIKELY(opexec_ipr > ((z->SR >> 4) & 0xF)))
 	 {
-	  // Note: z->GetPendingInt() may call z->ExIVecFetch(), which may call SH7095_SetIRL_TBD_ with a new value, so be
+	  // Note: SH7095_GetPendingInt(z) may call z->ExIVecFetch(), which may call SH7095_SetIRL_TBD_ with a new value, so be
 	  // careful to use the "old" value here.
-	  z->GetPendingInt(&opexec_vecnum);
+	  SH7095_GetPendingInt(z, &opexec_vecnum);
 
 	  z->PC -= 4;
 	  Exception(opexec_vecnum, opexec_new_PC);
@@ -2081,8 +2081,8 @@ switch(z->Pipe_ID >> 24)
 	}
 	else
 	{
-	 z->ClearPEX(SH7095::PEX_PSEUDO_DMABURST);
-	 z->ClearPEX(SH7095::PEX_PSEUDO_EXTHALT);
+	 SH7095_ClearPEX(z, SH7095::PEX_PSEUDO_DMABURST);
+	 SH7095_ClearPEX(z, SH7095::PEX_PSEUDO_EXTHALT);
 
 	 //
 	 // Recover z->Pipe_ID opcode field; only use z->Pipe_ID for z, not z->EPending, otherwise

@@ -3349,8 +3349,8 @@ static void RecalcDMAHalt(void)
   }
  }
 
- CPU[0].SetExtHalt(Halted);
- CPU[1].SetExtHalt(Halted);
+ SH7095_SetExtHalt(&CPU[0], Halted);
+ SH7095_SetExtHalt(&CPU[1], Halted);
 }
 
 // TODO: Alter write tables to use -1, 0, 1 for 1, 2, 4

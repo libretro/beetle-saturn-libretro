@@ -633,7 +633,7 @@ static bool SH7095_DMA_InBurst(SH7095* z)
 static void SH7095_DMA_CheckEnterBurstHack(SH7095* z)
 {
  if(SH7095_DMA_InBurst(z))
-  z->SetPEX(SH7095::PEX_PSEUDO_DMABURST);
+  SH7095_SetPEX(z, SH7095::PEX_PSEUDO_DMABURST);
 }
 
 // SH7095_RecalcPendingIntPEX(z) will be called higher up, at the end of SH7095_DMA_Update(z)
@@ -683,7 +683,7 @@ static INLINE void SH7095_DMA_DoTransfer(SH7095* z, unsigned ch)
 	  z->DMAOR |= 4;
 	  z->DMAORM |= 4;
 	  SH7095_DMA_RecalcRunning(z);
-	  z->SetPEX(SH7095::PEX_DMAADDR);
+	  SH7095_SetPEX(z, SH7095::PEX_DMAADDR);
 	 }
 
 	 sar += ainc[1][sm];
@@ -704,7 +704,7 @@ static INLINE void SH7095_DMA_DoTransfer(SH7095* z, unsigned ch)
 	  z->DMAOR |= 4;
 	  z->DMAORM |= 4;
           SH7095_DMA_RecalcRunning(z);
-	  z->SetPEX(SH7095::PEX_DMAADDR);
+	  SH7095_SetPEX(z, SH7095::PEX_DMAADDR);
 	 }
 
 	 sar += ainc[2][sm];
@@ -722,7 +722,7 @@ static INLINE void SH7095_DMA_DoTransfer(SH7095* z, unsigned ch)
 	  z->DMAOR |= 4;
 	  z->DMAORM |= 4;
 	  SH7095_DMA_RecalcRunning(z);
-	  z->SetPEX(SH7095::PEX_DMAADDR);
+	  SH7095_SetPEX(z, SH7095::PEX_DMAADDR);
 	 }
 
 	 for(unsigned i = 0; i < 4; i++)
@@ -1249,7 +1249,7 @@ static NO_INLINE MDFN_HOT void SH7095_OnChipRegWrite_u8(SH7095* z, uint32_t A, u
  {
   A &= 0xFC;
 
-  z->SetPEX(SH7095::PEX_CPUADDR);
+  SH7095_SetPEX(z, SH7095::PEX_CPUADDR);
   V |= (uint8_t)V << 8;
 
   switch(A)
@@ -2066,7 +2066,7 @@ static NO_INLINE MDFN_HOT void SH7095_OnChipRegWrite_u32(SH7095* z, uint32_t A, 
 
   shift ^= 8;
 
-  z->SetPEX(SH7095::PEX_CPUADDR);
+  SH7095_SetPEX(z, SH7095::PEX_CPUADDR);
 
   switch(A & 0xFF)
   {
@@ -2261,7 +2261,7 @@ static INLINE uint8_t SH7095_OnChipRegRead_INLINE_u8(SH7095* z, uint32_t A)
 
   A &= 0xFC;
 
-  z->SetPEX(SH7095::PEX_CPUADDR);
+  SH7095_SetPEX(z, SH7095::PEX_CPUADDR);
 
   switch(A)
   {
@@ -3148,7 +3148,7 @@ static INLINE uint32_t SH7095_OnChipRegRead_INLINE_u32(SH7095* z, uint32_t A)
   else
    z->MA_until += 1;
 
-  z->SetPEX(SH7095::PEX_CPUADDR);
+  SH7095_SetPEX(z, SH7095::PEX_CPUADDR);
 
   return ret;
  }
@@ -4219,7 +4219,7 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
   if(MDFN_UNLIKELY(A & (sizeof(T) - 1)))									\
   {														\
    A &= ~(sizeof(T) - 1);											\
-   z->SetPEX(SH7095::PEX_CPUADDR);												\
+   SH7095_SetPEX(z, SH7095::PEX_CPUADDR);												\
   }														\
  }														\
 														\
@@ -4346,7 +4346,7 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
  if(MDFN_UNLIKELY(A & (sizeof(T) - 1)))						\
  {										\
   A &= ~(sizeof(T) - 1);							\
-  z->SetPEX(SH7095::PEX_CPUADDR);								\
+  SH7095_SetPEX(z, SH7095::PEX_CPUADDR);								\
  }										\
 										\
  if((z->timestamp + 1) > z->MA_until) z->MA_until = (z->timestamp + 1);		\
@@ -4570,7 +4570,7 @@ NO_INLINE void SH7095_Reset(SH7095* z, bool power_on_reset, bool from_internal_w
  //
  //
  z->EPending = 0;
- z->SetPEX(power_on_reset ? SH7095::PEX_POWERON : SH7095::PEX_RESET);
+ SH7095_SetPEX(z, power_on_reset ? SH7095::PEX_POWERON : SH7095::PEX_RESET);
  z->Pipe_ID = z->EPending;
  z->ResumePoint = nullptr;
 }
@@ -4593,7 +4593,7 @@ void SH7095_SetNMI(SH7095* z, bool level)
 {
  if(z->NMILevel != level && level == (bool)(z->ICR & 0x100))
  {
-  z->SetPEX(SH7095::PEX_NMI);
+  SH7095_SetPEX(z, SH7095::PEX_NMI);
 
   if(z->Standby)
   {
@@ -4736,10 +4736,10 @@ static INLINE uint8_t SH7095_GetPendingInt(SH7095* z, uint8_t* vecnum_out)
 //
 static NO_INLINE void SH7095_RecalcPendingIntPEX(SH7095* z)
 {
- if(z->GetPendingInt(NULL) > ((z->SR >> 4) & 0xF))
-  z->SetPEX(SH7095::PEX_INT);
+ if(SH7095_GetPendingInt(z, NULL) > ((z->SR >> 4) & 0xF))
+  SH7095_SetPEX(z, SH7095::PEX_INT);
  else
-  z->ClearPEX(SH7095::PEX_INT);
+  SH7095_ClearPEX(z, SH7095::PEX_INT);
 }
 
 static const uint8_t InstrDecodeTab[65536] =
@@ -4872,7 +4872,7 @@ void SS_DumpOpPairProfile(void)
  if(MDFN_UNLIKELY(z->PC & 1))						\
  {									\
   /* Pending for the instruction after the delay slot instruction. */	\
-  z->SetPEX(SH7095::PEX_CPUADDR);							\
+  SH7095_SetPEX(z, SH7095::PEX_CPUADDR);							\
  }									\
  else									\
  {									\
@@ -4896,7 +4896,7 @@ void SS_DumpOpPairProfile(void)
 									\
  if(MDFN_UNLIKELY(z->PC & 1))						\
  {									\
-  z->SetPEX(SH7095::PEX_CPUADDR);							\
+  SH7095_SetPEX(z, SH7095::PEX_CPUADDR);							\
   DoID(false);								\
  }									\
  else									\
@@ -4925,7 +4925,7 @@ void SS_DumpOpPairProfile(void)
  if(MDFN_UNLIKELY(z->PC & 1))						\
  {									\
   /* Pending for the instruction after the delay slot instruction. */	\
-  z->SetPEX(SH7095::PEX_CPUADDR);							\
+  SH7095_SetPEX(z, SH7095::PEX_CPUADDR);							\
  }									\
  else									\
  {									\
