@@ -27,6 +27,13 @@
  #define DSP_INSTR_RECOVER_TCAST uint32_t
 #endif
 
+/* C-compat typedef for the DSPS state struct defined below.  The C
+ * implementation files (scu_dsp_misc.c / scu_dsp_gen.c / scu_dsp_mvi.c)
+ * spell the type with the `struct` keyword everywhere already; the
+ * typedef lets scu.inc (included from C++ ss.cpp but now staged for
+ * a C-future) and any other future C consumer say plain `DSPS*`. */
+typedef struct DSPS DSPS;
+
 // See loop in "SCU_UpdateDSP()" in scu.inc, and END/ENDI handling in scu_dsp_misc.cpp
 enum { DSP_EndCCSubVal = 1000000 };
 
