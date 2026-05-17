@@ -32,29 +32,6 @@
  #include <intrin.h>
 #endif
 
-static INLINE unsigned MDFN_lzcount16_0UD(uint16_t v)
-{
- #if defined(__GNUC__) || defined(__clang__) || defined(__ICC) || defined(__INTEL_COMPILER)
- return 15 ^ 31 ^ __builtin_clz(v);
- #elif defined(_MSC_VER)
- unsigned long idx;
-
- _BitScanReverse(&idx, v);
-
- return 15 ^ idx;
- #else
- unsigned ret = 0;
- unsigned tmp;
-
- tmp = !(v & 0xFF00) << 3; v <<= tmp; ret += tmp;
- tmp = !(v & 0xF000) << 2; v <<= tmp; ret += tmp;
- tmp = !(v & 0xC000) << 1; v <<= tmp; ret += tmp;
- tmp = !(v & 0x8000) << 0;            ret += tmp;
-
- return(ret);
- #endif
-}
-
 static INLINE unsigned MDFN_lzcount32_0UD(uint32_t v)
 {
 #if defined(__GNUC__) || defined(__clang__) || defined(__ICC) || defined(__INTEL_COMPILER)
@@ -134,74 +111,13 @@ static INLINE unsigned MDFN_tzcount16_0UD(uint16_t v)
  #endif
 }
 
-static INLINE unsigned MDFN_tzcount32_0UD(uint32_t v)
-{
- #if defined(__GNUC__) || defined(__clang__) || defined(__ICC) || defined(__INTEL_COMPILER)
- return __builtin_ctz(v);
- #elif defined(_MSC_VER)
- unsigned long idx;
-
- _BitScanForward(&idx, v);
-
- return idx;
- #else
- unsigned ret = 0;
- unsigned tmp;
-
- tmp = !((uint16_t)v)  << 4; v >>= tmp; ret += tmp;
- tmp = !( (uint8_t)v)  << 3; v >>= tmp; ret += tmp;
- tmp = !(v & 0x000F) << 2; v >>= tmp; ret += tmp;
- tmp = !(v & 0x0003) << 1; v >>= tmp; ret += tmp;
- tmp = !(v & 0x0001) << 0;            ret += tmp;
-
- return ret;
- #endif
-}
-
-static INLINE unsigned MDFN_tzcount64_0UD(uint64_t v)
-{
- #if defined(__GNUC__) || defined(__clang__) || defined(__ICC) || defined(__INTEL_COMPILER)
- return __builtin_ctzll(v);
- #elif defined(_MSC_VER)
-  #if defined(_WIN64)
-   unsigned long idx;
-   _BitScanForward64(&idx, v);
-   return idx;
-  #else
-   unsigned long idx0, idx1;
-
-   _BitScanForward(&idx1, v >> 32);
-   idx1 += 32;
-   if(!_BitScanForward(&idx0, v))
-    idx0 = idx1;
-
-   return idx0;
-  #endif
- #else
- unsigned ret = 0;
- unsigned tmp;
-
- tmp = !((uint32_t)v)  << 5; v >>= tmp; ret += tmp;
- tmp = !((uint16_t)v)  << 4; v >>= tmp; ret += tmp;
- tmp = !( (uint8_t)v)  << 3; v >>= tmp; ret += tmp;
- tmp = !(v & 0x000F) << 2; v >>= tmp; ret += tmp;
- tmp = !(v & 0x0003) << 1; v >>= tmp; ret += tmp;
- tmp = !(v & 0x0001) << 0;            ret += tmp;
-
- return ret;
- #endif
-}
-
 //
 // Result is defined for all possible inputs(including 0).
 //
-static INLINE unsigned MDFN_lzcount16(uint16_t v) { return !v ? 16 : MDFN_lzcount16_0UD(v); }
 static INLINE unsigned MDFN_lzcount32(uint32_t v) { return !v ? 32 : MDFN_lzcount32_0UD(v); }
 static INLINE unsigned MDFN_lzcount64(uint64_t v) { return !v ? 64 : MDFN_lzcount64_0UD(v); }
 
 static INLINE unsigned MDFN_tzcount16(uint16_t v) { return !v ? 16 : MDFN_tzcount16_0UD(v); }
-static INLINE unsigned MDFN_tzcount32(uint32_t v) { return !v ? 32 : MDFN_tzcount32_0UD(v); }
-static INLINE unsigned MDFN_tzcount64(uint64_t v) { return !v ? 64 : MDFN_tzcount64_0UD(v); }
 
 // 0-undefined-input log2. Single 64-bit form; 32-bit callers promote
 // cleanly. (Was a set of C++ overloads; only round_up_pow2 ever called
@@ -229,19 +145,5 @@ static INLINE uint64_t round_up_pow2(uint64_t v) { uint64_t tmp = (uint64_t)1 <<
 // Also, this shouldn't be used for 8-bit and 16-bit signed numbers, since you can
 // convert those faster with typecasts...
 #define sign_x_to_s32(_bits, _value) (((int32_t)((uint32_t)(_value) << (32 - _bits))) >> (32 - _bits))
-
-static INLINE int32_t clamp_to_u8(int32_t i)
-{
- if(i & 0xFFFFFF00)
-  i = (((~i) >> 30) & 0xFF);
- return(i);
-}
-
-static INLINE int32_t clamp_to_u16(int32_t i)
-{
- if(i & 0xFFFF0000)
-  i = (((~i) >> 31) & 0xFFFF);
- return(i);
-}
 
 #endif
