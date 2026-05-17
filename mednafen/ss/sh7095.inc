@@ -5324,138 +5324,141 @@ static NO_CLONE NO_INLINE MDFN_COLD void SH7095_RunSlaveUntil_Debug(SH7095* z, c
 //
 void SH7095_StateAction(SH7095* z, StateMem* sm, const unsigned load, const bool data_only, const char* sname)
 {
+ /* Field-name strings below intentionally omit the "z->" prefix:
+  * they are persisted into savestate files, so they must match
+  * the pre-phase-9 (member-function StateAction) spelling. */
  SFORMAT StateRegs[] =
  {
-  SFPTR32N(&(z->R)[0], (sizeof(z->R) / sizeof(uint32_t)), "z->R"),
-  SFVAR(z->PC),
-  SFPTR32N(&(z->CtrlRegs)[0], (sizeof(z->CtrlRegs) / sizeof(uint32_t)), "z->CtrlRegs"),
+  SFPTR32N(&(z->R)[0], (sizeof(z->R) / sizeof(uint32_t)), "R"),
+  SFVARN(z->PC, "PC"),
+  SFPTR32N(&(z->CtrlRegs)[0], (sizeof(z->CtrlRegs) / sizeof(uint32_t)), "CtrlRegs"),
 
-  SFVAR(z->timestamp),
-  SFVAR(z->MA_until),
-  SFVAR(z->MM_until),
-  SFVAR(z->write_finish_timestamp),
-  SFPTR32N(&(z->WB_until)[0], (sizeof(z->WB_until) / sizeof(sscpu_timestamp_t)), "z->WB_until"),
-  SFVAR(z->UCRead_IF_Kludge),
-  SFPTR32N(&(z->SysRegs)[0], (sizeof(z->SysRegs) / sizeof(uint32_t)), "z->SysRegs"),
+  SFVARN(z->timestamp,              "timestamp"),
+  SFVARN(z->MA_until,               "MA_until"),
+  SFVARN(z->MM_until,               "MM_until"),
+  SFVARN(z->write_finish_timestamp, "write_finish_timestamp"),
+  SFPTR32N(&(z->WB_until)[0], (sizeof(z->WB_until) / sizeof(sscpu_timestamp_t)), "WB_until"),
+  SFVARN(z->UCRead_IF_Kludge, "UCRead_IF_Kludge"),
+  SFPTR32N(&(z->SysRegs)[0], (sizeof(z->SysRegs) / sizeof(uint32_t)), "SysRegs"),
 
-  SFVAR(z->EPending),
-  SFVAR(z->Pipe_ID),
-  SFVAR(z->Pipe_IF),
+  SFVARN(z->EPending, "EPending"),
+  SFVARN(z->Pipe_ID,  "Pipe_ID"),
+  SFVARN(z->Pipe_IF,  "Pipe_IF"),
 
-  SFVAR(z->IBuffer),
+  SFVARN(z->IBuffer,  "IBuffer"),
 
-  SFPTR32(z->Cache->Tag, 4, 64, sizeof(*z->Cache), z->Cache),
-  SFPTR8N(&(z->Cache_LRU)[0], (sizeof(z->Cache_LRU) / sizeof(uint8_t)), "z->Cache->LRU"),
+  SFPTR32N(z->Cache->Tag, 4, 64, sizeof(*z->Cache), z->Cache, "Cache->Tag"),
+  SFPTR8N(&(z->Cache_LRU)[0], (sizeof(z->Cache_LRU) / sizeof(uint8_t)), "Cache->LRU"),
   // Cast because it's stored as native-endian 32-bit.  SFPTR32N (explicit
   // name) rather than SFPTR32 (auto #x name): the typedef rename changed the
   // cast spelling from (uint32*) to (uint32_t*), and SFPTR32 would stringize
   // that into a different savestate field name.  Pass the original name
   // verbatim to keep savestates byte-compatible.
-  SFPTR32N((uint32_t*)z->Cache->Data, 16, 64, sizeof(*z->Cache), z->Cache, "(uint32*)z->Cache->Data"),
+  SFPTR32N((uint32_t*)z->Cache->Data, 16, 64, sizeof(*z->Cache), z->Cache, "(uint32*)Cache->Data"),
 
-  SFVAR(z->CCR),
+  SFVARN(z->CCR, "CCR"),
 
-  SFVAR(z->NMILevel),
-  SFVAR(z->IRL),
+  SFVARN(z->NMILevel, "NMILevel"),
+  SFVARN(z->IRL,      "IRL"),
 
-  SFVAR(z->IPRA),
-  SFVAR(z->IPRB),
-  SFVAR(z->VCRWDT),
-  SFVAR(z->VCRA),
-  SFVAR(z->VCRB),
-  SFVAR(z->VCRC),
-  SFVAR(z->VCRD),
-  SFVAR(z->ICR),
+  SFVARN(z->IPRA,   "IPRA"),
+  SFVARN(z->IPRB,   "IPRB"),
+  SFVARN(z->VCRWDT, "VCRWDT"),
+  SFVARN(z->VCRA,   "VCRA"),
+  SFVARN(z->VCRB,   "VCRB"),
+  SFVARN(z->VCRC,   "VCRC"),
+  SFVARN(z->VCRD,   "VCRD"),
+  SFVARN(z->ICR,    "ICR"),
 
  //
  //
  //
-  SFVAR(z->BSC.BCR1),
-  SFVAR(z->BSC.BCR2),
-  SFVAR(z->BSC.WCR),
-  SFVAR(z->BSC.MCR),
-  SFVAR(z->BSC.RTCSR),
-  SFVAR(z->BSC.RTCSRM),
-  SFVAR(z->BSC.RTCNT),
-  SFVAR(z->BSC.RTCOR),
+  SFVARN(z->BSC.BCR1,   "BSC.BCR1"),
+  SFVARN(z->BSC.BCR2,   "BSC.BCR2"),
+  SFVARN(z->BSC.WCR,    "BSC.WCR"),
+  SFVARN(z->BSC.MCR,    "BSC.MCR"),
+  SFVARN(z->BSC.RTCSR,  "BSC.RTCSR"),
+  SFVARN(z->BSC.RTCSRM, "BSC.RTCSRM"),
+  SFVARN(z->BSC.RTCNT,  "BSC.RTCNT"),
+  SFVARN(z->BSC.RTCOR,  "BSC.RTCOR"),
 
-  SFVAR(z->BSC.sdram_finish_time),
-  SFVAR(z->BSC.last_mem_time),
-  SFVAR(z->BSC.last_mem_addr),
-  SFVAR(z->BSC.last_mem_type),
+  SFVARN(z->BSC.sdram_finish_time, "BSC.sdram_finish_time"),
+  SFVARN(z->BSC.last_mem_time,     "BSC.last_mem_time"),
+  SFVARN(z->BSC.last_mem_addr,     "BSC.last_mem_addr"),
+  SFVARN(z->BSC.last_mem_type,     "BSC.last_mem_type"),
 
-  SFVAR(z->SBYCR),
-  SFVAR(z->Standby),
+  SFVARN(z->SBYCR,   "SBYCR"),
+  SFVARN(z->Standby, "Standby"),
 
-  SFVAR(z->FRT.lastts),
-  SFVAR(z->FRT.FTI),
-  SFVAR(z->FRT.FTCI),
-  SFVAR(z->FRT.FRC),
-  SFPTR16N(&(z->FRT.OCR)[0], (sizeof(z->FRT.OCR) / sizeof(uint16_t)), "z->FRT.OCR"),
-  SFVAR(z->FRT.FICR),
-  SFVAR(z->FRT.TIER),
-  SFVAR(z->FRT.FTCSR),
-  SFVAR(z->FRT.FTCSRM),
-  SFVAR(z->FRT.TCR),
-  SFVAR(z->FRT.TOCR),
-  SFVAR(z->FRT.RW_Temp),
+  SFVARN(z->FRT.lastts, "FRT.lastts"),
+  SFVARN(z->FRT.FTI,    "FRT.FTI"),
+  SFVARN(z->FRT.FTCI,   "FRT.FTCI"),
+  SFVARN(z->FRT.FRC,    "FRT.FRC"),
+  SFPTR16N(&(z->FRT.OCR)[0], (sizeof(z->FRT.OCR) / sizeof(uint16_t)), "FRT.OCR"),
+  SFVARN(z->FRT.FICR,    "FRT.FICR"),
+  SFVARN(z->FRT.TIER,    "FRT.TIER"),
+  SFVARN(z->FRT.FTCSR,   "FRT.FTCSR"),
+  SFVARN(z->FRT.FTCSRM,  "FRT.FTCSRM"),
+  SFVARN(z->FRT.TCR,     "FRT.TCR"),
+  SFVARN(z->FRT.TOCR,    "FRT.TOCR"),
+  SFVARN(z->FRT.RW_Temp, "FRT.RW_Temp"),
 
-  SFVAR(z->FRT_WDT_ClockDivider),
+  SFVARN(z->FRT_WDT_ClockDivider, "FRT_WDT_ClockDivider"),
 
-  SFVAR(z->FRT_WDT_NextTS),
+  SFVARN(z->FRT_WDT_NextTS, "FRT_WDT_NextTS"),
 
-  SFVAR(z->WDT.WTCSR),
-  SFVAR(z->WDT.WTCSRM),
-  SFVAR(z->WDT.WTCNT),
-  SFVAR(z->WDT.RSTCSR),
-  SFVAR(z->WDT.RSTCSRM),
+  SFVARN(z->WDT.WTCSR,   "WDT.WTCSR"),
+  SFVARN(z->WDT.WTCSRM,  "WDT.WTCSRM"),
+  SFVARN(z->WDT.WTCNT,   "WDT.WTCNT"),
+  SFVARN(z->WDT.RSTCSR,  "WDT.RSTCSR"),
+  SFVARN(z->WDT.RSTCSRM, "WDT.RSTCSRM"),
 
  // SFVAR(DMA_ClockCounter),
  // SFVAR(DMA_SGCounter),
-  SFVAR(z->DMA_Timestamp),
-  SFVAR(z->DMA_SGEndTimestamp),
-  SFVAR(z->DMA_RoundRobinRockinBoppin),
+  SFVARN(z->DMA_Timestamp,             "DMA_Timestamp"),
+  SFVARN(z->DMA_SGEndTimestamp,        "DMA_SGEndTimestamp"),
+  SFVARN(z->DMA_RoundRobinRockinBoppin,"DMA_RoundRobinRockinBoppin"),
 
-  SFVAR(z->DMA_PenaltyKludgeAmount),
-  SFVAR(z->DMA_PenaltyKludgeAccum),
+  SFVARN(z->DMA_PenaltyKludgeAmount, "DMA_PenaltyKludgeAmount"),
+  SFVARN(z->DMA_PenaltyKludgeAccum,  "DMA_PenaltyKludgeAccum"),
 
-  SFVAR(z->DMACH->SAR, 2, sizeof(*z->DMACH), z->DMACH),
-  SFVAR(z->DMACH->DAR, 2, sizeof(*z->DMACH), z->DMACH),
-  SFVAR(z->DMACH->TCR, 2, sizeof(*z->DMACH), z->DMACH),
-  SFVAR(z->DMACH->CHCR, 2, sizeof(*z->DMACH), z->DMACH),
-  SFVAR(z->DMACH->CHCRM, 2, sizeof(*z->DMACH), z->DMACH),
-  SFVAR(z->DMACH->VCR, 2, sizeof(*z->DMACH), z->DMACH),
-  SFVAR(z->DMACH->DRCR, 2, sizeof(*z->DMACH), z->DMACH),
+  SFVARN(z->DMACH->SAR,   2, sizeof(*z->DMACH), z->DMACH, "DMACH->SAR"),
+  SFVARN(z->DMACH->DAR,   2, sizeof(*z->DMACH), z->DMACH, "DMACH->DAR"),
+  SFVARN(z->DMACH->TCR,   2, sizeof(*z->DMACH), z->DMACH, "DMACH->TCR"),
+  SFVARN(z->DMACH->CHCR,  2, sizeof(*z->DMACH), z->DMACH, "DMACH->CHCR"),
+  SFVARN(z->DMACH->CHCRM, 2, sizeof(*z->DMACH), z->DMACH, "DMACH->CHCRM"),
+  SFVARN(z->DMACH->VCR,   2, sizeof(*z->DMACH), z->DMACH, "DMACH->VCR"),
+  SFVARN(z->DMACH->DRCR,  2, sizeof(*z->DMACH), z->DMACH, "DMACH->DRCR"),
 
-  SFVAR(z->DMAOR),
-  SFVAR(z->DMAORM),
+  SFVARN(z->DMAOR,  "DMAOR"),
+  SFVARN(z->DMAORM, "DMAORM"),
 
-  SFVAR(z->divide_finish_timestamp),
-  SFVAR(z->DVSR),
-  SFVAR(z->DVDNT),
-  SFVAR(z->DVDNTH),
-  SFVAR(z->DVDNTL),
-  SFVAR(z->DVDNTH_Shadow),
-  SFVAR(z->DVDNTL_Shadow),
-  SFVAR(z->VCRDIV),
-  SFVAR(z->DVCR),
+  SFVARN(z->divide_finish_timestamp, "divide_finish_timestamp"),
+  SFVARN(z->DVSR,         "DVSR"),
+  SFVARN(z->DVDNT,        "DVDNT"),
+  SFVARN(z->DVDNTH,       "DVDNTH"),
+  SFVARN(z->DVDNTL,       "DVDNTL"),
+  SFVARN(z->DVDNTH_Shadow,"DVDNTH_Shadow"),
+  SFVARN(z->DVDNTL_Shadow,"DVDNTL_Shadow"),
+  SFVARN(z->VCRDIV,       "VCRDIV"),
+  SFVARN(z->DVCR,         "DVCR"),
 
-  SFVAR(z->SCI.SMR),
-  SFVAR(z->SCI.BRR),
-  SFVAR(z->SCI.SCR),
-  SFVAR(z->SCI.TDR),
-  SFVAR(z->SCI.SSR),
-  SFVAR(z->SCI.SSRM),
-  SFVAR(z->SCI.RDR),
+  SFVARN(z->SCI.SMR,  "SCI.SMR"),
+  SFVARN(z->SCI.BRR,  "SCI.BRR"),
+  SFVARN(z->SCI.SCR,  "SCI.SCR"),
+  SFVARN(z->SCI.TDR,  "SCI.TDR"),
+  SFVARN(z->SCI.SSR,  "SCI.SSR"),
+  SFVARN(z->SCI.SSRM, "SCI.SSRM"),
+  SFVARN(z->SCI.RDR,  "SCI.RDR"),
 
-  SFVAR(z->SCI.RSR),
-  SFVAR(z->SCI.TSR),
+  SFVARN(z->SCI.RSR, "SCI.RSR"),
+  SFVARN(z->SCI.TSR, "SCI.TSR"),
 
-  SFVAR(z->ExtHalt),
-  SFVAR(z->ExtHaltDMA),
+  SFVARN(z->ExtHalt,    "ExtHalt"),
+  SFVARN(z->ExtHaltDMA, "ExtHaltDMA"),
 
-  SFVAR(z->PC_IF),
-  SFVAR(z->PC_ID),
+  SFVARN(z->PC_IF, "PC_IF"),
+  SFVARN(z->PC_ID, "PC_ID"),
 
   SFEND
  };
@@ -5493,33 +5496,37 @@ static void SH7095_StateAction_SlaveResume(SH7095* z, StateMem* sm, const unsign
   }
  }
 
+ /* As in SH7095_StateAction, the persisted field-name strings
+  * must drop the "z->" prefix to remain savestate-compatible
+  * with the pre-phase-9 (member-function) spelling.  Pure
+  * locals (ResumePointI, Resume_cent_I) stringize cleanly. */
  SFORMAT StateRegs[] =
  {
   SFVAR(ResumePointI),
-  SFVAR(z->Resume_uint8_A),
-  SFVAR(z->Resume_uint16_A),
-  SFVAR(z->Resume_uint32_A),
-  SFVAR(z->Resume_unmasked_A),
+  SFVARN(z->Resume_uint8_A,    "Resume_uint8_A"),
+  SFVARN(z->Resume_uint16_A,   "Resume_uint16_A"),
+  SFVARN(z->Resume_uint32_A,   "Resume_uint32_A"),
+  SFVARN(z->Resume_unmasked_A, "Resume_unmasked_A"),
   SFVAR(Resume_cent_I),
-  SFVAR(z->Resume_way_match),
-  SFVAR(z->Resume_uint8_V),
-  SFVAR(z->Resume_uint16_V),
-  SFVAR(z->Resume_uint32_V),
-  SFVAR(z->Resume_instr),
+  SFVARN(z->Resume_way_match,  "Resume_way_match"),
+  SFVARN(z->Resume_uint8_V,    "Resume_uint8_V"),
+  SFVARN(z->Resume_uint16_V,   "Resume_uint16_V"),
+  SFVARN(z->Resume_uint32_V,   "Resume_uint32_V"),
+  SFVARN(z->Resume_instr,      "Resume_instr"),
 
-  SFVAR(z->Resume_MAC_L_m0),
-  SFVAR(z->Resume_MAC_L_m1),
+  SFVARN(z->Resume_MAC_L_m0,   "Resume_MAC_L_m0"),
+  SFVARN(z->Resume_MAC_L_m1,   "Resume_MAC_L_m1"),
 
-  SFVAR(z->Resume_MAC_W_m0),
-  SFVAR(z->Resume_MAC_W_m1),
+  SFVARN(z->Resume_MAC_W_m0,   "Resume_MAC_W_m0"),
+  SFVARN(z->Resume_MAC_W_m1,   "Resume_MAC_W_m1"),
 
-  SFVAR(z->Resume_ea),
-  SFVAR(z->Resume_new_PC),
-  SFVAR(z->Resume_new_SR),
+  SFVARN(z->Resume_ea,         "Resume_ea"),
+  SFVARN(z->Resume_new_PC,     "Resume_new_PC"),
+  SFVARN(z->Resume_new_SR,     "Resume_new_SR"),
 
-  SFVAR(z->Resume_ipr),
-  SFVAR(z->Resume_exnum),
-  SFVAR(z->Resume_vecnum),
+  SFVARN(z->Resume_ipr,        "Resume_ipr"),
+  SFVARN(z->Resume_exnum,      "Resume_exnum"),
+  SFVARN(z->Resume_vecnum,     "Resume_vecnum"),
 
   SFEND
  };
