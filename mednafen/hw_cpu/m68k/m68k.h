@@ -78,25 +78,12 @@ struct M68K
   * 8 / 4 line bodies don't need the dispatch round-trip. */
 
 
- //
- // SignalDTACKHalted() and SignalAddressError() should be called from the external
- // bus read/write handlers as appropriate, followed by a longjmp() to above
- // Run().
- //
- INLINE void SignalDTACKHalted(uint32_t addr)
- {
-  XPending |= XPENDING_MASK_DTACKHALTED;
- }
-
- INLINE void SignalAddressError(uint32_t addr, uint8_t type)
- {
-  if(XPending & (XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_RESET))
-  {
-   XPending |= XPENDING_MASK_ERRORHALTED;
-  }
-
-  XPending |= XPENDING_MASK_ADDRESS;
- }
+ /* Phase-9d-5: SignalDTACKHalted and SignalAddressError retired from
+  * the class.  Bodies moved inline into the M68K_SignalDTACKHalted /
+  * M68K_SignalAddressError extern "C" wrappers in m68k.cpp.  These
+  * are called from external bus read/write handlers, followed by a
+  * longjmp() back to above Run(), so an extra dispatch round-trip
+  * through a class method was pure cost. */
 
  /* Phase-9d-3: StateAction retired -- body moved to the
   * M68K_StateAction extern "C" wrapper in m68k.cpp (parallel to

@@ -100,8 +100,27 @@ void     M68K_SetIPL             (M68K* z, uint8_t ipl_new)
  z->IPL = ipl_new;
  z->RecalcInt();
 }
-void     M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)               { z->SignalDTACKHalted(addr); }
-void     M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type) { z->SignalAddressError(addr, type); }
+void     M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)
+{
+ /* Called from external bus read/write handlers, followed by a
+  * longjmp() back to above Run().  `addr` is currently unused
+  * here but kept in the API signature to leave room for richer
+  * bus-error diagnostics. */
+ (void)addr;
+ z->XPending |= M68K::XPENDING_MASK_DTACKHALTED;
+}
+void     M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type)
+{
+ /* Same external-bus-handler entry path as SignalDTACKHalted; the
+  * (addr, type) tuple is reserved for future bus-error reporting. */
+ (void)addr; (void)type;
+ if(z->XPending & (M68K::XPENDING_MASK_ADDRESS | M68K::XPENDING_MASK_BUS | M68K::XPENDING_MASK_RESET))
+ {
+  z->XPending |= M68K::XPENDING_MASK_ERRORHALTED;
+ }
+
+ z->XPending |= M68K::XPENDING_MASK_ADDRESS;
+}
 void     M68K_Reset              (M68K* z, bool pwr)
 {
  /* Reset() may be called from BusRESET (a callback function-pointer set by
