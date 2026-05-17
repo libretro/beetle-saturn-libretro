@@ -338,14 +338,13 @@ struct SH7095
   * The 8 concrete callers (DMA paths) become direct named calls;
   * the 2 T-parametric callers (ExtBusRead_INLINE / ExtBusWrite_INLINE
   * bodies) become a sizeof(T) ladder that folds when those
-  * outer templates instantiate. */
- void INLINE BSC_BusWrite_u8 (uint32_t A, uint8_t  V, const bool BurstHax, int32_t* SH2DMAHax);
- void INLINE BSC_BusWrite_u16(uint32_t A, uint16_t V, const bool BurstHax, int32_t* SH2DMAHax);
- void INLINE BSC_BusWrite_u32(uint32_t A, uint32_t V, const bool BurstHax, int32_t* SH2DMAHax);
-
- uint8_t  INLINE BSC_BusRead_u8 (uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
- uint16_t INLINE BSC_BusRead_u16(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
- uint32_t INLINE BSC_BusRead_u32(uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
+  * outer templates instantiate.
+  *
+  * Phase-9 follow-up: the six method-style forward decls that used
+  * to live here (`void INLINE BSC_BusWrite_u8(...)` etc.) declared
+  * class members that nothing ever defined -- the real free
+  * functions are static `SH7095_BSC_BusWrite_u8(SH7095* z, ...)`
+  * in sh7095.inc, called with explicit z at every site.  Deleted. */
 
  uint32_t UCRead_IF_Kludge;
 
@@ -507,11 +506,11 @@ struct SH7095
   * `EmulateICache` as a local constexpr bool so the macro
   * expansions (FetchIF / DoID reference EmulateICache by name)
   * resolve cleanly without the previous template-parameter
-  * name lookup. */
- NO_INLINE void DoIDIF_NI_C0_I0(void) MDFN_HOT;
- NO_INLINE void DoIDIF_NI_C0_I1(void) MDFN_HOT;
- NO_INLINE void DoIDIF_NI_C1_I0(void) MDFN_HOT;
- NO_INLINE void DoIDIF_NI_C1_I1(void) MDFN_HOT;
+  * name lookup.
+  *
+  * Phase-9 follow-up: dead member-style decls deleted (real fns
+  * are `SH7095_DoIDIF_NI_C0_I0(SH7095*)` and friends, defined in
+  * sh7095.inc and called with explicit z). */
 
  /* Phase-8p: ExtBus*_INLINE retired into 12+6 named per-(SP, T, BH)
   * variants.  See sh7095.inc body comments for source-fold
@@ -525,10 +524,11 @@ struct SH7095
   * stream the previous per-T template instantiations did.
   * The MemReadRT / MemWriteRT macro callsites dispatch by
   * sizeof(T) at template-instantiation time; the OnChipRegRead_NI
-  * forwarders (phase 8j) hard-code to the matching named variant. */
- NO_INLINE void OnChipRegWrite_u8 (uint32_t A, uint32_t V) MDFN_HOT;
- NO_INLINE void OnChipRegWrite_u16(uint32_t A, uint32_t V) MDFN_HOT;
- NO_INLINE void OnChipRegWrite_u32(uint32_t A, uint32_t V) MDFN_HOT;
+  * forwarders (phase 8j) hard-code to the matching named variant.
+  *
+  * Phase-9 follow-up: dead OnChipRegWrite_u{8,16,32} member-style
+  * decls deleted (real fns are `SH7095_OnChipRegWrite_u8(SH7095*,
+  * uint32_t, uint32_t)` and friends). */
 
  //
  //
