@@ -26,6 +26,211 @@
  * migration (C structs have no access control).  Member
  * functions remain methods of the struct -- they will be
  * converted to free functions in a later phase. */
+/* Phase-9 (final): SS_SCSP nested types and enums pulled to file
+ * scope so the SS_SCSP: : qualifier needed inside the converted
+ * free-function bodies disappears.  Bringing scsp one more step
+ * closer to plain-C compatibility.  Names are unchanged; only the
+ * scope changes. */
+
+enum
+{
+ GSREG_MVOL = 0,
+ GSREG_DAC18B,
+ GSREG_MEM4MB,
+ GSREG_RBC,
+ GSREG_MSLC,
+
+ GSREG_SCIEB,
+ GSREG_SCIPD,
+ GSREG_MCIEB,
+ GSREG_MCIPD,
+
+ GSREG_EFREG0, GSREG_EFREG1, GSREG_EFREG2, GSREG_EFREG3, GSREG_EFREG4, GSREG_EFREG5, GSREG_EFREG6, GSREG_EFREG7,
+ GSREG_EFREG8, GSREG_EFREG9, GSREG_EFREGA, GSREG_EFREGB, GSREG_EFREGC, GSREG_EFREGD, GSREG_EFREGE, GSREG_EFREGF
+};
+
+enum
+{
+ ENV_PHASE_ATTACK = 0,
+ ENV_PHASE_DECAY1 = 1,
+ ENV_PHASE_DECAY2 = 2,
+ ENV_PHASE_RELEASE = 3
+};
+
+struct Slot
+{
+ uint32_t StartAddr;	// 20 bits, memory address.
+ uint16_t LoopStart;	// 16 bits, in samples.
+ uint16_t LoopEnd;	// 16 bits, in samples.
+ //
+ bool KeyBit;
+ //
+ bool WF8Bit;
+ uint8_t LoopMode;
+ enum
+ {
+  LOOP_DISABLED = 0,
+  LOOP_NORMAL = 1,
+  LOOP_REVERSE = 2,
+  LOOP_ALTERNATING = 3
+ };
+
+ uint8_t SourceControl;
+ enum
+ {
+  SOURCE_MEMORY = 0,
+  SOURCE_NOISE = 1,
+  SOURCE_ZERO = 2,
+  SOURCE_UNDEFINED = 3
+ };
+
+ uint16_t SBXOR;
+
+ uint8_t EnvRates[4];
+
+ bool AttackHold;
+ bool AttackLoopLink;
+ uint8_t DecayLevel;
+
+ uint8_t KRS;
+ uint8_t TotalLevel;
+ bool EGBypass;	// When true, force EG output to 0(no attenuation), but TL and ALFO still have an effect
+ bool SoundDirect;	// When true, bypass EG, TL, ALFO volume control
+
+ bool StackWriteInhibit;
+
+ uint8_t ModLevel;
+ uint8_t ModInputX;
+ uint8_t ModInputY;
+
+ uint8_t Octave;
+ uint16_t FreqNum;
+
+ uint8_t ALFOModLevel;
+ uint8_t ALFOWaveform;
+
+ uint8_t PLFOModLevel;
+ uint8_t PLFOWaveform;
+
+ uint8_t LFOFreq;
+
+ bool LFOReset;
+
+ // DSP mix stack
+ uint8_t ToDSPSelect;
+ uint8_t ToDSPLevel;
+
+ int16_t DirectVolume[2];	// 1.14 fixed point, derived from DISDL and DIPAN
+ int16_t EffectVolume[2];	// 1.14 fixed point, derived from EFSDL and EFPAN
+ //
+ //
+ uint32_t ShortWaveMask;
+ bool ShortWave;
+ uint16_t CurrentAddr;
+ uint32_t PhaseWhacker;
+ bool InLoop;
+ bool LoopSub;
+ bool WFAllowAccess;
+ uint8_t EnvPhase;	// ENV_PHASE_ATTACK ... ENV_PHASE_RELEASE (0...3)
+ uint32_t EnvLevel;	// 0 ... 0x3FF
+
+ uint8_t LFOCounter;
+ uint16_t LFOTimeCounter;
+};
+
+enum
+{
+ MIDIF_INPUT_EMPTY = 0x01,
+ MIDIF_INPUT_FULL  = 0x02,
+ MIDIF_INPUT_OFLOW = 0x04,
+ MIDIF_OUTPUT_EMPTY= 0x08,
+ MIDIF_OUTPUT_FULL = 0x10
+};
+
+struct DSPStep
+{
+ uint8_t IRA;	// 6 bits
+ uint8_t IWA;	// 5 bits
+ uint8_t EWA;	// 4 bits
+ uint8_t MASA;	// 5 bits
+ uint8_t CRA;	// 6 bits
+ uint8_t TWA;	// 7 bits, MDEC_CT added at runtime
+ uint8_t TRA;	// 7 bits, MDEC_CT added at runtime
+ uint8_t YSEL;	// 2 bits
+ uint32_t flags;	// see DSPF_*
+ uint8_t reads;	// DSPR_* bitmask of carried state this step consumes
+ uint8_t writes;	// DSPW_* bitmask of carried state this step produces
+ uint8_t live;	// 0 = dead step, RunDSP skips it
+};
+
+enum
+{
+ DSPF_NXADDR = 1u <<  0,
+ DSPF_ADRGB  = 1u <<  1,
+ DSPF_NOFL   = 1u <<  2,
+ DSPF_BSEL   = 1u <<  3,
+ DSPF_ZERO   = 1u <<  4,
+ DSPF_NEGB   = 1u <<  5,
+ DSPF_YRL    = 1u <<  6,
+ DSPF_SHFT0  = 1u <<  7,
+ DSPF_SHFT1  = 1u <<  8,
+ DSPF_FRCL   = 1u <<  9,
+ DSPF_ADRL   = 1u << 10,
+ DSPF_EWT    = 1u << 11,
+ DSPF_MRT    = 1u << 12,
+ DSPF_MWT    = 1u << 13,
+ DSPF_TABLE  = 1u << 14,
+ DSPF_IWT    = 1u << 15,
+ DSPF_XSEL   = 1u << 16,
+ DSPF_TWT    = 1u << 17
+};
+
+enum
+{
+ DSPR_SFT  = 1u << 0,	// step consumes SFT_REG (any of EWT/TWT/FRCL/ADRL/MWT or BSEL)
+
+ DSPW_SFT   = 1u << 0,	// SFT_REG written (always)
+ DSPW_FRC   = 1u << 1,	// FRC_REG written (FRCL)
+ DSPW_Y     = 1u << 2,	// Y_REG written (YRL)
+ DSPW_ADRS  = 1u << 3,	// ADRS_REG written (ADRL)
+ DSPW_TEMP  = 1u << 4,	// TEMP[TWA] written (TWT)
+ DSPW_MEMS  = 1u << 5,	// MEMS[IWA] written (IWT)
+ DSPW_EFREG = 1u << 6,	// EFREG[EWA] written (EWT)
+ DSPW_RAM   = 1u << 7	// RAM pipeline state advanced (MRT or MWT)
+};
+
+struct DSPS
+{
+ uint64_t MPROG[0x80];
+ DSPStep MPROG_Decoded[0x80];
+ uint32_t TEMP[0x80];	// 24 bit
+ uint32_t MEMS[0x20];	// 24 bit
+ uint16_t COEF[64];	// 13 bit
+ uint16_t MADRS[32];	// 16 bit
+
+ uint32_t MIXS[0x10];	// 20 bit
+ uint16_t EFREG[0x10];
+
+ uint32_t INPUTS;	// 24 bit
+
+ uint32_t SFT_REG;	// 26 bit
+ uint16_t FRC_REG;	// 13 bit
+ uint32_t Y_REG;		// 24 bit, latches INPUTS
+ uint16_t ADRS_REG;	// 12 bit, latches output of A_SEL(which selects between shifter output and upper 8 bits of INPUTS
+
+ uint16_t MDEC_CT;
+
+ uint32_t RWAddr;
+
+ bool WritePending;
+ uint16_t WriteValue;
+
+ uint8_t ReadPending;	// = 1 (NOFL=0), =2 (NOFL=1) at time or MRT
+ uint32_t ReadValue;
+
+ bool MPROG_Dirty;
+};
+
 struct SS_SCSP
 {
 
@@ -48,113 +253,11 @@ struct SS_SCSP
   * RW_R8/R16/W8/W16 wrappers are now free functions after the
   * struct definition -- see SS_SCSP_* helpers below. */
 
- enum
- {
-  GSREG_MVOL = 0,
-  GSREG_DAC18B,
-  GSREG_MEM4MB,
-  GSREG_RBC,
-  GSREG_MSLC,
-
-  GSREG_SCIEB,
-  GSREG_SCIPD,
-  GSREG_MCIEB,
-  GSREG_MCIPD,
-
-  GSREG_EFREG0, GSREG_EFREG1, GSREG_EFREG2, GSREG_EFREG3, GSREG_EFREG4, GSREG_EFREG5, GSREG_EFREG6, GSREG_EFREG7,
-  GSREG_EFREG8, GSREG_EFREG9, GSREG_EFREGA, GSREG_EFREGB, GSREG_EFREGC, GSREG_EFREGD, GSREG_EFREGE, GSREG_EFREGF
- };
  /* Phase-9a: formerly `private:` -- access modifier dropped. */
- enum
- {
-  ENV_PHASE_ATTACK = 0,
-  ENV_PHASE_DECAY1 = 1,
-  ENV_PHASE_DECAY2 = 2,
-  ENV_PHASE_RELEASE = 3
- };
 
  uint16_t SlotRegs[0x20][0x10];
 
- struct Slot
- {
-  uint32_t StartAddr;	// 20 bits, memory address.
-  uint16_t LoopStart;	// 16 bits, in samples.
-  uint16_t LoopEnd;	// 16 bits, in samples.
-  //
-  bool KeyBit;
-  //
-  bool WF8Bit;
-  uint8_t LoopMode;
-  enum
-  {
-   LOOP_DISABLED = 0,
-   LOOP_NORMAL = 1,
-   LOOP_REVERSE = 2,
-   LOOP_ALTERNATING = 3
-  };
-
-  uint8_t SourceControl;
-  enum
-  {
-   SOURCE_MEMORY = 0,
-   SOURCE_NOISE = 1,
-   SOURCE_ZERO = 2,
-   SOURCE_UNDEFINED = 3
-  };
-
-  uint16_t SBXOR;
-
-  uint8_t EnvRates[4];
-
-  bool AttackHold;
-  bool AttackLoopLink;
-  uint8_t DecayLevel;
-
-  uint8_t KRS;
-  uint8_t TotalLevel;
-  bool EGBypass;	// When true, force EG output to 0(no attenuation), but TL and ALFO still have an effect
-  bool SoundDirect;	// When true, bypass EG, TL, ALFO volume control
-
-  bool StackWriteInhibit;
-
-  uint8_t ModLevel;
-  uint8_t ModInputX;
-  uint8_t ModInputY;
-
-  uint8_t Octave;
-  uint16_t FreqNum;
-
-  uint8_t ALFOModLevel;
-  uint8_t ALFOWaveform;
-
-  uint8_t PLFOModLevel;
-  uint8_t PLFOWaveform;
- 
-  uint8_t LFOFreq;
-
-  bool LFOReset;
-
-  // DSP mix stack
-  uint8_t ToDSPSelect;
-  uint8_t ToDSPLevel;
-
-  int16_t DirectVolume[2];	// 1.14 fixed point, derived from DISDL and DIPAN
-  int16_t EffectVolume[2];	// 1.14 fixed point, derived from EFSDL and EFPAN
-  //
-  //
-  uint32_t ShortWaveMask;
-  bool ShortWave;
-  uint16_t CurrentAddr;
-  uint32_t PhaseWhacker;
-  bool InLoop;
-  bool LoopSub;
-  bool WFAllowAccess;
-  uint8_t EnvPhase;	// ENV_PHASE_ATTACK ... ENV_PHASE_RELEASE (0...3)
-  uint32_t EnvLevel;	// 0 ... 0x3FF
-
-  uint8_t LFOCounter;
-  uint16_t LFOTimeCounter;
- } Slots[32];
+ Slot Slots[32];
 
  uint16_t EXTS[2];
  uint16_t SoundStack[0x40];
@@ -176,14 +279,6 @@ struct SS_SCSP
 
  //
  //
- enum
- {
-  MIDIF_INPUT_EMPTY = 0x01,
-  MIDIF_INPUT_FULL  = 0x02,
-  MIDIF_INPUT_OFLOW = 0x04,
-  MIDIF_OUTPUT_EMPTY= 0x08,
-  MIDIF_OUTPUT_FULL = 0x10
- };
  struct
  {
   uint8_t InputFIFO[4];
@@ -231,92 +326,14 @@ struct SS_SCSP
  //
  uint8_t RBP;
  uint8_t RBL;
- struct DSPStep
- {
-  uint8_t IRA;	// 6 bits
-  uint8_t IWA;	// 5 bits
-  uint8_t EWA;	// 4 bits
-  uint8_t MASA;	// 5 bits
-  uint8_t CRA;	// 6 bits
-  uint8_t TWA;	// 7 bits, MDEC_CT added at runtime
-  uint8_t TRA;	// 7 bits, MDEC_CT added at runtime
-  uint8_t YSEL;	// 2 bits
-  uint32_t flags;	// see DSPF_*
-  uint8_t reads;	// DSPR_* bitmask of carried state this step consumes
-  uint8_t writes;	// DSPW_* bitmask of carried state this step produces
-  uint8_t live;	// 0 = dead step, RunDSP skips it
- };
 
- enum
- {
-  DSPF_NXADDR = 1u <<  0,
-  DSPF_ADRGB  = 1u <<  1,
-  DSPF_NOFL   = 1u <<  2,
-  DSPF_BSEL   = 1u <<  3,
-  DSPF_ZERO   = 1u <<  4,
-  DSPF_NEGB   = 1u <<  5,
-  DSPF_YRL    = 1u <<  6,
-  DSPF_SHFT0  = 1u <<  7,
-  DSPF_SHFT1  = 1u <<  8,
-  DSPF_FRCL   = 1u <<  9,
-  DSPF_ADRL   = 1u << 10,
-  DSPF_EWT    = 1u << 11,
-  DSPF_MRT    = 1u << 12,
-  DSPF_MWT    = 1u << 13,
-  DSPF_TABLE  = 1u << 14,
-  DSPF_IWT    = 1u << 15,
-  DSPF_XSEL   = 1u << 16,
-  DSPF_TWT    = 1u << 17
- };
 
  // Carried-state write bitmask, plus the one read-side bit the liveness pass needs.
- enum
- {
-  DSPR_SFT  = 1u << 0,	// step consumes SFT_REG (any of EWT/TWT/FRCL/ADRL/MWT or BSEL)
 
-  DSPW_SFT   = 1u << 0,	// SFT_REG written (always)
-  DSPW_FRC   = 1u << 1,	// FRC_REG written (FRCL)
-  DSPW_Y     = 1u << 2,	// Y_REG written (YRL)
-  DSPW_ADRS  = 1u << 3,	// ADRS_REG written (ADRL)
-  DSPW_TEMP  = 1u << 4,	// TEMP[TWA] written (TWT)
-  DSPW_MEMS  = 1u << 5,	// MEMS[IWA] written (IWT)
-  DSPW_EFREG = 1u << 6,	// EFREG[EWA] written (EWT)
-  DSPW_RAM   = 1u << 7	// RAM pipeline state advanced (MRT or MWT)
- };
-
- struct DSPS
- {
-  uint64_t MPROG[0x80];
-  DSPStep MPROG_Decoded[0x80];
-  uint32_t TEMP[0x80];	// 24 bit
-  uint32_t MEMS[0x20];	// 24 bit
-  uint16_t COEF[64];	// 13 bit
-  uint16_t MADRS[32];	// 16 bit
-
-  uint32_t MIXS[0x10];	// 20 bit
-  uint16_t EFREG[0x10];
-
-  uint32_t INPUTS;	// 24 bit
-
-  uint32_t SFT_REG;	// 26 bit
-  uint16_t FRC_REG;	// 13 bit
-  uint32_t Y_REG;		// 24 bit, latches INPUTS
-  uint16_t ADRS_REG;	// 12 bit, latches output of A_SEL(which selects between shifter output and upper 8 bits of INPUTS
-
-  uint16_t MDEC_CT;
-
-  uint32_t RWAddr;
-
-  bool WritePending;
-  uint16_t WriteValue;
-
-  uint8_t ReadPending;	// = 1 (NOFL=0), =2 (NOFL=1) at time or MRT
-  uint32_t ReadValue;
-
-  bool MPROG_Dirty;
- } DSP;
  //
  //
+
+ DSPS DSP;
 
  uint16_t RAM[262144 * 2];	// *2 for dummy so we don't have to have so many conditionals in the playback code.
 
