@@ -90,11 +90,24 @@
 // noclone and emits -Wunknown-attributes at every use site. Keep
 // noclone on real GCC and elide it on clang; the other attributes
 // (hot, cold, always_inline, visibility) are supported by both.
+//
+// MDFN_UNREACHABLE tells the optimizer that a code path is dead
+// (e.g. the `default:` arm of a switch over a known-enumerated
+// integer).  GCC and clang expose `__builtin_unreachable()`; MSVC
+// has had the equivalent `__assume(0)` since VS 2005, which long
+// predates the MSVC C89 target this codebase still wants to
+// compile under.  The fallback path expands to nothing, which is
+// always safe -- the worst case is a bounds-check the optimizer
+// could otherwise have elided.  Useful for dense switch dispatches
+// where every value is accounted for, so the compiler can drop the
+// jump-table bounds check (one indirect jump beats a compare +
+// branch + indirect jump).
 #if defined(__GNUC__) && !defined(__clang__)
  #define MDFN_HOT          __attribute__((hot))
  #define MDFN_COLD         __attribute__((cold))
  #define NO_CLONE          __attribute__((noclone))
  #define MDFN_FORCE_INLINE __attribute__((always_inline)) inline
+ #define MDFN_UNREACHABLE  __builtin_unreachable()
  #if defined(_WIN32) || defined(__CYGWIN__)
   #define MDFN_HIDE
  #else
@@ -105,6 +118,7 @@
  #define MDFN_COLD         __attribute__((cold))
  #define NO_CLONE
  #define MDFN_FORCE_INLINE __attribute__((always_inline)) inline
+ #define MDFN_UNREACHABLE  __builtin_unreachable()
  #if defined(_WIN32) || defined(__CYGWIN__)
   #define MDFN_HIDE
  #else
@@ -116,12 +130,14 @@
  #define MDFN_HIDE
  #define NO_CLONE
  #define MDFN_FORCE_INLINE __forceinline
+ #define MDFN_UNREACHABLE  __assume(0)
 #else
  #define MDFN_HOT
  #define MDFN_COLD
  #define MDFN_HIDE
  #define NO_CLONE
  #define MDFN_FORCE_INLINE inline
+ #define MDFN_UNREACHABLE  /* nothing -- compiler keeps any bounds checks */
 #endif
 
 #ifdef __cplusplus
