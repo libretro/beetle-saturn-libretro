@@ -90,12 +90,26 @@ void M68K_Construct(M68K* z, bool rev_e)
    z->Reset(true);
 }
 
-void     M68K_SetIPL             (M68K* z, uint8_t ipl_new)             { z->SetIPL(ipl_new); }
+void     M68K_SetIPL             (M68K* z, uint8_t ipl_new)
+{
+ if(z->IPL < 0x7 && ipl_new == 0x7)
+  z->XPending |= M68K::XPENDING_MASK_NMI;
+ else if(ipl_new < 0x7)
+  z->XPending &= ~M68K::XPENDING_MASK_NMI;
+
+ z->IPL = ipl_new;
+ z->RecalcInt();
+}
 void     M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)               { z->SignalDTACKHalted(addr); }
 void     M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type) { z->SignalAddressError(addr, type); }
 void     M68K_Reset              (M68K* z, bool pwr)                    { z->Reset(pwr); }
 void     M68K_Run                (M68K* z, int32_t until)               { z->Run(until); }
-void     M68K_SetExtHalted       (M68K* z, bool state)                  { z->SetExtHalted(state); }
+void     M68K_SetExtHalted       (M68K* z, bool state)
+{
+ z->XPending &= ~M68K::XPENDING_MASK_EXTHALTED;
+ if(state)
+  z->XPending |= M68K::XPENDING_MASK_EXTHALTED;
+}
 void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
                                   const bool data_only, const char* sname)
  { z->StateAction(sm, load, data_only, sname); }
@@ -142,24 +156,6 @@ void M68K::StateAction(StateMem* sm, const unsigned load, const bool data_only, 
 
  if(load)
   XPending &= XPENDING_MASK__VALID;
-}
-
-void M68K::SetIPL(uint8_t ipl_new)
-{
- if(IPL < 0x7 && ipl_new == 0x7)
-  XPending |= XPENDING_MASK_NMI;
- else if(ipl_new < 0x7)
-  XPending &= ~XPENDING_MASK_NMI;
-
- IPL = ipl_new;
- RecalcInt();
-}
-
-void M68K::SetExtHalted(bool state)
-{
- XPending &= ~XPENDING_MASK_EXTHALTED;
- if(state)
-  XPending |= XPENDING_MASK_EXTHALTED;
 }
 
 //

@@ -67,8 +67,11 @@ struct M68K
 
  void Reset(bool powering_up) MDFN_COLD;
 
- void SetIPL(uint8_t ipl_new);
- void SetExtHalted(bool state);
+ /* Phase-9d-1: SetIPL and SetExtHalted retired from the class.
+  * Bodies moved inline into the M68K_SetIPL / M68K_SetExtHalted
+  * extern "C" wrappers in m68k.cpp -- they were already 1-line
+  * forwarders to z->SetIPL(...) / z->SetExtHalted(...) and the
+  * 8 / 4 line bodies don't need the dispatch round-trip. */
 
 
  //
