@@ -685,12 +685,15 @@ INLINE void M68K::SUBX(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 //
 // NEG
 //
+// Phase-9d-10: extracted to free template; calls z->Subtract since
+// Subtract is still a class method.
+//
 template<typename DT, AddressMode DAM>
-INLINE void M68K::NEG(HAM<DT, DAM> &dst)
+INLINE void NEG(M68K* z, M68K::HAM<DT, DAM> &dst)
 {
- HAM<DT, IMMEDIATE> dummy_zero(this, 0);
+ M68K::HAM<DT, IMMEDIATE> dummy_zero(z, 0);
 
- dst.write(Subtract(false, dst, dummy_zero));
+ dst.write(z->Subtract(false, dst, dummy_zero));
 }
 
 
@@ -698,11 +701,11 @@ INLINE void M68K::NEG(HAM<DT, DAM> &dst)
 // NEGX
 //
 template<typename DT, AddressMode DAM>
-INLINE void M68K::NEGX(HAM<DT, DAM> &dst)
+INLINE void NEGX(M68K* z, M68K::HAM<DT, DAM> &dst)
 {
- HAM<DT, IMMEDIATE> dummy_zero(this, 0);
+ M68K::HAM<DT, IMMEDIATE> dummy_zero(z, 0);
 
- dst.write(Subtract(true, dst, dummy_zero));
+ dst.write(z->Subtract(true, dst, dummy_zero));
 }
 
 
@@ -1662,11 +1665,21 @@ MDFN_FASTCALL uint8_t TAS_Callback(M68K* zptr, uint8_t data);
 //
 //
 
+// Phase-9d-10: TAS/TST/CLR/NOT extracted from M68K class scope to free
+// templates parallel to NEG/NEGX above (and EXT in bee65cf).  Each takes
+// an explicit M68K* z; member access patterns (`Flag_X`, `timestamp`)
+// become `z->Flag_X`/`z->timestamp`; CALC_ZN(this, ...) -> CALC_ZN(z, ...).
+// TAS has no member access in its body, so z is unused there (kept in
+// the signature for consistency with the rest of the op family).
+//
+
 template<typename T, AddressMode DAM>
-INLINE void M68K::TAS(HAM<T, DAM> &dst)
+INLINE void TAS(M68K* z, M68K::HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint8_t>::value, "Wrong type");
-
+ (void)z; /* TAS_Callback is a file-scope free function (not a method);
+           * dst.rmw passes it M68K* via dst.zptr internally, so the
+           * outer z isn't read here. */
  dst.rmw(TAS_Callback);
 }
 
@@ -1674,14 +1687,14 @@ INLINE void M68K::TAS(HAM<T, DAM> &dst)
 // TST
 //
 template<typename T, AddressMode DAM>
-INLINE void M68K::TST(HAM<T, DAM> &dst)
+INLINE void TST(M68K* z, M68K::HAM<T, DAM> &dst)
 {
  T const dst_data = dst.read();
 
- CALC_ZN(this, T, dst_data);
+ CALC_ZN(z, T, dst_data);
 
- Flag_C = false;
- Flag_V = false;
+ z->Flag_C = false;
+ z->Flag_V = false;
 }
 
 
@@ -1689,18 +1702,18 @@ INLINE void M68K::TST(HAM<T, DAM> &dst)
 // CLR
 //
 template<typename T, AddressMode DAM>
-INLINE void M68K::CLR(HAM<T, DAM> &dst)
+INLINE void CLR(M68K* z, M68K::HAM<T, DAM> &dst)
 {
  dst.read();
 
  if(sizeof(T) == 4 && DAM == DATA_REG_DIR)
-  timestamp += 2;
+  z->timestamp += 2;
 
- Flag_Z = true;
- Flag_N = false;
+ z->Flag_Z = true;
+ z->Flag_N = false;
 
- Flag_C = false;
- Flag_V = false;
+ z->Flag_C = false;
+ z->Flag_V = false;
 
  dst.write(0);
 }
@@ -1709,18 +1722,18 @@ INLINE void M68K::CLR(HAM<T, DAM> &dst)
 // NOT
 //
 template<typename T, AddressMode DAM>
-INLINE void M68K::NOT(HAM<T, DAM> &dst)
+INLINE void NOT(M68K* z, M68K::HAM<T, DAM> &dst)
 {
  T result = dst.read();
 
  if(sizeof(T) == 4 && DAM == DATA_REG_DIR)
-  timestamp += 2;
+  z->timestamp += 2;
 
  result = ~result;
 
- CALC_ZN(this, T, result);
- Flag_C = false;
- Flag_V = false;
+ CALC_ZN(z, T, result);
+ z->Flag_C = false;
+ z->Flag_V = false;
 
  dst.write(result);
 }

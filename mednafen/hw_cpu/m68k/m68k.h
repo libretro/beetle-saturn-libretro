@@ -381,11 +381,9 @@ struct M68K
  template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
  void SUBX(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
 
- template<typename DT, AddressMode DAM>
- void NEG(HAM<DT, DAM> &dst);
-
- template<typename DT, AddressMode DAM>
- void NEGX(HAM<DT, DAM> &dst);
+ /* Phase-9d-10: NEG/NEGX retired from struct M68K scope; now
+  * free templates below struct M68K, in the same block as EXT
+  * (added in Phase-9d-9). */
 
  template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
  void CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
@@ -513,21 +511,10 @@ struct M68K
  template<typename T, AddressMode TAM>
  void ROXR(HAM<T, TAM> &targ, unsigned count);
 
- template<typename T, AddressMode DAM>
- void TAS(HAM<T, DAM> &dst);
-
- template<typename T, AddressMode DAM>
- void TST(HAM<T, DAM> &dst);
-
- template<typename T, AddressMode DAM>
- void CLR(HAM<T, DAM> &dst);
-
- template<typename T, AddressMode DAM>
- void NOT(HAM<T, DAM> &dst);
-
- /* Phase-9d-9: EXT retired from struct M68K scope.  Now a free
-  * template living after struct M68K's definition; see the
-  * declaration below the struct. */
+ /* Phase-9d-9 + Phase-9d-10: EXT, TAS, TST, CLR, NOT retired from
+  * struct M68K scope.  All five are now free templates living after
+  * struct M68K's closing brace; see the declaration block down
+  * there. */
 
  void SWAP(const unsigned dr);
 
@@ -633,18 +620,34 @@ struct M68K
   * hold those two declarations alone; it's gone now. */
 };
 
-/* Phase-9d-9: Free-template op declarations live at file scope,
- * outside struct M68K, taking an explicit M68K* `z` first parameter.
- * First entry in this list is EXT; the rest of the 50-op family
- * follows in subsequent Phase-9d commits.  Bodies are in
- * m68k_private.h; the m68k_instr*.inc call sites pass `this` as
- * the M68K pointer (the .inc files are #included inside
- * M68K::Run() where `this` is in scope).  The HAM<T,AM>& parameter
- * type still references M68K::HAM (HAM detempleting is a later
- * commit). */
+/* Phase-9d-9 + Phase-9d-10: Free-template op declarations live at
+ * file scope, outside struct M68K, taking an explicit M68K* `z`
+ * first parameter.  Bodies are in m68k_private.h; the
+ * m68k_instr*.inc call sites pass `this` as the M68K pointer (the
+ * .inc files are #included inside M68K::Run() / M68K::RunSplit{0,1}()
+ * where `this` is in scope).  The HAM<T,AM>& parameter type still
+ * references M68K::HAM (HAM detempleting is a later commit). */
 #ifdef __cplusplus
 template<typename T, AddressMode DAM>
 void EXT(M68K* z, M68K::HAM<T, DAM> &dst);
+
+template<typename DT, AddressMode DAM>
+void NEG(M68K* z, M68K::HAM<DT, DAM> &dst);
+
+template<typename DT, AddressMode DAM>
+void NEGX(M68K* z, M68K::HAM<DT, DAM> &dst);
+
+template<typename T, AddressMode DAM>
+void NOT(M68K* z, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode DAM>
+void CLR(M68K* z, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode DAM>
+void TST(M68K* z, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode DAM>
+void TAS(M68K* z, M68K::HAM<T, DAM> &dst);
 #endif /* __cplusplus */
 
 /* M68K_* free-function API exposed to consumers of m68k.h.
