@@ -24,9 +24,12 @@
 
 #include <mednafen/mednafen.h>
 
-class M68K
+/* Phase-9c: class -> struct.  See Phase-9a comment in scsp.h
+ * for rationale.  M68K already had `//private:` (commented out)
+ * markers, so all members were de facto public; this commit
+ * simply formalizes the access. */
+struct M68K
 {
- public:
 
  M68K(const bool rev_e = false) MDFN_COLD;
  ~M68K() MDFN_COLD;
@@ -514,7 +517,7 @@ class M68K
  //
  //
  //
- public:
+ /* Phase-9c: access modifier dropped. */
  enum
  {
   GSREG_D0 = 0,

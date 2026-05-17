@@ -24,9 +24,11 @@
 
 #include <mednafen/state.h>
 
-class SH7095 final
+/* Phase-9b: class -> struct.  See Phase-9a comment in scsp.h
+ * for rationale.  The `final` keyword is preserved (allowed on
+ * struct in C++11); it will be dropped in the C migration. */
+struct SH7095 final
 {
- public:
 
  SH7095(const char* const name_arg, const unsigned dma_event_id_arg, uint8_t (*exivecfn_arg)(void)) MDFN_COLD;
  ~SH7095() MDFN_COLD;
@@ -575,8 +577,7 @@ class SH7095 final
  //
  //
  //
- public:
-
+ /* Phase-9b: access modifier dropped. */
  enum
  {
   // GSREG_PC_ID and GSREG_PC_IF are only valid when Step<true>() was called most recently(but they may be invalid
@@ -675,7 +676,7 @@ class SH7095 final
  void SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
 
  void CheckRWBreakpoints(void (*MRead)(unsigned len, uint32_t addr), void (*MWrite)(unsigned len, uint32_t addr)) const;
- private:
+ /* Phase-9b: formerly `private:` -- access modifier dropped. */
  bool CBH_Setting;
  bool EIC_Setting;
  bool DM_Setting;

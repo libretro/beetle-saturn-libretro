@@ -21,9 +21,13 @@
 
 #include <mednafen/state.h>
 
-class SS_SCSP
+/* Phase-9a: class -> struct.  Members formerly under `private:`
+ * are now (implicitly) public, preparing for eventual C
+ * migration (C structs have no access control).  Member
+ * functions remain methods of the struct -- they will be
+ * converted to free functions in a later phase. */
+struct SS_SCSP
 {
- public:
 
  SS_SCSP() MDFN_COLD;
  ~SS_SCSP() MDFN_COLD;
@@ -102,8 +106,7 @@ class SS_SCSP
  uint32_t GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
  void SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
 
- private:
-
+ /* Phase-9a: formerly `private:` -- access modifier dropped. */
  void RecalcSoundInt(void);
  void RecalcMainInt(void);
 
