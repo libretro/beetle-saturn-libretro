@@ -87,11 +87,15 @@ static const char* bsize_to_type(unsigned size)
  return NULL;
 }
 
-template<bool move_dest = false>
-bool decode_ea(unsigned allowed, int size, unsigned instr, const char* ham_name, std::string* ham_out)
+/* Phase-9d: decode_ea<bool move_dest> retired into
+ * decode_ea_src (move_dest=false) and decode_ea_dst
+ * (move_dest=true) via source-fold. */
+
+bool decode_ea_src(unsigned allowed, int size, unsigned instr, const char* ham_name, std::string* ham_out)
 {
- const unsigned mode = (instr >> (move_dest ? 6 : 3)) & 0x7;
- const unsigned reg =  (instr >> (move_dest ? 9 : 0)) & 0x7;
+
+ const unsigned mode = (instr >> ( 3)) & 0x7;
+ const unsigned reg =  (instr >> ( 0)) & 0x7;
  
  if(size == -1)
  {
@@ -142,7 +146,7 @@ bool decode_ea(unsigned allowed, int size, unsigned instr, const char* ham_name,
 
  if(mode < 0x7)
  {
-  *ham_out += s("HAM<%s, %s> %s(this, %s)", bsize_to_type(size), am->name, ham_name, (move_dest ? "instr_b11_b9" : "instr_b2_b0"));
+  *ham_out += s("HAM<%s, %s> %s(this, %s)", bsize_to_type(size), am->name, ham_name, ( "instr_b2_b0"));
 
   return true;
  }
@@ -155,6 +159,76 @@ bool decode_ea(unsigned allowed, int size, unsigned instr, const char* ham_name,
 
  return false;
 }
+
+bool decode_ea_dst(unsigned allowed, int size, unsigned instr, const char* ham_name, std::string* ham_out)
+{
+
+ const unsigned mode = (instr >> ( 6 )) & 0x7;
+ const unsigned reg =  (instr >> ( 9 )) & 0x7;
+ 
+ if(size == -1)
+ {
+  if(mode == 0)
+   size = 4;
+  else
+   size = 1;
+ }
+
+ if((size != 0 && size != 1 && size != 2 && size != 4) || (size == 0 && allowed != AMA_CONTROL))
+  return false;
+
+ static const struct
+ {
+  const char* name;
+  unsigned flags;
+ } ams[2][0x8] =
+ {
+  {
+   { "DATA_REG_DIR",		AMA_DATA | AMA_ALTERABLE },
+   { "ADDR_REG_DIR", 		AMA_ALTERABLE },
+   { "ADDR_REG_INDIR",		AMA_DATA | AMA_MEMORY | AMA_ALTERABLE | AMA_CONTROL  },
+   { "ADDR_REG_INDIR_POST",	AMA_DATA | AMA_MEMORY | AMA_ALTERABLE },
+   { "ADDR_REG_INDIR_PRE",	AMA_DATA | AMA_MEMORY | AMA_ALTERABLE },
+   { "ADDR_REG_INDIR_DISP",	AMA_DATA | AMA_MEMORY | AMA_ALTERABLE | AMA_CONTROL  },
+   { "ADDR_REG_INDIR_INDX",	AMA_DATA | AMA_MEMORY | AMA_ALTERABLE | AMA_CONTROL  },
+   { NULL, 0 },
+  },
+  {
+   { "ABS_SHORT",	AMA_DATA | AMA_MEMORY | AMA_ALTERABLE | AMA_CONTROL  },
+   { "ABS_LONG",	AMA_DATA | AMA_MEMORY | AMA_ALTERABLE | AMA_CONTROL  },
+   { "PC_DISP",		AMA_DATA | AMA_MEMORY | AMA_CONTROL },
+   { "PC_INDEX",	AMA_DATA | AMA_MEMORY | AMA_CONTROL },
+   { "IMMEDIATE",	AMA_DATA | AMA_MEMORY },
+   { NULL, 0 },
+   { NULL, 0 },
+   { NULL, 0 },
+  }
+ };
+
+ auto const* const am = &ams[mode == 0x7][(mode == 0x7) ? reg : mode];
+ 
+ if((am->flags & allowed) != allowed)
+  return false;
+
+ if(mode == 0x1 && size == 1)
+  return false;
+
+ if(mode < 0x7)
+ {
+  *ham_out += s("HAM<%s, %s> %s(this, %s)", bsize_to_type(size), am->name, ham_name, ( "instr_b11_b9" ));
+
+  return true;
+ }
+ else if(am->name)
+ {
+  *ham_out += s("HAM<%s, %s> %s(this)", bsize_to_type(size), am->name, ham_name);
+
+  return true;
+ }
+
+ return false;
+}
+
 
 static void PrivilegeWrap(std::string *str, bool mfsr = false)
 {
@@ -200,7 +274,7 @@ static std::string Instr0(const unsigned i)
 
   std::string tmp;
 
-  if(decode_ea(AMA_DATA | AMA_ALTERABLE, 1 << szi, i, "dst", &tmp))
+  if(decode_ea_src(AMA_DATA | AMA_ALTERABLE, 1 << szi, i, "dst", &tmp))
   {   
    if(op_names[opi] && size_names[szi])
    {
@@ -244,7 +318,7 @@ static std::string Instr0(const unsigned i)
   const unsigned allowed = AMA_DATA | ((type == 0) ? 0 : AMA_ALTERABLE);
   std::string tmp;
 
-  if(decode_ea(allowed, -1, i, "targ", &tmp))
+  if(decode_ea_src(allowed, -1, i, "targ", &tmp))
   {
    if(i & 0x100)	// Dynamic
    {
@@ -273,7 +347,7 @@ static std::string Instr1(const unsigned i)
  std::string src_tmp;
  std::string dst_tmp;
 
- if(decode_ea(AMA_DATA, 1, i, "src", &src_tmp) && decode_ea<true>(AMA_DATA | AMA_ALTERABLE, 1, i, "dst", &dst_tmp))
+ if(decode_ea_src(AMA_DATA, 1, i, "src", &src_tmp) && decode_ea_dst(AMA_DATA | AMA_ALTERABLE, 1, i, "dst", &dst_tmp))
  {
   ret += s("%s; %s; MOVE(src, dst);", src_tmp.c_str(), dst_tmp.c_str());
  }
@@ -291,9 +365,9 @@ static std::string Instr23(const unsigned i)
  std::string dst_tmp;
  const unsigned size = ((i >> 12) == 0x2) ? 4 : 2;
 
- if(decode_ea(0, size, i, "src", &src_tmp))
+ if(decode_ea_src(0, size, i, "src", &src_tmp))
  {
-  if(decode_ea<true>(AMA_DATA | AMA_ALTERABLE, size, i, "dst", &dst_tmp))
+  if(decode_ea_dst(AMA_DATA | AMA_ALTERABLE, size, i, "dst", &dst_tmp))
   {
    ret += s("%s; %s; MOVE(src, dst);", src_tmp.c_str(), dst_tmp.c_str());
   }
@@ -305,9 +379,14 @@ static std::string Instr23(const unsigned i)
  return ret;
 }
 
-template<bool AllowA = false, bool AllowX = false, bool AllowASource = true, bool AllowToDR = false>
-static std::string form_dar_opm_ea(const unsigned i, const char* name)
+/* Phase-9d: form_dar_opm_ea<AllowA, AllowX, AllowASource,
+ * AllowToDR> retired into 4 named variants via
+ * source-fold.  Suffixes map to the four distinct call-site
+ * argument tuples (see callers below). */
+
+static std::string form_dar_opm_ea_OR_AND(const unsigned i, const char* name)
 {
+
  std::string ret;
  const unsigned opm = (i >> 6) & 0x7;
  unsigned szi;
@@ -320,8 +399,7 @@ static std::string form_dar_opm_ea(const unsigned i, const char* name)
   szi = (opm & 0x4) ? 2 : 1;
   is_a = true;
 
-  if(!AllowA)
-   return "";
+  return "";
  }
  else
  {
@@ -334,20 +412,14 @@ static std::string form_dar_opm_ea(const unsigned i, const char* name)
 
  if(to_mem)
  {
-  if(AllowToDR)
-   allowed = AMA_DATA | AMA_ALTERABLE;
-  else
-   allowed = AMA_MEMORY | AMA_ALTERABLE;
+  allowed = AMA_MEMORY | AMA_ALTERABLE;
  }
  else
  {
-  if(AllowASource)
-   allowed = 0;
-  else
-   allowed = AMA_DATA;
+  allowed = AMA_DATA;
  }
 
- if(decode_ea(allowed, 1U << szi, i, to_mem ? "dst" : "src", &tmp_ea))
+ if(decode_ea_src(allowed, 1U << szi, i, to_mem ? "dst" : "src", &tmp_ea))
  {
   tmp_ea += "; ";
   tmp_reg = s("HAM<%s, %s> %s\(this, instr_b11_b9); ", is_a ? "uint32_t" : size_names[szi], is_a ? "ADDR_REG_DIR" : "DATA_REG_DIR", to_mem ? "src" : "dst");
@@ -359,7 +431,7 @@ static std::string form_dar_opm_ea(const unsigned i, const char* name)
 
   ret += s("%s(src, dst);", name);
  }
- else if(AllowX && ((i >> 8) & 0x1) == 0x1 && ((i >> 4) & 0x3) == 0x0)
+ else if(false && ((i >> 8) & 0x1) == 0x1 && ((i >> 4) & 0x3) == 0x0)
  {
   const bool rm = (i >> 3) & 1;
   const unsigned szi = (i >> 6) & 0x3;
@@ -379,6 +451,206 @@ static std::string form_dar_opm_ea(const unsigned i, const char* name)
  return ret;
 }
 
+static std::string form_dar_opm_ea_SUB_ADD(const unsigned i, const char* name)
+{
+
+ std::string ret;
+ const unsigned opm = (i >> 6) & 0x7;
+ unsigned szi;
+ bool to_mem;
+ bool is_a = false;
+
+ if(opm == 0x3 || opm == 0x7)
+ {
+  to_mem = false;
+  szi = (opm & 0x4) ? 2 : 1;
+  is_a = true;
+
+ }
+ else
+ {
+  to_mem = (bool)(opm & 0x4);
+  szi = opm & 0x3;
+ }
+
+ std::string tmp_ea, tmp_reg;
+ unsigned allowed;
+
+ if(to_mem)
+ {
+  allowed = AMA_MEMORY | AMA_ALTERABLE;
+ }
+ else
+ {
+  allowed = 0;
+ }
+
+ if(decode_ea_src(allowed, 1U << szi, i, to_mem ? "dst" : "src", &tmp_ea))
+ {
+  tmp_ea += "; ";
+  tmp_reg = s("HAM<%s, %s> %s\(this, instr_b11_b9); ", is_a ? "uint32_t" : size_names[szi], is_a ? "ADDR_REG_DIR" : "DATA_REG_DIR", to_mem ? "src" : "dst");
+
+  if(to_mem)
+   ret += tmp_reg + tmp_ea;
+  else
+   ret += tmp_ea + tmp_reg;
+
+  ret += s("%s(src, dst);", name);
+ }
+ else if(true && ((i >> 8) & 0x1) == 0x1 && ((i >> 4) & 0x3) == 0x0)
+ {
+  const bool rm = (i >> 3) & 1;
+  const unsigned szi = (i >> 6) & 0x3;
+
+  if(szi != 0x3)
+  {
+   if(rm) // address register, predecrement addressing mode
+   {
+    ret += s("HAM<%s, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<%s, ADDR_REG_INDIR_PRE> dst(this, instr_b11_b9); %sX(src, dst);", size_names[szi], size_names[szi], name);
+   }
+   else
+   {
+    ret += s("HAM<%s, DATA_REG_DIR> src(this, instr_b2_b0); HAM<%s, DATA_REG_DIR> dst(this, instr_b11_b9); %sX(src, dst);", size_names[szi], size_names[szi], name);
+   }
+  }
+ }
+ return ret;
+}
+
+static std::string form_dar_opm_ea_EOR(const unsigned i, const char* name)
+{
+
+ std::string ret;
+ const unsigned opm = (i >> 6) & 0x7;
+ unsigned szi;
+ bool to_mem;
+ bool is_a = false;
+
+ if(opm == 0x3 || opm == 0x7)
+ {
+  to_mem = false;
+  szi = (opm & 0x4) ? 2 : 1;
+  is_a = true;
+
+  return "";
+ }
+ else
+ {
+  to_mem = (bool)(opm & 0x4);
+  szi = opm & 0x3;
+ }
+
+ std::string tmp_ea, tmp_reg;
+ unsigned allowed;
+
+ if(to_mem)
+ {
+  allowed = AMA_DATA | AMA_ALTERABLE;
+ }
+ else
+ {
+  allowed = AMA_DATA;
+ }
+
+ if(decode_ea_src(allowed, 1U << szi, i, to_mem ? "dst" : "src", &tmp_ea))
+ {
+  tmp_ea += "; ";
+  tmp_reg = s("HAM<%s, %s> %s\(this, instr_b11_b9); ", is_a ? "uint32_t" : size_names[szi], is_a ? "ADDR_REG_DIR" : "DATA_REG_DIR", to_mem ? "src" : "dst");
+
+  if(to_mem)
+   ret += tmp_reg + tmp_ea;
+  else
+   ret += tmp_ea + tmp_reg;
+
+  ret += s("%s(src, dst);", name);
+ }
+ else if(false && ((i >> 8) & 0x1) == 0x1 && ((i >> 4) & 0x3) == 0x0)
+ {
+  const bool rm = (i >> 3) & 1;
+  const unsigned szi = (i >> 6) & 0x3;
+
+  if(szi != 0x3)
+  {
+   if(rm) // address register, predecrement addressing mode
+   {
+    ret += s("HAM<%s, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<%s, ADDR_REG_INDIR_PRE> dst(this, instr_b11_b9); %sX(src, dst);", size_names[szi], size_names[szi], name);
+   }
+   else
+   {
+    ret += s("HAM<%s, DATA_REG_DIR> src(this, instr_b2_b0); HAM<%s, DATA_REG_DIR> dst(this, instr_b11_b9); %sX(src, dst);", size_names[szi], size_names[szi], name);
+   }
+  }
+ }
+ return ret;
+}
+
+static std::string form_dar_opm_ea_CMP(const unsigned i, const char* name)
+{
+
+ std::string ret;
+ const unsigned opm = (i >> 6) & 0x7;
+ unsigned szi;
+ bool to_mem;
+ bool is_a = false;
+
+ if(opm == 0x3 || opm == 0x7)
+ {
+  to_mem = false;
+  szi = (opm & 0x4) ? 2 : 1;
+  is_a = true;
+
+ }
+ else
+ {
+  to_mem = (bool)(opm & 0x4);
+  szi = opm & 0x3;
+ }
+
+ std::string tmp_ea, tmp_reg;
+ unsigned allowed;
+
+ if(to_mem)
+ {
+  allowed = AMA_MEMORY | AMA_ALTERABLE;
+ }
+ else
+ {
+  allowed = 0;
+ }
+
+ if(decode_ea_src(allowed, 1U << szi, i, to_mem ? "dst" : "src", &tmp_ea))
+ {
+  tmp_ea += "; ";
+  tmp_reg = s("HAM<%s, %s> %s\(this, instr_b11_b9); ", is_a ? "uint32_t" : size_names[szi], is_a ? "ADDR_REG_DIR" : "DATA_REG_DIR", to_mem ? "src" : "dst");
+
+  if(to_mem)
+   ret += tmp_reg + tmp_ea;
+  else
+   ret += tmp_ea + tmp_reg;
+
+  ret += s("%s(src, dst);", name);
+ }
+ else if(false && ((i >> 8) & 0x1) == 0x1 && ((i >> 4) & 0x3) == 0x0)
+ {
+  const bool rm = (i >> 3) & 1;
+  const unsigned szi = (i >> 6) & 0x3;
+
+  if(szi != 0x3)
+  {
+   if(rm) // address register, predecrement addressing mode
+   {
+    ret += s("HAM<%s, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<%s, ADDR_REG_INDIR_PRE> dst(this, instr_b11_b9); %sX(src, dst);", size_names[szi], size_names[szi], name);
+   }
+   else
+   {
+    ret += s("HAM<%s, DATA_REG_DIR> src(this, instr_b2_b0); HAM<%s, DATA_REG_DIR> dst(this, instr_b11_b9); %sX(src, dst);", size_names[szi], size_names[szi], name);
+   }
+  }
+ }
+ return ret;
+}
+
+
 static std::string form_destr_rm_srcr(const unsigned i, const char* name, const unsigned szi, const char* mem_am = "ADDR_REG_INDIR_PRE")
 {
  const bool rm = (i >> 3) & 1;
@@ -397,7 +669,7 @@ static std::string Instr4(const unsigned instr)
  std::string ret;
  std::string tmp;
 
- if(((instr >> 7) & 0x1F) == 0x1D && decode_ea(AMA_CONTROL, 0, instr, "targ", &tmp))
+ if(((instr >> 7) & 0x1F) == 0x1D && decode_ea_src(AMA_CONTROL, 0, instr, "targ", &tmp))
  {
   assert(ret.size() == 0);
 
@@ -420,7 +692,7 @@ static std::string Instr4(const unsigned instr)
     pseudo_predec = true;
    }
 
-   if(decode_ea(AMA_CONTROL | AMA_ALTERABLE, 2 << sz, instr_adj, "dst", &tmp))
+   if(decode_ea_src(AMA_CONTROL | AMA_ALTERABLE, 2 << sz, instr_adj, "dst", &tmp))
    {
     assert(ret.size() == 0);
     ret += s("%s; %s; MOVEM_to_MEM(%s, reglist, dst);",  rls.c_str(), tmp.c_str(), pseudo_predec ? "true" : "false");
@@ -436,7 +708,7 @@ static std::string Instr4(const unsigned instr)
     pseudo_postinc = true;
    }
 
-   if(decode_ea(AMA_CONTROL, 2 << sz, instr_adj, "src", &tmp))
+   if(decode_ea_src(AMA_CONTROL, 2 << sz, instr_adj, "src", &tmp))
    {
     assert(ret.size() == 0);
     ret += s("%s; %s; MOVEM_to_REGS(%s, src, reglist);", rls.c_str(), tmp.c_str(), pseudo_postinc ? "true" : "false");
@@ -452,7 +724,7 @@ static std::string Instr4(const unsigned instr)
   if(szi == 0x3)
   {
    // MOVE from SR
-   if(decode_ea(AMA_DATA | AMA_ALTERABLE, 2, instr, "dst", &tmp))
+   if(decode_ea_src(AMA_DATA | AMA_ALTERABLE, 2, instr, "dst", &tmp))
    {
     assert(ret.size() == 0);
 
@@ -463,7 +735,7 @@ static std::string Instr4(const unsigned instr)
   else
   {
    // NEGX
-   if(decode_ea(AMA_DATA | AMA_ALTERABLE, 1U << szi, instr, "dst", &tmp))
+   if(decode_ea_src(AMA_DATA | AMA_ALTERABLE, 1U << szi, instr, "dst", &tmp))
    {
     assert(ret.size() == 0);
  
@@ -483,7 +755,7 @@ static std::string Instr4(const unsigned instr)
   if(type == 0x6)
   {
    // CHK
-   if(decode_ea(AMA_DATA, 2, instr, "src", &tmp))
+   if(decode_ea_src(AMA_DATA, 2, instr, "src", &tmp))
    {
     assert(ret.size() == 0);
     
@@ -493,7 +765,7 @@ static std::string Instr4(const unsigned instr)
   else if(type == 0x7)
   {
    // LEA
-   if(decode_ea(AMA_CONTROL, 0, instr, "src", &tmp))
+   if(decode_ea_src(AMA_CONTROL, 0, instr, "src", &tmp))
    {
     assert(ret.size() == 0);
 
@@ -514,7 +786,7 @@ static std::string Instr4(const unsigned instr)
   else
   {
    // CLR
-   if(decode_ea(AMA_DATA | AMA_ALTERABLE, 1U << szi, instr, "dst", &tmp))
+   if(decode_ea_src(AMA_DATA | AMA_ALTERABLE, 1U << szi, instr, "dst", &tmp))
    {
     assert(ret.size() == 0);
  
@@ -529,7 +801,7 @@ static std::string Instr4(const unsigned instr)
 
   if(szi == 0x3)
   {
-   if(decode_ea(AMA_DATA, 2, instr, "src", &tmp))
+   if(decode_ea_src(AMA_DATA, 2, instr, "src", &tmp))
    {
     assert(ret.size() == 0);
 
@@ -545,7 +817,7 @@ static std::string Instr4(const unsigned instr)
   else
   {
    // NOT
-   if(decode_ea(AMA_DATA | AMA_ALTERABLE, 1U << szi, instr, "dst", &tmp))
+   if(decode_ea_src(AMA_DATA | AMA_ALTERABLE, 1U << szi, instr, "dst", &tmp))
    {
     assert(ret.size() == 0);
  
@@ -558,7 +830,7 @@ static std::string Instr4(const unsigned instr)
  }
 
  // NBCD
- if((instr & 0xFC0) == 0x800 && decode_ea(AMA_DATA | AMA_ALTERABLE, 1, instr, "dst", &tmp))
+ if((instr & 0xFC0) == 0x800 && decode_ea_src(AMA_DATA | AMA_ALTERABLE, 1, instr, "dst", &tmp))
  {
   assert(ret.size() == 0);
 
@@ -574,7 +846,7 @@ static std::string Instr4(const unsigned instr)
  }
 
  // PEA
- if((instr & 0xFC0) == 0x840 && decode_ea(AMA_CONTROL, 0, instr, "src", &tmp))
+ if((instr & 0xFC0) == 0x840 && decode_ea_src(AMA_CONTROL, 0, instr, "src", &tmp))
  {
   assert(ret.size() == 0);
 
@@ -616,7 +888,7 @@ static std::string Instr4(const unsigned instr)
   if(szi == 0x3)
   {
    // TAS
-   if(decode_ea(AMA_DATA | AMA_ALTERABLE, 1, instr, "dst", &tmp))
+   if(decode_ea_src(AMA_DATA | AMA_ALTERABLE, 1, instr, "dst", &tmp))
    {
     assert(ret.size() == 0);
     ret += s("%s; TAS(dst);", tmp.c_str());
@@ -625,7 +897,7 @@ static std::string Instr4(const unsigned instr)
   else
   {
    // TST
-   if(decode_ea(AMA_DATA | AMA_ALTERABLE, 1U << szi, instr, "dst", &tmp))
+   if(decode_ea_src(AMA_DATA | AMA_ALTERABLE, 1U << szi, instr, "dst", &tmp))
    {
     assert(ret.size() == 0);
     ret += s("%s; TST(dst);", tmp.c_str());
@@ -739,12 +1011,12 @@ static std::string Instr5(const unsigned i)
   {
    ret = s("DBcc<0x%02x>(instr_b2_b0);", (i >> 8) & 0xF);
   }
-  else if(decode_ea(AMA_DATA | AMA_ALTERABLE, 1, i, "dst", &tmp))	// Scc
+  else if(decode_ea_src(AMA_DATA | AMA_ALTERABLE, 1, i, "dst", &tmp))	// Scc
   {
    ret = s("%s; Scc<0x%02x>(dst);", tmp.c_str(), (i >> 8) & 0xF);
   }
  }
- else if(decode_ea(AMA_ALTERABLE, (((i >> 3) & 0x7) == 1) ? 4 : (1U << szi), i, "dst", &tmp))	// ADDQ and SUBQ
+ else if(decode_ea_src(AMA_ALTERABLE, (((i >> 3) & 0x7) == 1) ? 4 : (1U << szi), i, "dst", &tmp))	// ADDQ and SUBQ
  {
   ret = s("HAM<%s, IMMEDIATE> src(this, instr_b11_b9 ? instr_b11_b9 : 8); ", size_names[szi]);
   ret += s("%s; %s(src, dst);", tmp.c_str(), (i & 0x100) ? "SUB" : "ADD");
@@ -776,14 +1048,14 @@ static std::string Instr8(const unsigned i)
 {
  std::string ret;
 
- ret = form_dar_opm_ea<false, false, false>(i, "OR");
+ ret = form_dar_opm_ea_OR_AND(i, "OR");
 
  // DIVU/DIVS
  if(((i >> 6) & 0x3) == 0x3)
  {
   std::string tmp;
 
-  if(decode_ea(AMA_DATA, 2, i, "src", &tmp))
+  if(decode_ea_src(AMA_DATA, 2, i, "src", &tmp))
   {
    assert(ret.size() == 0);
 
@@ -801,7 +1073,7 @@ static std::string Instr8(const unsigned i)
 
 static std::string Instr9(const unsigned i)
 {
- return form_dar_opm_ea<true, true>(i, "SUB");
+ return form_dar_opm_ea_SUB_ADD(i, "SUB");
 }
 
 static std::string InstrB(const unsigned i)
@@ -811,11 +1083,11 @@ static std::string InstrB(const unsigned i)
  switch((i >> 6) & 0x7)
  {
   case 0x4: case 0x5: case 0x6:
-	ret = form_dar_opm_ea<false, false, false, true>(i, "EOR");
+	ret = form_dar_opm_ea_EOR(i, "EOR");
 	break;
 
   case 0x0: case 0x1: case 0x2: case 0x3: case 0x7:
-	ret = form_dar_opm_ea<true, false>(i, "CMP");
+	ret = form_dar_opm_ea_CMP(i, "CMP");
 	break;
  }
 
@@ -838,7 +1110,7 @@ static std::string InstrC(const unsigned i)
 {
  std::string ret;
 
- ret = form_dar_opm_ea<false, false, false>(i, "AND");
+ ret = form_dar_opm_ea_OR_AND(i, "AND");
 
  if(((i >> 4) & 0x1F) == 0x10)	// ABCD
  {
@@ -852,7 +1124,7 @@ static std::string InstrC(const unsigned i)
  {
   std::string tmp;
 
-  if(decode_ea(AMA_DATA, 2, i, "src", &tmp))
+  if(decode_ea_src(AMA_DATA, 2, i, "src", &tmp))
   {
    assert(ret.size() == 0);
 
@@ -886,7 +1158,7 @@ static std::string InstrC(const unsigned i)
 
 static std::string InstrD(const unsigned i)
 {
- return form_dar_opm_ea<true, true>(i, "ADD");
+ return form_dar_opm_ea_SUB_ADD(i, "ADD");
 }
 
 static std::string InstrE(const unsigned i)
@@ -904,7 +1176,7 @@ static std::string InstrE(const unsigned i)
   {
    std::string tmp;
 
-   if(decode_ea(AMA_MEMORY | AMA_ALTERABLE, 2, i, "targ", &tmp))
+   if(decode_ea_src(AMA_MEMORY | AMA_ALTERABLE, 2, i, "targ", &tmp))
    {
     const unsigned type = (i >> 9) & 0x3;
 
