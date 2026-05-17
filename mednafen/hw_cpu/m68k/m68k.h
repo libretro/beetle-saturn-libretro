@@ -141,18 +141,12 @@ class M68K
  uint16_t Pull_u16(void);
  uint32_t Pull_u32(void);
 
- template<typename T>
- T Read(uint32_t addr);
-
  uint16_t ReadOp(void);
 
 #ifdef M68K_SPLIT_SWITCH
  void RunSplit0(uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
  void RunSplit1(uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
 #endif
-
- template<typename T, bool long_dec = false>
- void Write(uint32_t addr, const T val);
 
  enum AddressMode
  {

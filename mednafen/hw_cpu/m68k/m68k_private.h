@@ -38,17 +38,6 @@ INLINE uint32_t M68K::Read_u32(uint32_t addr)
  return ret;
 }
 
-template<typename T>
-INLINE T M68K::Read(uint32_t addr)
-{
- if(sizeof(T) == 4)
-  return Read_u32(addr);
- else if(sizeof(T) == 2)
-  return Read_u16(addr);
- else
-  return Read_u8(addr);
-}
-
 INLINE uint16_t M68K::ReadOp(void)
 {
  uint16_t ret;
@@ -91,21 +80,6 @@ INLINE void M68K::Write_u32_longdec(uint32_t addr, const uint32_t val)
  BusWrite16(addr,     val >> 16);
 }
 
-template<typename T, bool long_dec>
-INLINE void M68K::Write(uint32_t addr, const T val)
-{
- if(sizeof(T) == 4)
- {
-  if(long_dec)
-   Write_u32_longdec(addr, val);
-  else
-   Write_u32(addr, val);
- }
- else if(sizeof(T) == 2)
-  Write_u16(addr, val);
- else
-  Write_u8(addr, val);
-}
 
 /* Phase-8a: Push and Pull were `template<typename T>` member
  * methods.  Every caller used a concrete uint16_t or uint32_t, so
@@ -301,7 +275,13 @@ struct M68K::HAM
    case ABS_SHORT:
    case ABS_LONG:
 	calcea(predec_penalty);
-	zptr->Write<T, am == ADDR_REG_INDIR_PRE>(ea, val);
+	/* Phase-8s-pre: Write<T, long_dec> inlined.  sizeof(T) and
+	 * `am == ADDR_REG_INDIR_PRE` fold at HAM<T,am> template
+	 * instantiation. */
+	if(sizeof(T) == 1)      zptr->Write_u8 (ea, val);
+	else if(sizeof(T) == 2) zptr->Write_u16(ea, val);
+	else if(am == ADDR_REG_INDIR_PRE) zptr->Write_u32_longdec(ea, val);
+	else                    zptr->Write_u32(ea, val);
 	break;
   }
  }
@@ -329,7 +309,11 @@ struct M68K::HAM
    case PC_DISP:
    case PC_INDEX:
 	calcea(2);
-	return zptr->Read<T>(ea);
+	/* Phase-8s-pre: Read<T>(ea) inlined.  sizeof(T) folds at
+	 * HAM<T,am> template instantiation. */
+	if(sizeof(T) == 1)      return zptr->Read_u8 (ea);
+	else if(sizeof(T) == 2) return zptr->Read_u16(ea);
+	else                    return zptr->Read_u32(ea);
   }
  }
 
@@ -1448,7 +1432,12 @@ INLINE void M68K::MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uin
  {
   if(reglist & (1U << i))
   {
-   T tmp = Read<T>(ea);
+   /* Phase-8s-pre: Read<T>(ea) inlined.  sizeof(T) folds at
+    * MOVEM_to_REGS template instantiation. */
+   T tmp;
+   if(sizeof(T) == 1)      tmp = Read_u8 (ea);
+   else if(sizeof(T) == 2) tmp = Read_u16(ea);
+   else                    tmp = Read_u32(ea);
 
    DA[i] = static_cast<typename std::make_signed<T>::type>(tmp);
 
