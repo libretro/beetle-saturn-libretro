@@ -2056,7 +2056,7 @@ switch(z->Pipe_ID >> 24)
 #ifdef SH7095_NEED_RESUME_TABLE_INIT
 	if(MDFN_UNLIKELY(!z->ResumeTableP[DebugMode]))
 	{
-	 static_assert(__COUNTER__ == ((DebugMode ? 10000 : 5000) + 393), "Unexpected __COUNTER__");
+	 MDFN_STATIC_ASSERT(__COUNTER__ == ((DebugMode ? 10000 : 5000) + 393), "Unexpected __COUNTER__");
 
 	 static const void* const ResumeTable[512] =
 	 {
@@ -2104,7 +2104,7 @@ z->PC += 2;
 SkipPCInc:;
 
 #ifdef SH7095_NEED_RESUME_TABLE_INIT
-static_assert(__COUNTER__ == ((DebugMode ? 10000 : 5000) + 393 + 512 + 1), "Unexpected __COUNTER__");
+MDFN_STATIC_ASSERT(__COUNTER__ == ((DebugMode ? 10000 : 5000) + 393 + 512 + 1), "Unexpected __COUNTER__");
 #endif
 
 #undef PART_OP_NORMIDIF

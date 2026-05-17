@@ -128,4 +128,32 @@
 template<typename T> typename std::remove_all_extents<T>::type* MDAP(T* v) { return (typename std::remove_all_extents<T>::type*)v; }
 #endif
 
+/* MDFN_STATIC_ASSERT(condition, message) -- portable compile-time
+ * assertion.  Uses the language-native form where available (C++11
+ * keyword or C11 _Static_assert) and falls back to the negative
+ * array-bound trick for older compilers.  The fallback consumes a
+ * unique tag per call via __COUNTER__ where supported, otherwise
+ * __LINE__ (which means two MDFN_STATIC_ASSERTs on the same source
+ * line would collide on those compilers -- don't do that).
+ *
+ * C++ pre-C++11 and C pre-C11 are both supported; the negative-
+ * array-bound trick is portable to C89 and to C++98.  GCC accepts
+ * the trick at file scope and at block scope. */
+#if defined(__cplusplus) && __cplusplus >= 201103L
+ #define MDFN_STATIC_ASSERT(c_, msg_) static_assert((c_), msg_)
+#elif !defined(__cplusplus) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+ #define MDFN_STATIC_ASSERT(c_, msg_) _Static_assert((c_), msg_)
+#else
+ #ifdef __COUNTER__
+  #define MDFN_STATIC_ASSERT_ID_ __COUNTER__
+ #else
+  #define MDFN_STATIC_ASSERT_ID_ __LINE__
+ #endif
+ #define MDFN_STATIC_ASSERT_CAT2_(a_, b_) a_##b_
+ #define MDFN_STATIC_ASSERT_CAT_(a_, b_)  MDFN_STATIC_ASSERT_CAT2_(a_, b_)
+ #define MDFN_STATIC_ASSERT(c_, msg_) \
+   typedef char MDFN_STATIC_ASSERT_CAT_(_mdfn_static_assert_, MDFN_STATIC_ASSERT_ID_) \
+        [(c_) ? 1 : -1] MDFN_NOWARN_UNUSED
+#endif
+
 #endif

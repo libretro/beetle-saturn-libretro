@@ -735,7 +735,7 @@ static INLINE uint32_t FileInfoS_size(const struct FileInfoS *fi)
  return ((uint32_t)fi->size_be[0] << 24) | ((uint32_t)fi->size_be[1] << 16) | ((uint32_t)fi->size_be[2] << 8) | (uint32_t)fi->size_be[3];
 }
 
-_Static_assert(sizeof(struct FileInfoS) == 12 && sizeof(FileInfo) == 12 * 256, "FileInfo wrong size!");
+MDFN_STATIC_ASSERT(sizeof(struct FileInfoS) == 12 && sizeof(FileInfo) == 12 * 256, "FileInfo wrong size!");
 static bool FileInfoValid;
 static uint8_t FileInfoValidCount;	// 0 ... 254
 static uint32_t FileInfoOffs;		// 2 ... whatever

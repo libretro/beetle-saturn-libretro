@@ -274,7 +274,7 @@ struct SH7095
  // Cache:
  //
  //
- alignas(16) SH7095_CacheEntry Cache[64];
+ MDFN_ALIGN(16) SH7095_CacheEntry Cache[64];
 
  uint8_t Cache_LRU[64];
  int32_t CCRC_Replace_OR[2];	// Cached cache var, calculated from the ID and OD bits of CCR in SetCCR()

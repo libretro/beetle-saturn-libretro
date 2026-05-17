@@ -5242,7 +5242,7 @@ do {                                                    \
 
 #define SH7095_DEBUG_MODE 0
 #include "sh7095s_cnorm.inc"
-static_assert(__COUNTER__ == 5000, "Unexpected __COUNTER__ value.");
+MDFN_STATIC_ASSERT(__COUNTER__ == 5000, "Unexpected __COUNTER__ value.");
 NO_CLONE NO_INLINE MDFN_HOT void SH7095_RunSlaveUntil(SH7095* z, const sscpu_timestamp_t bound_timestamp)
 {
  #include "sh7095s_rsu.inc"
@@ -5251,7 +5251,7 @@ NO_CLONE NO_INLINE MDFN_HOT void SH7095_RunSlaveUntil(SH7095* z, const sscpu_tim
 
 #define SH7095_DEBUG_MODE 1
 #include "sh7095s_cnorm_dm.inc"
-static_assert(__COUNTER__ == 10000, "Unexpected __COUNTER__ value.");
+MDFN_STATIC_ASSERT(__COUNTER__ == 10000, "Unexpected __COUNTER__ value.");
 static NO_CLONE NO_INLINE MDFN_COLD void SH7095_RunSlaveUntil_Debug(SH7095* z, const sscpu_timestamp_t bound_timestamp)
 {
  #include "sh7095s_rsu.inc"

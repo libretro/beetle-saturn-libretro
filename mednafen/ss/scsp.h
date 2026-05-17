@@ -335,7 +335,7 @@ struct SS_SCSP
  uint16_t RAM[262144 * 2];	// *2 for dummy so we don't have to have so many conditionals in the playback code.
 
 #ifdef MDFN_SS_SCSP_DSP_DYNAREC
- alignas(8) uint8_t DynaRecPool[65536];
+ MDFN_ALIGN(8) uint8_t DynaRecPool[65536];
 #endif
 };
 
