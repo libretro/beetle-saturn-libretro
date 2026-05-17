@@ -271,28 +271,28 @@ static void SH7095_RecalcMRWFP_0(SH7095* z)
   if(z->EIC_Setting)
   {
    if(z->DM_Setting)
-    MAHL(0, m1, false)
+    MAHL(0, m1, f)
    else
-    MAHL(0, true, false)
+    MAHL(0, t, f)
   }
   else if(z->CBH_Setting)
   {
-   MAHL(0, false, true)
+   MAHL(0, f, t)
   }
   else
   {
-   MAHL(0, false, false)
+   MAHL(0, f, f)
   }
  }
  else
  {
   if(!z->EIC_Setting && z->CBH_Setting)
   {
-   MAHL(1, false, true)
+   MAHL(1, f, t)
   }
   else
   {
-   MAHL(1, false, false)
+   MAHL(1, f, f)
   }
  }
  #undef MAHL_
@@ -302,12 +302,12 @@ static void SH7095_RecalcMRWFP_0(SH7095* z)
 static void SH7095_RecalcMRWFP_1_7(SH7095* z)
 {
  #define MAHL_P(w, nsc, region) { \
-		  z->MRFP8[region]    = C_MemReadRT_w##w##_n##nsc##_cfalse_u8_r##region##_e0_i0; \
-		  z->MRFP16[region]   = C_MemReadRT_w##w##_n##nsc##_cfalse_u16_r##region##_e0_i0; \
-		  z->MRFP32[region]   = C_MemReadRT_w##w##_n##nsc##_cfalse_u32_r##region##_e0_i0; \
-		  z->MRFP16_I[region] = C_MemReadRT_w##w##_n##nsc##_cfalse_u16_r##region##_e0_i0; \
-		  z->MRFP32_I[region] = C_MemReadRT_w##w##_n##nsc##_cfalse_u32_r##region##_e0_i0; \
-		  z->MRFPI[region]    = C_MemReadRT_w##w##_n##nsc##_cfalse_u32_r##region##_e0_i1; \
+		  z->MRFP8[region]    = C_MemReadRT_w##w##_n##nsc##_cf_u8_r##region##_e0_i0; \
+		  z->MRFP16[region]   = C_MemReadRT_w##w##_n##nsc##_cf_u16_r##region##_e0_i0; \
+		  z->MRFP32[region]   = C_MemReadRT_w##w##_n##nsc##_cf_u32_r##region##_e0_i0; \
+		  z->MRFP16_I[region] = C_MemReadRT_w##w##_n##nsc##_cf_u16_r##region##_e0_i0; \
+		  z->MRFP32_I[region] = C_MemReadRT_w##w##_n##nsc##_cf_u32_r##region##_e0_i0; \
+		  z->MRFPI[region]    = C_MemReadRT_w##w##_n##nsc##_cf_u32_r##region##_e0_i1; \
 		  z->MWFP8[region]    = C_MemWriteRT_w##w##_n##nsc##_u8_r##region##_e0; \
 		  z->MWFP16[region]   = C_MemWriteRT_w##w##_n##nsc##_u16_r##region##_e0; \
 		  z->MWFP32[region]   = C_MemWriteRT_w##w##_n##nsc##_u32_r##region##_e0; \
@@ -317,7 +317,7 @@ static void SH7095_RecalcMRWFP_1_7(SH7095* z)
 		  if(z == &CPU[0])				\
 		  { MAHL_P(0, nsc, region) }			\
 		  else						\
-		  { MAHL_P(1, false, region) }
+		  { MAHL_P(1, f, region) }
 
  if(z->EIC_Setting)
  {
@@ -327,24 +327,24 @@ static void SH7095_RecalcMRWFP_1_7(SH7095* z)
   }
   else
   {
-   MAHL(true,  1)
+   MAHL(t, 1)
   }
-  MAHL(false, 2)
-  MAHL(false, 3)
-  MAHL(false, 4)
-  MAHL(false, 5)
-  MAHL(false, 6)
-  MAHL(false, 7)
+  MAHL(f, 2)
+  MAHL(f, 3)
+  MAHL(f, 4)
+  MAHL(f, 5)
+  MAHL(f, 6)
+  MAHL(f, 7)
  }
  else
  {
-  MAHL(false, 1)
-  MAHL(false, 2)
-  MAHL(false, 3)
-  MAHL(false, 4)
-  MAHL(false, 5)
-  MAHL(false, 6)
-  MAHL(false, 7)
+  MAHL(f, 1)
+  MAHL(f, 2)
+  MAHL(f, 3)
+  MAHL(f, 4)
+  MAHL(f, 5)
+  MAHL(f, 6)
+  MAHL(f, 7)
  }
 
  #undef MAHL
