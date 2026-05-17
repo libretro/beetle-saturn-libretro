@@ -1025,7 +1025,7 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
   SCSP_NE16_RW(uint8_t, true, z->SlotRegs[slotnum], A & 0x1F, &(*DBV_p));
 
   {
-   auto* s = &z->Slots[slotnum];
+   SS_SCSP_Slot* s = &z->Slots[slotnum];
    uint16_t& SRV = z->SlotRegs[slotnum][(A >> 1) & 0xF];
 
    switch((A >> 1) & 0xF)
@@ -1254,7 +1254,7 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
    case 0x0D:	// TIMB(W), TBCTL(W)
    case 0x0E:	// TIMC(W), TCCTL(W)
 	{
-	 auto* t = &z->Timers[((A >> 1) & 0x1F) - 0x0C];
+	 SS_SCSP_Timer* t = &z->Timers[((A >> 1) & 0x1F) - 0x0C];
 	 uint16_t tmp = (t->Control << 8);
 	 tmp = (tmp &~ mask) | (((*DBV_p) << shift) & mask);
 	 t->Control = (tmp >> 8) & 0x7;
@@ -1496,7 +1496,7 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
   SCSP_NE16_RW(uint16_t, true, z->SlotRegs[slotnum], A & 0x1F, &(*DBV_p));
 
   {
-   auto* s = &z->Slots[slotnum];
+   SS_SCSP_Slot* s = &z->Slots[slotnum];
    uint16_t& SRV = z->SlotRegs[slotnum][(A >> 1) & 0xF];
 
    switch((A >> 1) & 0xF)
@@ -1720,7 +1720,7 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
    case 0x0D:	// TIMB(W), TBCTL(W)
    case 0x0E:	// TIMC(W), TCCTL(W)
 	{
-	 auto* t = &z->Timers[((A >> 1) & 0x1F) - 0x0C];
+	 SS_SCSP_Timer* t = &z->Timers[((A >> 1) & 0x1F) - 0x0C];
 	 uint16_t tmp = (t->Control << 8);
 	 tmp = (tmp &~ mask) | (((*DBV_p) << shift) & mask);
 	 t->Control = (tmp >> 8) & 0x7;
@@ -2453,7 +2453,7 @@ INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
 
  for(unsigned i = 0; i < 3; i++)
  {
-  auto* t = &z->Timers[i];
+  SS_SCSP_Timer* t = &z->Timers[i];
   const bool DoClock = !(SampleCounter & ((1U << t->Control) - 1));
 
   if(DoClock)
@@ -2491,7 +2491,7 @@ INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
  //
  for(unsigned slot = 0; slot < 32; slot++)
  {
-  auto* s = &z->Slots[slot];
+  SS_SCSP_Slot* s = &z->Slots[slot];
   unsigned key_eg_scale;
 
   s->WFAllowAccess &= (s->EnvLevel < 0x3C0 || s->EGBypass);
@@ -2569,7 +2569,7 @@ INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
 
  for(unsigned slot = 0; slot < 32; slot++)
  {
-  auto* s = &z->Slots[slot];
+  SS_SCSP_Slot* s = &z->Slots[slot];
   uint32_t mdata = 0;
   uint16_t sample = 0;
 
@@ -2603,7 +2603,7 @@ INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
     // TODO/FIXME: Proper handling of the slot 31->0 buggy FM interpolation case with respect to reverse looping(ns->LoopSub)
     // requires sub-sample timing emulation.
     //
-    auto* ns = &z->Slots[(slot + 1) & 0x1F];
+    SS_SCSP_Slot* ns = &z->Slots[(slot + 1) & 0x1F];
     uint32_t modalizer;
     uint32_t ns_sia;
 
