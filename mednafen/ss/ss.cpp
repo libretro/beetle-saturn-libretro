@@ -27,8 +27,12 @@
  * already pure C in everything except the #include surface.  The
  * MDFNGI typedef ss.cpp needs for `extern MDFNGI EmulatedSS;` lives
  * in mdfn_gameinfo.h which is C-clean (factored out of git.h
- * specifically so C TUs can include it). */
+ * specifically so C TUs can include it).  EmulateSpecStruct lives
+ * in emuspec.h for the same reason -- typedef'd at file scope so
+ * both C and C++ TUs can name the type without the `struct`
+ * keyword. */
 #include "../mdfn_gameinfo.h"
+#include "../emuspec.h"
 #include "../general.h"
 #include "../cdrom/cdromif.h"
 #include "../cdstream.h"
