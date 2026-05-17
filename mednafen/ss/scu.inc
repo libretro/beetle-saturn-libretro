@@ -2783,8 +2783,16 @@ static INLINE uint32_t ABus_Read(uint32_t A, int32_t* time_thing, int32_t* dma_t
  return ret;
 }
 
-template<typename T, bool IsWrite>
-static INLINE void SCU_FromSH2_BusRW_DB(uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+/* Phase-8q3: SCU_FromSH2_BusRW_DB retired into 6 named variants
+ * via source-fold (tools/fold_source.py).  Last SCU template --
+ * completes the SCU tree.  Each variant body is the template
+ * body with template parameters substituted to literals AND
+ * dead branches eliminated at source level; the phase-8q2
+ * sizeof(T)+IsWrite dispatch ladder for SCU_RegRW_DB collapses
+ * to a single direct named call. */
+
+/* === SCU_FromSH2_BusRW_DB variants (3 T x 2 IsWrite) === */
+static INLINE void SCU_FromSH2_BusRW_DB_u8_W0(uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
  //
  // A bus
@@ -2793,22 +2801,10 @@ static INLINE void SCU_FromSH2_BusRW_DB(uint32_t A, uint32_t* DB, int32_t* SH2DM
  {
   CheckForceDMAFinish();
 
-  if(IsWrite)
-  {
-   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
-   if(sizeof(T) == 1)
-    ABus_Write_DB32_u8 (A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
-   else if(sizeof(T) == 2)
-    ABus_Write_DB32_u16(A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
-   else
-    ABus_Write_DB32_u32(A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
-  }
-  else // A-bus reads are always 32-bit(divided into two 16-bit accesses internally)
-   *DB = ABus_Read(A &~ 0x3, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+  *DB = ABus_Read(A &~ 0x3, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
 
   return;
  }
-
 
  //
  // B bus
@@ -2817,31 +2813,6 @@ static INLINE void SCU_FromSH2_BusRW_DB(uint32_t A, uint32_t* DB, int32_t* SH2DM
  {
   CheckForceDMAFinish();
 
-  if(IsWrite)
-  {
-   if(sizeof(T) == 4)
-   {
-    uint16_t tmp;
-
-    tmp = *DB >> 16;
-    BBusRW_DB_u16_W1_SH0(A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
-
-    tmp = *DB >> 0;
-    BBusRW_DB_u16_W1_SH1(A | 2, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
-   }
-   else
-   {
-    uint16_t tmp = *DB >> (((A & 2) ^ 2) << 3);
-
-    /* Phase-8q1: sizeof(T) folds at SCU_FromSH2_BusRW_DB instantiation.
-     * The outer `if(sizeof(T) == 4)` already split off the u32 case,
-     * so T here is u8 or u16. */
-    if(sizeof(T) == 1)      BBusRW_DB_u8_W1_SH0 (A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
-    else                    BBusRW_DB_u16_W1_SH0(A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
-   }
-  }
-  else // B-bus reads are always 32-bit(divided into two 16-bit accesses internally)
-  {
    uint16_t tmp = 0;
 
    BBusRW_DB_u16_W0_SH0(A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
@@ -2849,10 +2820,9 @@ static INLINE void SCU_FromSH2_BusRW_DB(uint32_t A, uint32_t* DB, int32_t* SH2DM
 
    BBusRW_DB_u16_W0_SH1(A | 2, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
    *DB |= tmp << 0;
-  }
+  
   return;
  }
-
 
  //
  // SCU registers
@@ -2861,23 +2831,17 @@ static INLINE void SCU_FromSH2_BusRW_DB(uint32_t A, uint32_t* DB, int32_t* SH2DM
  {
   if(!SH2DMAHax)
   {
-   SH7095_mem_timestamp += IsWrite ? 4 : 8;
+   SH7095_mem_timestamp +=  8;
    CheckEventsByMemTS();
   }
   else
-   *SH2DMAHax -= IsWrite ? 4 : 8;
+   *SH2DMAHax -=  8;
 
   /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
    * template instantiation. */
-  if(IsWrite) {
-   if(sizeof(T) == 1)      SCU_RegRW_DB_u8_W1 (A, DB);
-   else if(sizeof(T) == 2) SCU_RegRW_DB_u16_W1(A, DB);
-   else                    SCU_RegRW_DB_u32_W1(A, DB);
-  } else {
-   if(sizeof(T) == 1)      SCU_RegRW_DB_u8_W0 (A, DB);
-   else if(sizeof(T) == 2) SCU_RegRW_DB_u16_W0(A, DB);
-   else                    SCU_RegRW_DB_u32_W0(A, DB);
-  }
+  
+   SCU_RegRW_DB_u8_W0 (A, DB);
+  
   return;
  }
 
@@ -2889,9 +2853,340 @@ static INLINE void SCU_FromSH2_BusRW_DB(uint32_t A, uint32_t* DB, int32_t* SH2DM
  //}
 
  if(!SH2DMAHax)
-  SH7095_mem_timestamp += IsWrite ? 4 : 7;
+  SH7095_mem_timestamp +=  7;
  else
-  *SH2DMAHax -= IsWrite ? 4 : 7;
+  *SH2DMAHax -=  7;
+}
+
+static INLINE void SCU_FromSH2_BusRW_DB_u8_W1(uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+{
+ //
+ // A bus
+ //
+ if(A >= 0x02000000 && A <= 0x058FFFFF)
+ {
+  CheckForceDMAFinish();
+
+   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+   ABus_Write_DB32_u8 (A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+
+  return;
+ }
+
+ //
+ // B bus
+ //
+ if(A >= 0x05A00000 && A <= 0x05FBFFFF)
+ {
+  CheckForceDMAFinish();
+
+    uint16_t tmp = *DB >> (((A & 2) ^ 2) << 3);
+
+    /* Phase-8q1: sizeof(T) folds at SCU_FromSH2_BusRW_DB instantiation.
+     * The outer `if(sizeof(T) == 4)` already split off the u32 case,
+     * so T here is u8 or u16. */
+    BBusRW_DB_u8_W1_SH0 (A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+
+  return;
+ }
+
+ //
+ // SCU registers
+ //
+ if(A >= 0x05FE0000 && A <= 0x05FEFFFF)
+ {
+  if(!SH2DMAHax)
+  {
+   SH7095_mem_timestamp +=  4 ;
+   CheckEventsByMemTS();
+  }
+  else
+   *SH2DMAHax -=  4 ;
+
+  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+   * template instantiation. */
+  
+   SCU_RegRW_DB_u8_W1 (A, DB);
+  
+  return;
+ }
+
+ // TODO: (investigate 0x5A80000-0x5AFFFFF open bus region)
+ //
+ //if(A >= 0x05A00000 && A <= 0x05BFFFFF)
+ //{
+ // return 0;
+ //}
+
+ if(!SH2DMAHax)
+  SH7095_mem_timestamp +=  4 ;
+ else
+  *SH2DMAHax -=  4 ;
+}
+
+static INLINE void SCU_FromSH2_BusRW_DB_u16_W0(uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+{
+ //
+ // A bus
+ //
+ if(A >= 0x02000000 && A <= 0x058FFFFF)
+ {
+  CheckForceDMAFinish();
+
+  *DB = ABus_Read(A &~ 0x3, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+
+  return;
+ }
+
+ //
+ // B bus
+ //
+ if(A >= 0x05A00000 && A <= 0x05FBFFFF)
+ {
+  CheckForceDMAFinish();
+
+   uint16_t tmp = 0;
+
+   BBusRW_DB_u16_W0_SH0(A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+   *DB = tmp << 16;
+
+   BBusRW_DB_u16_W0_SH1(A | 2, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+   *DB |= tmp << 0;
+  
+  return;
+ }
+
+ //
+ // SCU registers
+ //
+ if(A >= 0x05FE0000 && A <= 0x05FEFFFF)
+ {
+  if(!SH2DMAHax)
+  {
+   SH7095_mem_timestamp +=  8;
+   CheckEventsByMemTS();
+  }
+  else
+   *SH2DMAHax -=  8;
+
+  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+   * template instantiation. */
+  
+   SCU_RegRW_DB_u16_W0(A, DB);
+  
+  return;
+ }
+
+ // TODO: (investigate 0x5A80000-0x5AFFFFF open bus region)
+ //
+ //if(A >= 0x05A00000 && A <= 0x05BFFFFF)
+ //{
+ // return 0;
+ //}
+
+ if(!SH2DMAHax)
+  SH7095_mem_timestamp +=  7;
+ else
+  *SH2DMAHax -=  7;
+}
+
+static INLINE void SCU_FromSH2_BusRW_DB_u16_W1(uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+{
+ //
+ // A bus
+ //
+ if(A >= 0x02000000 && A <= 0x058FFFFF)
+ {
+  CheckForceDMAFinish();
+
+   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+   ABus_Write_DB32_u16(A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+
+  return;
+ }
+
+ //
+ // B bus
+ //
+ if(A >= 0x05A00000 && A <= 0x05FBFFFF)
+ {
+  CheckForceDMAFinish();
+
+    uint16_t tmp = *DB >> (((A & 2) ^ 2) << 3);
+
+    /* Phase-8q1: sizeof(T) folds at SCU_FromSH2_BusRW_DB instantiation.
+     * The outer `if(sizeof(T) == 4)` already split off the u32 case,
+     * so T here is u8 or u16. */
+    BBusRW_DB_u16_W1_SH0(A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+
+  return;
+ }
+
+ //
+ // SCU registers
+ //
+ if(A >= 0x05FE0000 && A <= 0x05FEFFFF)
+ {
+  if(!SH2DMAHax)
+  {
+   SH7095_mem_timestamp +=  4 ;
+   CheckEventsByMemTS();
+  }
+  else
+   *SH2DMAHax -=  4 ;
+
+  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+   * template instantiation. */
+  
+   SCU_RegRW_DB_u16_W1(A, DB);
+  
+  return;
+ }
+
+ // TODO: (investigate 0x5A80000-0x5AFFFFF open bus region)
+ //
+ //if(A >= 0x05A00000 && A <= 0x05BFFFFF)
+ //{
+ // return 0;
+ //}
+
+ if(!SH2DMAHax)
+  SH7095_mem_timestamp +=  4 ;
+ else
+  *SH2DMAHax -=  4 ;
+}
+
+static INLINE void SCU_FromSH2_BusRW_DB_u32_W0(uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+{
+ //
+ // A bus
+ //
+ if(A >= 0x02000000 && A <= 0x058FFFFF)
+ {
+  CheckForceDMAFinish();
+
+  *DB = ABus_Read(A &~ 0x3, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+
+  return;
+ }
+
+ //
+ // B bus
+ //
+ if(A >= 0x05A00000 && A <= 0x05FBFFFF)
+ {
+  CheckForceDMAFinish();
+
+   uint16_t tmp = 0;
+
+   BBusRW_DB_u16_W0_SH0(A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+   *DB = tmp << 16;
+
+   BBusRW_DB_u16_W0_SH1(A | 2, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+   *DB |= tmp << 0;
+  
+  return;
+ }
+
+ //
+ // SCU registers
+ //
+ if(A >= 0x05FE0000 && A <= 0x05FEFFFF)
+ {
+  if(!SH2DMAHax)
+  {
+   SH7095_mem_timestamp +=  8;
+   CheckEventsByMemTS();
+  }
+  else
+   *SH2DMAHax -=  8;
+
+  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+   * template instantiation. */
+  
+   SCU_RegRW_DB_u32_W0(A, DB);
+  
+  return;
+ }
+
+ // TODO: (investigate 0x5A80000-0x5AFFFFF open bus region)
+ //
+ //if(A >= 0x05A00000 && A <= 0x05BFFFFF)
+ //{
+ // return 0;
+ //}
+
+ if(!SH2DMAHax)
+  SH7095_mem_timestamp +=  7;
+ else
+  *SH2DMAHax -=  7;
+}
+
+static INLINE void SCU_FromSH2_BusRW_DB_u32_W1(uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+{
+ //
+ // A bus
+ //
+ if(A >= 0x02000000 && A <= 0x058FFFFF)
+ {
+  CheckForceDMAFinish();
+
+   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+   ABus_Write_DB32_u32(A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+
+  return;
+ }
+
+ //
+ // B bus
+ //
+ if(A >= 0x05A00000 && A <= 0x05FBFFFF)
+ {
+  CheckForceDMAFinish();
+
+    uint16_t tmp;
+
+    tmp = *DB >> 16;
+    BBusRW_DB_u16_W1_SH0(A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+
+    tmp = *DB >> 0;
+    BBusRW_DB_u16_W1_SH1(A | 2, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
+
+  return;
+ }
+
+ //
+ // SCU registers
+ //
+ if(A >= 0x05FE0000 && A <= 0x05FEFFFF)
+ {
+  if(!SH2DMAHax)
+  {
+   SH7095_mem_timestamp +=  4 ;
+   CheckEventsByMemTS();
+  }
+  else
+   *SH2DMAHax -=  4 ;
+
+  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+   * template instantiation. */
+  
+   SCU_RegRW_DB_u32_W1(A, DB);
+  
+  return;
+ }
+
+ // TODO: (investigate 0x5A80000-0x5AFFFFF open bus region)
+ //
+ //if(A >= 0x05A00000 && A <= 0x05BFFFFF)
+ //{
+ // return 0;
+ //}
+
+ if(!SH2DMAHax)
+  SH7095_mem_timestamp +=  4 ;
+ else
+  *SH2DMAHax -=  4 ;
 }
 
 

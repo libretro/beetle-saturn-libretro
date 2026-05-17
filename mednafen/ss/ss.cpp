@@ -404,7 +404,17 @@ static INLINE void BusRW_DB_CS12(const uint32_t A, uint32_t& DB, const bool Burs
  if(!IsWrite)
   DB = 0;
 
- SCU_FromSH2_BusRW_DB<T, IsWrite>(A, &DB, SH2DMAHax);
+ /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+  * template instantiation. */
+ if(IsWrite) {
+  if(sizeof(T) == 1)      SCU_FromSH2_BusRW_DB_u8_W1 (A, &DB, SH2DMAHax);
+  else if(sizeof(T) == 2) SCU_FromSH2_BusRW_DB_u16_W1(A, &DB, SH2DMAHax);
+  else                    SCU_FromSH2_BusRW_DB_u32_W1(A, &DB, SH2DMAHax);
+ } else {
+  if(sizeof(T) == 1)      SCU_FromSH2_BusRW_DB_u8_W0 (A, &DB, SH2DMAHax);
+  else if(sizeof(T) == 2) SCU_FromSH2_BusRW_DB_u16_W0(A, &DB, SH2DMAHax);
+  else                    SCU_FromSH2_BusRW_DB_u32_W0(A, &DB, SH2DMAHax);
+ }
 }
 
 template<typename T, bool IsWrite>
