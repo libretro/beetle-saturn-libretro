@@ -529,26 +529,6 @@ struct SH7095 final
   * variants.  See sh7095.inc body comments for source-fold
   * methodology.  ExtBus*_NI wrappers are file-static (in
   * sh7095.inc) and not declared here. */
- INLINE uint8_t  ExtBusRead_INLINE_SP0_u8_BH0 (uint32_t A);
- INLINE uint8_t  ExtBusRead_INLINE_SP0_u8_BH1 (uint32_t A);
- INLINE uint16_t ExtBusRead_INLINE_SP0_u16_BH0(uint32_t A);
- INLINE uint16_t ExtBusRead_INLINE_SP0_u16_BH1(uint32_t A);
- INLINE uint32_t ExtBusRead_INLINE_SP0_u32_BH0(uint32_t A);
- INLINE uint32_t ExtBusRead_INLINE_SP0_u32_BH1(uint32_t A);
- INLINE uint8_t  ExtBusRead_INLINE_SP1_u8_BH0 (uint32_t A);
- INLINE uint8_t  ExtBusRead_INLINE_SP1_u8_BH1 (uint32_t A);
- INLINE uint16_t ExtBusRead_INLINE_SP1_u16_BH0(uint32_t A);
- INLINE uint16_t ExtBusRead_INLINE_SP1_u16_BH1(uint32_t A);
- INLINE uint32_t ExtBusRead_INLINE_SP1_u32_BH0(uint32_t A);
- INLINE uint32_t ExtBusRead_INLINE_SP1_u32_BH1(uint32_t A);
-
- INLINE void ExtBusWrite_INLINE_SP0_u8 (uint32_t A, uint8_t  V);
- INLINE void ExtBusWrite_INLINE_SP0_u16(uint32_t A, uint16_t V);
- INLINE void ExtBusWrite_INLINE_SP0_u32(uint32_t A, uint32_t V);
- INLINE void ExtBusWrite_INLINE_SP1_u8 (uint32_t A, uint8_t  V);
- INLINE void ExtBusWrite_INLINE_SP1_u16(uint32_t A, uint16_t V);
- INLINE void ExtBusWrite_INLINE_SP1_u32(uint32_t A, uint32_t V);
-
  /* Phase-8o: OnChipRegWrite<T> + OnChipRegRead_INLINE<T> retired.
   * Each splits into 3 named width variants; the underlying
   * register-handler bodies are duplicated per width with the
@@ -561,11 +541,6 @@ struct SH7095 final
  NO_INLINE void OnChipRegWrite_u8 (uint32_t A, uint32_t V) MDFN_HOT;
  NO_INLINE void OnChipRegWrite_u16(uint32_t A, uint32_t V) MDFN_HOT;
  NO_INLINE void OnChipRegWrite_u32(uint32_t A, uint32_t V) MDFN_HOT;
-
- INLINE uint8_t  OnChipRegRead_INLINE_u8 (uint32_t A);
- INLINE uint16_t OnChipRegRead_INLINE_u16(uint32_t A);
- INLINE uint32_t OnChipRegRead_INLINE_u32(uint32_t A);
-
  template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
  INLINE T MemReadRT(uint32_t A);
 
@@ -685,33 +660,25 @@ struct SH7095 final
  const void*const* ResumeTableP[2];
 };
 
-/* Phase-9 step 3: free-function wrappers around SH7095 members used by
- * ss.cpp.  Pure inline forwarders; codegen folds to direct member
- * access under -O2.  Member function bodies remain in sh7095.cpp /
- * sh7095.inc for now and will be converted to true free functions
- * in a later phase (gated on retirement of the 6 remaining
- * mega-templates: MemReadRT, MemWriteRT, C_MemReadRT, C_MemWriteRT
- * + decls). */
-static FORCE_INLINE void SH7095_SetActive                  (SH7095* z, bool active)  { z->SetActive(active); }
-static FORCE_INLINE void SH7095_SetNMI                     (SH7095* z, bool level)   { z->SetNMI(level); }
-static FORCE_INLINE void SH7095_SetMD5                     (SH7095* z, bool level)   { z->SetMD5(level); }
-static FORCE_INLINE void SH7095_SetFTI                     (SH7095* z, bool state)   { z->SetFTI(state); }
-static FORCE_INLINE void SH7095_SetExtHaltDMAKludgeFromVDP2(SH7095* z, bool state)   { z->SetExtHaltDMAKludgeFromVDP2(state); }
-static FORCE_INLINE void SH7095_AdjustTS                   (SH7095* z, int32_t d)    { z->AdjustTS(d); }
-static FORCE_INLINE void SH7095_Cache_WriteUpdate_u8       (SH7095* z, uint32_t A, uint8_t V)  { z->Cache_WriteUpdate_u8(A, V); }
-static FORCE_INLINE sscpu_timestamp_t SH7095_DMA_Update    (SH7095* z, sscpu_timestamp_t ts)   { return z->DMA_Update(ts); }
-static FORCE_INLINE void SH7095_ForceInternalEventUpdates  (SH7095* z) { z->ForceInternalEventUpdates(); }
-static FORCE_INLINE void SH7095_Step_w0_C0                 (SH7095* z) { z->Step_w0_C0(); }
-static FORCE_INLINE void SH7095_Step_w0_C1                 (SH7095* z) { z->Step_w0_C1(); }
-static FORCE_INLINE void SH7095_Step_w1_C0                 (SH7095* z) { z->Step_w1_C0(); }
-static FORCE_INLINE void SH7095_DMA_BusTimingKludge        (SH7095* z) { z->DMA_BusTimingKludge(); }
-static FORCE_INLINE void SH7095_RunSlaveUntil              (SH7095* z, sscpu_timestamp_t ts)   { z->RunSlaveUntil(ts); }
-static FORCE_INLINE void SH7095_TruePowerOn                (SH7095* z) { z->TruePowerOn(); }
-static FORCE_INLINE void SH7095_Reset                      (SH7095* z, bool por)                { z->Reset(por); }
-static FORCE_INLINE void SH7095_Init                       (SH7095* z, bool emumode_full, bool cb_only) { z->Init(emumode_full, cb_only); }
-static FORCE_INLINE void SH7095_StateAction                (SH7095* z, StateMem* sm, unsigned load, bool data_only, const char* sname)
- { z->StateAction(sm, load, data_only, sname); }
-static FORCE_INLINE void SH7095_PostStateLoad              (SH7095* z, unsigned state_version, bool recorded_ni, bool ni)
- { z->PostStateLoad(state_version, recorded_ni, ni); }
+/* Phase-9 step 4: SH7095 public API as free functions. */
+void SH7095_Init                       (SH7095* z, bool EmulateICache, bool CacheBypassHack) MDFN_COLD;
+void SH7095_Reset                      (SH7095* z, bool power_on_reset, bool from_internal_wdt = false) MDFN_COLD;
+void SH7095_TruePowerOn                (SH7095* z) MDFN_COLD;
+void SH7095_AdjustTS                   (SH7095* z, int32_t delta);
+void SH7095_SetActive                  (SH7095* z, bool active);
+void SH7095_SetNMI                     (SH7095* z, bool level);
+void SH7095_SetMD5                     (SH7095* z, bool level);
+void SH7095_SetFTI                     (SH7095* z, bool state);
+void SH7095_Cache_WriteUpdate_u8       (SH7095* z, uint32_t A, uint8_t V);
+sscpu_timestamp_t SH7095_DMA_Update    (SH7095* z, sscpu_timestamp_t ts);
+void SH7095_ForceInternalEventUpdates  (SH7095* z);
+void SH7095_Step_w0_C0                 (SH7095* z);
+void SH7095_Step_w0_C1                 (SH7095* z);
+void SH7095_Step_w1_C0                 (SH7095* z);
+void SH7095_DMA_BusTimingKludge        (SH7095* z);
+void SH7095_RunSlaveUntil              (SH7095* z, sscpu_timestamp_t ts);
+void SH7095_StateAction                (SH7095* z, StateMem* sm, unsigned load, bool data_only, const char* sname) MDFN_COLD;
+void SH7095_PostStateLoad              (SH7095* z, unsigned state_version, bool recorded_ni, bool ni) MDFN_COLD;
 
+static FORCE_INLINE void SH7095_SetExtHaltDMAKludgeFromVDP2(SH7095* z, bool state) { z->SetExtHaltDMAKludgeFromVDP2(state); }
 #endif
