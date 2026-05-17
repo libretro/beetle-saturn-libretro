@@ -49,7 +49,7 @@ static M68K SoundCPU(true);
  * the M68K IPL line and the SCU interrupt latch respectively. */
 static INLINE void SCSP_SoundIntChanged(SS_SCSP* s, unsigned level)
 {
- SoundCPU.SetIPL(level);
+ M68K_SetIPL(&SoundCPU, level);
 }
 
 static INLINE void SCSP_MainIntChanged(SS_SCSP* s, bool state)
@@ -88,9 +88,9 @@ static INLINE void SCSP_MainIntChanged(SS_SCSP* s, bool state)
   SoundCPU.timestamp += 4;                                                                         \
                                                                                                    \
   if(A & (SIZEMASK))                                                                               \
-   SoundCPU.SignalAddressError(A, 0x3);                                                            \
+   M68K_SignalAddressError(&SoundCPU, A, 0x3);                                                            \
   else                                                                                             \
-   SoundCPU.SignalDTACKHalted(A);                                                                  \
+   M68K_SignalDTACKHalted(&SoundCPU, A);                                                                  \
                                                                                                    \
   MDFN_longjmp(SOUND_jbuf);                                                                        \
  }                                                                                                 \
@@ -121,9 +121,9 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
   SoundCPU.timestamp += 4;
 
   if(A & 1)
-   SoundCPU.SignalAddressError(A, 0x2);
+   M68K_SignalAddressError(&SoundCPU, A, 0x2);
   else
-   SoundCPU.SignalDTACKHalted(A);
+   M68K_SignalDTACKHalted(&SoundCPU, A);
 
   MDFN_longjmp(SOUND_jbuf);
  }
@@ -156,9 +156,9 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
   SoundCPU.timestamp += 4;                                                                         \
                                                                                                    \
   if(A & (SIZEMASK))                                                                               \
-   SoundCPU.SignalAddressError(A, 0x1);                                                            \
+   M68K_SignalAddressError(&SoundCPU, A, 0x1);                                                            \
   else                                                                                             \
-   SoundCPU.SignalDTACKHalted(A);                                                                  \
+   M68K_SignalDTACKHalted(&SoundCPU, A);                                                                  \
                                                                                                    \
   MDFN_longjmp(SOUND_jbuf);                                                                        \
  }                                                                                                 \
@@ -184,7 +184,7 @@ static MDFN_FASTCALL void SoundCPU_BusRMW(uint32_t A, uint8_t (MDFN_FASTCALL *cb
  if(MDFN_UNLIKELY(A & 0xE00000))
  {
   SoundCPU.timestamp += 4;
-  SoundCPU.SignalDTACKHalted(A);
+  M68K_SignalDTACKHalted(&SoundCPU, A);
   MDFN_longjmp(SOUND_jbuf);
  }
  //
@@ -216,7 +216,7 @@ static MDFN_FASTCALL unsigned SoundCPU_BusIntAck(uint8_t level)
 static MDFN_FASTCALL void SoundCPU_BusRESET(bool state)
 {
  if(state)
-  SoundCPU.Reset(false);
+  M68K_Reset(&SoundCPU, false);
 }
 
 /* ===================================================================
@@ -247,28 +247,28 @@ void SoundGlue_Init(void)
 /* M68K SoundCPU accessors / forwarders. */
 int32_t SoundGlue_M68K_GetTimestamp(void) { return SoundCPU.timestamp; }
 void    SoundGlue_M68K_ResetTimestamp(void) { SoundCPU.timestamp = 0; }
-void    SoundGlue_M68K_Run(int32_t until)   { SoundCPU.Run(until); }
-void    SoundGlue_M68K_Reset(bool pwr)      { SoundCPU.Reset(pwr); }
-void    SoundGlue_M68K_SetExtHalted(bool s) { SoundCPU.SetExtHalted(s); }
+void    SoundGlue_M68K_Run(int32_t until)   { M68K_Run(&SoundCPU, until); }
+void    SoundGlue_M68K_Reset(bool pwr)      { M68K_Reset(&SoundCPU, pwr); }
+void    SoundGlue_M68K_SetExtHalted(bool s) { M68K_SetExtHalted(&SoundCPU, s); }
 
 void SoundGlue_M68K_StateAction(StateMem* sm, const unsigned load, const bool data_only,
                                 const char* sname)
 {
- SoundCPU.StateAction(sm, load, data_only, sname);
+ M68K_StateAction(&SoundCPU, sm, load, data_only, sname);
 }
 
 uint32_t SoundGlue_M68K_GetRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
- return SoundCPU.GetRegister(id, special, special_len);
+ return M68K_GetRegister(&SoundCPU, id, special, special_len);
 }
 
 void SoundGlue_M68K_SetRegister(const unsigned id, const uint32_t value)
 {
- SoundCPU.SetRegister(id, value);
+ M68K_SetRegister(&SoundCPU, id, value);
 }
 
 /* SS_SCSP forwarders. */
-void     SoundGlue_SCSP_Reset(bool pwr)              { SCSP.Reset(pwr); }
+void     SoundGlue_SCSP_Reset(bool pwr)              { SS_SCSP_Reset(&SCSP, pwr); }
 uint16_t SoundGlue_SCSP_RW_R16(uint32_t A)           { return SS_SCSP_RW_R16(&SCSP, A); }
 void     SoundGlue_SCSP_RW_W8 (uint32_t A, uint8_t  V) { SS_SCSP_RW_W8(&SCSP, A, V); }
 void     SoundGlue_SCSP_RW_W16(uint32_t A, uint16_t V) { SS_SCSP_RW_W16(&SCSP, A, V); }
@@ -296,17 +296,17 @@ void SoundGlue_SCSP_PokeRAM(uint32_t A, uint8_t V)
 void SoundGlue_SCSP_StateAction(StateMem* sm, const unsigned load, const bool data_only,
                                 const char* sname)
 {
- SCSP.StateAction(sm, load, data_only, sname);
+ SS_SCSP_StateAction(&SCSP, sm, load, data_only, sname);
 }
 
 uint32_t SoundGlue_SCSP_GetRegister(const unsigned id, char* const special, const uint32_t special_len)
 {
- return SCSP.GetRegister(id, special, special_len);
+ return SS_SCSP_GetRegister(&SCSP, id, special, special_len);
 }
 
 void SoundGlue_SCSP_SetRegister(const unsigned id, const uint32_t value)
 {
- SCSP.SetRegister(id, value);
+ SS_SCSP_SetRegister(&SCSP, id, value);
 }
 
 /* Runs one SCSP sample.  Called from sound.c's SOUND_Update orchestration
@@ -318,7 +318,7 @@ void SOUND_RunSCSP(void)
  //
  //
  int16_t* const bp = IBuffer[IBufferCount];
- SCSP.RunSample(bp);
+ SS_SCSP_RunSample(&SCSP, bp);
  //bp[0] = rand();
  //bp[1] = rand();
  bp[0] = (bp[0] * 27 + 16) >> 5;
