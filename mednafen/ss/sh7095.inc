@@ -5226,15 +5226,22 @@ do {                                                    \
 #define CONST_VAR(T, n) T n; n
 /* RESUME_VAR(T, n) -- compile-time check that the declared type T
  * matches the actual type of `n` (which is z->Resume_<something>
- * once the opexec_* macros have expanded).  Two language paths:
+ * once the opexec_* macros have expanded).  Three language paths:
  *
  *   C++  -- std::is_same<T, decltype(n)>::value
  *           (decltype is C++11, std::is_same lives in <type_traits>
  *           which mednafen-types.h already pulls in for C++ TUs).
  *
- *   C    -- __builtin_types_compatible_p(T, __typeof__(n))
+ *   C (GCC / clang) -- __builtin_types_compatible_p(T, __typeof__(n))
  *           (both are GCC extensions, available since gcc 2.x, also
  *           accepted by clang -- no C11 / C23 dependency).
+ *
+ *   C (other, e.g. MSVC) -- sizeof(T) == sizeof(n)
+ *           Partial fallback.  Catches size mismatches (int8 vs int32)
+ *           but not signedness or unrelated-types-with-same-size
+ *           mismatches.  Better than no check; preserves MSVC C89
+ *           buildability without dropping the assertion entirely on
+ *           GCC / clang where the real check is available.
  *
  * The condition expression is wrapped in an extra set of parens so
  * the comma inside `std::is_same<T, decltype(n)>` / inside
@@ -5245,8 +5252,10 @@ do {                                                    \
  * is the macro's problem, not ours. */
 #ifdef __cplusplus
  #define RESUME_VAR(T, n) MDFN_STATIC_ASSERT((std::is_same<T, decltype(n)>::value), "Resume variable type mismatch.")
-#else
+#elif defined(__GNUC__) || defined(__clang__)
  #define RESUME_VAR(T, n) MDFN_STATIC_ASSERT((__builtin_types_compatible_p(T, __typeof__(n))), "Resume variable type mismatch.")
+#else
+ #define RESUME_VAR(T, n) MDFN_STATIC_ASSERT(sizeof(T) == sizeof(n), "Resume variable size mismatch (full type check unavailable on this compiler).")
 #endif
 #define SH7095_NEED_RESUME_TABLE_INIT 1
 
