@@ -3871,10 +3871,16 @@ static INLINE void CheckForceDMAFinish(void)
  * (extern "C" wrapped on the C++ side, plain decl on the C side),
  * defined here in ss.cpp's TU.  `extern "C"` on the definition
  * forces the unmangled symbol so the scu_dsp_*.c files link
- * against the same `DSP` global. */
+ * against the same `DSP` global.  Gated for C compilation: in C
+ * the linkage is already C (no mangling), so the `extern "C"`
+ * wrapper is C++-only syntax to suppress -- not semantics. */
+#ifdef __cplusplus
 extern "C" {
+#endif
 struct DSPS DSP;
+#ifdef __cplusplus
 }
+#endif
 
 sscpu_timestamp_t SCU_UpdateDSP(sscpu_timestamp_t timestamp)
 {
@@ -3961,7 +3967,9 @@ static void DSP_Reset(bool powering_up)
  * the same names.  DSP_Init's address is also used as the base
  * pointer for the DSP_INSTR_BASE_UIPT macro on 64-bit hosts, so
  * the same symbol address must be visible to both compilers. */
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 MDFN_COLD void DSP_Init(void)
 {
@@ -3983,7 +3991,9 @@ void DSP_FinishPRAMDMA(void)
  DSP.NextInstr = DSP_DecodeInstruction(0, false);
 }
 
+#ifdef __cplusplus
 } /* extern "C" */
+#endif
 
 /* Phase-5d: was `template<bool looped, bool hold, bool format, bool dir,
  * unsigned drw> static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)` --
@@ -4224,12 +4234,16 @@ DDMA_FOR_EACH_HOLD(DEFINE_DMAInstr, 1)
 /* Phase-5e: extern "C" so the table-symbol name matches the unmangled
  * scu_dsp_common.inc declaration that the C-side scu_dsp_misc.c sees
  * (DSP_DecodeInstruction inlines a read of this table in the LPS path). */
+#ifdef __cplusplus
 extern "C" {
+#endif
 MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(struct DSPS*) =
 {
  #include "scu_dsp_dmatab.inc"
 };
+#ifdef __cplusplus
 } /* extern "C" */
+#endif
 
 #undef DMAInstr_NAME
 #undef DMAInstr_BODY
