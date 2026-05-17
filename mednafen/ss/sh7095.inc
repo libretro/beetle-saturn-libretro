@@ -4021,7 +4021,7 @@ static INLINE uint32_t cmov_eq_thing(const uint32_t reg_compval, const uint32_t 
 static INLINE void SH7095_Cache_AssocPurge(SH7095* z, const uint32_t A)
 {
  const uint32_t ATM = A & (0x7FFFF << 10);
- auto* cent = &z->Cache[(A >> 4) & 0x3F];
+ SH7095_CacheEntry* cent = &z->Cache[(A >> 4) & 0x3F];
 
  // Ignore two-way-mode bit in z->CCR here.
  cent->Tag[0] |= (ATM == cent->Tag[0]);	// Set invalid bit to 1.
@@ -5022,25 +5022,25 @@ do {                                                                            
  * the macro's `if(EmulateICache)` arm per-variant. */
 static INLINE void SH7095_DoIDIF_INLINE_C0_I0(SH7095* z)
 {
- constexpr bool EmulateICache = false;
+ const bool EmulateICache = false;
  DoIDIF_MACRO(false);
 }
 
 static INLINE void SH7095_DoIDIF_INLINE_C0_I1(SH7095* z)
 {
- constexpr bool EmulateICache = false;
+ const bool EmulateICache = false;
  DoIDIF_MACRO(true);
 }
 
 static INLINE void SH7095_DoIDIF_INLINE_C1_I0(SH7095* z)
 {
- constexpr bool EmulateICache = true;
+ const bool EmulateICache = true;
  DoIDIF_MACRO(false);
 }
 
 static INLINE void SH7095_DoIDIF_INLINE_C1_I1(SH7095* z)
 {
- constexpr bool EmulateICache = true;
+ const bool EmulateICache = true;
  DoIDIF_MACRO(true);
 }
 
@@ -5087,8 +5087,8 @@ static NO_INLINE MDFN_HOT void SH7095_DoIDIF_NI_C1_I1(SH7095* z)
  * previous template form. */
 FORCE_INLINE void SH7095_Step_w0_C0(SH7095* z)
 {
- constexpr unsigned which = 0;
- constexpr bool EmulateICache = false;
+ const unsigned which = 0;
+ const bool EmulateICache = false;
  //
  // Ideally, we would place SPEPRecover: after the z->FRT event check, but doing
  // so causes gcc(multiple versions) to produce inconceivably awful code under certain conditions
@@ -5115,8 +5115,8 @@ FORCE_INLINE void SH7095_Step_w0_C0(SH7095* z)
 
 FORCE_INLINE void SH7095_Step_w0_C1(SH7095* z)
 {
- constexpr unsigned which = 0;
- constexpr bool EmulateICache = true;
+ const unsigned which = 0;
+ const bool EmulateICache = true;
  SPEPRecover:;
 
  if(MDFN_UNLIKELY(z->timestamp >= z->FRT_WDT_NextTS))
@@ -5136,8 +5136,8 @@ FORCE_INLINE void SH7095_Step_w0_C1(SH7095* z)
 
 FORCE_INLINE void SH7095_Step_w1_C0(SH7095* z)
 {
- constexpr unsigned which = 1;
- constexpr bool EmulateICache = false;
+ const unsigned which = 1;
+ const bool EmulateICache = false;
  SPEPRecover:;
 
  if(MDFN_UNLIKELY(z->timestamp >= z->FRT_WDT_NextTS))
