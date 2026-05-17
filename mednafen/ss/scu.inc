@@ -530,7 +530,7 @@ static INLINE void SCU_RegRW_DB_u8_W0(uint32_t A, uint32_t* DB)
 
    case 0x8C:
 	if(!DSPS_IsRunning(&DSP))
-	 *DB = MDAP(DSP.DataRAM)[DSP.RA++];
+	 *DB = ((uint32_t*)DSP.DataRAM)[DSP.RA++];
 	else
 	 *DB = 0xFFFFFFFF;
 	break;
@@ -781,7 +781,7 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 
    case 0x8C:
 	if(!DSPS_IsRunning(&DSP))
-	 MDAP(DSP.DataRAM)[DSP.RA++] = *DB;
+	 ((uint32_t*)DSP.DataRAM)[DSP.RA++] = *DB;
 	break;
   }
  
@@ -884,7 +884,7 @@ static INLINE void SCU_RegRW_DB_u16_W0(uint32_t A, uint32_t* DB)
 
    case 0x8C:
 	if(!DSPS_IsRunning(&DSP))
-	 *DB = MDAP(DSP.DataRAM)[DSP.RA++];
+	 *DB = ((uint32_t*)DSP.DataRAM)[DSP.RA++];
 	else
 	 *DB = 0xFFFFFFFF;
 	break;
@@ -1135,7 +1135,7 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 
    case 0x8C:
 	if(!DSPS_IsRunning(&DSP))
-	 MDAP(DSP.DataRAM)[DSP.RA++] = *DB;
+	 ((uint32_t*)DSP.DataRAM)[DSP.RA++] = *DB;
 	break;
   }
  
@@ -1238,7 +1238,7 @@ static INLINE void SCU_RegRW_DB_u32_W0(uint32_t A, uint32_t* DB)
 
    case 0x8C:
 	if(!DSPS_IsRunning(&DSP))
-	 *DB = MDAP(DSP.DataRAM)[DSP.RA++];
+	 *DB = ((uint32_t*)DSP.DataRAM)[DSP.RA++];
 	else
 	 *DB = 0xFFFFFFFF;
 	break;
@@ -1489,7 +1489,7 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
 
    case 0x8C:
 	if(!DSPS_IsRunning(&DSP))
-	 MDAP(DSP.DataRAM)[DSP.RA++] = *DB;
+	 ((uint32_t*)DSP.DataRAM)[DSP.RA++] = *DB;
 	break;
   }
  
@@ -3927,7 +3927,7 @@ static void DSP_Reset(bool powering_up)
    DSP.ProgRAM[i] = DSP_DecodeInstruction(0, false);
 
   for(unsigned i = 0; i < 256; i++)
-   MDAP(DSP.DataRAM)[i] = 0;
+   ((uint32_t*)DSP.DataRAM)[i] = 0;
  }
 
  DSP.PC = 0;
