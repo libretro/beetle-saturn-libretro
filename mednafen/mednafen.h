@@ -17,6 +17,4 @@ extern MDFNGI *MDFNGameInfo;
 
 #include "settings.h"
 
-#include "settings-common.h"
-
 #endif

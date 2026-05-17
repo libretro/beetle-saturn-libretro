@@ -6,7 +6,6 @@
 #include "video/surface.h"
 
 #include "state.h"
-#include "settings-common.h"
 
 struct MemoryPatch;
 
