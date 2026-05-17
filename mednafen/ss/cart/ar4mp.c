@@ -30,14 +30,14 @@
    the std::unique_ptr ownership guard). */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <boolean.h>
 
 #include <streams/file_stream.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_HOT, MDFN_COLD, MDFN_UNLIKELY */
-#include <mednafen/state.h>            /* SFORMAT, SFPTR16, SFEND, MDFNSS_StateAction */
+#include "../../mednafen-types.h"   /* MDFN_HOT, MDFN_COLD, MDFN_UNLIKELY */
+#include "../../state.h"            /* SFORMAT, SFPTR16, SFEND, MDFNSS_StateAction */
 #include "../cart.h"
 #include "ar4mp.h"
 

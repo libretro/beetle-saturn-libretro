@@ -25,9 +25,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <retro_inline.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
 typedef struct
 {

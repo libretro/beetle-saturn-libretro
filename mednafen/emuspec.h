@@ -2,9 +2,7 @@
 #define __MDFN_EMUSPEC_H
 
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
 #include "video/surface.h"
 

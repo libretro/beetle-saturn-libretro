@@ -28,10 +28,10 @@
    in the header. */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <string.h>
+#include <boolean.h>
 
-#include <mednafen/state.h>
+#include "../state.h"
 
 #include "ak93c45.h"
 

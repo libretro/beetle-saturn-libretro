@@ -26,11 +26,9 @@
 #include "../math_ops.h"
 #include <stdint.h>
 #include <stdarg.h>
-/* C inclusion (for future C-converted SS modules) needs the stdbool
+/* C inclusion (for future C-converted SS modules) needs the boolean
  * keyword macros; C++ has `bool` built in. */
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
 /* SS_EVENT_*, HORRIBLEHACK_*, event_list_entry: shared verbatim with the
    C-converted modules (vdp1.c, ...). Single source of truth -- see header. */

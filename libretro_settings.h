@@ -1,7 +1,7 @@
 #ifndef __LIBRETRO_SETTINGS_HDR__
 #define __LIBRETRO_SETTINGS_HDR__
 
-#include <stdbool.h>
+#include <boolean.h>
 
 enum
 {

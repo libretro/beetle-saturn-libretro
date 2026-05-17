@@ -25,11 +25,11 @@
    functions, one read and one write. */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <string.h>
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_HOT, MDFN_COLD */
-#include <mednafen/state.h>            /* SFORMAT, SFPTR8N, SFEND, MDFNSS_StateAction */
+#include "../../mednafen-types.h"   /* MDFN_HOT, MDFN_COLD */
+#include "../../state.h"            /* SFORMAT, SFPTR8N, SFEND, MDFNSS_StateAction */
 #include "../cart.h"
 #include "backup.h"
 

@@ -20,7 +20,7 @@
 */
 
 #include "vdp1_common.h"
-#include <mednafen/math_ops.h>
+#include "../math_ops.h"
 
 //#pragma GCC optimize("Os,no-crossjumping")
 

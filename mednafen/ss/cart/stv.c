@@ -35,16 +35,16 @@
    the C-includable db_stv.h. new[]/delete[] become calloc/free. */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <boolean.h>
 
 #include <libretro.h>
 #include <streams/file_stream.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_HOT */
-#include <mednafen/state.h>            /* SFORMAT, SFVAR, SFEND, MDFNSS_StateAction */
+#include "../../mednafen-types.h"   /* MDFN_HOT */
+#include "../../state.h"            /* SFORMAT, SFVAR, SFEND, MDFNSS_StateAction */
 #include "../cart.h"
 #include "../db_stv.h"
 #include "stv.h"

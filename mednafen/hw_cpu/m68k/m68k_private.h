@@ -1,7 +1,7 @@
 #ifndef __MDFN_M68K_PRIVATE_H
 #define __MDFN_M68K_PRIVATE_H
 
-#include <mednafen/mednafen.h>
+#include "../../mednafen.h"
 #include "m68k.h"
 
 INLINE void M68K::RecalcInt(void)

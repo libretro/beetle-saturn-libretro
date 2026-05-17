@@ -22,18 +22,14 @@
 #ifndef __MDFN_SS_SOUND_H
 #define __MDFN_SS_SOUND_H
 
-#include <mednafen/state.h>
+#include "../state.h"
 /* MDFN_COLD / MDFN_HOT attribute macros.  Existing C++ TUs got
  * these transitively (via ss.h / mednafen.h); for C consumers
  * include them explicitly so this header is self-contained. */
-#include <mednafen/mednafen-types.h>
+#include "../mednafen-types.h"
 
 #include <stdint.h>
-/* C++ has 'bool' built in; C inclusion (future C-converted modules)
- * needs the stdbool keyword macros. */
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
 #ifdef __cplusplus
 extern "C" {

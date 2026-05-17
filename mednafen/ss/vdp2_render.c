@@ -26,8 +26,8 @@
 
 #include "ss.h"
 #include "ss_memory.h"
-#include <mednafen/emuspec.h>
-#include <mednafen/mdfn_gameinfo.h>
+#include "../emuspec.h"
+#include "../mdfn_gameinfo.h"
 #include "vdp2_common.h"
 #include "vdp2_render.h"
 

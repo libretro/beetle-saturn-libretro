@@ -44,7 +44,7 @@
 #include "sound_internal.h"
 
 #include <string.h>
-#include <mednafen/state.h>
+#include "../state.h"
 
 /* 32.32 fixed-point cycle accumulator.  run_until_time tracks the
  * 68K cycle target derived from the SH-2 timestamp + clock ratio;

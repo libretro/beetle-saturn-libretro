@@ -28,7 +28,7 @@
 #define __MDFN_SS_STATE_H
 
 #include <stdint.h>
-#include <mednafen/mednafen-types.h>
+#include "../mednafen-types.h"
 
 #ifdef __cplusplus
 extern "C" {

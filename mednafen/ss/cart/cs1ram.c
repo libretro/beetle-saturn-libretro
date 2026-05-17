@@ -26,12 +26,12 @@
    new[]/delete[] become calloc/free. */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_HOT, MDFN_COLD */
-#include <mednafen/state.h>            /* SFORMAT, SFPTR16N, SFEND, MDFNSS_StateAction */
+#include "../../mednafen-types.h"   /* MDFN_HOT, MDFN_COLD */
+#include "../../state.h"            /* SFORMAT, SFPTR16N, SFEND, MDFNSS_StateAction */
 #include "../cart.h"
 #include "cs1ram.h"
 

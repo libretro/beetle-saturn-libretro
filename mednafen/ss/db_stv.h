@@ -23,9 +23,7 @@
 #define __MDFN_SS_DB_STV_H
 
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
 /* The ST-V game-info structs and enums, factored out of db.h so they
    can be included from plain C. db.h itself is C++ (it pulls in

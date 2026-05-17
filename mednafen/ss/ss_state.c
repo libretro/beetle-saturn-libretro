@@ -26,13 +26,13 @@
 */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>
-#include <mednafen/state.h>
-#include <mednafen/hash/sha256.h>
+#include "../mednafen-types.h"
+#include "../state.h"
+#include "../hash/sha256.h"
 #include "ss.h"
 #include "ss_state.h"
 #include "ss_init.h"     /* events[], next_event_ts, InitEvents */

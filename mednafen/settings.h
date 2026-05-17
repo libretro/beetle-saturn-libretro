@@ -2,7 +2,7 @@
 #define MDFN_SETTINGS_H
 
 #include <stdint.h>
-#include <stdbool.h>
+#include <boolean.h>
 
 #ifdef __cplusplus
 extern "C" {

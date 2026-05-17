@@ -20,7 +20,7 @@
 */
 
 #include "vdp1_common.h"
-#include <mednafen/math_ops.h>
+#include "../math_ops.h"
 
 /* Line: AA=0, Textured=0, ECD=0, HalfFGEn=(c&0x2)
    This matches the original DrawLine<false, false, ...> instantiation. */

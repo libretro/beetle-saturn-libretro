@@ -29,8 +29,8 @@
 
 #include <assert.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <stddef.h>
+#include <boolean.h>
 
 #include <streams/file_stream.h>
 

@@ -25,12 +25,10 @@
 #define __MDFN_SS_SOUND_INTERNAL_H
 
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>
-#include <mednafen/state.h>
+#include "../mednafen-types.h"
+#include "../state.h"
 #include "../jump.h"
 
 #ifdef __cplusplus

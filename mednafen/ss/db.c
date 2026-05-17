@@ -26,9 +26,8 @@
  with full cache emulation enabled.
 */
 
-#include <mednafen/hash/crc.h>
+#include "../hash/crc.h"
 #include <string.h>
-#include <strings.h>
 
 #include "ss.h"
 #include "smpc.h"

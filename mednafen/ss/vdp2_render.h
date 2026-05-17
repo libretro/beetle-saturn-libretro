@@ -22,7 +22,7 @@
 #ifndef __MDFN_SS_VDP2_RENDER_H
 #define __MDFN_SS_VDP2_RENDER_H
 
-#include <mednafen/state.h>
+#include "../state.h"
 /* git.h is C++-only (CheatFormatStruct's std::exception,
  * GameDB_Entry's std::vector, etc.).  This header now needs to
  * parse as C because vdp2.c (formerly vdp2.cpp) includes it.

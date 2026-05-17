@@ -35,22 +35,22 @@
    wheel, mission, gun, keyboard, jpkeyboard, multitap. */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <boolean.h>
 
 #include <retro_inline.h>
 
-#include <mednafen/state.h>
-#include <mednafen/mdfn_gameinfo.h>
+#include "libretro_settings.h"
 
 #include "smpc_iodevice.h"
 #include "../video/surface.h"
 #include "../math_ops.h"        /* MDFN_lzcount64, for the keyboard device */
-#include "libretro_settings.h"
+#include "../state.h"
+#include "../mdfn_gameinfo.h"
 
 /* ss.h is a C++ header (class SH7095, default args, ...), so it
    cannot be included here. Cross-boundary constants come from the

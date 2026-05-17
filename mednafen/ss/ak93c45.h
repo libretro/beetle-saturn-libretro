@@ -23,14 +23,13 @@
 #define __MDFN_SS_AK93C45_H
 
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
 #include <assert.h>
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_COLD */
 #include <retro_inline.h>              /* INLINE */
-#include <mednafen/state.h>
+
+#include "../mednafen-types.h"   /* MDFN_COLD */
+#include "../state.h"
 
 /* The AK93C45 serial EEPROM (used by the ST-V cart hardware).
    Converted from a C++ class to a C struct + free functions; it had

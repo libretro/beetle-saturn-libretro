@@ -23,17 +23,14 @@
 #define __MDFN_SS_STVIO_H
 
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
-#include <mednafen/state.h>
-
+#include "../state.h"
 #include "../cdstream.h"
 
 #include "smpc_iodevice.h"
 /* stvio only needs STVGameInfo and STV_* enums; both live in
- * db_stv.h which is pure C (stdint+stdbool).  db.h is C-clean too
+ * db_stv.h which is pure C (stdint+boolean).  db.h is C-clean too
  * (was made so when the std::-using DB_GetHHDescriptions /
  * DB_GetInternalDB functions were dropped as dead code), but
  * db_stv.h is the narrower include matching actual usage. */

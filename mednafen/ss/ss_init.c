@@ -32,12 +32,12 @@
 */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 #include <assert.h>
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>
+#include "../mednafen-types.h"
 /* mednafen.h pulls in git.h which #includes <algorithm> -- C++-only.
  * The only thing ss_init.c needs from mednafen.h is the _() identity
  * macro for translation strings.  Define it directly. */
@@ -62,8 +62,8 @@
 #include "../mempatcher.h"
 #include "../settings.h"
 #include "../hash/sha256.h"
-#include <mednafen/emuspec.h>
-#include <mednafen/mdfn_gameinfo.h>
+#include "../emuspec.h"
+#include "../mdfn_gameinfo.h"
 #include "../general.h"           /* MDFN_MidSync, log_cb (via cdstream.h) */
 #include "../../libretro_settings.h" /* setting_midsync, setting_multitap_port*,
                                       * retro_base_directory */

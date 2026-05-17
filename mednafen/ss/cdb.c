@@ -139,8 +139,8 @@
 #include "sound.h"
 #include "cdb.h"
 
-#include <mednafen/cdrom/CDUtility.h>
-#include <mednafen/cdrom/cdromif.h>
+#include "../cdrom/CDUtility.h"
+#include "../cdrom/cdromif.h"
 
 static void CheckBufPauseResume(void);
 static void StartSeek(const uint32_t cmd_target, const uint32_t cur_play_end, const uint32_t cur_play_repeat, const uint32_t play_end_irq_type, const bool no_pickup_change);

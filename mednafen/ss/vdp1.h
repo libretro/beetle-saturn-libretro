@@ -23,13 +23,11 @@
 #define __MDFN_SS_VDP1_H
 
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>
 #include <retro_inline.h>
-#include <mednafen/state.h>
+#include "../mednafen-types.h"
+#include "../state.h"
 
 /* Formerly `namespace VDP1`. Converted to C: the namespace is removed
    and every exported symbol gets a VDP1_ prefix. sscpu_timestamp_t

@@ -23,11 +23,9 @@
 #define __MDFN_SS_CART_EXTRAM_H
 
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_COLD */
+#include "../../mednafen-types.h"   /* MDFN_COLD */
 
 #ifdef __cplusplus
 extern "C" {

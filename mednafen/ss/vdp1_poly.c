@@ -20,7 +20,7 @@
 */
 
 #include "vdp1_common.h"
-#include <mednafen/math_ops.h>
+#include "../math_ops.h"
 
 /* Polygon: AA=1, Textured=0, ECD=0, HalfFGEn=(c&0x2) */
 #define VDP1_DL_POLY_GEN(die, bpp8, b, c) \

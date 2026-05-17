@@ -19,7 +19,7 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include <mednafen/state.h>
+#include "../state.h"
 
 /* Phase-9a: class -> struct.  Members formerly under `private:`
  * are now (implicitly) public, preparing for eventual C

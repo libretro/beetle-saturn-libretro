@@ -15,11 +15,9 @@
 
 #include <stdlib.h>
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
-#include <mednafen/mednafen-types.h>
+#include <boolean.h>
 #include <retro_inline.h>
+#include "../mednafen-types.h"
 #include "vdp1.h"
 
 /* Internal shorthand: map unqualified names to VDP1_-prefixed globals.

@@ -22,7 +22,7 @@
 #ifndef __MDFN_M68K_H
 #define __MDFN_M68K_H
 
-#include <mednafen/mednafen.h>
+#include "../../mednafen.h"
 
 /* Phase-9c: class -> struct.  See Phase-9a comment in scsp.h
  * for rationale.  M68K already had `//private:` (commented out)

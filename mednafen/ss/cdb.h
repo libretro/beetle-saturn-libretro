@@ -22,17 +22,13 @@
 #ifndef __MDFN_SS_CDB_H
 #define __MDFN_SS_CDB_H
 
-#include <mednafen/state.h>
+#include "../state.h"
 /* MDFN_COLD / MDFN_HOT.  Existing C++ TUs got these transitively
  * via ss.h / mednafen.h; for C consumers include them directly. */
-#include <mednafen/mednafen-types.h>
+#include "../mednafen-types.h"
 
 #include <stdint.h>
-/* C++ has 'bool' built in; C inclusion needs the stdbool keyword
- * macros. */
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
 #include "../cdrom/cdromif.h"
 

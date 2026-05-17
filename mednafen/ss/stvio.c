@@ -20,14 +20,14 @@
 */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_HOT, MDFN_COLD, MDFN_HIDE */
-#include <mednafen/hash/crc.h>         /* crc16_ccitt */
+#include "../mednafen-types.h"   /* MDFN_HOT, MDFN_COLD, MDFN_HIDE */
+#include "../hash/crc.h"         /* crc16_ccitt */
 
 #include "ak93c45.h"
 

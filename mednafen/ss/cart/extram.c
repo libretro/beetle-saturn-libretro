@@ -24,12 +24,12 @@
    mask), so it monomorphizes to read16 / write8 / write16. */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_HOT, MDFN_COLD */
-#include <mednafen/state.h>            /* SFORMAT, SFPTR16N, SFEND, MDFNSS_StateAction */
+#include "../../mednafen-types.h"   /* MDFN_HOT, MDFN_COLD */
+#include "../../state.h"            /* SFORMAT, SFPTR16N, SFEND, MDFNSS_StateAction */
 #include "../cart.h"
 #include "extram.h"
 

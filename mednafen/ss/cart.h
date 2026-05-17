@@ -23,13 +23,11 @@
 #define __MDFN_SS_CART_H
 
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_HIDE, MDFN_COLD */
-#include <retro_inline.h>              /* INLINE */
-#include <mednafen/state.h>
+#include <retro_inline.h>        /* INLINE */
+#include "../mednafen-types.h"   /* MDFN_HIDE, MDFN_COLD */
+#include "../state.h"
 
 /* Formerly relied on being a C++-only header. Now valid as C too, so
    cart.c and the cart/ device .c files can include it.

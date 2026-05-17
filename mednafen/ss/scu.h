@@ -27,16 +27,12 @@
 #include "ss_c_abi.h"
 
 #include <stdint.h>
-/* C++ has 'bool' built in; C inclusion (vdp1.c already does, and
- * future C-converted modules will) needs the stdbool keyword macros. */
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 /* MDFN_COLD attribute macro.  C++ TUs got it transitively via ss.h /
  * mednafen.h; C consumers need it directly. */
 #include "../mednafen-types.h"
 /* StateMem typedef for the SCU_StateAction prototype below.  Phase-7d. */
-#include <mednafen/state.h>
+#include "../state.h"
 
 #ifdef __cplusplus
 extern "C" {

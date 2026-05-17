@@ -22,7 +22,7 @@
 #ifndef __MDFN_SH7095_H
 #define __MDFN_SH7095_H
 
-#include <mednafen/state.h>
+#include "../state.h"
 
 /* Phase-9b: class -> struct.  See Phase-9a comment in scsp.h
  * for rationale.  The `final` keyword is preserved (allowed on

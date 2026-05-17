@@ -24,12 +24,12 @@
    the c->CS01_SetRW8W16 member call becoming a free-function call. */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <string.h>   /* memset (short-read zero-fill below) */
+#include <boolean.h>
 
 #include <streams/file_stream.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_HOT */
+#include "../../mednafen-types.h"   /* MDFN_HOT */
 #include "../cart.h"
 #include "rom.h"
 

@@ -57,7 +57,7 @@ static INLINE unsigned MDFN_lzcount16_0UD(uint16_t v)
 
 static INLINE unsigned MDFN_lzcount32_0UD(uint32_t v)
 {
- #if defined(__GNUC__) || defined(__clang__) || defined(__ICC) || defined(__INTEL_COMPILER)
+#if defined(__GNUC__) || defined(__clang__) || defined(__ICC) || defined(__INTEL_COMPILER)
  return __builtin_clz(v);
  #elif defined(_MSC_VER)
  unsigned long idx;
@@ -65,30 +65,28 @@ static INLINE unsigned MDFN_lzcount32_0UD(uint32_t v)
  _BitScanReverse(&idx, v);
 
  return 31 ^ idx;
- #else
+#else
  unsigned ret = 0;
- unsigned tmp;
-
- tmp = !(v & 0xFFFF0000) << 4; v <<= tmp; ret += tmp;
+ unsigned tmp = !(v & 0xFFFF0000) << 4; v <<= tmp; ret += tmp;
  tmp = !(v & 0xFF000000) << 3; v <<= tmp; ret += tmp;
  tmp = !(v & 0xF0000000) << 2; v <<= tmp; ret += tmp;
  tmp = !(v & 0xC0000000) << 1; v <<= tmp; ret += tmp;
  tmp = !(v & 0x80000000) << 0;            ret += tmp;
 
  return(ret);
- #endif
+#endif
 }
 
 static INLINE unsigned MDFN_lzcount64_0UD(uint64_t v)
 {
- #if defined(__GNUC__) || defined(__clang__) || defined(__ICC) || defined(__INTEL_COMPILER)
+#if defined(__GNUC__) || defined(__clang__) || defined(__ICC) || defined(__INTEL_COMPILER)
  return __builtin_clzll(v);
- #elif defined(_MSC_VER)
-  #if defined(_WIN64)
+#elif defined(_MSC_VER)
+#if defined(_WIN64)
    unsigned long idx;
    _BitScanReverse64(&idx, v);
    return 63 ^ idx;
-  #else
+#else
    unsigned long idx0;
    unsigned long idx1;
 
@@ -100,20 +98,17 @@ static INLINE unsigned MDFN_lzcount64_0UD(uint64_t v)
    idx0 += 32;
 
    return 63 ^ idx0;
-  #endif
- #else
+#endif
+#else
  unsigned ret = 0;
- unsigned tmp;
-
- tmp = !(v & 0xFFFFFFFF00000000ULL) << 5; v <<= tmp; ret += tmp;
+ unsigned tmp = !(v & 0xFFFFFFFF00000000ULL) << 5; v <<= tmp; ret += tmp;
  tmp = !(v & 0xFFFF000000000000ULL) << 4; v <<= tmp; ret += tmp;
  tmp = !(v & 0xFF00000000000000ULL) << 3; v <<= tmp; ret += tmp;
  tmp = !(v & 0xF000000000000000ULL) << 2; v <<= tmp; ret += tmp;
  tmp = !(v & 0xC000000000000000ULL) << 1; v <<= tmp; ret += tmp;
  tmp = !(v & 0x8000000000000000ULL) << 0;            ret += tmp;
-
  return(ret);
- #endif
+#endif
 }
 
 static INLINE unsigned MDFN_tzcount16_0UD(uint16_t v)
@@ -239,7 +234,6 @@ static INLINE int32_t clamp_to_u8(int32_t i)
 {
  if(i & 0xFFFFFF00)
   i = (((~i) >> 30) & 0xFF);
-
  return(i);
 }
 
@@ -247,7 +241,6 @@ static INLINE int32_t clamp_to_u16(int32_t i)
 {
  if(i & 0xFFFF0000)
   i = (((~i) >> 31) & 0xFFFF);
-
  return(i);
 }
 

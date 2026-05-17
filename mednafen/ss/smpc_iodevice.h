@@ -23,12 +23,10 @@
 #define __MDFN_SS_SMPC_IODEVICE_H
 
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
+#include <boolean.h>
 
-#include <mednafen/state.h>
-#include <mednafen/video/surface.h>
+#include "../state.h"
+#include "../video/surface.h"
 
 /* Formerly a C++ class hierarchy: `class IODevice` plus nine derived
    device classes, each in its own input/<device>.{h,cpp}. Converted

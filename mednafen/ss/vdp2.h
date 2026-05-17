@@ -22,7 +22,7 @@
 #ifndef __MDFN_SS_VDP2_H
 #define __MDFN_SS_VDP2_H
 
-#include <mednafen/state.h>
+#include "../state.h"
 #include "ss.h"				/* sscpu_timestamp_t, events[], SS_SetEventNT, SS_EVENT_VDP2 */
 
 /* MDFNGI / EmulateSpecStruct: forward-declared rather than pulling

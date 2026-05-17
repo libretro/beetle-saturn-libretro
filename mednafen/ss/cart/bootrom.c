@@ -25,18 +25,18 @@
    calls. */
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <boolean.h>
 
 #include <libretro.h>
 #include <streams/file_stream.h>
 
-#include <mednafen/mednafen-types.h>   /* MDFN_HOT, MDFN_COLD */
-#include <mednafen/math_ops.h>         /* round_up_pow2 */
-#include <mednafen/mdfn_gameinfo.h>    /* MDFNGameInfo */
-#include <mednafen/hash/sha256.h>
+#include "../../mednafen-types.h"   /* MDFN_HOT, MDFN_COLD */
+#include "../../math_ops.h"         /* round_up_pow2 */
+#include "../../mdfn_gameinfo.h"    /* MDFNGameInfo */
+#include "../../hash/sha256.h"
 #include "../cart.h"
 #include "bootrom.h"
 #include "backup.h"

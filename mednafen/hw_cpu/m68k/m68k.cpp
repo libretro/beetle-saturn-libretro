@@ -44,7 +44,7 @@
 	CMPM (a7)+,(a7)+
 */
 
-#include <mednafen/mednafen.h>
+#include "../../mednafen.h"
 #include "m68k.h"
 
 #include <tuple>
