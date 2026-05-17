@@ -84,7 +84,7 @@ DMI_FOR_EACH_OP(DEFINE_MiscInstr, 1)
 #undef DEFINE_MiscInstr
 #undef DMI_FOR_EACH_OP
 
-MDFN_HIDE extern void (*const DSP_MiscFuncTable[2][4])(struct DSPS*) =
+MDFN_HIDE void (*const DSP_MiscFuncTable[2][4])(struct DSPS*) =
 {
  #include "scu_dsp_misctab.inc"
 };

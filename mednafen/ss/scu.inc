@@ -4237,7 +4237,7 @@ DDMA_FOR_EACH_HOLD(DEFINE_DMAInstr, 1)
 #ifdef __cplusplus
 extern "C" {
 #endif
-MDFN_HIDE extern void (*const DSP_DMAFuncTable[2][8][8])(struct DSPS*) =
+MDFN_HIDE void (*const DSP_DMAFuncTable[2][8][8])(struct DSPS*) =
 {
  #include "scu_dsp_dmatab.inc"
 };

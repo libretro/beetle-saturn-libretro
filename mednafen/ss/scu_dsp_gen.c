@@ -331,7 +331,7 @@ DGI_FOR_EACH_ALU(DEFINE_GeneralInstr, 1)
 #undef DGI_FOR_EACH_Y
 #undef DGI_FOR_EACH_D1
 
-MDFN_HIDE extern void (*const DSP_GenFuncTable[2][16][8][8][4])(struct DSPS*) =
+MDFN_HIDE void (*const DSP_GenFuncTable[2][16][8][8][4])(struct DSPS*) =
 {
  #include "scu_dsp_gentab.inc"
 };

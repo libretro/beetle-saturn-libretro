@@ -135,7 +135,7 @@ DJI_FOR_EACH_COND(DEFINE_JMPInstr, 1)
 #undef DEFINE_JMPInstr
 #undef DJI_FOR_EACH_COND
 
-MDFN_HIDE extern void (*const DSP_JMPFuncTable[2][128])(struct DSPS*) =
+MDFN_HIDE void (*const DSP_JMPFuncTable[2][128])(struct DSPS*) =
 {
  #include "scu_dsp_jmptab.inc"
 };

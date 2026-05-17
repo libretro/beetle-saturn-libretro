@@ -193,7 +193,7 @@ DMVI_FOR_EACH_DEST(DEFINE_MVIInstr, 1)
 #undef DMVI_FOR_EACH_DEST
 #undef DMVI_FOR_EACH_COND
 
-MDFN_HIDE extern void (*const DSP_MVIFuncTable[2][16][128])(struct DSPS*) =
+MDFN_HIDE void (*const DSP_MVIFuncTable[2][16][128])(struct DSPS*) =
 {
  #include "scu_dsp_mvitab.inc"
 };
