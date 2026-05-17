@@ -119,7 +119,14 @@ struct M68K
   XPENDING_MASK__VALID = XPENDING_MASK_INT | XPENDING_MASK_NMI | XPENDING_MASK_RESET | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_STOPPED | XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED | XPENDING_MASK_EXTHALTED
  };
 
- const bool Revision_E;
+ /* Set by M68K_Construct / M68K::M68K from the `rev_e` parameter
+  * and never written again.  Was `const bool` -- contractual
+  * single-init via the ctor's member-initializer list.  Dropped
+  * the const so the free-function M68K_Construct can assign to
+  * it (C-style construction has no member-initializer-list
+  * syntax).  Set-once-at-construction is now preserved by
+  * convention, not by compiler-enforced const-correctness. */
+ bool Revision_E;
 
  //private:
  void RecalcInt(void);
@@ -565,6 +572,16 @@ struct M68K
 static FORCE_INLINE void M68K_SetIPL             (M68K* z, uint8_t ipl_new)             { z->SetIPL(ipl_new); }
 static FORCE_INLINE void M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)                { z->SignalDTACKHalted(addr); }
 static FORCE_INLINE void M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type)  { z->SignalAddressError(addr, type); }
+
+/* M68K_Construct: free-function counterpart to the M68K(rev_e)
+ * constructor.  Out-of-line in m68k.cpp because the body installs
+ * the file-static `Dummy_BusRESET` default callback (not reachable
+ * from this header) and invokes the multi-thousand-line Reset
+ * path.  Once sound_glue.cpp becomes sound_glue.c the existing
+ * `static M68K SoundCPU(true);` declaration will become a
+ * zero-init followed by an explicit `M68K_Construct(&SoundCPU,
+ * true)` call from SoundGlue_Init. */
+void M68K_Construct(M68K* z, bool rev_e) MDFN_COLD;
 
 static FORCE_INLINE void M68K_Reset              (M68K* z, bool pwr)                     { z->Reset(pwr); }
 static FORCE_INLINE void M68K_Run                (M68K* z, int32_t until)                { z->Run(until); }

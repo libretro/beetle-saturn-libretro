@@ -57,6 +57,40 @@
 
 static MDFN_FASTCALL void Dummy_BusRESET(bool state) { }
 
+/* Phase-9 prep for sound_glue.cpp -> sound_glue.c: free-function
+ * counterpart to the M68K::M68K(rev_e) constructor.  Body matches
+ * what the constructor did via member-initializer list + body:
+ * stash Revision_E, null the 7 bus-callback slots, install
+ * Dummy_BusRESET as the BusRESET default, zero the runtime state
+ * scalars, then power-on Reset.
+ *
+ * Once sound_glue.cpp becomes sound_glue.c (no C++ constructor
+ * call syntax there), it will switch to `static M68K SoundCPU
+ * = {0};` + `M68K_Construct(&SoundCPU, true);`.  The C++ ctor
+ * stays around in this commit for callers that still use it
+ * (currently sound_glue.cpp's `static M68K SoundCPU(true);` at
+ * line 45 -- that's the sole consumer; once it migrates, the
+ * ctor + dtor pair becomes retire-able). */
+void M68K_Construct(M68K* z, bool rev_e)
+{
+   z->Revision_E   = rev_e;
+
+   z->BusReadInstr = NULL;
+   z->BusRead8     = NULL;
+   z->BusRead16    = NULL;
+   z->BusWrite8    = NULL;
+   z->BusWrite16   = NULL;
+   z->BusRMW       = NULL;
+   z->BusIntAck    = NULL;
+   z->BusRESET     = Dummy_BusRESET;
+
+   z->timestamp    = 0;
+   z->XPending     = 0;
+   z->IPL          = 0;
+
+   z->Reset(true);
+}
+
 M68K::M68K(const bool rev_e) : Revision_E(rev_e),
 	       BusReadInstr(nullptr), BusRead8(nullptr), BusRead16(nullptr),
 	       BusWrite8(nullptr), BusWrite16(nullptr),
