@@ -2055,20 +2055,23 @@ static MDFN_FORCE_INLINE void DrawCell8_BPP4(uint64_t* out,
                                                                                                                        \
  if(((ZMCTL >> (n << 3)) & 0x3) && VCSEn)                                                                               \
  {                                                                                                                      \
+  /* CACHE FIX (#71): tile_vrb depends on (celly = iy & 7) in tile mode and             \
+   * varies bit-wise on (ix, iy) in bitmap mode, neither captured by                    \
+   * (celli, cellj) alone.  Key extended to full `iy` (catches iy & 7); bitmap         \
+   * mode bypassed via compile-time `(BMEN) ||` in the predicate. */                     \
   uint32_t prev_celli = ~0u;                                                                                            \
-  uint32_t prev_cellj = ~0u;                                                                                            \
+  uint32_t prev_iy    = ~0u;                                                                                            \
                                                                                                                         \
   for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                          \
   {                                                                                                                     \
    const uint32_t ix = xc >> 8;                                                                                         \
    iy = LB.vcscr[n][i >> 3];                                                                                            \
    const uint32_t celli = ix >> 3;                                                                                      \
-   const uint32_t cellj = iy >> 3;                                                                                      \
                                                                                                                         \
-   if(celli != prev_celli || cellj != prev_cellj)                                                                       \
+   if((BMEN) || celli != prev_celli || iy != prev_iy)                                                                   \
    {                                                                                                                    \
     prev_celli = celli;                                                                                                 \
-    prev_cellj = cellj;                                                                                                 \
+    prev_iy    = iy;                                                                                                    \
     TF_NR_FETCH(&tf, BPP, (BMEN), ix, iy);                                                                              \
    }                                                                                                                    \
 /* */                                                                                                                   \
@@ -2752,9 +2755,11 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
                                                                                                                         \
  MAKE_SFCODE_LUT((PMODE), (CCMODE), (rn ? 0 : 4), sfcode_lut);                                                          \
                                                                                                                         \
+ /* CACHE FIX (#71): key cache on full `iy` (tile-mode safe; catches iy & 7); bypass    \
+  * entirely in bitmap mode via `(BMEN) ||` in the predicate. */                          \
  unsigned prev_ab    = ~0u;                                                                                             \
  uint32_t prev_celli = ~0u;                                                                                             \
- uint32_t prev_cellj = ~0u;                                                                                             \
+ uint32_t prev_iy    = ~0u;                                                                                             \
  bool     prev_rot_tp_f = false;                                                                                        \
                                                                                                                         \
  for(unsigned i = 0; MDFN_LIKELY(i < w); i++)                                                                           \
@@ -2788,13 +2793,12 @@ static void SetupRotVars(const struct VDP2Rend_RotVars* rs, const unsigned rbg_w
   const uint32_t iy = (r->Yp + (uint32_t)(((int64_t)ky * (int32_t)(r->Ysp + (r->dY * i))) >> 16)) >> 10;                \
                                                                                                                        \
   const uint32_t celli = ix >> 3;                                                                                       \
-  const uint32_t cellj = iy >> 3;                                                                                       \
                                                                                                                         \
-  if(ab != prev_ab || celli != prev_celli || cellj != prev_cellj)                                                       \
+  if((BMEN) || ab != prev_ab || celli != prev_celli || iy != prev_iy)                                                   \
   {                                                                                                                     \
    prev_ab    = ab;                                                                                                     \
    prev_celli = celli;                                                                                                  \
-   prev_cellj = cellj;                                                                                                  \
+   prev_iy    = iy;                                                                                                     \
    prev_rot_tp_f = TF_ROT_FETCH(tf, BPP, (BMEN), ix, iy);                                                               \
   }                                                                                                                     \
   rot_tp |= prev_rot_tp_f;                                                                                              \
@@ -2929,8 +2933,9 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
  const uint32_t r_base_c = r->base_coeff;                                                               \
  const uint8_t  ktctl_md = (KTCTL[const_ab] >> 2) & 0x3;                                                \
                                                                                                       \
+ /* CACHE FIX (#71): see SetupRotVars sibling above. */                                                 \
  uint32_t prev_celli    = ~0u;                                                                         \
- uint32_t prev_cellj    = ~0u;                                                                         \
+ uint32_t prev_iy       = ~0u;                                                                         \
  bool     prev_rot_tp_f = false;                                                                       \
                                                                                                       \
  /* Strength-reduce the per-pixel (r_dX * i) / (r_dY * i) into running                                  \
@@ -2977,12 +2982,11 @@ static void (*DrawRBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
   arg_y_u += r_dY_u;                                                                                  \
                                                                                                       \
   const uint32_t celli = ix >> 3;                                                                     \
-  const uint32_t cellj = iy >> 3;                                                                     \
                                                                                                       \
-  if(celli != prev_celli || cellj != prev_cellj)                                                      \
+  if(BMEN || celli != prev_celli || iy != prev_iy)                                                    \
   {                                                                                                   \
    prev_celli    = celli;                                                                             \
-   prev_cellj    = cellj;                                                                             \
+   prev_iy       = iy;                                                                                \
    prev_rot_tp_f = TF_ROT_FETCH(tf, BPP, BMEN, ix, iy);                                               \
   }                                                                                                   \
   rot_tp |= prev_rot_tp_f;                                                                            \
