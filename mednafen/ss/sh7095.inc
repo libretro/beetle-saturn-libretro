@@ -228,6 +228,16 @@ SH7095::SH7095(const char* const name_arg, const unsigned event_id_dma_arg, uint
  Init(false, false);
 }
 
+/* Phase-9 step 4 cont.: forward declarations for the free-template
+ * memory-access routines.  They used to be class-method templates
+ * (SH7095::MemReadRT, SH7095::MemWriteRT) and are now free
+ * templates with an explicit `SH7095* z` first parameter. */
+template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
+static INLINE T SH7095_MemReadRT(SH7095* z, uint32_t A);
+
+template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
+static INLINE void SH7095_MemWriteRT(SH7095* z, uint32_t A, T V);
+
 template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
 static NO_INLINE MDFN_FASTCALL T C_MemReadRT(uint32_t A) MDFN_HOT;
 
@@ -4417,15 +4427,14 @@ do {                                                                            
   else                    { if(which) ExtBusWrite_NI_w1_SP0_u32(A, V); else ExtBusWrite_NI_w0_SP0_u32(A, V); }      \
 } while(0)
 template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
-INLINE T SH7095::MemReadRT(uint32_t A)
+static INLINE T SH7095_MemReadRT(SH7095* z, uint32_t A)
 {
- SH7095* const z = this;
  static_assert(region < 0x8, "Wrong region argument.");
  static_assert(!NeedSlaveCall || (!which && region < 2), "Wrong arguments.");
  static_assert(IsInstr >= 0 || (CacheEnabled && region == 0x0), "Wrong arguments.");
  T ret;
  uint32_t unmasked_A;
- CacheEntry* cent;
+ SH7095::CacheEntry* cent;
  int way_match;
 
  MemRead(IsInstr, T, region, CacheEnabled, A, ret, A, unmasked_A, cent, way_match);
@@ -4434,9 +4443,8 @@ INLINE T SH7095::MemReadRT(uint32_t A)
 }
 
 template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
-INLINE void SH7095::MemWriteRT(uint32_t A, T V)
+static INLINE void SH7095_MemWriteRT(SH7095* z, uint32_t A, T V)
 {
- SH7095* const z = this;
  static_assert(region < 0x8, "Wrong region argument.");
  static_assert(!NeedSlaveCall || (!which && region < 2), "Wrong arguments.");
  uint32_t unmasked_A;
@@ -4451,13 +4459,13 @@ INLINE void SH7095::MemWriteRT(uint32_t A, T V)
 template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
 static NO_INLINE MDFN_HOT MDFN_FASTCALL T C_MemReadRT(uint32_t A)
 {
- return CPU[which].MemReadRT<which, NeedSlaveCall, CacheBypassHack, T, region, CacheEnabled, IsInstr>(A);
+ return SH7095_MemReadRT<which, NeedSlaveCall, CacheBypassHack, T, region, CacheEnabled, IsInstr>(&CPU[which], A);
 }
 
 template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
 static NO_INLINE MDFN_HOT MDFN_FASTCALL void C_MemWriteRT(uint32_t A, T V)
 {
- CPU[which].MemWriteRT<which, NeedSlaveCall, T, region, CacheEnabled>(A, V);
+ SH7095_MemWriteRT<which, NeedSlaveCall, T, region, CacheEnabled>(&CPU[which], A, V);
 }
 
 static INLINE void SH7095_SetCCR(SH7095* z, uint8_t V)

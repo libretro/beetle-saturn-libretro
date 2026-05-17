@@ -541,11 +541,7 @@ struct SH7095 final
  NO_INLINE void OnChipRegWrite_u8 (uint32_t A, uint32_t V) MDFN_HOT;
  NO_INLINE void OnChipRegWrite_u16(uint32_t A, uint32_t V) MDFN_HOT;
  NO_INLINE void OnChipRegWrite_u32(uint32_t A, uint32_t V) MDFN_HOT;
- template<unsigned which, int NeedSlaveCall, bool CacheBypassHack, typename T, unsigned region, bool CacheEnabled, int32_t IsInstr>
- INLINE T MemReadRT(uint32_t A);
 
- template<unsigned which, int NeedSlaveCall, typename T, unsigned region, bool CacheEnabled>
- INLINE void MemWriteRT(uint32_t A, T V);
  //
  //
  //
