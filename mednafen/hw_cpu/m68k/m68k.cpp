@@ -87,7 +87,7 @@ void M68K_Construct(M68K* z, bool rev_e)
    z->XPending     = 0;
    z->IPL          = 0;
 
-   z->Reset(true);
+   M68K_Reset(z, true);
 }
 
 void     M68K_SetIPL             (M68K* z, uint8_t ipl_new)
@@ -102,7 +102,29 @@ void     M68K_SetIPL             (M68K* z, uint8_t ipl_new)
 }
 void     M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)               { z->SignalDTACKHalted(addr); }
 void     M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type) { z->SignalAddressError(addr, type); }
-void     M68K_Reset              (M68K* z, bool pwr)                    { z->Reset(pwr); }
+void     M68K_Reset              (M68K* z, bool pwr)
+{
+ /* Reset() may be called from BusRESET (a callback function-pointer set by
+  * the integrator -- in our case sound_glue.c's SoundGlue_M68K_Reset), which
+  * itself is called from the m68k_private.h:2104/2106 RESET-instruction
+  * handler.  The callback path resolves to M68K_Reset(&SoundCPU, ...) again,
+  * so this body must continue to work re-entrantly. */
+ if(pwr)
+ {
+  z->PC = 0;
+
+  for(unsigned i = 0; i < 8; i++)
+   z->D[i] = 0;
+
+  for(unsigned i = 0; i < 8; i++)
+   z->A[i] = 0;
+
+  z->SP_Inactive = 0;
+
+  z->SetSR(0);
+ }
+ z->XPending = (z->XPending & ~(M68K::XPENDING_MASK_STOPPED | M68K::XPENDING_MASK_NMI | M68K::XPENDING_MASK_ADDRESS | M68K::XPENDING_MASK_BUS | M68K::XPENDING_MASK_ERRORHALTED | M68K::XPENDING_MASK_DTACKHALTED)) | M68K::XPENDING_MASK_RESET;
+}
 void     M68K_Run                (M68K* z, int32_t until)               { z->Run(until); }
 void     M68K_SetExtHalted       (M68K* z, bool state)
 {
@@ -417,26 +439,12 @@ void NO_INLINE M68K::Run(int32_t run_until_time)
 }
 
 //
-// Reset() may be called from BusRESET, which is called from RESET, so ensure it continues working for that case.
+// Phase-9d-4: M68K::Reset body retired -- now lives inline in the
+// M68K_Reset extern "C" wrapper at the top of this file.  The re-entrancy
+// note ("Reset() may be called from BusRESET, which is called from RESET")
+// moved with the body; the callback-through-BusRESET path now resolves to
+// M68K_Reset directly, no class-method dispatch step in between.
 //
-void M68K::Reset(bool powering_up)
-{
- if(powering_up)
- {
-  PC = 0;
-
-  for(unsigned i = 0; i < 8; i++)
-   D[i] = 0;
-
-  for(unsigned i = 0; i < 8; i++)
-   A[i] = 0;
-
-  SP_Inactive = 0;
-
-  SetSR(0);
- }
- XPending = (XPending & ~(XPENDING_MASK_STOPPED | XPENDING_MASK_NMI | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED)) | XPENDING_MASK_RESET;
-}
 
 
 //

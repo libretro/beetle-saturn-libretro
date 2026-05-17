@@ -65,7 +65,11 @@ struct M68K
 
  void Run(int32_t run_until_time);
 
- void Reset(bool powering_up) MDFN_COLD;
+ /* Phase-9d-4: Reset retired from the class.  Body moved inline into the
+  * M68K_Reset extern "C" wrapper in m68k.cpp.  Both prior callers
+  * (M68K_Construct in m68k.cpp and the M68K_Reset wrapper) now reach the
+  * body the same way the BusRESET callback path always did: through
+  * M68K_Reset(z, ...).  No class-method dispatch step in between. */
 
  /* Phase-9d-1: SetIPL and SetExtHalted retired from the class.
   * Bodies moved inline into the M68K_SetIPL / M68K_SetExtHalted
