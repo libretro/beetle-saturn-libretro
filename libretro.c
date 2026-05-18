@@ -293,6 +293,18 @@ void retro_init(void)
       environ_cb(RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS, &serial_quirks);
    }
 
+   /* GET_INPUT_BITMASKS hint: when the front-end supports it,
+    * input_update_with_bitmasks() can fetch all 14+ digital
+    * JOYPAD buttons for a port in a single retro_input_state_t
+    * call (passing RETRO_DEVICE_ID_JOYPAD_MASK as the id) instead
+    * of one call per button.  At 12 ports * ~14 buttons per port,
+    * that's the difference between ~12 and ~168 dispatch hops
+    * across the libretro state-callback boundary per frame; the
+    * win matters most on front-ends where that boundary is
+    * non-trivial (netplay, replay-recording, runahead). */
+   if (environ_cb(RETRO_ENVIRONMENT_GET_INPUT_BITMASKS, NULL))
+      libretro_supports_bitmasks = true;
+
    check_system_specs();
 }
 
