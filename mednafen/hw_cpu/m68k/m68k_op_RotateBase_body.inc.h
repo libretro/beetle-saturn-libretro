@@ -10,7 +10,7 @@
 #define _OP_PASTE(a, b) _OP_PASTE2(a, b)
 #define HAM_TARG_FN(n) _OP_PASTE(OP_HAM_TARG, n)
 
-static INLINE void OP_NAME(M68K* z, bool X_Form, bool ShiftLeft, struct OP_HAM_TARG* targ, unsigned count)
+static MDFN_FORCE_INLINE void OP_NAME(M68K* z, bool X_Form, bool ShiftLeft, struct OP_HAM_TARG* targ, unsigned count)
 {
  OP_T result = HAM_TARG_FN(_read)(targ);
  count &= 0x3F;

@@ -252,7 +252,16 @@ def gen_body_file(name, op_info):
     out += '#define _OP_PASTE2(a, b) a ## b\n'
     out += '#define _OP_PASTE(a, b) _OP_PASTE2(a, b)\n'
     out += '\n'.join(fn_macros) + '\n\n'
-    out += f'static INLINE {ret_type} OP_NAME(M68K* z{params})\n'
+    # The three helper templates (ShiftBase / RotateBase / Subtract) take
+    # runtime bool parameters (Arithmetic / ShiftLeft / X_form) that every
+    # caller passes as literal true/false.  With plain INLINE, gcc cloned
+    # them via .constprop but left the actual call out-of-line, so the
+    # inner loops still branched on those constants at runtime.  Force
+    # inlining so each caller gets a fully constant-folded copy and the
+    # bool branches disappear.
+    helper_force_inline = name in ('ShiftBase', 'RotateBase', 'Subtract')
+    inline_kw = 'MDFN_FORCE_INLINE' if helper_force_inline else 'INLINE'
+    out += f'static {inline_kw} {ret_type} OP_NAME(M68K* z{params})\n'
     out += transformed.strip() + '\n\n'
     out += '#undef _OP_PASTE2\n#undef _OP_PASTE\n'
     out += '\n'.join(fn_macros_undef) + '\n#undef OP_NAME\n'

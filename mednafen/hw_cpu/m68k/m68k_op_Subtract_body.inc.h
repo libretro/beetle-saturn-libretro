@@ -11,7 +11,7 @@
 #define HAM_SRC_FN(n) _OP_PASTE(OP_HAM_SRC, n)
 #define HAM_DST_FN(n) _OP_PASTE(OP_HAM_DST, n)
 
-static INLINE OP_DT OP_NAME(M68K* z, bool X_form, struct OP_HAM_SRC* src, struct OP_HAM_DST* dst)
+static MDFN_FORCE_INLINE OP_DT OP_NAME(M68K* z, bool X_form, struct OP_HAM_SRC* src, struct OP_HAM_DST* dst)
 {
 
  uint32_t const src_data = (OP_DT)(OP_T_SIGNED)(HAM_SRC_FN(_read)(src));
