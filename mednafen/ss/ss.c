@@ -881,7 +881,7 @@ static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t* DB, int32_t*
  }
 }
 
-static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t* DB)
 {
 
  //
@@ -900,7 +900,7 @@ static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t* DB, int32_t* S
  }
 }
 
-static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t* DB)
 {
 
  //
@@ -923,7 +923,7 @@ static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t* DB, int32_t* S
  }
 }
 
-static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t* DB)
 {
 
  //
@@ -942,7 +942,7 @@ static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t* DB, int32_t* 
  }
 }
 
-static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t* DB)
 {
 
  //
@@ -959,7 +959,7 @@ static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t* DB, int32_t* 
  }
 }
 
-static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t* DB)
 {
 
  //
@@ -978,7 +978,7 @@ static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t* DB, int32_t* 
  }
 }
 
-static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t* DB)
 {
 
  //
