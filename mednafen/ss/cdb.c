@@ -1273,7 +1273,7 @@ static void SWReset(void)
  FLS.Phase = 0;
 }
 
-void CDB_ResetCD(void)	// TODO
+static void CDB_ResetCD(void)	// TODO
 {
  PeriodicIdleCounter = 0x7FFFFFFFFFFFFFFFLL;
  DrivePhase = DRIVEPHASE_RESETTING;

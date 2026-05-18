@@ -57,7 +57,6 @@ void CDB_ResetTS(void);
 void CDB_GetCDDA(uint16_t* outbuf);	// writes to outbuf[0] and outbuf[1]
 
 void CDB_SetClockRatio(uint32_t ratio);
-void CDB_ResetCD(void);
 
 #ifdef __cplusplus
 }
