@@ -33,12 +33,6 @@ bool Init_LEC_Correct(void)
  return(1);
 }
 
-void Kill_LEC_Correct(void)
-{
- FreeGaloisTables(gt);
- FreeReedSolomonTables(rt);
-}
-
 /***
  *** CD level CRC calculation
  ***/

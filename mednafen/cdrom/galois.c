@@ -76,15 +76,6 @@ GaloisTables* CreateGaloisTables(int32_t gf_generator)
    return gt;
 }
 
-void FreeGaloisTables(GaloisTables *gt)
-{
-  if(gt->indexOf)     free(gt->indexOf);
-  if(gt->alphaTo)     free(gt->alphaTo);
-  if(gt->encAlphaTo) free(gt->encAlphaTo);
-
-  free(gt);
-}
-
 /***
  *** Create the the Reed-Solomon generator polynomial
  *** and some auxiliary data structures.
@@ -131,11 +122,4 @@ ReedSolomonTables *CreateReedSolomonTables(GaloisTables *gt,
      rt->gpoly[i] = gt->indexOf[rt->gpoly[i]];
 
    return rt;
-}
-
-void FreeReedSolomonTables(ReedSolomonTables *rt)
-{
-  if(rt->gpoly)        free(rt->gpoly);
-
-  free(rt);
 }

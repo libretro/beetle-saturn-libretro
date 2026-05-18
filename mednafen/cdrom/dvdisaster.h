@@ -104,10 +104,8 @@ typedef struct _ReedSolomonTables
 } ReedSolomonTables;
 
 GaloisTables* CreateGaloisTables(int32_t);
-void FreeGaloisTables(GaloisTables*);
 
 ReedSolomonTables *CreateReedSolomonTables(GaloisTables*, int32_t, int32_t, int);
-void FreeReedSolomonTables(ReedSolomonTables*);
 
 /*** 
  *** l-ec.c
@@ -139,12 +137,10 @@ int DecodePQ(ReedSolomonTables*, unsigned char*, int, int*, int);
 #define CD_RAW_C2_SECTOR_SIZE (2352+294)  /* main channel plus C2 vector */
 
 int CheckEDC(const unsigned char*, bool);
-int CheckMSF(unsigned char*, int);
 
 
 int ValidateRawSector(unsigned char *frame, bool xaMode);
 bool Init_LEC_Correct(void);
-void Kill_LEC_Correct(void);
 
 #ifdef __cplusplus
 }
