@@ -539,56 +539,13 @@ void disc_init( retro_environment_t environ_cb )
 		environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_interface);
 }
 
-static INLINE bool MDFN_isspace(const char c) { return c == ' ' || c == '\f' || c == '\r' || c == '\n' || c == '\t' || c == '\v'; }
-
-// Remove whitespace from beginning of s
-static void MDFN_ltrim(char* s)
-{
- const char* si = s;
- char* di = s;
- bool InWhitespace = true;
-
- while(*si)
- {
-  if(!InWhitespace || !MDFN_isspace(*si))
-  {
-   InWhitespace = false;
-   *di = *si;
-   di++;
-  }
-  si++;
- }
-
- *di = 0;
-}
-
-// Remove whitespace from end of s
-static void MDFN_rtrim(char* s)
-{
- const size_t len = strlen(s);
-
- if(!len)
-  return;
- //
- size_t x = len;
-
- do
- {
-  x--;
-
-  if(!MDFN_isspace(s[x]))
-   break;
- 
-  s[x] = 0;
- } while(x);
-}
-
-static void MDFN_trim(char* s)
-{
- MDFN_rtrim(s);
- MDFN_ltrim(s);
-}
-
+/* MDFN_zapctrlchars normalises a fixed-size Saturn disc-header
+ * field by replacing every C0 control byte (< 0x20) with a space,
+ * which lets the subsequent string_trim_whitespace() collapse the
+ * field's padding without caring whether the producer wrote NUL,
+ * SUB, RS, or tab as filler.  Local because libretro-common's
+ * stdstring.h ships ISSPACE/string_trim_whitespace but no
+ * "control-char zapper". */
 static void MDFN_zapctrlchars(char* s)
 {
  if(!s)
@@ -653,12 +610,12 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 						memcpy(sgname, &buf[0x60], 0x70);
 						sgname[0x70] = 0;
 						MDFN_zapctrlchars(sgname);
-						MDFN_trim(sgname);
+						string_trim_whitespace(sgname);
 
 						memcpy(sgarea, &buf[0x40], 0x10);
 						sgarea[0x10] = 0;
 						MDFN_zapctrlchars(sgarea);
-						MDFN_trim(sgarea);
+						string_trim_whitespace(sgarea);
 					}
 				}
 
