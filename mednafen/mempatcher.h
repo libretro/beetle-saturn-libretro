@@ -23,15 +23,12 @@ void MDFNMP_AddRAM(uint32_t size, uint32_t address, uint8_t *RAM);
 void MDFNMP_Kill(void);
 
 void MDFNMP_InstallReadPatches(void);
-void MDFNMP_RemoveReadPatches(void);
 
 void MDFNMP_ApplyPeriodicCheats(void);
 void MDFNMP_RegSearchable(uint32_t addr, uint32_t size);
 
 void MDFN_LoadGameCheats(void);
 void MDFN_FlushGameCheats(void);
-
-extern MDFNSetting MDFNMP_Settings[];
 
 #ifdef __cplusplus
 }

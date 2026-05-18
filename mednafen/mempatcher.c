@@ -233,14 +233,6 @@ void MDFNMP_InstallReadPatches(void)
 #endif
 }
 
-void MDFNMP_RemoveReadPatches(void)
-{
-#if 0
- if(MDFNGameInfo->RemoveReadPatches)
-  MDFNGameInfo->RemoveReadPatches();
-#endif
-}
-
 void MDFN_LoadGameCheats(void)
 {
  RebuildSubCheats();
@@ -435,21 +427,3 @@ void MDFNMP_ApplyPeriodicCheats(void)
       }
    }
 }
-
-static void SettingChanged(const char *name)
-{
- MDFNMP_RemoveReadPatches();
-
- CheatsActive = MDFN_GetSettingB("cheats");
-
- RebuildSubCheats();
-
- MDFNMP_InstallReadPatches();
-}
-
-
-MDFNSetting MDFNMP_Settings[] =
-{
- { "cheats", MDFNSF_NOFLAGS, "Enable cheats.", NULL, MDFNST_BOOL, "1", NULL, NULL, NULL, SettingChanged },
- { NULL}
-};

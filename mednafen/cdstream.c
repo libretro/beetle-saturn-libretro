@@ -71,62 +71,6 @@ bool cdstream_open_memcached(cdstream *out, const char *path)
    return true;
 }
 
-bool cdstream_memcache_in_place(cdstream *src)
-{
-   uint64_t size;
-   uint64_t got;
-   uint8_t *buf;
-
-   if (!src->fp)
-   {
-      /* Already memory-backed (or closed); nothing to do. */
-      return src->buf != NULL;
-   }
-
-   /* Read from current position, matching MemoryStream's historical
-    * behaviour (the libretro core only ever called this at pos 0, so
-    * the "preserve source position" branch never mattered, but the
-    * resulting buffer represented "the rest of the file from here"). */
-   {
-      int64_t sz   = filestream_get_size(src->fp);
-      int64_t cur  = filestream_tell(src->fp);
-      if (sz < 0 || cur < 0 || cur > sz)
-      {
-         cdstream_close(src);
-         return false;
-      }
-      size = (uint64_t)(sz - cur);
-   }
-
-   if (size == 0)
-   {
-      cdstream_close(src);
-      return false;
-   }
-
-   buf = (uint8_t *)malloc((size_t)size);
-   if (!buf)
-   {
-      cdstream_close(src);
-      return false;
-   }
-
-   got = (uint64_t)filestream_read(src->fp, buf, (int64_t)size);
-   if (got != size)
-   {
-      free(buf);
-      cdstream_close(src);
-      return false;
-   }
-
-   filestream_close(src->fp);
-   src->fp   = NULL;
-   src->buf  = buf;
-   src->size = size;
-   src->pos  = 0;
-   return true;
-}
-
 int cdstream_get_line(cdstream *s, char *out, size_t cap)
 {
    size_t  n       = 0;

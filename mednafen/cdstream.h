@@ -78,16 +78,6 @@ bool cdstream_open_write(cdstream *out, const char *path);
  * returned. */
 bool cdstream_open_memcached(cdstream *out, const char *path);
 
-/* Convert an open file-backed stream into a memory-backed one by
- * reading the rest of the file from the current position into a
- * fresh buffer.  On success the source RFILE is closed and `src`
- * is converted in place to memory-backed.  On failure `src` is
- * closed and zeroed.  Returns true on success.
- *
- * Used by call sites that need to decide memcache-vs-not after
- * opening (to share an error path on open failure). */
-bool cdstream_memcache_in_place(cdstream *src);
-
 /* Read up to `count` bytes into `data`.  Returns the number of
  * bytes actually read; 0 on EOF or error. */
 static INLINE uint64_t cdstream_read(cdstream *s, void *data, uint64_t count)
