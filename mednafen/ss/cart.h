@@ -80,12 +80,13 @@ struct CartInfo
 /* Were CartInfo member functions; now free functions taking the
    CartInfo*. The w8/w16 args had C++ default values of nullptr --
    C has no default args, so every caller now passes them explicitly
-   (NULL where the default was relied on). */
+   (NULL where the default was relied on).
+
+   CS2M is only used inside cart.c (initialiser for the default
+   dummy mapping); the public decl moved to file-static at that
+   site.  The CS01 form is consumed by every per-cart file under
+   mednafen/ss/cart/, so it stays in the header. */
 void CartInfo_CS01_SetRW8W16(struct CartInfo *c, uint32_t Astart, uint32_t Aend,
-                             void (*r16)(uint32_t A, uint16_t* DB),
-                             void (*w8)(uint32_t A, uint16_t* DB),
-                             void (*w16)(uint32_t A, uint16_t* DB));
-void CartInfo_CS2M_SetRW8W16(struct CartInfo *c, uint8_t Ostart, uint8_t Oend,
                              void (*r16)(uint32_t A, uint16_t* DB),
                              void (*w8)(uint32_t A, uint16_t* DB),
                              void (*w16)(uint32_t A, uint16_t* DB));

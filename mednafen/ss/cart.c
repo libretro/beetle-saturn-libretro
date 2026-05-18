@@ -142,7 +142,7 @@ void CartInfo_CS01_SetRW8W16(struct CartInfo *c, uint32_t Astart, uint32_t Aend,
 }
 
 /* Was CartInfo::CS2M_SetRW8W16. Same note as above. */
-void CartInfo_CS2M_SetRW8W16(struct CartInfo *c, uint8_t Ostart, uint8_t Oend,
+static void CartInfo_CS2M_SetRW8W16(struct CartInfo *c, uint8_t Ostart, uint8_t Oend,
                              void (*r16)(uint32_t A, uint16_t *DB),
                              void (*w8)(uint32_t A, uint16_t *DB),
                              void (*w16)(uint32_t A, uint16_t *DB))
