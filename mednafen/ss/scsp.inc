@@ -306,28 +306,6 @@ static INLINE uint8_t SS_SCSP_MIDI_ReadInput(SS_SCSP* z)
  return ret;
 }
 
-void SS_SCSP_MIDI_WriteInput(SS_SCSP* z, uint8_t V)
-{
- if(z->MIDI.InputCount == 4)
- {
-  z->MIDI.Flags |= MIDIF_INPUT_OFLOW;
-  return;
- }
-
- z->MIDI.InputFIFO[z->MIDI.InputWP] = V;
- z->MIDI.InputWP = (z->MIDI.InputWP + 1) & 0x3;
- z->MIDI.InputCount++;
-
- z->MIDI.Flags &= ~MIDIF_INPUT_EMPTY;
- if(z->MIDI.InputCount == 4)
-  z->MIDI.Flags |= MIDIF_INPUT_FULL;
-
- z->SCIPD |= 0x008;
- z->MCIPD |= 0x008;
- SS_SCSP_RecalcSoundInt(z);
- SS_SCSP_RecalcMainInt(z);
-}
-
 static INLINE void SS_SCSP_MIDI_WriteOutput(SS_SCSP* z, uint8_t V)
 {
  if(z->MIDI.OutputCount == 4)	// TODO: See if write is completely discarded, or replaces last entry in FIFO.
@@ -2886,55 +2864,6 @@ void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bo
 //
 //
 //
-uint32_t SS_SCSP_GetRegister(SS_SCSP* z, const unsigned id, char* const special, const uint32_t special_len)
-{
- uint32_t ret = 0xDEADBEEF;
-
- switch(id)
- {
-  case GSREG_MVOL:
-	ret = z->MVOL;
-	break;
-
-  case GSREG_DAC18B:
-	ret = z->DAC18bit;
-	break;
-
-  case GSREG_MEM4MB:
-	ret = z->Mem4Mb;
-	break;
-
-  case GSREG_RBC:
-	ret = z->RBP | (z->RBL << 7);
-	break;
-
-  case GSREG_MSLC:
-	ret = z->SlotMonitorWhich;
-	break;
-
-  case GSREG_SCIEB:
-	ret = z->SCIEB;
-	break;
-
-  case GSREG_SCIPD:
-	ret = z->SCIPD;
-	break;
-
-  case GSREG_MCIEB:
-	ret = z->MCIEB;
-	break;
-
-  case GSREG_MCIPD:
-	ret = z->MCIPD;
-	break;
-
-  case GSREG_EFREG0 ... GSREG_EFREGF:
-	ret = z->DSP.EFREG[id - GSREG_EFREG0];
-	break;
- }
-
- return ret;
-}
 
 void SS_SCSP_SetRegister(SS_SCSP* z, const unsigned id, const uint32_t value)
 {

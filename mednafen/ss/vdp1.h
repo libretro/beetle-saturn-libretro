@@ -128,26 +128,6 @@ static INLINE void VDP1_PokeFB(const bool which, const uint32_t addr, const uint
 #endif
 }
 
-enum
-{
- VDP1_GSREG_SYSCLIPX = 0,
- VDP1_GSREG_SYSCLIPY,
- VDP1_GSREG_USERCLIPX0,
- VDP1_GSREG_USERCLIPY0,
- VDP1_GSREG_USERCLIPX1,
- VDP1_GSREG_USERCLIPY1,
- VDP1_GSREG_LOCALX,
- VDP1_GSREG_LOCALY,
-
- VDP1_GSREG_TVMR,
- VDP1_GSREG_FBCR,
- VDP1_GSREG_EWDR,
- VDP1_GSREG_EWLR,
- VDP1_GSREG_EWRR
-};
-uint32_t VDP1_GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
-void VDP1_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
-
 #ifdef __cplusplus
 }
 #endif

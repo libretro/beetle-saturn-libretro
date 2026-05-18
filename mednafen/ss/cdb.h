@@ -58,26 +58,6 @@ void CDB_GetCDDA(uint16_t* outbuf);	// writes to outbuf[0] and outbuf[1]
 
 void CDB_SetClockRatio(uint32_t ratio);
 void CDB_ResetCD(void);
-void CDB_SetCDActive(bool active);
-
-enum
-{
- CDB_GSREG_HIRQ = 0,
- CDB_GSREG_HIRQ_MASK,
-
- CDB_GSREG_CDATA0,
- CDB_GSREG_CDATA1,
- CDB_GSREG_CDATA2,
- CDB_GSREG_CDATA3,
-
- CDB_GSREG_RESULT0,
- CDB_GSREG_RESULT1,
- CDB_GSREG_RESULT2,
- CDB_GSREG_RESULT3
-};
-
-uint32_t CDB_GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
-void CDB_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
 
 #ifdef __cplusplus
 }

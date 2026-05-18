@@ -57,14 +57,6 @@ uint16_t SOUND_Read16(uint32_t A);
 void SOUND_Write8(uint32_t A, uint8_t V);
 void SOUND_Write16(uint32_t A, uint16_t V);
 
-uint8_t SOUND_PeekRAM(uint32_t A);
-void SOUND_PokeRAM(uint32_t A, uint8_t V);
-
-uint32_t SOUND_GetSCSPRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
-void SOUND_SetSCSPRegister(const unsigned id, const uint32_t value) MDFN_COLD;
-uint32_t SOUND_GetM68KRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
-void SOUND_SetM68KRegister(const unsigned id, const uint32_t value) MDFN_COLD;
-
 #ifdef __cplusplus
 }
 #endif

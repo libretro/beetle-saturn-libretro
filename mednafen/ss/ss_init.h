@@ -128,8 +128,6 @@ void   RebaseTS(const sscpu_timestamp_t timestamp);
 
 /* Fast-mem-map maintenance entry points. */
 bool    InitFastMemMap(void)                                            MDFN_COLD;
-uint8_t CheatMemRead(uint32_t A)                                        MDFN_COLD;
-
 /* MidSync lives in ss.c (uses statics shared with Emulate); InitEvents
  * needs its address to install in the event-handler table.  The phase-7c
  * extraction promoted it from file-static to TU-external so the table

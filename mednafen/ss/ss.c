@@ -1333,19 +1333,6 @@ void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t le
   SetFastMemMap(Astart + Abase, Aend + Abase, ptr, length, is_writeable);
 }
 
-uint8_t CheatMemRead(uint32_t A)
-{
- A &= (1U << 27) - 1;
-
- /* ne16_rbo_be<uint8_t>(base, A) folded - byte read from BE bus
-  * over uint16_t fast-map slot. */
-#ifdef MSB_FIRST
- return ((const uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A];
-#else
- return ((const uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A ^ 1];
-#endif
-}
-
 /* ===================================================================
  * Event system
  * =================================================================== */

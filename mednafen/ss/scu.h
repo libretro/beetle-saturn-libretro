@@ -68,51 +68,6 @@ bool SCU_CheckVDP1HaltKludge(void);
 int32_t SCU_UpdateDMA(int32_t timestamp);
 int32_t SCU_UpdateDSP(int32_t timestamp);
 
-enum
-{
- SCU_GSREG_ILEVEL = 0,
- SCU_GSREG_IVEC,
- SCU_GSREG_ICLEARMASK,
-
- SCU_GSREG_IASSERTED,
- SCU_GSREG_IPENDING,
- SCU_GSREG_IMASK,
-
- SCU_GSREG_D0MD,
- SCU_GSREG_D1MD,
- SCU_GSREG_D2MD,
-
- SCU_GSREG_ASR0_CS0,
- SCU_GSREG_ASR0_CS1,
- SCU_GSREG_ASR1_CS2,
- SCU_GSREG_ASR1_CSD,
-
- SCU_GSREG_AREF,
-
- SCU_GSREG_RSEL,
-
- SCU_GSREG_T0CNT,
- SCU_GSREG_T0CMP,
- SCU_GSREG_T0MET,
-
- SCU_GSREG_T1RLV,
- SCU_GSREG_T1CNT,
- SCU_GSREG_T1MOD,
- SCU_GSREG_T1MET,
-
- SCU_GSREG_TENBL,
- //
- //
- //
- SCU_GSREG_DSP_EXEC,
- SCU_GSREG_DSP_PAUSE,
- SCU_GSREG_DSP_PC,
- SCU_GSREG_DSP_END,
-};
-
-uint32_t SCU_GetRegister(const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
-void SCU_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
-
 /* Phase-7d: promoted from file-static so ss_state.c's
  * LibRetro_StateAction can call it across the C / C++ boundary. */
 void SCU_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;

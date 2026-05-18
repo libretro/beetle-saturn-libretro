@@ -310,26 +310,6 @@ void SOUND_Init(void)
  /* TODO: MEM4B: SS_SetPhysMemMap(0x05A00000, 0x05AFFFFF, SS_SCSP_GetRAMPtr(&SCSP), 0x40000, true); */
 }
 
-uint8_t SOUND_PeekRAM(uint32_t A)
-{
- /* ne16_rbo_be<uint8_t> folded. */
-#ifdef MSB_FIRST
- return ((const uint8_t*)SS_SCSP_GetRAMPtr(&SCSP))[A & 0x7FFFF];
-#else
- return ((const uint8_t*)SS_SCSP_GetRAMPtr(&SCSP))[(A & 0x7FFFF) ^ 1];
-#endif
-}
-
-void SOUND_PokeRAM(uint32_t A, uint8_t V)
-{
- /* ne16_wbo_be<uint8_t> folded. */
-#ifdef MSB_FIRST
- ((uint8_t*)SS_SCSP_GetRAMPtr(&SCSP))[A & 0x7FFFF] = V;
-#else
- ((uint8_t*)SS_SCSP_GetRAMPtr(&SCSP))[(A & 0x7FFFF) ^ 1] = V;
-#endif
-}
-
 /* Roll the 68K timestamp back to 0, propagating the offset to
  * next_scsp_time and run_until_time so the running cycle target
  * stays well-defined across SH-2 timestamp resets. */
@@ -464,22 +444,3 @@ void SOUND_StateAction(StateMem* sm, const unsigned load, const bool data_only)
  SS_SCSP_StateAction(&SCSP, sm, load, data_only, "SCSP");
 }
 
-uint32_t SOUND_GetSCSPRegister(const unsigned id, char* const special, const uint32_t special_len)
-{
- return SS_SCSP_GetRegister(&SCSP, id, special, special_len);
-}
-
-void SOUND_SetSCSPRegister(const unsigned id, const uint32_t value)
-{
- SS_SCSP_SetRegister(&SCSP, id, value);
-}
-
-uint32_t SOUND_GetM68KRegister(const unsigned id, char* const special, const uint32_t special_len)
-{
- return M68K_GetRegister(&SoundCPU, id, special, special_len);
-}
-
-void SOUND_SetM68KRegister(const unsigned id, const uint32_t value)
-{
- M68K_SetRegister(&SoundCPU, id, value);
-}

@@ -1290,11 +1290,6 @@ void CDB_ResetCD(void)	// TODO
  // TODO: Set next event, timestamp + 1.
 }
 
-void CDB_SetCDActive(bool active)	// TODO
-{
-
-}
-
 void CDB_Init(void)
 {
  lastts = 0;
@@ -4307,42 +4302,3 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
  }
 }
 
-uint32_t CDB_GetRegister(const unsigned id, char* const special, const uint32_t special_len)
-{
- uint32_t ret = 0xDEADBEEF;
-
- switch(id)
- {
-  case CDB_GSREG_HIRQ:
-	ret = HIRQ;
-	break;
-
-  case CDB_GSREG_HIRQ_MASK:
-	ret = HIRQ_Mask;
-	break;
-
-  case CDB_GSREG_CDATA0:
-  case CDB_GSREG_CDATA1:
-  case CDB_GSREG_CDATA2:
-  case CDB_GSREG_CDATA3:
-	ret = CData[id - CDB_GSREG_CDATA0];
-	break;
-
-  case CDB_GSREG_RESULT0:
-  case CDB_GSREG_RESULT1:
-  case CDB_GSREG_RESULT2:
-  case CDB_GSREG_RESULT3:
-	ret = Results[id - CDB_GSREG_RESULT0];
-	break;
- }
-
- return ret;
-}
-
-void CDB_SetRegister(const unsigned id, const uint32_t value)
-{
- switch(id)
- {
-
- }
-}

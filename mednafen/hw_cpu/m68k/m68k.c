@@ -167,41 +167,6 @@ void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
  if(load)
   z->XPending &= XPENDING_MASK__VALID;
 }
-uint32_t M68K_GetRegister        (M68K* z, const unsigned id, char* const special, const uint32_t special_len)
-{
- (void)special; (void)special_len; /* reserved-for-future-use, unused today */
- switch(id)
- {
-  default:
-	return 0xDEADBEEF;
-
-  case GSREG_D0: case GSREG_D1: case GSREG_D2: case GSREG_D3:
-  case GSREG_D4: case GSREG_D5: case GSREG_D6: case GSREG_D7:
-	return z->D[id - GSREG_D0];
-
-  case GSREG_A0: case GSREG_A1: case GSREG_A2: case GSREG_A3:
-  case GSREG_A4: case GSREG_A5: case GSREG_A6: case GSREG_A7:
-	return z->A[id - GSREG_A0];
-
-  case GSREG_PC:
-	return z->PC;
-
-  case GSREG_SR:
-	return GetSR(z);
-
-  case GSREG_SSP:
-	if(GetSVisor(z))
-	 return z->A[7];
-	else
-	 return z->SP_Inactive;
-
-  case GSREG_USP:
-	if(!GetSVisor(z))
-	 return z->A[7];
-	else
-	 return z->SP_Inactive;
- }
-}
 void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value)
 {
  switch(id)

@@ -326,8 +326,6 @@ void     M68K_RunSplit1          (M68K* z, uint16_t instr, const unsigned instr_
 void     M68K_SetExtHalted       (M68K* z, bool state);
 void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
                                   const bool data_only, const char* sname);
-uint32_t M68K_GetRegister        (M68K* z, const unsigned id, char* const special,
-                                  const uint32_t special_len);
 void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value);
 
 #ifdef __cplusplus

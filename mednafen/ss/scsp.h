@@ -364,10 +364,7 @@ struct SS_SCSP
 void SS_SCSP_Reset      (SS_SCSP* z, bool pwr) MDFN_COLD;
 void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
 void SS_SCSP_RunSample  (SS_SCSP* z, int16_t* outlr);
-uint32_t SS_SCSP_GetRegister(SS_SCSP* z, const unsigned id, char* const special, const uint32_t special_len) MDFN_COLD;
 void SS_SCSP_SetRegister(SS_SCSP* z, const unsigned id, const uint32_t value) MDFN_COLD;
-void SS_SCSP_MIDI_WriteInput(SS_SCSP* z, uint8_t V);
-
 void SS_SCSP_RW_u8_W0 (SS_SCSP* z, uint32_t A, uint8_t*  DBV_p);
 void SS_SCSP_RW_u16_W0(SS_SCSP* z, uint32_t A, uint16_t* DBV_p);
 void SS_SCSP_RW_u8_W1 (SS_SCSP* z, uint32_t A, uint8_t*  DBV_p);

@@ -64,7 +64,6 @@ int32_t VDP1_CMD_DistortedSprite(const uint16_t*);
 int32_t VDP1_RESUME_Sprite(const uint16_t*);
 int32_t VDP1_CMD_Polygon(const uint16_t*);
 int32_t VDP1_RESUME_Polygon(const uint16_t*);
-int32_t VDP1_CMD_Polyline(const uint16_t*);
 int32_t VDP1_CMD_Line(const uint16_t*);
 int32_t VDP1_RESUME_Line(const uint16_t*);
 
