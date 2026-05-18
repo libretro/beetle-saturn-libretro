@@ -2200,4 +2200,16 @@ INLINE bool CheckPrivilege(M68K* z)
  * m68k_instr*.inc call sites over. */
 #include "m68k_ham_instances.inc.h"
 
+/* Phase-9d-15b: op detempleting via the same preprocessor approach.
+ * The 50 op templates in m68k_private.h are auto-converted (via
+ * tools/gen_op_macros.py) to macro-parameterised body headers, one
+ * per op.  m68k_op_instances.inc.h instantiates them for the 1534
+ * (op, HAM-arg) combinations used by m68k_instr*.inc PLUS the
+ * helper-template (Subtract / ShiftBase / RotateBase) instantiations
+ * reachable from those ops.  Nothing references the macro instances
+ * yet -- they coexist with the C++ templates and get dead-code-
+ * eliminated since no caller exists.  9d-15c switches over the
+ * .inc files and removes the templates. */
+#include "m68k_op_instances.inc.h"
+
 #endif
