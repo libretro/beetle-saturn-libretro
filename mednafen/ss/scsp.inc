@@ -136,11 +136,11 @@ static uint8_t SS_SCSP_MIDI_ReadInput(SS_SCSP* z);
 static void SS_SCSP_RunDMA(SS_SCSP* z);
 static void SS_SCSP_RunDSP(SS_SCSP* z);
 static void SS_SCSP_DecodeMPROG(SS_SCSP* z);
-static void SS_SCSP_RunEG(SS_SCSP* z, SS_SCSP_Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc);
+static void SS_SCSP_RunEG(SS_SCSP_Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc);
 static uint8_t SS_SCSP_GetALFO(SS_SCSP* z, SS_SCSP_Slot* s);
 static int SS_SCSP_GetPLFO(SS_SCSP* z, SS_SCSP_Slot* s);
-static void SS_SCSP_RunLFO(SS_SCSP* z, SS_SCSP_Slot* s);
-static void SS_SCSP_RecalcShortWaveMask(SS_SCSP* z, SS_SCSP_Slot* s);
+static void SS_SCSP_RunLFO(SS_SCSP_Slot* s);
+static void SS_SCSP_RecalcShortWaveMask(SS_SCSP_Slot* s);
 
 static void SS_SCSP_RecalcSoundInt(SS_SCSP* z)	// Sound CPU interrupts
 {
@@ -180,7 +180,7 @@ static void SS_SCSP_RecalcMainInt(SS_SCSP* z)	// Main CPU interrupts
  SCSP_MainIntChanged(z, (bool)(z->MCIPD & z->MCIEB));
 }
 
-static INLINE void SS_SCSP_RecalcShortWaveMask(SS_SCSP* z, SS_SCSP_Slot* s)
+static INLINE void SS_SCSP_RecalcShortWaveMask(SS_SCSP_Slot* s)
 {
  const unsigned lev = s->LoopEnd & 0x780;
 
@@ -207,7 +207,7 @@ void SS_SCSP_Reset(SS_SCSP* z, bool powering_up)
 
   z->Slots[i].LFOTimeCounter = 1;
   //
-  SS_SCSP_RecalcShortWaveMask(z, &z->Slots[i]);
+  SS_SCSP_RecalcShortWaveMask(&z->Slots[i]);
  }
 
  for(unsigned i = 0; i < 2; i++)
@@ -1045,7 +1045,7 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
     case 0x03:
 	s->LoopEnd = *SRV;
 	//
-	SS_SCSP_RecalcShortWaveMask(z, s);
+	SS_SCSP_RecalcShortWaveMask(s);
 	break;
 
     case 0x04:
@@ -1082,7 +1082,7 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
 	s->Octave = (*SRV >> 11) & 0xF;
 	s->ShortWave = (*SRV >> 15) & 0x1;
 	//
-	SS_SCSP_RecalcShortWaveMask(z, s);
+	SS_SCSP_RecalcShortWaveMask(s);
 	break;
 
     case 0x09:
@@ -1516,7 +1516,7 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
     case 0x03:
 	s->LoopEnd = *SRV;
 	//
-	SS_SCSP_RecalcShortWaveMask(z, s);
+	SS_SCSP_RecalcShortWaveMask(s);
 	break;
 
     case 0x04:
@@ -1553,7 +1553,7 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
 	s->Octave = (*SRV >> 11) & 0xF;
 	s->ShortWave = (*SRV >> 15) & 0x1;
 	//
-	SS_SCSP_RecalcShortWaveMask(z, s);
+	SS_SCSP_RecalcShortWaveMask(s);
 	break;
 
     case 0x09:
@@ -1962,7 +1962,7 @@ static NO_INLINE void SS_SCSP_RunDMA(SS_SCSP* z)
  SS_SCSP_RecalcMainInt(z);
 }
 
-static INLINE void SS_SCSP_RunEG(SS_SCSP* z, SS_SCSP_Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc)
+static INLINE void SS_SCSP_RunEG(SS_SCSP_Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc)
 {
  const uint32_t EnvLevelCache = s->EnvLevel;
  const unsigned ERateNoScale = s->EnvRates[s->EnvPhase];
@@ -2087,7 +2087,7 @@ static INLINE int SS_SCSP_GetPLFO(SS_SCSP* z, SS_SCSP_Slot* s)
  return ret;
 }
 
-static INLINE void SS_SCSP_RunLFO(SS_SCSP* z, SS_SCSP_Slot* s)
+static INLINE void SS_SCSP_RunLFO(SS_SCSP_Slot* s)
 {
  s->LFOTimeCounter--;
  if(!s->LFOTimeCounter)
@@ -2491,7 +2491,7 @@ INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
   else
    key_eg_scale = ((int)(0x00) > (int)(((int)(0x0F) < (int)(s->KRS + (s->Octave ^ 0x8) - 0x8) ? (int)(0x0F) : (int)(s->KRS + (s->Octave ^ 0x8) - 0x8))) ? (int)(0x00) : (int)(((int)(0x0F) < (int)(s->KRS + (s->Octave ^ 0x8) - 0x8) ? (int)(0x0F) : (int)(s->KRS + (s->Octave ^ 0x8) - 0x8))));
 
-  SS_SCSP_RunEG(z, s, key_eg_scale, SampleCounter, SampleCounterXC);
+  SS_SCSP_RunEG(s, key_eg_scale, SampleCounter, SampleCounterXC);
 
   if(z->KeyExecute && (s->EnvPhase == ENV_PHASE_RELEASE) == s->KeyBit)
   {
@@ -2641,7 +2641,7 @@ INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
   //
   //
 
-  SS_SCSP_RunLFO(z, s);	// Run between PLFO fetching and ALFO fetching.
+  SS_SCSP_RunLFO(s);	// Run between PLFO fetching and ALFO fetching.
 
   // Do z->LFSR clocking between sample fetching and ALFO fetching.
   z->LFSR = (z->LFSR >> 1) | (((z->LFSR >> 5) ^ z->LFSR) & 1) << 16;

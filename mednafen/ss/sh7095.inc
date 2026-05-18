@@ -107,7 +107,7 @@ static void SH7095_FRT_Reset(SH7095* z);
 static void SH7095_FRT_CheckOCR(SH7095* z);
 static void SH7095_FRT_ClockFRC(SH7095* z);
 static void SH7095_Cache_AssocPurge(SH7095* z, const uint32_t A);
-static int  SH7095_Cache_FindWay(SH7095* z, SH7095_CacheEntry* const cent, const uint32_t ATM);
+static int  SH7095_Cache_FindWay(SH7095_CacheEntry* const cent, const uint32_t ATM);
 static uint8_t  SH7095_BSC_BusRead_u8 (SH7095* z, uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
 static uint16_t SH7095_BSC_BusRead_u16(SH7095* z, uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
 static uint32_t SH7095_BSC_BusRead_u32(SH7095* z, uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
@@ -3938,7 +3938,7 @@ static INLINE void SH7095_Cache_AssocPurge(SH7095* z, const uint32_t A)
 #include <arm_neon.h>
 #endif
 
-static INLINE int SH7095_Cache_FindWay(SH7095* z, SH7095_CacheEntry* const cent, const uint32_t ATM)
+static INLINE int SH7095_Cache_FindWay(SH7095_CacheEntry* const cent, const uint32_t ATM)
 {
 #if defined(__SSE2__)
  __m128i atm = _mm_set1_epi32(ATM);
@@ -3976,7 +3976,7 @@ INLINE void SH7095_Cache_WriteUpdate_u8(SH7095* z, uint32_t A, uint8_t V)
  const uint32_t ATM = A & (0x7FFFF << 10);
  const unsigned ena = (A >> 4) & 0x3F;
  SH7095_CacheEntry* cent = &z->Cache[ena];
- const int way_match = SH7095_Cache_FindWay(z, cent, ATM);
+ const int way_match = SH7095_Cache_FindWay(cent, ATM);
 
  if(MDFN_LIKELY(way_match >= 0))
  {
@@ -3990,7 +3990,7 @@ static INLINE void SH7095_Cache_WriteUpdate_u16(SH7095* z, uint32_t A, uint16_t 
  const uint32_t ATM = A & (0x7FFFF << 10);
  const unsigned ena = (A >> 4) & 0x3F;
  SH7095_CacheEntry* cent = &z->Cache[ena];
- const int way_match = SH7095_Cache_FindWay(z, cent, ATM);
+ const int way_match = SH7095_Cache_FindWay(cent, ATM);
 
  if(MDFN_LIKELY(way_match >= 0))
  {
@@ -4004,7 +4004,7 @@ static INLINE void SH7095_Cache_WriteUpdate_u32(SH7095* z, uint32_t A, uint32_t 
  const uint32_t ATM = A & (0x7FFFF << 10);
  const unsigned ena = (A >> 4) & 0x3F;
  SH7095_CacheEntry* cent = &z->Cache[ena];
- const int way_match = SH7095_Cache_FindWay(z, cent, ATM);
+ const int way_match = SH7095_Cache_FindWay(cent, ATM);
 
  if(MDFN_LIKELY(way_match >= 0))
  {
@@ -4120,7 +4120,7 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 	 ATM = A & (0x7FFFF << 10);										\
 	 cent = &z->Cache[(A >> 4) & 0x3F];									\
 														\
-	 way_match = SH7095_Cache_FindWay(z, cent, ATM);									\
+	 way_match = SH7095_Cache_FindWay(cent, ATM);									\
 														\
 	 if(MDFN_UNLIKELY(way_match < 0)) /* z->Cache miss! */							\
 	 {													\
