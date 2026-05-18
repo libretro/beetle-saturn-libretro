@@ -765,8 +765,13 @@ INLINE void M68K::CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 //
 // OR
 //
+// Phase-9d-12: bitwise family (AND/OR/EOR) extracted from M68K
+// class scope.  Standard pattern (Flag_X -> z->Flag_X, timestamp
+// -> z->timestamp, CALC_ZN(this,...) -> CALC_ZN(z,...)); BTST/BCHG
+// /BCLR/BSET below follow the same transform with only Flag_Z.
+//
 template<typename T, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::OR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
+INLINE void OR(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
 {
  T const src_data = src.read();
  T const dst_data = dst.read();
@@ -775,14 +780,14 @@ INLINE void M68K::OR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
  if(sizeof(T) == 4 && DAM == DATA_REG_DIR)
  {
   if(SAM == IMMEDIATE || SAM == DATA_REG_DIR)
-   timestamp += 4;
+   z->timestamp += 4;
   else
-   timestamp += 2;
+   z->timestamp += 2;
  }
 
- CALC_ZN(this, T, result);
- Flag_C = (false);
- Flag_V = false;
+ CALC_ZN(z, T, result);
+ z->Flag_C = (false);
+ z->Flag_V = false;
 
  dst.write(result);
 }
@@ -792,7 +797,7 @@ INLINE void M68K::OR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 // EOR
 //
 template<typename T, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::EOR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
+INLINE void EOR(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
 {
  T const src_data = src.read();
  T const dst_data = dst.read();
@@ -801,14 +806,14 @@ INLINE void M68K::EOR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
  if(sizeof(T) == 4 && DAM == DATA_REG_DIR)
  {
   if(SAM == IMMEDIATE || SAM == DATA_REG_DIR)
-   timestamp += 4;
+   z->timestamp += 4;
   else
-   timestamp += 2;
+   z->timestamp += 2;
  }
 
- CALC_ZN(this, T, result);
- Flag_C = false;
- Flag_V = false;
+ CALC_ZN(z, T, result);
+ z->Flag_C = false;
+ z->Flag_V = false;
 
  dst.write(result);
 }
@@ -818,7 +823,7 @@ INLINE void M68K::EOR(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 // AND
 //
 template<typename T, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::AND(HAM<T, SAM> &src, HAM<T, DAM> &dst)
+INLINE void AND(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
 {
  T const src_data = src.read();
  T const dst_data = dst.read();
@@ -827,14 +832,14 @@ INLINE void M68K::AND(HAM<T, SAM> &src, HAM<T, DAM> &dst)
  if(sizeof(T) == 4 && DAM == DATA_REG_DIR)
  {
   if(SAM == IMMEDIATE || SAM == DATA_REG_DIR)
-   timestamp += 4;
+   z->timestamp += 4;
   else
-   timestamp += 2;
+   z->timestamp += 2;
  }
 
- CALC_ZN(this, T, result);
- Flag_C = false;
- Flag_V = false;
+ CALC_ZN(z, T, result);
+ z->Flag_C = false;
+ z->Flag_V = false;
 
  dst.write(result);
 }
@@ -1324,43 +1329,43 @@ INLINE void M68K::MOVEP_l_mem_to_reg(const unsigned ar, const unsigned dr)
 
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::BTST(HAM<T, TAM> &targ, unsigned wb)
+INLINE void BTST(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb)
 {
  T const src_data = targ.read();
  wb &= (sizeof(T) << 3) - 1;
 
- Flag_Z = (((src_data >> wb) & 1) == 0);
+ z->Flag_Z = (((src_data >> wb) & 1) == 0);
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::BCHG(HAM<T, TAM> &targ, unsigned wb)
+INLINE void BCHG(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb)
 {
  T const src_data = targ.read();
  wb &= (sizeof(T) << 3) - 1;
 
- Flag_Z = (((src_data >> wb) & 1) == 0);
+ z->Flag_Z = (((src_data >> wb) & 1) == 0);
 
  targ.write(src_data ^ (1U << wb));
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::BCLR(HAM<T, TAM> &targ, unsigned wb)
+INLINE void BCLR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb)
 {
  T const src_data = targ.read();
  wb &= (sizeof(T) << 3) - 1;
 
- Flag_Z = (((src_data >> wb) & 1) == 0);
+ z->Flag_Z = (((src_data >> wb) & 1) == 0);
 
  targ.write(src_data & ~(1U << wb));
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::BSET(HAM<T, TAM> &targ, unsigned wb)
+INLINE void BSET(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb)
 {
  T const src_data = targ.read();
  wb &= (sizeof(T) << 3) - 1;
 
- Flag_Z = (((src_data >> wb) & 1) == 0);
+ z->Flag_Z = (((src_data >> wb) & 1) == 0);
 
  targ.write(src_data | (1U << wb));
 }

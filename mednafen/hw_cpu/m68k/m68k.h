@@ -391,14 +391,8 @@ struct M68K
  template<typename T, AddressMode SAM, AddressMode DAM>
  void CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
- template<typename T, AddressMode SAM, AddressMode DAM>
- void OR(HAM<T, SAM> &src, HAM<T, DAM> &dst);
-
- template<typename T, AddressMode SAM, AddressMode DAM>
- void EOR(HAM<T, SAM> &src, HAM<T, DAM> &dst);
-
- template<typename T, AddressMode SAM, AddressMode DAM>
- void AND(HAM<T, SAM> &src, HAM<T, DAM> &dst);
+ /* Phase-9d-12: OR, EOR, AND retired from struct M68K scope; see
+  * the free-template block after struct M68K closes. */
 
  void ORI_CCR(void);
  void ORI_SR(void);
@@ -446,17 +440,8 @@ struct M68K
  void MOVEP_w_reg_to_mem(const unsigned ar, const unsigned dr);
  void MOVEP_l_reg_to_mem(const unsigned ar, const unsigned dr);
 
- template<typename T, AddressMode TAM>
- void BTST(HAM<T, TAM> &targ, unsigned wb);
-
- template<typename T, AddressMode TAM>
- void BCHG(HAM<T, TAM> &targ, unsigned wb);
-
- template<typename T, AddressMode TAM>
- void BCLR(HAM<T, TAM> &targ, unsigned wb);
-
- template<typename T, AddressMode TAM>
- void BSET(HAM<T, TAM> &targ, unsigned wb);
+ /* Phase-9d-12: BTST, BCHG, BCLR, BSET retired from struct M68K
+  * scope; see the free-template block after struct M68K closes. */
 
  template<typename T, AddressMode SAM, AddressMode DAM>
  void MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst);
@@ -659,6 +644,28 @@ void LEA(M68K* z, M68K::HAM<T, SAM> &src, const unsigned ar);
 
 template<typename T, AddressMode SAM>
 void PEA(M68K* z, M68K::HAM<T, SAM> &src);
+
+/* Phase-9d-12: bitwise (AND/OR/EOR) + bit-test (BTST/BCHG/BCLR/BSET). */
+template<typename T, AddressMode SAM, AddressMode DAM>
+void AND(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode SAM, AddressMode DAM>
+void OR(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode SAM, AddressMode DAM>
+void EOR(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode TAM>
+void BTST(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb);
+
+template<typename T, AddressMode TAM>
+void BCHG(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb);
+
+template<typename T, AddressMode TAM>
+void BCLR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb);
+
+template<typename T, AddressMode TAM>
+void BSET(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb);
 #endif /* __cplusplus */
 
 /* M68K_* free-function API exposed to consumers of m68k.h.

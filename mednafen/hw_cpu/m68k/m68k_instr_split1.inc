@@ -7,7 +7,7 @@ case 0x0005:
 case 0x0006:
 case 0x0007:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -20,7 +20,7 @@ case 0x0015:
 case 0x0016:
 case 0x0017:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -33,7 +33,7 @@ case 0x001d:
 case 0x001e:
 case 0x001f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -46,7 +46,7 @@ case 0x0025:
 case 0x0026:
 case 0x0027:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -59,7 +59,7 @@ case 0x002d:
 case 0x002e:
 case 0x002f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -72,37 +72,37 @@ case 0x0035:
 case 0x0036:
 case 0x0037:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0038:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0039:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x003a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x003b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x003c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -115,7 +115,7 @@ case 0x0045:
 case 0x0046:
 case 0x0047:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -128,7 +128,7 @@ case 0x0055:
 case 0x0056:
 case 0x0057:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -141,7 +141,7 @@ case 0x005d:
 case 0x005e:
 case 0x005f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -154,7 +154,7 @@ case 0x0065:
 case 0x0066:
 case 0x0067:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -167,7 +167,7 @@ case 0x006d:
 case 0x006e:
 case 0x006f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -180,37 +180,37 @@ case 0x0075:
 case 0x0076:
 case 0x0077:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0078:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0079:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x007a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x007b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x007c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -223,7 +223,7 @@ case 0x0085:
 case 0x0086:
 case 0x0087:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -236,7 +236,7 @@ case 0x0095:
 case 0x0096:
 case 0x0097:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -249,7 +249,7 @@ case 0x009d:
 case 0x009e:
 case 0x009f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -262,7 +262,7 @@ case 0x00a5:
 case 0x00a6:
 case 0x00a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -275,7 +275,7 @@ case 0x00ad:
 case 0x00ae:
 case 0x00af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -288,37 +288,37 @@ case 0x00b5:
 case 0x00b6:
 case 0x00b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x00b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x00b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x00ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x00bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x00bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -465,7 +465,7 @@ case 0x0115:
 case 0x0116:
 case 0x0117:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -478,7 +478,7 @@ case 0x011d:
 case 0x011e:
 case 0x011f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -491,7 +491,7 @@ case 0x0125:
 case 0x0126:
 case 0x0127:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -504,7 +504,7 @@ case 0x012d:
 case 0x012e:
 case 0x012f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -517,19 +517,19 @@ case 0x0135:
 case 0x0136:
 case 0x0137:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0138:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0139:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -542,7 +542,7 @@ case 0x0155:
 case 0x0156:
 case 0x0157:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -555,7 +555,7 @@ case 0x015d:
 case 0x015e:
 case 0x015f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -568,7 +568,7 @@ case 0x0165:
 case 0x0166:
 case 0x0167:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -581,7 +581,7 @@ case 0x016d:
 case 0x016e:
 case 0x016f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -594,19 +594,19 @@ case 0x0175:
 case 0x0176:
 case 0x0177:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0178:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0179:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -619,7 +619,7 @@ case 0x0195:
 case 0x0196:
 case 0x0197:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -632,7 +632,7 @@ case 0x019d:
 case 0x019e:
 case 0x019f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -645,7 +645,7 @@ case 0x01a5:
 case 0x01a6:
 case 0x01a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -658,7 +658,7 @@ case 0x01ad:
 case 0x01ae:
 case 0x01af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -671,19 +671,19 @@ case 0x01b5:
 case 0x01b6:
 case 0x01b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x01b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x01b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -804,7 +804,7 @@ case 0x0205:
 case 0x0206:
 case 0x0207:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -817,7 +817,7 @@ case 0x0215:
 case 0x0216:
 case 0x0217:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -830,7 +830,7 @@ case 0x021d:
 case 0x021e:
 case 0x021f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -843,7 +843,7 @@ case 0x0225:
 case 0x0226:
 case 0x0227:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -856,7 +856,7 @@ case 0x022d:
 case 0x022e:
 case 0x022f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -869,37 +869,37 @@ case 0x0235:
 case 0x0236:
 case 0x0237:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0238:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0239:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x023a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x023b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x023c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -912,7 +912,7 @@ case 0x0245:
 case 0x0246:
 case 0x0247:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -925,7 +925,7 @@ case 0x0255:
 case 0x0256:
 case 0x0257:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -938,7 +938,7 @@ case 0x025d:
 case 0x025e:
 case 0x025f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -951,7 +951,7 @@ case 0x0265:
 case 0x0266:
 case 0x0267:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -964,7 +964,7 @@ case 0x026d:
 case 0x026e:
 case 0x026f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -977,37 +977,37 @@ case 0x0275:
 case 0x0276:
 case 0x0277:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0278:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0279:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x027a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x027b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x027c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1020,7 +1020,7 @@ case 0x0285:
 case 0x0286:
 case 0x0287:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1033,7 +1033,7 @@ case 0x0295:
 case 0x0296:
 case 0x0297:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1046,7 +1046,7 @@ case 0x029d:
 case 0x029e:
 case 0x029f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1059,7 +1059,7 @@ case 0x02a5:
 case 0x02a6:
 case 0x02a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1072,7 +1072,7 @@ case 0x02ad:
 case 0x02ae:
 case 0x02af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1085,37 +1085,37 @@ case 0x02b5:
 case 0x02b6:
 case 0x02b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x02b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x02b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x02ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x02bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x02bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1262,7 +1262,7 @@ case 0x0315:
 case 0x0316:
 case 0x0317:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1275,7 +1275,7 @@ case 0x031d:
 case 0x031e:
 case 0x031f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1288,7 +1288,7 @@ case 0x0325:
 case 0x0326:
 case 0x0327:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1301,7 +1301,7 @@ case 0x032d:
 case 0x032e:
 case 0x032f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1314,19 +1314,19 @@ case 0x0335:
 case 0x0336:
 case 0x0337:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0338:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0339:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -1339,7 +1339,7 @@ case 0x0355:
 case 0x0356:
 case 0x0357:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1352,7 +1352,7 @@ case 0x035d:
 case 0x035e:
 case 0x035f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1365,7 +1365,7 @@ case 0x0365:
 case 0x0366:
 case 0x0367:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1378,7 +1378,7 @@ case 0x036d:
 case 0x036e:
 case 0x036f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1391,19 +1391,19 @@ case 0x0375:
 case 0x0376:
 case 0x0377:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0378:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0379:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -1416,7 +1416,7 @@ case 0x0395:
 case 0x0396:
 case 0x0397:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1429,7 +1429,7 @@ case 0x039d:
 case 0x039e:
 case 0x039f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1442,7 +1442,7 @@ case 0x03a5:
 case 0x03a6:
 case 0x03a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1455,7 +1455,7 @@ case 0x03ad:
 case 0x03ae:
 case 0x03af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -1468,19 +1468,19 @@ case 0x03b5:
 case 0x03b6:
 case 0x03b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x03b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x03b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -1601,7 +1601,7 @@ case 0x0405:
 case 0x0406:
 case 0x0407:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1614,7 +1614,7 @@ case 0x0415:
 case 0x0416:
 case 0x0417:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1627,7 +1627,7 @@ case 0x041d:
 case 0x041e:
 case 0x041f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1640,7 +1640,7 @@ case 0x0425:
 case 0x0426:
 case 0x0427:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1653,7 +1653,7 @@ case 0x042d:
 case 0x042e:
 case 0x042f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1666,37 +1666,37 @@ case 0x0435:
 case 0x0436:
 case 0x0437:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0438:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0439:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x043a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x043b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x043c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1709,7 +1709,7 @@ case 0x0445:
 case 0x0446:
 case 0x0447:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1722,7 +1722,7 @@ case 0x0455:
 case 0x0456:
 case 0x0457:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1735,7 +1735,7 @@ case 0x045d:
 case 0x045e:
 case 0x045f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1748,7 +1748,7 @@ case 0x0465:
 case 0x0466:
 case 0x0467:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1761,7 +1761,7 @@ case 0x046d:
 case 0x046e:
 case 0x046f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1774,37 +1774,37 @@ case 0x0475:
 case 0x0476:
 case 0x0477:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0478:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0479:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x047a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x047b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x047c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1817,7 +1817,7 @@ case 0x0485:
 case 0x0486:
 case 0x0487:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1830,7 +1830,7 @@ case 0x0495:
 case 0x0496:
 case 0x0497:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1843,7 +1843,7 @@ case 0x049d:
 case 0x049e:
 case 0x049f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1856,7 +1856,7 @@ case 0x04a5:
 case 0x04a6:
 case 0x04a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1869,7 +1869,7 @@ case 0x04ad:
 case 0x04ae:
 case 0x04af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -1882,37 +1882,37 @@ case 0x04b5:
 case 0x04b6:
 case 0x04b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x04b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x04b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x04ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x04bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x04bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2059,7 +2059,7 @@ case 0x0515:
 case 0x0516:
 case 0x0517:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2072,7 +2072,7 @@ case 0x051d:
 case 0x051e:
 case 0x051f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2085,7 +2085,7 @@ case 0x0525:
 case 0x0526:
 case 0x0527:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2098,7 +2098,7 @@ case 0x052d:
 case 0x052e:
 case 0x052f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2111,19 +2111,19 @@ case 0x0535:
 case 0x0536:
 case 0x0537:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0538:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0539:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -2136,7 +2136,7 @@ case 0x0555:
 case 0x0556:
 case 0x0557:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2149,7 +2149,7 @@ case 0x055d:
 case 0x055e:
 case 0x055f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2162,7 +2162,7 @@ case 0x0565:
 case 0x0566:
 case 0x0567:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2175,7 +2175,7 @@ case 0x056d:
 case 0x056e:
 case 0x056f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2188,19 +2188,19 @@ case 0x0575:
 case 0x0576:
 case 0x0577:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0578:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0579:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -2213,7 +2213,7 @@ case 0x0595:
 case 0x0596:
 case 0x0597:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2226,7 +2226,7 @@ case 0x059d:
 case 0x059e:
 case 0x059f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2239,7 +2239,7 @@ case 0x05a5:
 case 0x05a6:
 case 0x05a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2252,7 +2252,7 @@ case 0x05ad:
 case 0x05ae:
 case 0x05af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2265,19 +2265,19 @@ case 0x05b5:
 case 0x05b6:
 case 0x05b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x05b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x05b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -2398,7 +2398,7 @@ case 0x0605:
 case 0x0606:
 case 0x0607:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2411,7 +2411,7 @@ case 0x0615:
 case 0x0616:
 case 0x0617:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2424,7 +2424,7 @@ case 0x061d:
 case 0x061e:
 case 0x061f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2437,7 +2437,7 @@ case 0x0625:
 case 0x0626:
 case 0x0627:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2450,7 +2450,7 @@ case 0x062d:
 case 0x062e:
 case 0x062f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2463,37 +2463,37 @@ case 0x0635:
 case 0x0636:
 case 0x0637:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0638:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0639:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x063a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x063b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x063c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2506,7 +2506,7 @@ case 0x0645:
 case 0x0646:
 case 0x0647:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2519,7 +2519,7 @@ case 0x0655:
 case 0x0656:
 case 0x0657:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2532,7 +2532,7 @@ case 0x065d:
 case 0x065e:
 case 0x065f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2545,7 +2545,7 @@ case 0x0665:
 case 0x0666:
 case 0x0667:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2558,7 +2558,7 @@ case 0x066d:
 case 0x066e:
 case 0x066f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2571,37 +2571,37 @@ case 0x0675:
 case 0x0676:
 case 0x0677:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0678:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0679:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x067a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x067b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x067c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2614,7 +2614,7 @@ case 0x0685:
 case 0x0686:
 case 0x0687:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2627,7 +2627,7 @@ case 0x0695:
 case 0x0696:
 case 0x0697:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2640,7 +2640,7 @@ case 0x069d:
 case 0x069e:
 case 0x069f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2653,7 +2653,7 @@ case 0x06a5:
 case 0x06a6:
 case 0x06a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2666,7 +2666,7 @@ case 0x06ad:
 case 0x06ae:
 case 0x06af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2679,37 +2679,37 @@ case 0x06b5:
 case 0x06b6:
 case 0x06b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x06b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x06b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x06ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x06bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x06bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -2856,7 +2856,7 @@ case 0x0715:
 case 0x0716:
 case 0x0717:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2869,7 +2869,7 @@ case 0x071d:
 case 0x071e:
 case 0x071f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2882,7 +2882,7 @@ case 0x0725:
 case 0x0726:
 case 0x0727:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2895,7 +2895,7 @@ case 0x072d:
 case 0x072e:
 case 0x072f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2908,19 +2908,19 @@ case 0x0735:
 case 0x0736:
 case 0x0737:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0738:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0739:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -2933,7 +2933,7 @@ case 0x0755:
 case 0x0756:
 case 0x0757:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2946,7 +2946,7 @@ case 0x075d:
 case 0x075e:
 case 0x075f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2959,7 +2959,7 @@ case 0x0765:
 case 0x0766:
 case 0x0767:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2972,7 +2972,7 @@ case 0x076d:
 case 0x076e:
 case 0x076f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -2985,19 +2985,19 @@ case 0x0775:
 case 0x0776:
 case 0x0777:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0778:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0779:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -3010,7 +3010,7 @@ case 0x0795:
 case 0x0796:
 case 0x0797:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3023,7 +3023,7 @@ case 0x079d:
 case 0x079e:
 case 0x079f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3036,7 +3036,7 @@ case 0x07a5:
 case 0x07a6:
 case 0x07a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3049,7 +3049,7 @@ case 0x07ad:
 case 0x07ae:
 case 0x07af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3062,19 +3062,19 @@ case 0x07b5:
 case 0x07b6:
 case 0x07b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x07b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x07b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -3195,7 +3195,7 @@ case 0x0805:
 case 0x0806:
 case 0x0807:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3208,7 +3208,7 @@ case 0x0815:
 case 0x0816:
 case 0x0817:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3221,7 +3221,7 @@ case 0x081d:
 case 0x081e:
 case 0x081f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3234,7 +3234,7 @@ case 0x0825:
 case 0x0826:
 case 0x0827:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3247,7 +3247,7 @@ case 0x082d:
 case 0x082e:
 case 0x082f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3260,37 +3260,37 @@ case 0x0835:
 case 0x0836:
 case 0x0837:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0838:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0839:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x083a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x083b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x083c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3303,7 +3303,7 @@ case 0x0845:
 case 0x0846:
 case 0x0847:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3316,7 +3316,7 @@ case 0x0855:
 case 0x0856:
 case 0x0857:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3329,7 +3329,7 @@ case 0x085d:
 case 0x085e:
 case 0x085f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3342,7 +3342,7 @@ case 0x0865:
 case 0x0866:
 case 0x0867:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3355,7 +3355,7 @@ case 0x086d:
 case 0x086e:
 case 0x086f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3368,37 +3368,37 @@ case 0x0875:
 case 0x0876:
 case 0x0877:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0878:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0879:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x087a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x087b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x087c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3411,7 +3411,7 @@ case 0x0885:
 case 0x0886:
 case 0x0887:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3424,7 +3424,7 @@ case 0x0895:
 case 0x0896:
 case 0x0897:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3437,7 +3437,7 @@ case 0x089d:
 case 0x089e:
 case 0x089f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3450,7 +3450,7 @@ case 0x08a5:
 case 0x08a6:
 case 0x08a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3463,7 +3463,7 @@ case 0x08ad:
 case 0x08ae:
 case 0x08af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3476,37 +3476,37 @@ case 0x08b5:
 case 0x08b6:
 case 0x08b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x08b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x08b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x08ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x08bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x08bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -3653,7 +3653,7 @@ case 0x0915:
 case 0x0916:
 case 0x0917:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3666,7 +3666,7 @@ case 0x091d:
 case 0x091e:
 case 0x091f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3679,7 +3679,7 @@ case 0x0925:
 case 0x0926:
 case 0x0927:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3692,7 +3692,7 @@ case 0x092d:
 case 0x092e:
 case 0x092f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3705,19 +3705,19 @@ case 0x0935:
 case 0x0936:
 case 0x0937:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0938:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0939:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -3730,7 +3730,7 @@ case 0x0955:
 case 0x0956:
 case 0x0957:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3743,7 +3743,7 @@ case 0x095d:
 case 0x095e:
 case 0x095f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3756,7 +3756,7 @@ case 0x0965:
 case 0x0966:
 case 0x0967:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3769,7 +3769,7 @@ case 0x096d:
 case 0x096e:
 case 0x096f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3782,19 +3782,19 @@ case 0x0975:
 case 0x0976:
 case 0x0977:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0978:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0979:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -3807,7 +3807,7 @@ case 0x0995:
 case 0x0996:
 case 0x0997:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3820,7 +3820,7 @@ case 0x099d:
 case 0x099e:
 case 0x099f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3833,7 +3833,7 @@ case 0x09a5:
 case 0x09a6:
 case 0x09a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3846,7 +3846,7 @@ case 0x09ad:
 case 0x09ae:
 case 0x09af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -3859,19 +3859,19 @@ case 0x09b5:
 case 0x09b6:
 case 0x09b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x09b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x09b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -3992,7 +3992,7 @@ case 0x0a05:
 case 0x0a06:
 case 0x0a07:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4005,7 +4005,7 @@ case 0x0a15:
 case 0x0a16:
 case 0x0a17:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4018,7 +4018,7 @@ case 0x0a1d:
 case 0x0a1e:
 case 0x0a1f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4031,7 +4031,7 @@ case 0x0a25:
 case 0x0a26:
 case 0x0a27:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4044,7 +4044,7 @@ case 0x0a2d:
 case 0x0a2e:
 case 0x0a2f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4057,37 +4057,37 @@ case 0x0a35:
 case 0x0a36:
 case 0x0a37:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a38:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a39:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a3a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a3b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a3c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4100,7 +4100,7 @@ case 0x0a45:
 case 0x0a46:
 case 0x0a47:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4113,7 +4113,7 @@ case 0x0a55:
 case 0x0a56:
 case 0x0a57:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4126,7 +4126,7 @@ case 0x0a5d:
 case 0x0a5e:
 case 0x0a5f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4139,7 +4139,7 @@ case 0x0a65:
 case 0x0a66:
 case 0x0a67:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4152,7 +4152,7 @@ case 0x0a6d:
 case 0x0a6e:
 case 0x0a6f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4165,37 +4165,37 @@ case 0x0a75:
 case 0x0a76:
 case 0x0a77:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a78:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a79:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a7a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a7b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0a7c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4208,7 +4208,7 @@ case 0x0a85:
 case 0x0a86:
 case 0x0a87:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4221,7 +4221,7 @@ case 0x0a95:
 case 0x0a96:
 case 0x0a97:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4234,7 +4234,7 @@ case 0x0a9d:
 case 0x0a9e:
 case 0x0a9f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4247,7 +4247,7 @@ case 0x0aa5:
 case 0x0aa6:
 case 0x0aa7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4260,7 +4260,7 @@ case 0x0aad:
 case 0x0aae:
 case 0x0aaf:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4273,37 +4273,37 @@ case 0x0ab5:
 case 0x0ab6:
 case 0x0ab7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0ab8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0ab9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0aba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0abb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0abc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4450,7 +4450,7 @@ case 0x0b15:
 case 0x0b16:
 case 0x0b17:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4463,7 +4463,7 @@ case 0x0b1d:
 case 0x0b1e:
 case 0x0b1f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4476,7 +4476,7 @@ case 0x0b25:
 case 0x0b26:
 case 0x0b27:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4489,7 +4489,7 @@ case 0x0b2d:
 case 0x0b2e:
 case 0x0b2f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4502,19 +4502,19 @@ case 0x0b35:
 case 0x0b36:
 case 0x0b37:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0b38:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0b39:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -4527,7 +4527,7 @@ case 0x0b55:
 case 0x0b56:
 case 0x0b57:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4540,7 +4540,7 @@ case 0x0b5d:
 case 0x0b5e:
 case 0x0b5f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4553,7 +4553,7 @@ case 0x0b65:
 case 0x0b66:
 case 0x0b67:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4566,7 +4566,7 @@ case 0x0b6d:
 case 0x0b6e:
 case 0x0b6f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4579,19 +4579,19 @@ case 0x0b75:
 case 0x0b76:
 case 0x0b77:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0b78:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0b79:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -4604,7 +4604,7 @@ case 0x0b95:
 case 0x0b96:
 case 0x0b97:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4617,7 +4617,7 @@ case 0x0b9d:
 case 0x0b9e:
 case 0x0b9f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4630,7 +4630,7 @@ case 0x0ba5:
 case 0x0ba6:
 case 0x0ba7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4643,7 +4643,7 @@ case 0x0bad:
 case 0x0bae:
 case 0x0baf:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -4656,19 +4656,19 @@ case 0x0bb5:
 case 0x0bb6:
 case 0x0bb7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0bb8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0bb9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -4789,7 +4789,7 @@ case 0x0c05:
 case 0x0c06:
 case 0x0c07:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4802,7 +4802,7 @@ case 0x0c15:
 case 0x0c16:
 case 0x0c17:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4815,7 +4815,7 @@ case 0x0c1d:
 case 0x0c1e:
 case 0x0c1f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4828,7 +4828,7 @@ case 0x0c25:
 case 0x0c26:
 case 0x0c27:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4841,7 +4841,7 @@ case 0x0c2d:
 case 0x0c2e:
 case 0x0c2f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4854,37 +4854,37 @@ case 0x0c35:
 case 0x0c36:
 case 0x0c37:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c38:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c39:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c3a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c3b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c3c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4897,7 +4897,7 @@ case 0x0c45:
 case 0x0c46:
 case 0x0c47:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4910,7 +4910,7 @@ case 0x0c55:
 case 0x0c56:
 case 0x0c57:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4923,7 +4923,7 @@ case 0x0c5d:
 case 0x0c5e:
 case 0x0c5f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4936,7 +4936,7 @@ case 0x0c65:
 case 0x0c66:
 case 0x0c67:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4949,7 +4949,7 @@ case 0x0c6d:
 case 0x0c6e:
 case 0x0c6f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -4962,37 +4962,37 @@ case 0x0c75:
 case 0x0c76:
 case 0x0c77:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c78:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c79:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c7a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c7b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0c7c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5005,7 +5005,7 @@ case 0x0c85:
 case 0x0c86:
 case 0x0c87:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5018,7 +5018,7 @@ case 0x0c95:
 case 0x0c96:
 case 0x0c97:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5031,7 +5031,7 @@ case 0x0c9d:
 case 0x0c9e:
 case 0x0c9f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5044,7 +5044,7 @@ case 0x0ca5:
 case 0x0ca6:
 case 0x0ca7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5057,7 +5057,7 @@ case 0x0cad:
 case 0x0cae:
 case 0x0caf:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5070,37 +5070,37 @@ case 0x0cb5:
 case 0x0cb6:
 case 0x0cb7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0cb8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0cb9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0cba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0cbb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0cbc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5247,7 +5247,7 @@ case 0x0d15:
 case 0x0d16:
 case 0x0d17:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5260,7 +5260,7 @@ case 0x0d1d:
 case 0x0d1e:
 case 0x0d1f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5273,7 +5273,7 @@ case 0x0d25:
 case 0x0d26:
 case 0x0d27:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5286,7 +5286,7 @@ case 0x0d2d:
 case 0x0d2e:
 case 0x0d2f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5299,19 +5299,19 @@ case 0x0d35:
 case 0x0d36:
 case 0x0d37:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0d38:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0d39:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -5324,7 +5324,7 @@ case 0x0d55:
 case 0x0d56:
 case 0x0d57:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5337,7 +5337,7 @@ case 0x0d5d:
 case 0x0d5e:
 case 0x0d5f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5350,7 +5350,7 @@ case 0x0d65:
 case 0x0d66:
 case 0x0d67:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5363,7 +5363,7 @@ case 0x0d6d:
 case 0x0d6e:
 case 0x0d6f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5376,19 +5376,19 @@ case 0x0d75:
 case 0x0d76:
 case 0x0d77:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0d78:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0d79:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -5401,7 +5401,7 @@ case 0x0d95:
 case 0x0d96:
 case 0x0d97:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5414,7 +5414,7 @@ case 0x0d9d:
 case 0x0d9e:
 case 0x0d9f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5427,7 +5427,7 @@ case 0x0da5:
 case 0x0da6:
 case 0x0da7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5440,7 +5440,7 @@ case 0x0dad:
 case 0x0dae:
 case 0x0daf:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -5453,19 +5453,19 @@ case 0x0db5:
 case 0x0db6:
 case 0x0db7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0db8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0db9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -5586,7 +5586,7 @@ case 0x0e05:
 case 0x0e06:
 case 0x0e07:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5599,7 +5599,7 @@ case 0x0e15:
 case 0x0e16:
 case 0x0e17:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5612,7 +5612,7 @@ case 0x0e1d:
 case 0x0e1e:
 case 0x0e1f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5625,7 +5625,7 @@ case 0x0e25:
 case 0x0e26:
 case 0x0e27:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5638,7 +5638,7 @@ case 0x0e2d:
 case 0x0e2e:
 case 0x0e2f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5651,37 +5651,37 @@ case 0x0e35:
 case 0x0e36:
 case 0x0e37:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e38:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e39:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e3a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e3b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e3c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5694,7 +5694,7 @@ case 0x0e45:
 case 0x0e46:
 case 0x0e47:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5707,7 +5707,7 @@ case 0x0e55:
 case 0x0e56:
 case 0x0e57:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5720,7 +5720,7 @@ case 0x0e5d:
 case 0x0e5e:
 case 0x0e5f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5733,7 +5733,7 @@ case 0x0e65:
 case 0x0e66:
 case 0x0e67:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5746,7 +5746,7 @@ case 0x0e6d:
 case 0x0e6e:
 case 0x0e6f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5759,37 +5759,37 @@ case 0x0e75:
 case 0x0e76:
 case 0x0e77:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e78:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e79:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e7a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e7b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0e7c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5802,7 +5802,7 @@ case 0x0e85:
 case 0x0e86:
 case 0x0e87:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5815,7 +5815,7 @@ case 0x0e95:
 case 0x0e96:
 case 0x0e97:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5828,7 +5828,7 @@ case 0x0e9d:
 case 0x0e9e:
 case 0x0e9f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5841,7 +5841,7 @@ case 0x0ea5:
 case 0x0ea6:
 case 0x0ea7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5854,7 +5854,7 @@ case 0x0ead:
 case 0x0eae:
 case 0x0eaf:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -5867,37 +5867,37 @@ case 0x0eb5:
 case 0x0eb6:
 case 0x0eb7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0eb8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0eb9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0eba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0ebb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
 case 0x0ebc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); OR(this, src, dst);
 	}
 	break;
 
@@ -6044,7 +6044,7 @@ case 0x0f15:
 case 0x0f16:
 case 0x0f17:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6057,7 +6057,7 @@ case 0x0f1d:
 case 0x0f1e:
 case 0x0f1f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6070,7 +6070,7 @@ case 0x0f25:
 case 0x0f26:
 case 0x0f27:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6083,7 +6083,7 @@ case 0x0f2d:
 case 0x0f2e:
 case 0x0f2f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6096,19 +6096,19 @@ case 0x0f35:
 case 0x0f36:
 case 0x0f37:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0f38:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0f39:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -6121,7 +6121,7 @@ case 0x0f55:
 case 0x0f56:
 case 0x0f57:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6134,7 +6134,7 @@ case 0x0f5d:
 case 0x0f5e:
 case 0x0f5f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6147,7 +6147,7 @@ case 0x0f65:
 case 0x0f66:
 case 0x0f67:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6160,7 +6160,7 @@ case 0x0f6d:
 case 0x0f6e:
 case 0x0f6f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6173,19 +6173,19 @@ case 0x0f75:
 case 0x0f76:
 case 0x0f77:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0f78:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0f79:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -6198,7 +6198,7 @@ case 0x0f95:
 case 0x0f96:
 case 0x0f97:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6211,7 +6211,7 @@ case 0x0f9d:
 case 0x0f9e:
 case 0x0f9f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6224,7 +6224,7 @@ case 0x0fa5:
 case 0x0fa6:
 case 0x0fa7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6237,7 +6237,7 @@ case 0x0fad:
 case 0x0fae:
 case 0x0faf:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
@@ -6250,19 +6250,19 @@ case 0x0fb5:
 case 0x0fb6:
 case 0x0fb7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); OR(this, src, dst);
 	}
 	break;
 
 case 0x0fb8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); OR(this, src, dst);
 	}
 	break;
 
 case 0x0fb9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); OR(this, src, dst);
 	}
 	break;
 
@@ -18163,7 +18163,7 @@ case 0x3105:
 case 0x3106:
 case 0x3107:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18189,7 +18189,7 @@ case 0x3115:
 case 0x3116:
 case 0x3117:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18202,7 +18202,7 @@ case 0x311d:
 case 0x311e:
 case 0x311f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18215,7 +18215,7 @@ case 0x3125:
 case 0x3126:
 case 0x3127:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18228,7 +18228,7 @@ case 0x312d:
 case 0x312e:
 case 0x312f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18241,19 +18241,19 @@ case 0x3135:
 case 0x3136:
 case 0x3137:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3138:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3139:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -18266,7 +18266,7 @@ case 0x3145:
 case 0x3146:
 case 0x3147:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18292,7 +18292,7 @@ case 0x3155:
 case 0x3156:
 case 0x3157:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18305,7 +18305,7 @@ case 0x315d:
 case 0x315e:
 case 0x315f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18318,7 +18318,7 @@ case 0x3165:
 case 0x3166:
 case 0x3167:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18331,7 +18331,7 @@ case 0x316d:
 case 0x316e:
 case 0x316f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18344,19 +18344,19 @@ case 0x3175:
 case 0x3176:
 case 0x3177:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3178:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3179:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -18369,7 +18369,7 @@ case 0x3185:
 case 0x3186:
 case 0x3187:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18395,7 +18395,7 @@ case 0x3195:
 case 0x3196:
 case 0x3197:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18408,7 +18408,7 @@ case 0x319d:
 case 0x319e:
 case 0x319f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18421,7 +18421,7 @@ case 0x31a5:
 case 0x31a6:
 case 0x31a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18434,7 +18434,7 @@ case 0x31ad:
 case 0x31ae:
 case 0x31af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -18447,19 +18447,19 @@ case 0x31b5:
 case 0x31b6:
 case 0x31b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x31b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x31b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -19064,7 +19064,7 @@ case 0x3305:
 case 0x3306:
 case 0x3307:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19090,7 +19090,7 @@ case 0x3315:
 case 0x3316:
 case 0x3317:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19103,7 +19103,7 @@ case 0x331d:
 case 0x331e:
 case 0x331f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19116,7 +19116,7 @@ case 0x3325:
 case 0x3326:
 case 0x3327:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19129,7 +19129,7 @@ case 0x332d:
 case 0x332e:
 case 0x332f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19142,19 +19142,19 @@ case 0x3335:
 case 0x3336:
 case 0x3337:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3338:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3339:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -19167,7 +19167,7 @@ case 0x3345:
 case 0x3346:
 case 0x3347:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19193,7 +19193,7 @@ case 0x3355:
 case 0x3356:
 case 0x3357:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19206,7 +19206,7 @@ case 0x335d:
 case 0x335e:
 case 0x335f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19219,7 +19219,7 @@ case 0x3365:
 case 0x3366:
 case 0x3367:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19232,7 +19232,7 @@ case 0x336d:
 case 0x336e:
 case 0x336f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19245,19 +19245,19 @@ case 0x3375:
 case 0x3376:
 case 0x3377:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3378:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3379:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -19270,7 +19270,7 @@ case 0x3385:
 case 0x3386:
 case 0x3387:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19296,7 +19296,7 @@ case 0x3395:
 case 0x3396:
 case 0x3397:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19309,7 +19309,7 @@ case 0x339d:
 case 0x339e:
 case 0x339f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19322,7 +19322,7 @@ case 0x33a5:
 case 0x33a6:
 case 0x33a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19335,7 +19335,7 @@ case 0x33ad:
 case 0x33ae:
 case 0x33af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19348,19 +19348,19 @@ case 0x33b5:
 case 0x33b6:
 case 0x33b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x33b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x33b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -19965,7 +19965,7 @@ case 0x3505:
 case 0x3506:
 case 0x3507:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -19991,7 +19991,7 @@ case 0x3515:
 case 0x3516:
 case 0x3517:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20004,7 +20004,7 @@ case 0x351d:
 case 0x351e:
 case 0x351f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20017,7 +20017,7 @@ case 0x3525:
 case 0x3526:
 case 0x3527:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20030,7 +20030,7 @@ case 0x352d:
 case 0x352e:
 case 0x352f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20043,19 +20043,19 @@ case 0x3535:
 case 0x3536:
 case 0x3537:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3538:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3539:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -20068,7 +20068,7 @@ case 0x3545:
 case 0x3546:
 case 0x3547:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20094,7 +20094,7 @@ case 0x3555:
 case 0x3556:
 case 0x3557:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20107,7 +20107,7 @@ case 0x355d:
 case 0x355e:
 case 0x355f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20120,7 +20120,7 @@ case 0x3565:
 case 0x3566:
 case 0x3567:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20133,7 +20133,7 @@ case 0x356d:
 case 0x356e:
 case 0x356f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20146,19 +20146,19 @@ case 0x3575:
 case 0x3576:
 case 0x3577:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3578:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3579:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -20171,7 +20171,7 @@ case 0x3585:
 case 0x3586:
 case 0x3587:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20197,7 +20197,7 @@ case 0x3595:
 case 0x3596:
 case 0x3597:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20210,7 +20210,7 @@ case 0x359d:
 case 0x359e:
 case 0x359f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20223,7 +20223,7 @@ case 0x35a5:
 case 0x35a6:
 case 0x35a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20236,7 +20236,7 @@ case 0x35ad:
 case 0x35ae:
 case 0x35af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20249,19 +20249,19 @@ case 0x35b5:
 case 0x35b6:
 case 0x35b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x35b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x35b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -20866,7 +20866,7 @@ case 0x3705:
 case 0x3706:
 case 0x3707:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20892,7 +20892,7 @@ case 0x3715:
 case 0x3716:
 case 0x3717:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20905,7 +20905,7 @@ case 0x371d:
 case 0x371e:
 case 0x371f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20918,7 +20918,7 @@ case 0x3725:
 case 0x3726:
 case 0x3727:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20931,7 +20931,7 @@ case 0x372d:
 case 0x372e:
 case 0x372f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20944,19 +20944,19 @@ case 0x3735:
 case 0x3736:
 case 0x3737:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3738:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3739:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -20969,7 +20969,7 @@ case 0x3745:
 case 0x3746:
 case 0x3747:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -20995,7 +20995,7 @@ case 0x3755:
 case 0x3756:
 case 0x3757:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21008,7 +21008,7 @@ case 0x375d:
 case 0x375e:
 case 0x375f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21021,7 +21021,7 @@ case 0x3765:
 case 0x3766:
 case 0x3767:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21034,7 +21034,7 @@ case 0x376d:
 case 0x376e:
 case 0x376f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21047,19 +21047,19 @@ case 0x3775:
 case 0x3776:
 case 0x3777:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3778:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3779:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -21072,7 +21072,7 @@ case 0x3785:
 case 0x3786:
 case 0x3787:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21098,7 +21098,7 @@ case 0x3795:
 case 0x3796:
 case 0x3797:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21111,7 +21111,7 @@ case 0x379d:
 case 0x379e:
 case 0x379f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21124,7 +21124,7 @@ case 0x37a5:
 case 0x37a6:
 case 0x37a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21137,7 +21137,7 @@ case 0x37ad:
 case 0x37ae:
 case 0x37af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21150,19 +21150,19 @@ case 0x37b5:
 case 0x37b6:
 case 0x37b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x37b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x37b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -21767,7 +21767,7 @@ case 0x3905:
 case 0x3906:
 case 0x3907:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21793,7 +21793,7 @@ case 0x3915:
 case 0x3916:
 case 0x3917:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21806,7 +21806,7 @@ case 0x391d:
 case 0x391e:
 case 0x391f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21819,7 +21819,7 @@ case 0x3925:
 case 0x3926:
 case 0x3927:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21832,7 +21832,7 @@ case 0x392d:
 case 0x392e:
 case 0x392f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21845,19 +21845,19 @@ case 0x3935:
 case 0x3936:
 case 0x3937:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3938:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3939:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -21870,7 +21870,7 @@ case 0x3945:
 case 0x3946:
 case 0x3947:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21896,7 +21896,7 @@ case 0x3955:
 case 0x3956:
 case 0x3957:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21909,7 +21909,7 @@ case 0x395d:
 case 0x395e:
 case 0x395f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21922,7 +21922,7 @@ case 0x3965:
 case 0x3966:
 case 0x3967:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21935,7 +21935,7 @@ case 0x396d:
 case 0x396e:
 case 0x396f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21948,19 +21948,19 @@ case 0x3975:
 case 0x3976:
 case 0x3977:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3978:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3979:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -21973,7 +21973,7 @@ case 0x3985:
 case 0x3986:
 case 0x3987:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -21999,7 +21999,7 @@ case 0x3995:
 case 0x3996:
 case 0x3997:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22012,7 +22012,7 @@ case 0x399d:
 case 0x399e:
 case 0x399f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22025,7 +22025,7 @@ case 0x39a5:
 case 0x39a6:
 case 0x39a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22038,7 +22038,7 @@ case 0x39ad:
 case 0x39ae:
 case 0x39af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22051,19 +22051,19 @@ case 0x39b5:
 case 0x39b6:
 case 0x39b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x39b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x39b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -22668,7 +22668,7 @@ case 0x3b05:
 case 0x3b06:
 case 0x3b07:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22694,7 +22694,7 @@ case 0x3b15:
 case 0x3b16:
 case 0x3b17:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22707,7 +22707,7 @@ case 0x3b1d:
 case 0x3b1e:
 case 0x3b1f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22720,7 +22720,7 @@ case 0x3b25:
 case 0x3b26:
 case 0x3b27:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22733,7 +22733,7 @@ case 0x3b2d:
 case 0x3b2e:
 case 0x3b2f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22746,19 +22746,19 @@ case 0x3b35:
 case 0x3b36:
 case 0x3b37:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3b38:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3b39:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -22771,7 +22771,7 @@ case 0x3b45:
 case 0x3b46:
 case 0x3b47:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22797,7 +22797,7 @@ case 0x3b55:
 case 0x3b56:
 case 0x3b57:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22810,7 +22810,7 @@ case 0x3b5d:
 case 0x3b5e:
 case 0x3b5f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22823,7 +22823,7 @@ case 0x3b65:
 case 0x3b66:
 case 0x3b67:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22836,7 +22836,7 @@ case 0x3b6d:
 case 0x3b6e:
 case 0x3b6f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22849,19 +22849,19 @@ case 0x3b75:
 case 0x3b76:
 case 0x3b77:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3b78:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3b79:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -22874,7 +22874,7 @@ case 0x3b85:
 case 0x3b86:
 case 0x3b87:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22900,7 +22900,7 @@ case 0x3b95:
 case 0x3b96:
 case 0x3b97:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22913,7 +22913,7 @@ case 0x3b9d:
 case 0x3b9e:
 case 0x3b9f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22926,7 +22926,7 @@ case 0x3ba5:
 case 0x3ba6:
 case 0x3ba7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22939,7 +22939,7 @@ case 0x3bad:
 case 0x3bae:
 case 0x3baf:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -22952,19 +22952,19 @@ case 0x3bb5:
 case 0x3bb6:
 case 0x3bb7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3bb8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3bb9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -23569,7 +23569,7 @@ case 0x3d05:
 case 0x3d06:
 case 0x3d07:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23595,7 +23595,7 @@ case 0x3d15:
 case 0x3d16:
 case 0x3d17:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23608,7 +23608,7 @@ case 0x3d1d:
 case 0x3d1e:
 case 0x3d1f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23621,7 +23621,7 @@ case 0x3d25:
 case 0x3d26:
 case 0x3d27:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23634,7 +23634,7 @@ case 0x3d2d:
 case 0x3d2e:
 case 0x3d2f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23647,19 +23647,19 @@ case 0x3d35:
 case 0x3d36:
 case 0x3d37:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3d38:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3d39:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -23672,7 +23672,7 @@ case 0x3d45:
 case 0x3d46:
 case 0x3d47:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23698,7 +23698,7 @@ case 0x3d55:
 case 0x3d56:
 case 0x3d57:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23711,7 +23711,7 @@ case 0x3d5d:
 case 0x3d5e:
 case 0x3d5f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23724,7 +23724,7 @@ case 0x3d65:
 case 0x3d66:
 case 0x3d67:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23737,7 +23737,7 @@ case 0x3d6d:
 case 0x3d6e:
 case 0x3d6f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23750,19 +23750,19 @@ case 0x3d75:
 case 0x3d76:
 case 0x3d77:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3d78:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3d79:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -23775,7 +23775,7 @@ case 0x3d85:
 case 0x3d86:
 case 0x3d87:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23801,7 +23801,7 @@ case 0x3d95:
 case 0x3d96:
 case 0x3d97:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23814,7 +23814,7 @@ case 0x3d9d:
 case 0x3d9e:
 case 0x3d9f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23827,7 +23827,7 @@ case 0x3da5:
 case 0x3da6:
 case 0x3da7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23840,7 +23840,7 @@ case 0x3dad:
 case 0x3dae:
 case 0x3daf:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -23853,19 +23853,19 @@ case 0x3db5:
 case 0x3db6:
 case 0x3db7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3db8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3db9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -24470,7 +24470,7 @@ case 0x3f05:
 case 0x3f06:
 case 0x3f07:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24496,7 +24496,7 @@ case 0x3f15:
 case 0x3f16:
 case 0x3f17:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24509,7 +24509,7 @@ case 0x3f1d:
 case 0x3f1e:
 case 0x3f1f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24522,7 +24522,7 @@ case 0x3f25:
 case 0x3f26:
 case 0x3f27:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24535,7 +24535,7 @@ case 0x3f2d:
 case 0x3f2e:
 case 0x3f2f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24548,19 +24548,19 @@ case 0x3f35:
 case 0x3f36:
 case 0x3f37:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3f38:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3f39:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -24573,7 +24573,7 @@ case 0x3f45:
 case 0x3f46:
 case 0x3f47:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24599,7 +24599,7 @@ case 0x3f55:
 case 0x3f56:
 case 0x3f57:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24612,7 +24612,7 @@ case 0x3f5d:
 case 0x3f5e:
 case 0x3f5f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24625,7 +24625,7 @@ case 0x3f65:
 case 0x3f66:
 case 0x3f67:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24638,7 +24638,7 @@ case 0x3f6d:
 case 0x3f6e:
 case 0x3f6f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24651,19 +24651,19 @@ case 0x3f75:
 case 0x3f76:
 case 0x3f77:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3f78:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3f79:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -24676,7 +24676,7 @@ case 0x3f85:
 case 0x3f86:
 case 0x3f87:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24702,7 +24702,7 @@ case 0x3f95:
 case 0x3f96:
 case 0x3f97:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24715,7 +24715,7 @@ case 0x3f9d:
 case 0x3f9e:
 case 0x3f9f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24728,7 +24728,7 @@ case 0x3fa5:
 case 0x3fa6:
 case 0x3fa7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24741,7 +24741,7 @@ case 0x3fad:
 case 0x3fae:
 case 0x3faf:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
@@ -24754,19 +24754,19 @@ case 0x3fb5:
 case 0x3fb6:
 case 0x3fb7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3fb8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); EOR(this, src, dst);
 	}
 	break;
 
 case 0x3fb9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); EOR(this, src, dst);
 	}
 	break;
 
@@ -24900,7 +24900,7 @@ case 0x4005:
 case 0x4006:
 case 0x4007:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -24913,7 +24913,7 @@ case 0x4015:
 case 0x4016:
 case 0x4017:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -24926,7 +24926,7 @@ case 0x401d:
 case 0x401e:
 case 0x401f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -24939,7 +24939,7 @@ case 0x4025:
 case 0x4026:
 case 0x4027:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -24952,7 +24952,7 @@ case 0x402d:
 case 0x402e:
 case 0x402f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -24965,37 +24965,37 @@ case 0x4035:
 case 0x4036:
 case 0x4037:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4038:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4039:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x403a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x403b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x403c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25008,7 +25008,7 @@ case 0x4045:
 case 0x4046:
 case 0x4047:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25021,7 +25021,7 @@ case 0x4055:
 case 0x4056:
 case 0x4057:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25034,7 +25034,7 @@ case 0x405d:
 case 0x405e:
 case 0x405f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25047,7 +25047,7 @@ case 0x4065:
 case 0x4066:
 case 0x4067:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25060,7 +25060,7 @@ case 0x406d:
 case 0x406e:
 case 0x406f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25073,37 +25073,37 @@ case 0x4075:
 case 0x4076:
 case 0x4077:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4078:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4079:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x407a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x407b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x407c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25116,7 +25116,7 @@ case 0x4085:
 case 0x4086:
 case 0x4087:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25129,7 +25129,7 @@ case 0x4095:
 case 0x4096:
 case 0x4097:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25142,7 +25142,7 @@ case 0x409d:
 case 0x409e:
 case 0x409f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25155,7 +25155,7 @@ case 0x40a5:
 case 0x40a6:
 case 0x40a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25168,7 +25168,7 @@ case 0x40ad:
 case 0x40ae:
 case 0x40af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25181,37 +25181,37 @@ case 0x40b5:
 case 0x40b6:
 case 0x40b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x40b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x40b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x40ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x40bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x40bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25358,7 +25358,7 @@ case 0x4115:
 case 0x4116:
 case 0x4117:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25371,7 +25371,7 @@ case 0x411d:
 case 0x411e:
 case 0x411f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25384,7 +25384,7 @@ case 0x4125:
 case 0x4126:
 case 0x4127:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25397,7 +25397,7 @@ case 0x412d:
 case 0x412e:
 case 0x412f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25410,19 +25410,19 @@ case 0x4135:
 case 0x4136:
 case 0x4137:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4138:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4139:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -25461,7 +25461,7 @@ case 0x4155:
 case 0x4156:
 case 0x4157:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25474,7 +25474,7 @@ case 0x415d:
 case 0x415e:
 case 0x415f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25487,7 +25487,7 @@ case 0x4165:
 case 0x4166:
 case 0x4167:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25500,7 +25500,7 @@ case 0x416d:
 case 0x416e:
 case 0x416f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25513,19 +25513,19 @@ case 0x4175:
 case 0x4176:
 case 0x4177:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4178:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4179:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -25551,7 +25551,7 @@ case 0x4195:
 case 0x4196:
 case 0x4197:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25564,7 +25564,7 @@ case 0x419d:
 case 0x419e:
 case 0x419f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25577,7 +25577,7 @@ case 0x41a5:
 case 0x41a6:
 case 0x41a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25590,7 +25590,7 @@ case 0x41ad:
 case 0x41ae:
 case 0x41af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -25603,19 +25603,19 @@ case 0x41b5:
 case 0x41b6:
 case 0x41b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x41b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x41b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -25736,7 +25736,7 @@ case 0x4205:
 case 0x4206:
 case 0x4207:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25749,7 +25749,7 @@ case 0x4215:
 case 0x4216:
 case 0x4217:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25762,7 +25762,7 @@ case 0x421d:
 case 0x421e:
 case 0x421f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25775,7 +25775,7 @@ case 0x4225:
 case 0x4226:
 case 0x4227:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25788,7 +25788,7 @@ case 0x422d:
 case 0x422e:
 case 0x422f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25801,37 +25801,37 @@ case 0x4235:
 case 0x4236:
 case 0x4237:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4238:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4239:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x423a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x423b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x423c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25844,7 +25844,7 @@ case 0x4245:
 case 0x4246:
 case 0x4247:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25857,7 +25857,7 @@ case 0x4255:
 case 0x4256:
 case 0x4257:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25870,7 +25870,7 @@ case 0x425d:
 case 0x425e:
 case 0x425f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25883,7 +25883,7 @@ case 0x4265:
 case 0x4266:
 case 0x4267:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25896,7 +25896,7 @@ case 0x426d:
 case 0x426e:
 case 0x426f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25909,37 +25909,37 @@ case 0x4275:
 case 0x4276:
 case 0x4277:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4278:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4279:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x427a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x427b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x427c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25952,7 +25952,7 @@ case 0x4285:
 case 0x4286:
 case 0x4287:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25965,7 +25965,7 @@ case 0x4295:
 case 0x4296:
 case 0x4297:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25978,7 +25978,7 @@ case 0x429d:
 case 0x429e:
 case 0x429f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -25991,7 +25991,7 @@ case 0x42a5:
 case 0x42a6:
 case 0x42a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26004,7 +26004,7 @@ case 0x42ad:
 case 0x42ae:
 case 0x42af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26017,37 +26017,37 @@ case 0x42b5:
 case 0x42b6:
 case 0x42b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x42b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x42b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x42ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x42bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x42bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26194,7 +26194,7 @@ case 0x4315:
 case 0x4316:
 case 0x4317:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26207,7 +26207,7 @@ case 0x431d:
 case 0x431e:
 case 0x431f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26220,7 +26220,7 @@ case 0x4325:
 case 0x4326:
 case 0x4327:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26233,7 +26233,7 @@ case 0x432d:
 case 0x432e:
 case 0x432f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26246,19 +26246,19 @@ case 0x4335:
 case 0x4336:
 case 0x4337:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4338:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4339:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -26297,7 +26297,7 @@ case 0x4355:
 case 0x4356:
 case 0x4357:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26310,7 +26310,7 @@ case 0x435d:
 case 0x435e:
 case 0x435f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26323,7 +26323,7 @@ case 0x4365:
 case 0x4366:
 case 0x4367:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26336,7 +26336,7 @@ case 0x436d:
 case 0x436e:
 case 0x436f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26349,19 +26349,19 @@ case 0x4375:
 case 0x4376:
 case 0x4377:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4378:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4379:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -26387,7 +26387,7 @@ case 0x4395:
 case 0x4396:
 case 0x4397:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26400,7 +26400,7 @@ case 0x439d:
 case 0x439e:
 case 0x439f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26413,7 +26413,7 @@ case 0x43a5:
 case 0x43a6:
 case 0x43a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26426,7 +26426,7 @@ case 0x43ad:
 case 0x43ae:
 case 0x43af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -26439,19 +26439,19 @@ case 0x43b5:
 case 0x43b6:
 case 0x43b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x43b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x43b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -26572,7 +26572,7 @@ case 0x4405:
 case 0x4406:
 case 0x4407:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26585,7 +26585,7 @@ case 0x4415:
 case 0x4416:
 case 0x4417:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26598,7 +26598,7 @@ case 0x441d:
 case 0x441e:
 case 0x441f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26611,7 +26611,7 @@ case 0x4425:
 case 0x4426:
 case 0x4427:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26624,7 +26624,7 @@ case 0x442d:
 case 0x442e:
 case 0x442f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26637,37 +26637,37 @@ case 0x4435:
 case 0x4436:
 case 0x4437:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4438:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4439:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x443a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x443b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x443c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26680,7 +26680,7 @@ case 0x4445:
 case 0x4446:
 case 0x4447:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26693,7 +26693,7 @@ case 0x4455:
 case 0x4456:
 case 0x4457:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26706,7 +26706,7 @@ case 0x445d:
 case 0x445e:
 case 0x445f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26719,7 +26719,7 @@ case 0x4465:
 case 0x4466:
 case 0x4467:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26732,7 +26732,7 @@ case 0x446d:
 case 0x446e:
 case 0x446f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26745,37 +26745,37 @@ case 0x4475:
 case 0x4476:
 case 0x4477:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4478:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4479:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x447a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x447b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x447c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26788,7 +26788,7 @@ case 0x4485:
 case 0x4486:
 case 0x4487:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26801,7 +26801,7 @@ case 0x4495:
 case 0x4496:
 case 0x4497:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26814,7 +26814,7 @@ case 0x449d:
 case 0x449e:
 case 0x449f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26827,7 +26827,7 @@ case 0x44a5:
 case 0x44a6:
 case 0x44a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26840,7 +26840,7 @@ case 0x44ad:
 case 0x44ae:
 case 0x44af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -26853,37 +26853,37 @@ case 0x44b5:
 case 0x44b6:
 case 0x44b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x44b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x44b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x44ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x44bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x44bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27030,7 +27030,7 @@ case 0x4515:
 case 0x4516:
 case 0x4517:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27043,7 +27043,7 @@ case 0x451d:
 case 0x451e:
 case 0x451f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27056,7 +27056,7 @@ case 0x4525:
 case 0x4526:
 case 0x4527:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27069,7 +27069,7 @@ case 0x452d:
 case 0x452e:
 case 0x452f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27082,19 +27082,19 @@ case 0x4535:
 case 0x4536:
 case 0x4537:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4538:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4539:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -27133,7 +27133,7 @@ case 0x4555:
 case 0x4556:
 case 0x4557:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27146,7 +27146,7 @@ case 0x455d:
 case 0x455e:
 case 0x455f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27159,7 +27159,7 @@ case 0x4565:
 case 0x4566:
 case 0x4567:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27172,7 +27172,7 @@ case 0x456d:
 case 0x456e:
 case 0x456f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27185,19 +27185,19 @@ case 0x4575:
 case 0x4576:
 case 0x4577:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4578:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4579:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -27223,7 +27223,7 @@ case 0x4595:
 case 0x4596:
 case 0x4597:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27236,7 +27236,7 @@ case 0x459d:
 case 0x459e:
 case 0x459f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27249,7 +27249,7 @@ case 0x45a5:
 case 0x45a6:
 case 0x45a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27262,7 +27262,7 @@ case 0x45ad:
 case 0x45ae:
 case 0x45af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27275,19 +27275,19 @@ case 0x45b5:
 case 0x45b6:
 case 0x45b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x45b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x45b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -27408,7 +27408,7 @@ case 0x4605:
 case 0x4606:
 case 0x4607:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27421,7 +27421,7 @@ case 0x4615:
 case 0x4616:
 case 0x4617:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27434,7 +27434,7 @@ case 0x461d:
 case 0x461e:
 case 0x461f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27447,7 +27447,7 @@ case 0x4625:
 case 0x4626:
 case 0x4627:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27460,7 +27460,7 @@ case 0x462d:
 case 0x462e:
 case 0x462f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27473,37 +27473,37 @@ case 0x4635:
 case 0x4636:
 case 0x4637:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4638:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4639:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x463a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x463b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x463c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27516,7 +27516,7 @@ case 0x4645:
 case 0x4646:
 case 0x4647:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27529,7 +27529,7 @@ case 0x4655:
 case 0x4656:
 case 0x4657:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27542,7 +27542,7 @@ case 0x465d:
 case 0x465e:
 case 0x465f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27555,7 +27555,7 @@ case 0x4665:
 case 0x4666:
 case 0x4667:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27568,7 +27568,7 @@ case 0x466d:
 case 0x466e:
 case 0x466f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27581,37 +27581,37 @@ case 0x4675:
 case 0x4676:
 case 0x4677:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4678:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4679:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x467a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x467b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x467c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27624,7 +27624,7 @@ case 0x4685:
 case 0x4686:
 case 0x4687:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27637,7 +27637,7 @@ case 0x4695:
 case 0x4696:
 case 0x4697:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27650,7 +27650,7 @@ case 0x469d:
 case 0x469e:
 case 0x469f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27663,7 +27663,7 @@ case 0x46a5:
 case 0x46a6:
 case 0x46a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27676,7 +27676,7 @@ case 0x46ad:
 case 0x46ae:
 case 0x46af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27689,37 +27689,37 @@ case 0x46b5:
 case 0x46b6:
 case 0x46b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x46b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x46b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x46ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x46bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x46bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -27866,7 +27866,7 @@ case 0x4715:
 case 0x4716:
 case 0x4717:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27879,7 +27879,7 @@ case 0x471d:
 case 0x471e:
 case 0x471f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27892,7 +27892,7 @@ case 0x4725:
 case 0x4726:
 case 0x4727:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27905,7 +27905,7 @@ case 0x472d:
 case 0x472e:
 case 0x472f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27918,19 +27918,19 @@ case 0x4735:
 case 0x4736:
 case 0x4737:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4738:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4739:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -27969,7 +27969,7 @@ case 0x4755:
 case 0x4756:
 case 0x4757:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27982,7 +27982,7 @@ case 0x475d:
 case 0x475e:
 case 0x475f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -27995,7 +27995,7 @@ case 0x4765:
 case 0x4766:
 case 0x4767:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28008,7 +28008,7 @@ case 0x476d:
 case 0x476e:
 case 0x476f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28021,19 +28021,19 @@ case 0x4775:
 case 0x4776:
 case 0x4777:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4778:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4779:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -28059,7 +28059,7 @@ case 0x4795:
 case 0x4796:
 case 0x4797:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28072,7 +28072,7 @@ case 0x479d:
 case 0x479e:
 case 0x479f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28085,7 +28085,7 @@ case 0x47a5:
 case 0x47a6:
 case 0x47a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28098,7 +28098,7 @@ case 0x47ad:
 case 0x47ae:
 case 0x47af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28111,19 +28111,19 @@ case 0x47b5:
 case 0x47b6:
 case 0x47b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x47b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x47b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -28244,7 +28244,7 @@ case 0x4805:
 case 0x4806:
 case 0x4807:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28257,7 +28257,7 @@ case 0x4815:
 case 0x4816:
 case 0x4817:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28270,7 +28270,7 @@ case 0x481d:
 case 0x481e:
 case 0x481f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28283,7 +28283,7 @@ case 0x4825:
 case 0x4826:
 case 0x4827:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28296,7 +28296,7 @@ case 0x482d:
 case 0x482e:
 case 0x482f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28309,37 +28309,37 @@ case 0x4835:
 case 0x4836:
 case 0x4837:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4838:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4839:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x483a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x483b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x483c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28352,7 +28352,7 @@ case 0x4845:
 case 0x4846:
 case 0x4847:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28365,7 +28365,7 @@ case 0x4855:
 case 0x4856:
 case 0x4857:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28378,7 +28378,7 @@ case 0x485d:
 case 0x485e:
 case 0x485f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28391,7 +28391,7 @@ case 0x4865:
 case 0x4866:
 case 0x4867:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28404,7 +28404,7 @@ case 0x486d:
 case 0x486e:
 case 0x486f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28417,37 +28417,37 @@ case 0x4875:
 case 0x4876:
 case 0x4877:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4878:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4879:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x487a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x487b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x487c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28460,7 +28460,7 @@ case 0x4885:
 case 0x4886:
 case 0x4887:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28473,7 +28473,7 @@ case 0x4895:
 case 0x4896:
 case 0x4897:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28486,7 +28486,7 @@ case 0x489d:
 case 0x489e:
 case 0x489f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28499,7 +28499,7 @@ case 0x48a5:
 case 0x48a6:
 case 0x48a7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28512,7 +28512,7 @@ case 0x48ad:
 case 0x48ae:
 case 0x48af:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28525,37 +28525,37 @@ case 0x48b5:
 case 0x48b6:
 case 0x48b7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x48b8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x48b9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x48ba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x48bb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x48bc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -28702,7 +28702,7 @@ case 0x4915:
 case 0x4916:
 case 0x4917:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28715,7 +28715,7 @@ case 0x491d:
 case 0x491e:
 case 0x491f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28728,7 +28728,7 @@ case 0x4925:
 case 0x4926:
 case 0x4927:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28741,7 +28741,7 @@ case 0x492d:
 case 0x492e:
 case 0x492f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28754,19 +28754,19 @@ case 0x4935:
 case 0x4936:
 case 0x4937:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4938:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4939:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -28805,7 +28805,7 @@ case 0x4955:
 case 0x4956:
 case 0x4957:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28818,7 +28818,7 @@ case 0x495d:
 case 0x495e:
 case 0x495f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28831,7 +28831,7 @@ case 0x4965:
 case 0x4966:
 case 0x4967:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28844,7 +28844,7 @@ case 0x496d:
 case 0x496e:
 case 0x496f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28857,19 +28857,19 @@ case 0x4975:
 case 0x4976:
 case 0x4977:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4978:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4979:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -28895,7 +28895,7 @@ case 0x4995:
 case 0x4996:
 case 0x4997:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28908,7 +28908,7 @@ case 0x499d:
 case 0x499e:
 case 0x499f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28921,7 +28921,7 @@ case 0x49a5:
 case 0x49a6:
 case 0x49a7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28934,7 +28934,7 @@ case 0x49ad:
 case 0x49ae:
 case 0x49af:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -28947,19 +28947,19 @@ case 0x49b5:
 case 0x49b6:
 case 0x49b7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x49b8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x49b9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -29080,7 +29080,7 @@ case 0x4a05:
 case 0x4a06:
 case 0x4a07:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29093,7 +29093,7 @@ case 0x4a15:
 case 0x4a16:
 case 0x4a17:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29106,7 +29106,7 @@ case 0x4a1d:
 case 0x4a1e:
 case 0x4a1f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29119,7 +29119,7 @@ case 0x4a25:
 case 0x4a26:
 case 0x4a27:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29132,7 +29132,7 @@ case 0x4a2d:
 case 0x4a2e:
 case 0x4a2f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29145,37 +29145,37 @@ case 0x4a35:
 case 0x4a36:
 case 0x4a37:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a38:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a39:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a3a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a3b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a3c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29188,7 +29188,7 @@ case 0x4a45:
 case 0x4a46:
 case 0x4a47:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29201,7 +29201,7 @@ case 0x4a55:
 case 0x4a56:
 case 0x4a57:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29214,7 +29214,7 @@ case 0x4a5d:
 case 0x4a5e:
 case 0x4a5f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29227,7 +29227,7 @@ case 0x4a65:
 case 0x4a66:
 case 0x4a67:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29240,7 +29240,7 @@ case 0x4a6d:
 case 0x4a6e:
 case 0x4a6f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29253,37 +29253,37 @@ case 0x4a75:
 case 0x4a76:
 case 0x4a77:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a78:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a79:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a7a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a7b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4a7c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29296,7 +29296,7 @@ case 0x4a85:
 case 0x4a86:
 case 0x4a87:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29309,7 +29309,7 @@ case 0x4a95:
 case 0x4a96:
 case 0x4a97:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29322,7 +29322,7 @@ case 0x4a9d:
 case 0x4a9e:
 case 0x4a9f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29335,7 +29335,7 @@ case 0x4aa5:
 case 0x4aa6:
 case 0x4aa7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29348,7 +29348,7 @@ case 0x4aad:
 case 0x4aae:
 case 0x4aaf:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29361,37 +29361,37 @@ case 0x4ab5:
 case 0x4ab6:
 case 0x4ab7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4ab8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4ab9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4aba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4abb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4abc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29538,7 +29538,7 @@ case 0x4b15:
 case 0x4b16:
 case 0x4b17:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29551,7 +29551,7 @@ case 0x4b1d:
 case 0x4b1e:
 case 0x4b1f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29564,7 +29564,7 @@ case 0x4b25:
 case 0x4b26:
 case 0x4b27:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29577,7 +29577,7 @@ case 0x4b2d:
 case 0x4b2e:
 case 0x4b2f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29590,19 +29590,19 @@ case 0x4b35:
 case 0x4b36:
 case 0x4b37:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4b38:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4b39:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -29641,7 +29641,7 @@ case 0x4b55:
 case 0x4b56:
 case 0x4b57:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29654,7 +29654,7 @@ case 0x4b5d:
 case 0x4b5e:
 case 0x4b5f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29667,7 +29667,7 @@ case 0x4b65:
 case 0x4b66:
 case 0x4b67:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29680,7 +29680,7 @@ case 0x4b6d:
 case 0x4b6e:
 case 0x4b6f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29693,19 +29693,19 @@ case 0x4b75:
 case 0x4b76:
 case 0x4b77:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4b78:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4b79:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -29731,7 +29731,7 @@ case 0x4b95:
 case 0x4b96:
 case 0x4b97:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29744,7 +29744,7 @@ case 0x4b9d:
 case 0x4b9e:
 case 0x4b9f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29757,7 +29757,7 @@ case 0x4ba5:
 case 0x4ba6:
 case 0x4ba7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29770,7 +29770,7 @@ case 0x4bad:
 case 0x4bae:
 case 0x4baf:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -29783,19 +29783,19 @@ case 0x4bb5:
 case 0x4bb6:
 case 0x4bb7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4bb8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4bb9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -29916,7 +29916,7 @@ case 0x4c05:
 case 0x4c06:
 case 0x4c07:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29929,7 +29929,7 @@ case 0x4c15:
 case 0x4c16:
 case 0x4c17:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29942,7 +29942,7 @@ case 0x4c1d:
 case 0x4c1e:
 case 0x4c1f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29955,7 +29955,7 @@ case 0x4c25:
 case 0x4c26:
 case 0x4c27:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29968,7 +29968,7 @@ case 0x4c2d:
 case 0x4c2e:
 case 0x4c2f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -29981,37 +29981,37 @@ case 0x4c35:
 case 0x4c36:
 case 0x4c37:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c38:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c39:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c3a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c3b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c3c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30024,7 +30024,7 @@ case 0x4c45:
 case 0x4c46:
 case 0x4c47:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30037,7 +30037,7 @@ case 0x4c55:
 case 0x4c56:
 case 0x4c57:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30050,7 +30050,7 @@ case 0x4c5d:
 case 0x4c5e:
 case 0x4c5f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30063,7 +30063,7 @@ case 0x4c65:
 case 0x4c66:
 case 0x4c67:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30076,7 +30076,7 @@ case 0x4c6d:
 case 0x4c6e:
 case 0x4c6f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30089,37 +30089,37 @@ case 0x4c75:
 case 0x4c76:
 case 0x4c77:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c78:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c79:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c7a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c7b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4c7c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30132,7 +30132,7 @@ case 0x4c85:
 case 0x4c86:
 case 0x4c87:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30145,7 +30145,7 @@ case 0x4c95:
 case 0x4c96:
 case 0x4c97:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30158,7 +30158,7 @@ case 0x4c9d:
 case 0x4c9e:
 case 0x4c9f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30171,7 +30171,7 @@ case 0x4ca5:
 case 0x4ca6:
 case 0x4ca7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30184,7 +30184,7 @@ case 0x4cad:
 case 0x4cae:
 case 0x4caf:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30197,37 +30197,37 @@ case 0x4cb5:
 case 0x4cb6:
 case 0x4cb7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4cb8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4cb9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4cba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4cbb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4cbc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30374,7 +30374,7 @@ case 0x4d15:
 case 0x4d16:
 case 0x4d17:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30387,7 +30387,7 @@ case 0x4d1d:
 case 0x4d1e:
 case 0x4d1f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30400,7 +30400,7 @@ case 0x4d25:
 case 0x4d26:
 case 0x4d27:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30413,7 +30413,7 @@ case 0x4d2d:
 case 0x4d2e:
 case 0x4d2f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30426,19 +30426,19 @@ case 0x4d35:
 case 0x4d36:
 case 0x4d37:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4d38:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4d39:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -30477,7 +30477,7 @@ case 0x4d55:
 case 0x4d56:
 case 0x4d57:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30490,7 +30490,7 @@ case 0x4d5d:
 case 0x4d5e:
 case 0x4d5f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30503,7 +30503,7 @@ case 0x4d65:
 case 0x4d66:
 case 0x4d67:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30516,7 +30516,7 @@ case 0x4d6d:
 case 0x4d6e:
 case 0x4d6f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30529,19 +30529,19 @@ case 0x4d75:
 case 0x4d76:
 case 0x4d77:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4d78:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4d79:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -30567,7 +30567,7 @@ case 0x4d95:
 case 0x4d96:
 case 0x4d97:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30580,7 +30580,7 @@ case 0x4d9d:
 case 0x4d9e:
 case 0x4d9f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30593,7 +30593,7 @@ case 0x4da5:
 case 0x4da6:
 case 0x4da7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30606,7 +30606,7 @@ case 0x4dad:
 case 0x4dae:
 case 0x4daf:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -30619,19 +30619,19 @@ case 0x4db5:
 case 0x4db6:
 case 0x4db7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4db8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4db9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -30752,7 +30752,7 @@ case 0x4e05:
 case 0x4e06:
 case 0x4e07:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30765,7 +30765,7 @@ case 0x4e15:
 case 0x4e16:
 case 0x4e17:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30778,7 +30778,7 @@ case 0x4e1d:
 case 0x4e1e:
 case 0x4e1f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30791,7 +30791,7 @@ case 0x4e25:
 case 0x4e26:
 case 0x4e27:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30804,7 +30804,7 @@ case 0x4e2d:
 case 0x4e2e:
 case 0x4e2f:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30817,37 +30817,37 @@ case 0x4e35:
 case 0x4e36:
 case 0x4e37:
 	{
-	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e38:
 	{
-	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_SHORT> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e39:
 	{
-	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, ABS_LONG> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e3a:
 	{
-	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_DISP> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e3b:
 	{
-	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, PC_INDEX> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e3c:
 	{
-	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint8_t, IMMEDIATE> src(this); HAM<uint8_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30860,7 +30860,7 @@ case 0x4e45:
 case 0x4e46:
 case 0x4e47:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30873,7 +30873,7 @@ case 0x4e55:
 case 0x4e56:
 case 0x4e57:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30886,7 +30886,7 @@ case 0x4e5d:
 case 0x4e5e:
 case 0x4e5f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30899,7 +30899,7 @@ case 0x4e65:
 case 0x4e66:
 case 0x4e67:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30912,7 +30912,7 @@ case 0x4e6d:
 case 0x4e6e:
 case 0x4e6f:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30925,37 +30925,37 @@ case 0x4e75:
 case 0x4e76:
 case 0x4e77:
 	{
-	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e78:
 	{
-	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_SHORT> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e79:
 	{
-	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, ABS_LONG> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e7a:
 	{
-	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_DISP> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e7b:
 	{
-	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, PC_INDEX> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4e7c:
 	{
-	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint16_t, IMMEDIATE> src(this); HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30968,7 +30968,7 @@ case 0x4e85:
 case 0x4e86:
 case 0x4e87:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30981,7 +30981,7 @@ case 0x4e95:
 case 0x4e96:
 case 0x4e97:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -30994,7 +30994,7 @@ case 0x4e9d:
 case 0x4e9e:
 case 0x4e9f:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -31007,7 +31007,7 @@ case 0x4ea5:
 case 0x4ea6:
 case 0x4ea7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -31020,7 +31020,7 @@ case 0x4ead:
 case 0x4eae:
 case 0x4eaf:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -31033,37 +31033,37 @@ case 0x4eb5:
 case 0x4eb6:
 case 0x4eb7:
 	{
-	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4eb8:
 	{
-	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_SHORT> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4eb9:
 	{
-	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, ABS_LONG> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4eba:
 	{
-	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_DISP> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4ebb:
 	{
-	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, PC_INDEX> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
 case 0x4ebc:
 	{
-	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(src, dst);
+	 HAM<uint32_t, IMMEDIATE> src(this); HAM<uint32_t, DATA_REG_DIR> dst(this, instr_b11_b9); AND(this, src, dst);
 	}
 	break;
 
@@ -31210,7 +31210,7 @@ case 0x4f15:
 case 0x4f16:
 case 0x4f17:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31223,7 +31223,7 @@ case 0x4f1d:
 case 0x4f1e:
 case 0x4f1f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31236,7 +31236,7 @@ case 0x4f25:
 case 0x4f26:
 case 0x4f27:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31249,7 +31249,7 @@ case 0x4f2d:
 case 0x4f2e:
 case 0x4f2f:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31262,19 +31262,19 @@ case 0x4f35:
 case 0x4f36:
 case 0x4f37:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4f38:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4f39:
 	{
-	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint8_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint8_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -31313,7 +31313,7 @@ case 0x4f55:
 case 0x4f56:
 case 0x4f57:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31326,7 +31326,7 @@ case 0x4f5d:
 case 0x4f5e:
 case 0x4f5f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31339,7 +31339,7 @@ case 0x4f65:
 case 0x4f66:
 case 0x4f67:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31352,7 +31352,7 @@ case 0x4f6d:
 case 0x4f6e:
 case 0x4f6f:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31365,19 +31365,19 @@ case 0x4f75:
 case 0x4f76:
 case 0x4f77:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4f78:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4f79:
 	{
-	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint16_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint16_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
@@ -31403,7 +31403,7 @@ case 0x4f95:
 case 0x4f96:
 case 0x4f97:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31416,7 +31416,7 @@ case 0x4f9d:
 case 0x4f9e:
 case 0x4f9f:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31429,7 +31429,7 @@ case 0x4fa5:
 case 0x4fa6:
 case 0x4fa7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31442,7 +31442,7 @@ case 0x4fad:
 case 0x4fae:
 case 0x4faf:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
@@ -31455,19 +31455,19 @@ case 0x4fb5:
 case 0x4fb6:
 case 0x4fb7:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); AND(this, src, dst);
 	}
 	break;
 
 case 0x4fb8:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_SHORT> dst(this); AND(this, src, dst);
 	}
 	break;
 
 case 0x4fb9:
 	{
-	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(src, dst);
+	 HAM<uint32_t, DATA_REG_DIR> src(this, instr_b11_b9); HAM<uint32_t, ABS_LONG> dst(this); AND(this, src, dst);
 	}
 	break;
 
