@@ -50,11 +50,15 @@
 #define MEDNAFEN_CORE_VERSION                "v1.32.1"
 #define MEDNAFEN_CORE_VERSION_NUMERIC        0x00103201
 #define MEDNAFEN_CORE_EXTENSIONS             "cue|ccd|chd|toc|m3u"
-#define MEDNAFEN_CORE_GEOMETRY_BASE_W        320
-#define MEDNAFEN_CORE_GEOMETRY_BASE_H        240
+/* MAX_W / MAX_H are the framebuffer ceiling reported to the
+ * frontend at retro_get_system_av_info / SET_GEOMETRY time.
+ * The matching BASE_W / BASE_H / ASPECT_RATIO constants that
+ * used to live alongside them were unreferenced: the base
+ * geometry is computed at runtime in retro_get_system_av_info
+ * and the SET_GEOMETRY call site from h_mask + linevisfirst /
+ * linevislast / is_pal, not from a compile-time default. */
 #define MEDNAFEN_CORE_GEOMETRY_MAX_W         704
 #define MEDNAFEN_CORE_GEOMETRY_MAX_H         576
-#define MEDNAFEN_CORE_GEOMETRY_ASPECT_RATIO  (4.0 / 3.0)
 #define FB_WIDTH                             MEDNAFEN_CORE_GEOMETRY_MAX_W
 
 struct retro_perf_callback perf_cb;
@@ -73,7 +77,6 @@ static retro_environment_t environ_cb             = NULL;
 static retro_video_refresh_t video_cb             = NULL;
 
 static unsigned frame_count = 0;
-static unsigned internal_frame_count = 0;
 static unsigned image_offset = 0;
 static unsigned image_crop = 0;
 
@@ -107,11 +110,6 @@ bool shared_intmemory_toggle = false;
 // shared backup memory support
 bool shared_backup = false;
 bool shared_backup_toggle = false;
-
-// Sets how often (in number of output frames/retro_run invocations)
-// the internal framerace counter should be updated if
-// display_internal_framerate is true.
-#define INTERNAL_FPS_SAMPLE_PERIOD 32
 
 char retro_save_directory[4096];
 char retro_base_directory[4096];
@@ -868,7 +866,6 @@ bool retro_load_game(const struct retro_game_info *info)
    disc_select(disk_get_image_index());
 
    frame_count = 0;
-   internal_frame_count = 0;
 
    // Reset geometry trackers so the first SET_GEOMETRY of the new game
    // always fires; otherwise leftover values from a previous game could
@@ -969,7 +966,6 @@ void retro_run(void)
    // Keep the counters at 0 so that they don't display a bogus
    // value if this option is enabled later on
    frame_count = 0;
-   internal_frame_count = 0;
 
    input_poll_cb();
 
