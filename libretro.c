@@ -101,7 +101,6 @@ int setting_crosshair_color_p1 = 0xFF0000;
 int setting_crosshair_color_p2 = 0x0080FF;
 
 bool cdimagecache = false;
-static bool boot = true;
 
 // shared internal memory support
 bool shared_intmemory = false;
@@ -125,7 +124,6 @@ char retro_cd_base_name[4096];
 #endif
 #endif
 
-static bool libretro_supports_option_categories = false;
 static bool libretro_supports_bitmasks = false;
 
 MDFNGI *MDFNGameInfo = NULL;
@@ -861,8 +859,6 @@ bool retro_load_game(const struct retro_game_info *info)
 
    input_init();
 
-   boot = false;
-
    disc_select(disk_get_image_index());
 
    frame_count = 0;
@@ -1187,7 +1183,6 @@ void retro_deinit(void)
    Deinterlacer_Cleanup(&deint);
 #endif
 
-   libretro_supports_option_categories = false;
    libretro_supports_bitmasks          = false;
 }
 
@@ -1205,11 +1200,15 @@ void retro_set_environment(retro_environment_t cb)
 {
    struct retro_vfs_interface_info vfs_iface_info;
    struct retro_led_interface led_interface;
+   /* libretro_set_core_options early-returns on NULL out-arg, so we
+    * pass a function-local instead of a real out-arg.  The boolean
+    * it writes (frontend supports v2 categorised core options) is
+    * not consumed by anything in this fork. */
+   bool option_categories_supported = false;
    environ_cb = cb;
 
-   libretro_supports_option_categories = false;
    libretro_set_core_options(environ_cb,
-           &libretro_supports_option_categories);
+           &option_categories_supported);
 
    vfs_iface_info.required_interface_version = 2;
    vfs_iface_info.iface                      = NULL;
