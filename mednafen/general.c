@@ -141,27 +141,3 @@ void MDFN_EvalFIP(char *out, size_t out_size, const char *dir_path, const char *
    else
       snprintf(out, out_size, "%s%c%s", dir_path, slash, rel_path);
 }
-
-const char * GetFNComponent(const char *str)
-{
-   const char *tp1;
-#ifdef _WIN32
-   const char *tp3;
-#endif
-
-#ifdef _WIN32
-   tp1 = ((char *)strrchr(str,'\\'));
-
-   tp3 = ((char *)strrchr(str,'/'));
-
-   if (tp1<tp3)
-      tp1 = tp3;
-#else
-   tp1 = ((char *)strrchr(str,'/'));
-#endif
-
-   if (tp1)
-      return (tp1+1);
-   else
-      return (str);
-}

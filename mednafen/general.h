@@ -28,8 +28,6 @@ typedef enum
 // See libretro.c definition for the migration rationale.
 char *MDFN_MakeFName(char *buf, size_t buflen, MakeFName_Type type, int id1, const char *cd1);
 
-const char * GetFNComponent(const char *str);
-
 // Split file_path into directory / base name / extension. Any of the
 // three output buffers may be NULL to skip that component; out_size
 // applies to whichever buffers are non-NULL.
