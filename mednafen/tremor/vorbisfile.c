@@ -60,7 +60,6 @@
  * harder to understand anyway.  The high level functions are last.  Begin
  * grokking near the end of the file */
 
-
 /* read a little more data from the file/pipe into the ogg_sync framer */
 static long _get_data(OggVorbis_File *vf){
   errno=0;
@@ -1027,18 +1026,6 @@ int64_t ov_pcm_total(OggVorbis_File *vf,int i){
             OV_EINVAL if the stream is not seekable (we can't know the
             length) or only partially open 
 */
-int64_t ov_time_total(OggVorbis_File *vf,int i){
-  if(vf->ready_state<OPENED)return(OV_EINVAL);
-  if(!vf->seekable || i>=vf->links)return(OV_EINVAL);
-  if(i<0){
-    int64_t acc=0;
-    int i;
-    for(i=0;i<vf->links;i++)
-      acc+=ov_time_total(vf,i);
-    return(acc);
-  }
-  return(((int64_t)vf->pcmlengths[i*2+1])*1000/vf->vi[i].rate);
-}
 
 /* seek to an offset relative to the *compressed* data. This also
    scans packets to update the PCM cursor. It will cross a logical

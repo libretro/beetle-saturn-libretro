@@ -26,8 +26,40 @@
 
 /* A complete description of Ogg framing exists in docs/framing.html */
 
-int ogg_page_version(const ogg_page *og){
+/* async/delayed error detection helpers.  Upstream tremor exposed
+ * these as `ogg_stream_check` / `ogg_sync_check` in the public ogg.h
+ * API, but every reachable caller in the Beetle-Saturn tremor trim
+ * is inside this TU (framing.c).  Keeping them as file-local
+ * `static inline` removes the public decl, lets each call site
+ * collapse to the underlying NULL-check at -O2, and avoids the
+ * implicit-declaration warning we'd otherwise hit by deleting the
+ * function bodies entirely. */
+
+static inline int ogg_stream_check(ogg_stream_state *os){
+  if(!os || !os->body_data) return -1;
+  return 0;
+}
+
+static inline int ogg_sync_check(ogg_sync_state *oy){
+  if(oy->storage<0) return -1;
+  return 0;
+}
+
+/* Page-header accessors used only internally by `ogg_stream_pagein`
+ * below; same `static inline` treatment as the *_check helpers above
+ * for the same reason (gc-sections marked them dead because gcc
+ * inlines the body and the upstream public-API decl is no longer
+ * needed in ogg.h). */
+
+static inline int ogg_page_version_inl(const ogg_page *og){
   return((int)(og->header[4]));
+}
+
+static inline long ogg_page_pageno_inl(const ogg_page *og){
+  return(og->header[18] |
+         (og->header[19]<<8) |
+         (og->header[20]<<16) |
+         (og->header[21]<<24));
 }
 
 int ogg_page_continued(const ogg_page *og){
@@ -61,40 +93,6 @@ int ogg_page_serialno(const ogg_page *og){
          (og->header[16]<<16) |
          (og->header[17]<<24));
 }
-
-long ogg_page_pageno(const ogg_page *og){
-  return(og->header[18] |
-         (og->header[19]<<8) |
-         (og->header[20]<<16) |
-         (og->header[21]<<24));
-}
-
-
-
-/* returns the number of packets that are completed on this page (if
-   the leading packet is begun on a previous page, but ends on this
-   page, it's counted */
-
-/* NOTE:
-   If a page consists of a packet begun on a previous page, and a new
-   packet begun (but not completed) on this page, the return will be:
-     ogg_page_packets(page)   ==1,
-     ogg_page_continued(page) !=0
-
-   If a page happens to be a single packet that was begun on a
-   previous page, and spans to the next page (in the case of a three or
-   more page packet), the return will be:
-     ogg_page_packets(page)   ==0,
-     ogg_page_continued(page) !=0
-*/
-
-int ogg_page_packets(const ogg_page *og){
-  int i,n=og->header[26],count=0;
-  for(i=0;i<n;i++)
-    if(og->header[27+i]<255)count++;
-  return(count);
-}
-
 
 static const uint32_t crc_lookup[256]={
   0x00000000,0x04c11db7,0x09823b6e,0x0d4326d9,
@@ -187,10 +185,6 @@ int ogg_stream_init(ogg_stream_state *os,int serialno){
 }
 
 /* async/delayed error detection for the ogg_stream_state */
-int ogg_stream_check(ogg_stream_state *os){
-  if(!os || !os->body_data) return -1;
-  return 0;
-}
 
 /* _clear does not free os, only the non-flat storage within */
 int ogg_stream_clear(ogg_stream_state *os){
@@ -203,14 +197,6 @@ int ogg_stream_clear(ogg_stream_state *os){
        free(os->granule_vals);
 
     memset(os,0,sizeof(*os));
-  }
-  return(0);
-}
-
-int ogg_stream_destroy(ogg_stream_state *os){
-  if(os){
-    ogg_stream_clear(os);
-    free(os);
   }
   return(0);
 }
@@ -281,204 +267,10 @@ void ogg_page_checksum_set(ogg_page *og){
 }
 
 /* submit data to the internal buffer of the framing engine */
-int ogg_stream_iovecin(ogg_stream_state *os, ogg_iovec_t *iov, int count,
-                       long e_o_s, int64_t granulepos){
-
-  int bytes = 0, lacing_vals, i;
-
-  if(ogg_stream_check(os)) return -1;
-  if(!iov) return 0;
-
-  for (i = 0; i < count; ++i) bytes += (int)iov[i].iov_len;
-  lacing_vals=bytes/255+1;
-
-  if(os->body_returned){
-    /* advance packet data according to the body_returned pointer. We
-       had to keep it around to return a pointer into the buffer last
-       call */
-
-    os->body_fill-=os->body_returned;
-    if(os->body_fill)
-      memmove(os->body_data,os->body_data+os->body_returned,
-              os->body_fill);
-    os->body_returned=0;
-  }
-
-  /* make sure we have the buffer storage */
-  if(_os_body_expand(os,bytes) || _os_lacing_expand(os,lacing_vals))
-    return -1;
-
-  /* Copy in the submitted packet.  Yes, the copy is a waste; this is
-     the liability of overly clean abstraction for the time being.  It
-     will actually be fairly easy to eliminate the extra copy in the
-     future */
-
-  for (i = 0; i < count; ++i) {
-    memcpy(os->body_data+os->body_fill, iov[i].iov_base, iov[i].iov_len);
-    os->body_fill += (int)iov[i].iov_len;
-  }
-
-  /* Store lacing vals for this packet */
-  for(i=0;i<lacing_vals-1;i++){
-    os->lacing_vals[os->lacing_fill+i]=255;
-    os->granule_vals[os->lacing_fill+i]=os->granulepos;
-  }
-  os->lacing_vals[os->lacing_fill+i]=bytes%255;
-  os->granulepos=os->granule_vals[os->lacing_fill+i]=granulepos;
-
-  /* flag the first segment as the beginning of the packet */
-  os->lacing_vals[os->lacing_fill]|= 0x100;
-
-  os->lacing_fill+=lacing_vals;
-
-  /* for the sake of completeness */
-  os->packetno++;
-
-  if(e_o_s)os->e_o_s=1;
-
-  return(0);
-}
-
-int ogg_stream_packetin(ogg_stream_state *os,ogg_packet *op){
-  ogg_iovec_t iov;
-  iov.iov_base = op->packet;
-  iov.iov_len = op->bytes;
-  return ogg_stream_iovecin(os, &iov, 1, op->e_o_s, op->granulepos);
-}
 
 /* Conditionally flush a page; force==0 will only flush nominal-size
    pages, force==1 forces us to flush a page regardless of page size
    so long as there's any data available at all. */
-static int ogg_stream_flush_i(ogg_stream_state *os,ogg_page *og, int force, int nfill){
-  int i;
-  int vals=0;
-  int maxvals=(os->lacing_fill>255?255:os->lacing_fill);
-  int bytes=0;
-  long acc=0;
-  int64_t granule_pos=-1;
-
-  if(ogg_stream_check(os)) return(0);
-  if(maxvals==0) return(0);
-
-  /* construct a page */
-  /* decide how many segments to include */
-
-  /* If this is the initial header case, the first page must only include
-     the initial header packet */
-  if(os->b_o_s==0){  /* 'initial header page' case */
-    granule_pos=0;
-    for(vals=0;vals<maxvals;vals++){
-      if((os->lacing_vals[vals]&0x0ff)<255){
-        vals++;
-        break;
-      }
-    }
-  }else{
-
-    /* The extra packets_done, packet_just_done logic here attempts to do two things:
-       1) Don't unneccessarily span pages.
-       2) Unless necessary, don't flush pages if there are less than four packets on
-          them; this expands page size to reduce unneccessary overhead if incoming packets
-          are large.
-       These are not necessary behaviors, just 'always better than naive flushing'
-       without requiring an application to explicitly request a specific optimized
-       behavior. We'll want an explicit behavior setup pathway eventually as well. */
-
-    int packets_done=0;
-    int packet_just_done=0;
-    for(vals=0;vals<maxvals;vals++){
-      if(acc>nfill && packet_just_done>=4){
-        force=1;
-        break;
-      }
-      acc+=os->lacing_vals[vals]&0x0ff;
-      if((os->lacing_vals[vals]&0xff)<255){
-        granule_pos=os->granule_vals[vals];
-        packet_just_done=++packets_done;
-      }else
-        packet_just_done=0;
-    }
-    if(vals==255)force=1;
-  }
-
-  if(!force) return(0);
-
-  /* construct the header in temp storage */
-  memcpy(os->header,"OggS",4);
-
-  /* stream structure version */
-  os->header[4]=0x00;
-
-  /* continued packet flag? */
-  os->header[5]=0x00;
-  if((os->lacing_vals[0]&0x100)==0)os->header[5]|=0x01;
-  /* first page flag? */
-  if(os->b_o_s==0)os->header[5]|=0x02;
-  /* last page flag? */
-  if(os->e_o_s && os->lacing_fill==vals)os->header[5]|=0x04;
-  os->b_o_s=1;
-
-  /* 64 bits of PCM position */
-  for(i=6;i<14;i++){
-    os->header[i]=(unsigned char)(granule_pos&0xff);
-    granule_pos>>=8;
-  }
-
-  /* 32 bits of stream serial number */
-  {
-    long serialno=os->serialno;
-    for(i=14;i<18;i++){
-      os->header[i]=(unsigned char)(serialno&0xff);
-      serialno>>=8;
-    }
-  }
-
-  /* 32 bits of page counter (we have both counter and page header
-     because this val can roll over) */
-  if(os->pageno==-1)os->pageno=0; /* because someone called
-                                     stream_reset; this would be a
-                                     strange thing to do in an
-                                     encode stream, but it has
-                                     plausible uses */
-  {
-    long pageno=os->pageno++;
-    for(i=18;i<22;i++){
-      os->header[i]=(unsigned char)(pageno&0xff);
-      pageno>>=8;
-    }
-  }
-
-  /* zero for computation; filled in later */
-  os->header[22]=0;
-  os->header[23]=0;
-  os->header[24]=0;
-  os->header[25]=0;
-
-  /* segment table */
-  os->header[26]=(unsigned char)(vals&0xff);
-  for(i=0;i<vals;i++)
-    bytes+=os->header[i+27]=(unsigned char)(os->lacing_vals[i]&0xff);
-
-  /* set pointers in the ogg_page struct */
-  og->header=os->header;
-  og->header_len=os->header_fill=vals+27;
-  og->body=os->body_data+os->body_returned;
-  og->body_len=bytes;
-
-  /* advance the lacing data and set the body_returned pointer */
-
-  os->lacing_fill-=vals;
-  memmove(os->lacing_vals,os->lacing_vals+vals,os->lacing_fill*sizeof(*os->lacing_vals));
-  memmove(os->granule_vals,os->granule_vals+vals,os->lacing_fill*sizeof(*os->granule_vals));
-  os->body_returned+=bytes;
-
-  /* calculate the checksum */
-
-  ogg_page_checksum_set(og);
-
-  /* done */
-  return(1);
-}
 
 /* This will flush remaining packets into a page (returning nonzero),
    even if there is not enough data to trigger a flush normally
@@ -494,52 +286,17 @@ static int ogg_stream_flush_i(ogg_stream_state *os,ogg_page *og, int force, int 
    (and *not* ogg_stream_flush) unless you specifically need to flush
    a page regardless of size in the middle of a stream. */
 
-int ogg_stream_flush(ogg_stream_state *os,ogg_page *og){
-  return ogg_stream_flush_i(os,og,1,4096);
-}
-
 /* Like the above, but an argument is provided to adjust the nominal
    page size for applications which are smart enough to provide their
    own delay based flushing */
-
-int ogg_stream_flush_fill(ogg_stream_state *os,ogg_page *og, int nfill){
-  return ogg_stream_flush_i(os,og,1,nfill);
-}
 
 /* This constructs pages from buffered packet segments.  The pointers
 returned are to static buffers; do not free. The returned buffers are
 good only until the next call (using the same ogg_stream_state) */
 
-int ogg_stream_pageout(ogg_stream_state *os, ogg_page *og){
-  int force=0;
-  if(ogg_stream_check(os)) return 0;
-
-  if((os->e_o_s&&os->lacing_fill) ||          /* 'were done, now flush' case */
-     (os->lacing_fill&&!os->b_o_s))           /* 'initial header page' case */
-    force=1;
-
-  return(ogg_stream_flush_i(os,og,force,4096));
-}
-
 /* Like the above, but an argument is provided to adjust the nominal
 page size for applications which are smart enough to provide their
 own delay based flushing */
-
-int ogg_stream_pageout_fill(ogg_stream_state *os, ogg_page *og, int nfill){
-  int force=0;
-  if(ogg_stream_check(os)) return 0;
-
-  if((os->e_o_s&&os->lacing_fill) ||          /* 'were done, now flush' case */
-     (os->lacing_fill&&!os->b_o_s))           /* 'initial header page' case */
-    force=1;
-
-  return(ogg_stream_flush_i(os,og,force,nfill));
-}
-
-int ogg_stream_eos(ogg_stream_state *os){
-  if(ogg_stream_check(os)) return 1;
-  return os->e_o_s;
-}
 
 /* DECODING PRIMITIVES: packet streaming layer **********************/
 
@@ -573,19 +330,6 @@ int ogg_sync_clear(ogg_sync_state *oy){
     memset(oy,0,sizeof(*oy));
   }
   return(0);
-}
-
-int ogg_sync_destroy(ogg_sync_state *oy){
-  if(oy){
-    ogg_sync_clear(oy);
-    free(oy);
-  }
-  return(0);
-}
-
-int ogg_sync_check(ogg_sync_state *oy){
-  if(oy->storage<0) return -1;
-  return 0;
 }
 
 char *ogg_sync_buffer(ogg_sync_state *oy, long size){
@@ -735,36 +479,6 @@ long ogg_sync_pageseek(ogg_sync_state *oy,ogg_page *og){
    Returns pointers into buffered data; invalidated by next call to
    _stream, _clear, _init, or _buffer */
 
-int ogg_sync_pageout(ogg_sync_state *oy, ogg_page *og){
-
-  if(ogg_sync_check(oy))return 0;
-
-  /* all we need to do is verify a page at the head of the stream
-     buffer.  If it doesn't verify, we look for the next potential
-     frame */
-
-  for(;;){
-    long ret=ogg_sync_pageseek(oy,og);
-    if(ret>0){
-      /* have a page */
-      return(1);
-    }
-    if(ret==0){
-      /* need more data */
-      return(0);
-    }
-
-    /* head did not start a synced page... skipped some bytes */
-    if(!oy->unsynced){
-      oy->unsynced=1;
-      return(-1);
-    }
-
-    /* loop. keep looking */
-
-  }
-}
-
 /* add the incoming page to the stream state; we decompose the page
    into packet segments here as well. */
 
@@ -774,13 +488,13 @@ int ogg_stream_pagein(ogg_stream_state *os, ogg_page *og){
   long           bodysize=og->body_len;
   int            segptr=0;
 
-  int version=ogg_page_version(og);
+  int version=ogg_page_version_inl(og);
   int continued=ogg_page_continued(og);
   int bos=ogg_page_bos(og);
   int eos=ogg_page_eos(og);
   int64_t granulepos=ogg_page_granulepos(og);
   int serialno=ogg_page_serialno(og);
-  long pageno=ogg_page_pageno(og);
+  long pageno=ogg_page_pageno_inl(og);
   int segments=header[26];
 
   if(ogg_stream_check(os)) return -1;
@@ -1000,7 +714,3 @@ int ogg_stream_packetpeek(ogg_stream_state *os,ogg_packet *op){
   return _packetout(os,op,0);
 }
 
-void ogg_packet_clear(ogg_packet *op) {
-  free(op->packet);
-  memset(op, 0, sizeof(*op));
-}

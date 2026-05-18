@@ -29,7 +29,6 @@
 #  define LOOKUP_T const int32_t
 #endif
 
-#include "asm_arm.h"
 #include <stdlib.h> /* for abs() */
   
 #ifndef _V_WIDE_MATH
