@@ -204,7 +204,6 @@ static INLINE SFORMAT SFORMAT_BUILD_(void* iv, uint32_t icount,
 #define SFPTR8(x, ...)		SFPTRXN_(SF_FORCE_A8(x), __VA_ARGS__, #x)
 
 #define SFPTRBN(x, ...)		SFPTRXN_((x), __VA_ARGS__)
-#define SFPTRB(x, ...)		SFPTRXN_((x), __VA_ARGS__, #x)
 
 #define SFPTR16N(x, ...)	SFPTRXN_(SF_FORCE_A16(x), __VA_ARGS__)
 #define SFPTR16(x, ...)		SFPTRXN_(SF_FORCE_A16(x), __VA_ARGS__, #x)
@@ -213,13 +212,6 @@ static INLINE SFORMAT SFORMAT_BUILD_(void* iv, uint32_t icount,
 #define SFPTR32(x, ...)		SFPTRXN_(SF_FORCE_A32(x), __VA_ARGS__, #x)
 
 #define SFPTR64N(x, ...)	SFPTRXN_(SF_FORCE_A64(x), __VA_ARGS__)
-#define SFPTR64(x, ...)		SFPTRXN_(SF_FORCE_A64(x), __VA_ARGS__, #x)
-
-#define SFPTRFN(x, ...)		SFPTRXN_((x), __VA_ARGS__)
-#define SFPTRF(x, ...)		SFPTRXN_((x), __VA_ARGS__, #x)
-
-#define SFPTRDN(x, ...)		SFPTRXN_((x), __VA_ARGS__)
-#define SFPTRD(x, ...)		SFPTRXN_((x), __VA_ARGS__, #x)
 
 #define SFLINK(x) { (const char*)0, (x), ~0U, 0, 0, 0 }
 
