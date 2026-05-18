@@ -51,30 +51,10 @@
    removes a per-TU ledger to keep in sync. */
 #include "ss.h"
 #include "scu.h"
-
-/* SS_EVENT_*, SCU_INT_*, HORRIBLEHACK_* and event_list_entry come
-   from the shared C/C++ leaf header -- the single source of truth.
-   They were previously re-typed by hand here and miscounted
-   (SS_EVENT_VDP1/VDP2 and SCU_INT_VDP1 were all wrong), which
-   broke VDP1 event scheduling.  Never transcribe these again --
-   add to ss_c_abi.h instead.  ss.h pulls this in transitively but
-   vdp1.c uses these symbols directly so the explicit include
-   reflects actual usage and stays stable across upstream
-   reorganisations. */
-#include "ss_c_abi.h"
-
-/* vdp2.h is still no longer used (namespace VDP2 wrap), so the one
-   remaining VDP2 entry point that vdp1.c needs gets a localised
-   forward decl until vdp2.h is itself made C-includable.
-   vdp2.c:1474 has the matching `extern "C" VDP2_Update` proxy
-   that forwards into VDP2::Update. */
-extern int32_t VDP2_Update(int32_t timestamp);
+#include "vdp2.h"
 
 /* sign_x_to_s32(n_bits, value) is provided as a macro in math_ops.h,
-   which now reaches vdp1.c transitively via ss.h.  The previous
-   local static inline function was a verbatim duplicate kept here
-   only because ss.h (and therefore math_ops.h) was no longer used at the
-   original conversion time. */
+   which reaches vdp1.c transitively via ss.h. */
 
 enum { VDP1_UpdateTimingGran = 263 };
 enum { VDP1_IdleTimingGran = 1019 };

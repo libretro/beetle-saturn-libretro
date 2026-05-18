@@ -52,11 +52,7 @@
 #include "../state.h"
 #include "../mdfn_gameinfo.h"
 
-/* ss.h is a header (class SH7095, default args, ...), so it
-   cannot be included here. Cross-boundary constants come from the
-   shared C/C++ leaf header instead of being re-typed -- see
-   ss_c_abi.h. */
-#include "ss_c_abi.h"
+#include "ss.h"   /* SS_EVENT_DISABLED_TS */
 
 /* trio_snprintf was just `#define trio_snprintf snprintf` in the C++
    build's mednafen.h shim; use snprintf directly. */

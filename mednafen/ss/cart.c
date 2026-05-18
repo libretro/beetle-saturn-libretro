@@ -51,10 +51,7 @@
 #include "cart/ar4mp.h"
 #include "cart/stv.h"
 
-/* ss.h is C++ (class SH7095, default args), so it cannot be included
-   here. Cross-boundary constants come from the shared C/C++ leaf
-   header instead of being re-typed -- see ss_c_abi.h. */
-#include "ss_c_abi.h"
+#include "ss.h"   /* SS_EVENT_DISABLED_TS */
 
 struct CartInfo Cart;
 

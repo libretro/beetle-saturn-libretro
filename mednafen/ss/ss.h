@@ -30,10 +30,6 @@
  * keyword macros; C++ has `bool` as a built-in. */
 #include <boolean.h>
 
-/* SS_EVENT_*, HORRIBLEHACK_*, event_list_entry: shared verbatim with the
-   C-converted modules (vdp1.c, ...). Single source of truth -- see header. */
-#include "ss_c_abi.h"
-
  enum
  {
   SS_DBG_ERROR     = (1U <<  0),
@@ -78,7 +74,15 @@
  enum { ss_dbg_mask = 0 };
 
 #if 1
- /* HORRIBLEHACK_* enum lives in ss_c_abi.h (shared with C modules). */
+ enum
+ {
+  HORRIBLEHACK_NOSH2DMALINE106    = (1U << 0),
+  HORRIBLEHACK_NOSH2DMAPENALTY    = (1U << 1),
+  HORRIBLEHACK_VDP1VRAM5000FIX    = (1U << 2),
+  HORRIBLEHACK_VDP1RWDRAWSLOWDOWN = (1U << 3),
+  HORRIBLEHACK_VDP1INSTANT        = (1U << 4)
+  /* HORRIBLEHACK_SCUINTDELAY     = (1U << 5), */
+ };
  MDFN_HIDE extern uint32_t ss_horrible_hacks;
 #endif
 
@@ -142,7 +146,35 @@ extern "C" {
 }
 #endif
 
- /* SS_EVENT_* enum lives in ss_c_abi.h (shared with C modules). */
+ /* Saturn event scheduler.  Order is load-bearing -- indexes events[]
+  * in ss.c, savestate-visible. */
+ enum
+ {
+  SS_EVENT__SYNFIRST = 0,
+
+  SS_EVENT_SH2_M_DMA,
+  SS_EVENT_SH2_S_DMA,
+
+  SS_EVENT_SCU_DMA,
+  SS_EVENT_SCU_DSP,
+
+  SS_EVENT_SMPC,
+
+  SS_EVENT_VDP1,
+  SS_EVENT_VDP2,
+
+  SS_EVENT_CDB,
+
+  SS_EVENT_SOUND,
+
+  SS_EVENT_CART,
+
+  SS_EVENT_MIDSYNC,
+  /* SS_EVENT_SCU_INT, */
+
+  SS_EVENT__SYNLAST,
+  SS_EVENT__COUNT
+ };
 
  // events[] is padded so FindNextEventTS() can min-reduce over whole vectors;
  // padding slots stay at SS_EVENT_DISABLED_TS.
@@ -150,19 +182,22 @@ extern "C" {
 
  typedef sscpu_timestamp_t (*ss_event_handler)(const sscpu_timestamp_t timestamp);
 
- /* struct event_list_entry lives in ss_c_abi.h (shared with C modules). */
+ /* event_list_entry: layout-compatible POD shared with ss.c's events[]. */
+ typedef struct event_list_entry
+ {
+  sscpu_timestamp_t event_time;
+ } event_list_entry;
 
  MDFN_HIDE extern event_list_entry events[SS_EVENT__SIMD_COUNT];
 
- /* SS_EVENT_DISABLED_TS lives in ss_c_abi.h (shared with C modules). */
+ /* Sentinel "no event scheduled" timestamp.  Savestate-visible, so the
+  * value is fixed. */
+ enum { SS_EVENT_DISABLED_TS = 0x7FFFFFFF };
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
- /* C linkage: called from vdp1.c (converted to C). event_list_entry
-    is a plain { sscpu_timestamp_t event_time; } POD; vdp1.c mirrors
-    the layout. */
  void SS_SetEventNT(event_list_entry* e, const sscpu_timestamp_t next_timestamp);
 
 #ifdef __cplusplus
