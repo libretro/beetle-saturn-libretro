@@ -2186,4 +2186,18 @@ INLINE bool M68K::CheckPrivilege(void)
  return true;
 }
 
+/* Phase-9d-15a: HAM detempleting via preprocessor monomorphization.
+ * The 36 (T, AddressMode) HAM combinations actually used in
+ * m68k_instr*.inc are materialised here as concrete C structs
+ * named M68K_HAM_<TSIZE>_<AM> plus a set of static inline functions
+ * (init_self, init_arg, calcea, read, write, rmw, jump, getea).
+ *
+ * The macro-instantiated bodies are byte-equivalent to the C++
+ * template specialisations of M68K::HAM<T, am> -- verified by
+ * disassembly comparison.  Nothing references the macro instances
+ * yet; this commit lays the infrastructure.  Subsequent commits
+ * detemplate the 50 op templates the same way and switch the
+ * m68k_instr*.inc call sites over. */
+#include "m68k_ham_instances.inc.h"
+
 #endif
