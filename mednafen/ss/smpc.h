@@ -72,14 +72,7 @@ enum
  SMPC_RTC_LANG_JAPANESE = 5,
 };
 
-#ifdef __cplusplus
-/* C++ form keeps the default arg as a caller-side convenience. */
-void SMPC_Init(const uint8_t area_code, const int32_t master_clock, bool block_soundcpu_control = false) MDFN_COLD;
-#else
-/* C form: default arguments are no longer used syntax; C callers must
- * pass block_soundcpu_control explicitly. */
 void SMPC_Init(const uint8_t area_code, const int32_t master_clock, bool block_soundcpu_control) MDFN_COLD;
-#endif
 void SMPC_Kill(void) MDFN_COLD;
 void SMPC_Reset(bool powering_up) MDFN_COLD;
 void SMPC_LoadNV(cdstream* s) MDFN_COLD;
