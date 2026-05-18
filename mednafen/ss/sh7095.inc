@@ -4597,13 +4597,18 @@ static const uint8_t InstrDecodeTab[65536] =
 };
 
 #ifdef SH7095_OP_PAIR_PROFILE
-namespace {
- struct OpPairProf {
-  uint32_t counter[256][256];
-  uint8_t prev_op;
- };
- OpPairProf op_pair_prof[2];
-}
+/* Was an anonymous C++ namespace.  In C the equivalent
+ * file-local-linkage form is a plain struct declaration plus
+ * a `static` array at file scope.  This header is included
+ * into ss.c -- a C TU -- so the original `namespace { ... }`
+ * form broke the build whenever SH7095_OP_PAIR_PROFILE was
+ * defined; the C form below preserves the dev-profile entry
+ * point without that hazard. */
+struct OpPairProf {
+ uint32_t counter[256][256];
+ uint8_t prev_op;
+};
+static struct OpPairProf op_pair_prof[2];
 
 #define OP_PAIR_TICK(which_idx)							\
  do {										\
@@ -4616,7 +4621,8 @@ namespace {
 void SS_DumpOpPairProfile(void)
 {
  const char* paths[2] = { "/tmp/op_pairs_master.bin", "/tmp/op_pairs_slave.bin" };
- for(unsigned i = 0; i < 2; i++) {
+ unsigned i;
+ for(i = 0; i < 2; i++) {
   FILE* f = fopen(paths[i], "wb");
   if(!f) continue;
   fwrite(&op_pair_prof[i].counter[0][0], sizeof(uint32_t), 256u * 256u, f);
