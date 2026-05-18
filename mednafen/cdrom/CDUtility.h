@@ -180,7 +180,6 @@ extern "C" {
  void encode_mode0_sector(uint32_t aba, uint8_t *sector_data);
  void encode_mode1_sector(uint32_t aba, uint8_t *sector_data);	// 2048 bytes of user data at offset 16
  void encode_mode2_sector(uint32_t aba, uint8_t *sector_data);	// 2336 bytes of user data at offset 16 
- void encode_mode2_form1_sector(uint32_t aba, uint8_t *sector_data);	// 2048+8 bytes of user data at offset 16
  void encode_mode2_form2_sector(uint32_t aba, uint8_t *sector_data);	// 2324+8 bytes of user data at offset 16
 
 
@@ -231,9 +230,6 @@ extern "C" {
  // Deinterleaves 12 bytes of subchannel Q data from 96 bytes of interleaved subchannel PW data.
  void subq_deinterleave(const uint8_t *subpw_buf, uint8_t *subq_buf);
 
- // Deinterleaves 96 bytes of subchannel P-W data from 96 bytes of interleaved subchannel PW data.
- void subpw_deinterleave(const uint8_t *in_buf, uint8_t *out_buf);
-
  // Interleaves 96 bytes of subchannel P-W data from 96 bytes of uninterleaved subchannel PW data.
  void subpw_interleave(const uint8_t *in_buf, uint8_t *out_buf);
 
@@ -242,9 +238,6 @@ extern "C" {
  // subq_input must pass subq_check_checksum().
  // TODO
  //void subq_extrapolate(const uint8_t *subq_input, int32_t position_delta, uint8_t *subq_output);
-
- // (De)Scrambles data sector.
- void scrambleize_data_sector(uint8_t *sector_data);
 
 #ifdef __cplusplus
 }

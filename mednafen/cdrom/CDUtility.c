@@ -58,31 +58,7 @@ static uint16_t subq_crctab[256] =
 };
 
 
-static uint8_t scramble_table[2352 - 12];
-
 static bool CDUtility_Inited = false;
-
-static void InitScrambleTable(void)
-{
-   unsigned i;
-   unsigned cv = 1;
-
-   for(i = 12; i < 2352; i++)
-   {
-      unsigned b;
-      unsigned char z = 0;
-
-      for(b = 0; b < 8; b++)
-      {
-         z |= (cv & 1) << b;
-
-         int feedback = ((cv >> 1) & 1) ^ (cv & 1);
-         cv = (cv >> 1) | (feedback << 14);
-      }
-
-      scramble_table[i - 12] = z;
-   }
-}
 
 void CDUtility_Init(void)
 {
@@ -91,8 +67,6 @@ void CDUtility_Init(void)
 
    Init_LEC_Correct();
    lec_tables_init();
-
-   InitScrambleTable();
 
    CDUtility_Inited = true;
 }
@@ -116,13 +90,6 @@ void encode_mode2_sector(uint32_t aba, uint8_t *sector_data)
    CDUtility_Init();
 
    lec_encode_mode2_sector(aba, sector_data);
-}
-
-void encode_mode2_form1_sector(uint32_t aba, uint8_t *sector_data)
-{
-   CDUtility_Init();
-
-   lec_encode_mode2_form1_sector(aba, sector_data);
 }
 
 void encode_mode2_form2_sector(uint32_t aba, uint8_t *sector_data)
@@ -186,22 +153,6 @@ void subq_deinterleave(const uint8_t *SubPWBuf, uint8_t *qbuf)
       qbuf[i >> 3] |= ((SubPWBuf[i] >> 6) & 0x1) << (7 - (i & 0x7));
 }
 
-
-// Deinterleaves 96 bytes of subchannel P-W data from 96 bytes of interleaved subchannel PW data.
-void subpw_deinterleave(const uint8_t *in_buf, uint8_t *out_buf)
-{
-   unsigned ch;
-   assert(in_buf != out_buf);
-
-   memset(out_buf, 0, 96);
-
-   for(ch = 0; ch < 8; ch++)
-   {
-      unsigned i;
-      for(i = 0; i < 96; i++)
-         out_buf[(ch * 12) + (i >> 3)] |= ((in_buf[i] >> (7 - ch)) & 0x1) << (7 - (i & 0x7));
-   }
-}
 
 // Interleaves 96 bytes of subchannel P-W data from 96 bytes of uninterleaved subchannel PW data.
 void subpw_interleave(const uint8_t *in_buf, uint8_t *out_buf)
@@ -403,11 +354,4 @@ void synth_udapp_sector_lba(uint8_t mode, const TOC *toc, const int32_t lba, int
             break;
       }
    }
-}
-
-void scrambleize_data_sector(uint8_t *sector_data)
-{
-   unsigned i;
-   for(i = 12; i < 2352; i++)
-      sector_data[i] ^= scramble_table[i - 12];
 }

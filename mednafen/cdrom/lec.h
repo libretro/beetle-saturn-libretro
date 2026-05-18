@@ -55,13 +55,6 @@ void lec_encode_mode1_sector(uint32_t adr, uint8_t *sector);
  */
 void lec_encode_mode2_sector(uint32_t adr, uint8_t *sector);
 
-/* Encodes a XA form 1 sector.
- * 'adr' is the current physical sector address
- * 'sector' must be 2352 byte wide containing 2048+8 bytes user data at
- * offset 16
- */
-void lec_encode_mode2_form1_sector(uint32_t adr, uint8_t *sector);
-
 /* Encodes a XA form 2 sector.
  * 'adr' is the current physical sector address
  * 'sector' must be 2352 byte wide containing 2324+8 bytes user data at

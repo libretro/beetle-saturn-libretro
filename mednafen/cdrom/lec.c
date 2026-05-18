@@ -36,8 +36,6 @@
 #define LEC_MODE1_INTERMEDIATE_OFFSET 2068
 #define LEC_MODE1_P_PARITY_OFFSET 2076
 #define LEC_MODE1_Q_PARITY_OFFSET 2248
-#define LEC_MODE2_FORM1_DATA_LEN (2048+8)
-#define LEC_MODE2_FORM1_EDC_OFFSET 2072
 #define LEC_MODE2_FORM2_DATA_LEN (2324+8)
 #define LEC_MODE2_FORM2_EDC_OFFSET 2348
 
@@ -267,19 +265,6 @@ static void calc_mode1_edc(uint8_t *sector)
   sector[LEC_MODE1_EDC_OFFSET + 3] = (crc >> 24) & 0xffL;
 }
 
-/* Calc EDC for a XA form 1 sector
- */
-static void calc_mode2_form1_edc(uint8_t *sector)
-{
-  uint32_t crc = calc_edc(sector + LEC_DATA_OFFSET,
-			   LEC_MODE2_FORM1_DATA_LEN);
-
-  sector[LEC_MODE2_FORM1_EDC_OFFSET] = crc & 0xffL;
-  sector[LEC_MODE2_FORM1_EDC_OFFSET + 1] = (crc >> 8) & 0xffL;
-  sector[LEC_MODE2_FORM1_EDC_OFFSET + 2] = (crc >> 16) & 0xffL;
-  sector[LEC_MODE2_FORM1_EDC_OFFSET + 3] = (crc >> 24) & 0xffL;
-}
-
 /* Calc EDC for a XA form 2 sector
  */
 static void calc_mode2_form2_edc(uint8_t *sector)
@@ -467,30 +452,6 @@ void lec_encode_mode1_sector(uint32_t adr, uint8_t *sector)
 void lec_encode_mode2_sector(uint32_t adr, uint8_t *sector)
 {
   set_sync_pattern(sector);
-  set_sector_header(2, adr, sector);
-}
-
-/* Encodes a XA form 1 sector.
- * 'adr' is the current physical sector address
- * 'sector' must be 2352 byte wide containing 2048+8 bytes user data at
- * offset 16
- */
-void lec_encode_mode2_form1_sector(uint32_t adr, uint8_t *sector)
-{
-  set_sync_pattern(sector);
-
-  calc_mode2_form1_edc(sector);
-
-  /* P/Q partiy must not contain the sector header so clear it */
-  sector[LEC_HEADER_OFFSET] =
-    sector[LEC_HEADER_OFFSET + 1] =
-    sector[LEC_HEADER_OFFSET + 2] =
-    sector[LEC_HEADER_OFFSET + 3] = 0;
-
-  calc_P_parity(sector);
-  calc_Q_parity(sector);
-  
-  /* finally add the sector header */
   set_sector_header(2, adr, sector);
 }
 
