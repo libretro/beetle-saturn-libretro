@@ -3101,7 +3101,7 @@ static INLINE void SH7095_BSC_BusWrite_u8(SH7095* z, uint32_t A, uint8_t V, cons
   const uint32_t mask = 0xFFu << shift;
 
   DB = (DB & ~mask) | ((uint32_t)V << shift);
-  BusRW_DB_CS0_u8_W1(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS0_u8_W1(A, &DB, SH2DMAHax);
  }
  else if(A >= 0x06000000)	// CS3; 32-bit
  {
@@ -3109,7 +3109,7 @@ static INLINE void SH7095_BSC_BusWrite_u8(SH7095* z, uint32_t A, uint8_t V, cons
   const uint32_t mask = 0xFFu << shift;
 
   DB = (DB & ~mask) | ((uint32_t)V << shift);
-  BusRW_DB_CS3_u8_W1(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS3_u8_W1(A, &DB, SH2DMAHax);
 
   if(!BurstHax)
   {
@@ -3131,7 +3131,7 @@ static INLINE void SH7095_BSC_BusWrite_u8(SH7095* z, uint32_t A, uint8_t V, cons
   const uint32_t mask = 0xFFu << shift;
 
   DB = (DB & ~mask) | ((uint32_t)V << shift);
-  BusRW_DB_CS12_u8_W1(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS12_u8_W1(A, &DB, SH2DMAHax);
  }
 
  SH7095_DB = DB;
@@ -3158,7 +3158,7 @@ static INLINE void SH7095_BSC_BusWrite_u16(SH7095* z, uint32_t A, uint16_t V, co
   const uint32_t mask = 0xFFFFu << shift;
 
   DB = (DB & ~mask) | ((uint32_t)V << shift);
-  BusRW_DB_CS0_u16_W1(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS0_u16_W1(A, &DB, SH2DMAHax);
  }
  else if(A >= 0x06000000)	// CS3; 32-bit
  {
@@ -3166,7 +3166,7 @@ static INLINE void SH7095_BSC_BusWrite_u16(SH7095* z, uint32_t A, uint16_t V, co
   const uint32_t mask = 0xFFFFu << shift;
 
   DB = (DB & ~mask) | ((uint32_t)V << shift);
-  BusRW_DB_CS3_u16_W1(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS3_u16_W1(A, &DB, SH2DMAHax);
 
   if(!BurstHax)
   {
@@ -3188,7 +3188,7 @@ static INLINE void SH7095_BSC_BusWrite_u16(SH7095* z, uint32_t A, uint16_t V, co
   const uint32_t mask = 0xFFFFu << shift;
 
   DB = (DB & ~mask) | ((uint32_t)V << shift);
-  BusRW_DB_CS12_u16_W1(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS12_u16_W1(A, &DB, SH2DMAHax);
  }
 
  SH7095_DB = DB;
@@ -3215,10 +3215,10 @@ static INLINE void SH7095_BSC_BusWrite_u32(SH7095* z, uint32_t A, uint32_t V, co
   // SH7095_BusLock++;
 
   DB = (DB & 0xFFFF0000) | (V >> 16);
-  BusRW_DB_CS0_u16_W1(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS0_u16_W1(A, &DB, SH2DMAHax);
 
   DB = (DB & 0xFFFF0000) | (uint16_t)V;
-  BusRW_DB_CS0_u16_W1(A | 2, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS0_u16_W1(A | 2, &DB, SH2DMAHax);
 
   //if(!SH2DMAHax)
   // SH7095_BusLock--;
@@ -3227,7 +3227,7 @@ static INLINE void SH7095_BSC_BusWrite_u32(SH7095* z, uint32_t A, uint32_t V, co
  {
   /* sizeof(uint32_t) == 4: shift = 0, mask = 0xFFFFFFFFu */
   DB = V;
-  BusRW_DB_CS3_u32_W1(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS3_u32_W1(A, &DB, SH2DMAHax);
 
   if(!BurstHax)
   {
@@ -3246,7 +3246,7 @@ static INLINE void SH7095_BSC_BusWrite_u32(SH7095* z, uint32_t A, uint32_t V, co
  else	// CS1, CS2; 32-bit
  {
   DB = V;
-  BusRW_DB_CS12_u32_W1(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS12_u32_W1(A, &DB, SH2DMAHax);
  }
 
  SH7095_DB = DB;
@@ -3269,12 +3269,12 @@ static INLINE uint8_t SH7095_BSC_BusRead_u8(SH7095* z, uint32_t A, const bool Bu
 
  if(A < 0x02000000)	// CS0, configured as 16-bit
  {
-  BusRW_DB_CS0_u8_W0(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS0_u8_W0(A, &DB, SH2DMAHax);
   ret = DB >> (((A & 1) ^ 1) << 3);
  }
  else if(A >= 0x06000000)	// CS3; 32-bit
  {
-  BusRW_DB_CS3_u8_W0(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS3_u8_W0(A, &DB, SH2DMAHax);
   ret = DB >> (((A & 3) ^ 3) << 3);
 
   if(!BurstHax)
@@ -3292,7 +3292,7 @@ static INLINE uint8_t SH7095_BSC_BusRead_u8(SH7095* z, uint32_t A, const bool Bu
  }
  else	// CS1, CS2; 32-bit
  {
-  BusRW_DB_CS12_u8_W0(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS12_u8_W0(A, &DB, SH2DMAHax);
   ret = DB >> (((A & 3) ^ 3) << 3);
  }
 
@@ -3318,12 +3318,12 @@ static INLINE uint16_t SH7095_BSC_BusRead_u16(SH7095* z, uint32_t A, const bool 
 
  if(A < 0x02000000)	// CS0, configured as 16-bit
  {
-  BusRW_DB_CS0_u16_W0(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS0_u16_W0(A, &DB, SH2DMAHax);
   ret = DB >> ((A & 1) << 3);
  }
  else if(A >= 0x06000000)	// CS3; 32-bit
  {
-  BusRW_DB_CS3_u16_W0(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS3_u16_W0(A, &DB, SH2DMAHax);
   ret = DB >> (((A & 3) ^ 2) << 3);
 
   if(!BurstHax)
@@ -3341,7 +3341,7 @@ static INLINE uint16_t SH7095_BSC_BusRead_u16(SH7095* z, uint32_t A, const bool 
  }
  else	// CS1, CS2; 32-bit
  {
-  BusRW_DB_CS12_u16_W0(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS12_u16_W0(A, &DB, SH2DMAHax);
   ret = DB >> (((A & 3) ^ 2) << 3);
  }
 
@@ -3371,10 +3371,10 @@ static INLINE uint32_t SH7095_BSC_BusRead_u32(SH7095* z, uint32_t A, const bool 
   //if(!SH2DMAHax)
   // SH7095_BusLock++;
 
-  BusRW_DB_CS0_u16_W0(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS0_u16_W0(A, &DB, SH2DMAHax);
   ret = DB << 16;
 
-  BusRW_DB_CS0_u16_W0(A | 2, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS0_u16_W0(A | 2, &DB, SH2DMAHax);
   ret |= (uint16_t)DB;
 
   //if(!SH2DMAHax)
@@ -3382,7 +3382,7 @@ static INLINE uint32_t SH7095_BSC_BusRead_u32(SH7095* z, uint32_t A, const bool 
  }
  else if(A >= 0x06000000)	// CS3; 32-bit
  {
-  BusRW_DB_CS3_u32_W0(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS3_u32_W0(A, &DB, SH2DMAHax);
   ret = DB;	/* shift folds to 0 for sizeof(T)==4 */
 
   if(!BurstHax)
@@ -3400,7 +3400,7 @@ static INLINE uint32_t SH7095_BSC_BusRead_u32(SH7095* z, uint32_t A, const bool 
  }
  else	// CS1, CS2; 32-bit
  {
-  BusRW_DB_CS12_u32_W0(A, &DB, BurstHax, SH2DMAHax);
+  BusRW_DB_CS12_u32_W0(A, &DB, SH2DMAHax);
   ret = DB;
  }
 

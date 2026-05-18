@@ -215,10 +215,13 @@ int ActiveCartType;		// Used in save states.
 //
 // Never add anything to SH7095_mem_timestamp when DMAHax is true.
 //
-// When BurstHax is true and we're accessing high work RAM, don't add anything.
+// (BurstHax-driven timing in high work RAM is handled in
+//  SH7095_BSC_BusWrite / SH7095_BSC_BusRead in sh7095.inc.  The
+//  BusRW_DB_CS* functions below do only data movement; the BurstHax
+//  parameter they used to take was unused and has been dropped.)
 //
 
-static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -375,7 +378,7 @@ static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t* DB, const bool
   *SH2DMAHax += 4;
 }
 
-static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -531,7 +534,7 @@ static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t* DB, const boo
   *SH2DMAHax += 4;
 }
 
-static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -661,7 +664,7 @@ static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t* DB, const bool
   *SH2DMAHax += 4;
 }
 
-static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -791,7 +794,7 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t* DB, const boo
   *SH2DMAHax += 4;
 }
 
-static INLINE void BusRW_DB_CS12_u8_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u8_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -806,7 +809,7 @@ static INLINE void BusRW_DB_CS12_u8_W0(const uint32_t A, uint32_t* DB, const boo
  }
 }
 
-static INLINE void BusRW_DB_CS12_u8_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u8_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -820,7 +823,7 @@ static INLINE void BusRW_DB_CS12_u8_W1(const uint32_t A, uint32_t* DB, const boo
  }
 }
 
-static INLINE void BusRW_DB_CS12_u16_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u16_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -835,7 +838,7 @@ static INLINE void BusRW_DB_CS12_u16_W0(const uint32_t A, uint32_t* DB, const bo
  }
 }
 
-static INLINE void BusRW_DB_CS12_u16_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u16_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -849,7 +852,7 @@ static INLINE void BusRW_DB_CS12_u16_W1(const uint32_t A, uint32_t* DB, const bo
  }
 }
 
-static INLINE void BusRW_DB_CS12_u32_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u32_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -864,7 +867,7 @@ static INLINE void BusRW_DB_CS12_u32_W0(const uint32_t A, uint32_t* DB, const bo
  }
 }
 
-static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -878,7 +881,7 @@ static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t* DB, const bo
  }
 }
 
-static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -897,7 +900,7 @@ static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t* DB, const bool
  }
 }
 
-static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -920,7 +923,7 @@ static INLINE void BusRW_DB_CS3_u8_W1(const uint32_t A, uint32_t* DB, const bool
  }
 }
 
-static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -939,7 +942,7 @@ static INLINE void BusRW_DB_CS3_u16_W0(const uint32_t A, uint32_t* DB, const boo
  }
 }
 
-static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -956,7 +959,7 @@ static INLINE void BusRW_DB_CS3_u16_W1(const uint32_t A, uint32_t* DB, const boo
  }
 }
 
-static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
@@ -975,7 +978,7 @@ static INLINE void BusRW_DB_CS3_u32_W0(const uint32_t A, uint32_t* DB, const boo
  }
 }
 
-static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
+static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
 
  //
