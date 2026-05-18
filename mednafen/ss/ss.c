@@ -1463,6 +1463,14 @@ static INLINE void UpdateSMPCInput(const sscpu_timestamp_t timestamp)
 {
  int32_t elapsed_time;
 
+ /* ST-V games don't have a Saturn reset button -- they have their own
+  * service/test/coin switches via the IOGA.  STVIO_TransformInput
+  * masks out the reset-button bit from DPtr[12] before SMPC sees it,
+  * so an accidental "Reset" press on the frontend doesn't actually
+  * issue a soft reset in ST-V mode.  Runs ahead of SMPC's transform. */
+ if(ActiveCartType == CART_STV)
+   STVIO_TransformInput();
+
  SMPC_TransformInput();
 
  elapsed_time = (((int64_t)timestamp * cur_clock_div * 1000 * 1000) - UpdateInputLastBigTS) / (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
