@@ -4069,9 +4069,36 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFPTR8N(&(SubQBuf_Safe)[0], (sizeof(SubQBuf_Safe) / sizeof(uint8_t)), "SubQBuf_Safe"),
   SFVAR(SubQBuf_Safe_Valid),
 
+  /* `vs` is the macro parameter (struct lvalue, e.g. *FileInfo
+   * or RootDirInfo).  Both SFPTR8N strings must stringify the
+   * parameter with `#vs` -- the literal "(vs).fad_be" form below
+   * was wrong: it produced the same string regardless of which
+   * SFFIS() invocation expanded it, so both invocations
+   * registered duplicate SFORMAT entries under the same name.
+   *
+   * MakeSFMap silently overwrote FileInfo's entry with
+   * RootDirInfo's during load-map construction, so on state
+   * load the saved FileInfo[] array was discarded and the slot
+   * was filled with RootDirInfo's data; on state save, FileInfo
+   * was written to disk under a key that was then overwritten
+   * by RootDirInfo's chunk at the same key.
+   *
+   * The SFVAR((vs).unit_size, ...) entries below are NOT affected
+   * by this bug -- SFVAR's stringification (`#x` inside SFVAR4_)
+   * happens after macro substitution of `vs`, so each invocation
+   * produces a different name ((*FileInfo).unit_size vs
+   * (RootDirInfo).unit_size).
+   *
+   * Old savestates wrote two chunks under the "(vs).fad_be" key;
+   * with the fix in place the new key names will not be found in
+   * those files and FileInfo[]/RootDirInfo will load as their
+   * power-on defaults.  FileInfo[] is a CD-filesystem cache that
+   * the IOS repopulates on next directory access, so user-visible
+   * impact is limited to one extra directory read after loading a
+   * pre-fix savestate. */
   #define SFFIS(vs, tc)						\
-	SFPTR8N(&((vs).fad_be)[0], (sizeof((vs).fad_be) / sizeof(uint8_t)), tc, sizeof(vs), &vs, "(vs).fad_be"),		\
-	SFPTR8N(&((vs).size_be)[0], (sizeof((vs).size_be) / sizeof(uint8_t)), tc, sizeof(vs), &vs, "(vs).size_be"),		\
+	SFPTR8N(&((vs).fad_be)[0], (sizeof((vs).fad_be) / sizeof(uint8_t)), tc, sizeof(vs), &vs, "(" #vs ").fad_be"),		\
+	SFPTR8N(&((vs).size_be)[0], (sizeof((vs).size_be) / sizeof(uint8_t)), tc, sizeof(vs), &vs, "(" #vs ").size_be"),		\
 	SFVAR((vs).unit_size, tc, sizeof(vs), &vs),		\
 	SFVAR((vs).gap_size, tc, sizeof(vs), &vs),		\
 	SFVAR((vs).fnum, tc, sizeof(vs), &vs),			\
