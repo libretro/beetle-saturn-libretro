@@ -132,7 +132,6 @@ static void SH7095_SetCCR(SH7095* z, uint8_t V);
 // SH7095_SetIRL is declared extern in sh7095.h since scu.inc calls it.
 static void SH7095_SetFTCI(SH7095* z, bool state);
 static void SH7095_StateAction_SlaveResume(SH7095* z, StateMem* sm, const unsigned load, const bool data_only, const char* sname);
-static void SH7095_SetRegister(SH7095* z, const unsigned id, const uint32_t value);
 static void SH7095_DoIDIF_INLINE_C0_I0(SH7095* z);
 static void SH7095_DoIDIF_INLINE_C0_I1(SH7095* z);
 static void SH7095_DoIDIF_INLINE_C1_I0(SH7095* z);

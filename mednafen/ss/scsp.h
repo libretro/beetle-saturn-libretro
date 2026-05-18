@@ -34,23 +34,6 @@
 
 enum
 {
- GSREG_MVOL = 0,
- GSREG_DAC18B,
- GSREG_MEM4MB,
- GSREG_RBC,
- GSREG_MSLC,
-
- GSREG_SCIEB,
- GSREG_SCIPD,
- GSREG_MCIEB,
- GSREG_MCIPD,
-
- GSREG_EFREG0, GSREG_EFREG1, GSREG_EFREG2, GSREG_EFREG3, GSREG_EFREG4, GSREG_EFREG5, GSREG_EFREG6, GSREG_EFREG7,
- GSREG_EFREG8, GSREG_EFREG9, GSREG_EFREGA, GSREG_EFREGB, GSREG_EFREGC, GSREG_EFREGD, GSREG_EFREGE, GSREG_EFREGF
-};
-
-enum
-{
  ENV_PHASE_ATTACK = 0,
  ENV_PHASE_DECAY1 = 1,
  ENV_PHASE_DECAY2 = 2,
@@ -364,7 +347,6 @@ struct SS_SCSP
 void SS_SCSP_Reset      (SS_SCSP* z, bool pwr) MDFN_COLD;
 void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
 void SS_SCSP_RunSample  (SS_SCSP* z, int16_t* outlr);
-void SS_SCSP_SetRegister(SS_SCSP* z, const unsigned id, const uint32_t value) MDFN_COLD;
 void SS_SCSP_RW_u8_W0 (SS_SCSP* z, uint32_t A, uint8_t*  DBV_p);
 void SS_SCSP_RW_u16_W0(SS_SCSP* z, uint32_t A, uint16_t* DBV_p);
 void SS_SCSP_RW_u8_W1 (SS_SCSP* z, uint32_t A, uint8_t*  DBV_p);

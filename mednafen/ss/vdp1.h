@@ -89,45 +89,6 @@ MDFN_HIDE extern bool VDP1_MeshImproved;
 MDFN_HIDE extern uint16_t VDP1_VRAM[0x40000];
 MDFN_HIDE extern uint16_t VDP1_FB[2][0x20000];
 
-static INLINE uint8_t VDP1_PeekVRAM(const uint32_t addr)
-{
- /* ne16_rbo_be<uint8_t> folded: byte read from uint16_t-array BE bus.
-  * MSB_FIRST: natural byte index. LE host: XOR with 1 to swap
-  * the byte halves of each uint16_t. */
-#ifdef MSB_FIRST
- return ((const uint8_t*)VDP1_VRAM)[addr & 0x7FFFF];
-#else
- return ((const uint8_t*)VDP1_VRAM)[(addr & 0x7FFFF) ^ 1];
-#endif
-}
-
-static INLINE void VDP1_PokeVRAM(const uint32_t addr, const uint8_t val)
-{
-#ifdef MSB_FIRST
- ((uint8_t*)VDP1_VRAM)[addr & 0x7FFFF] = val;
-#else
- ((uint8_t*)VDP1_VRAM)[(addr & 0x7FFFF) ^ 1] = val;
-#endif
-}
-
-static INLINE uint8_t VDP1_PeekFB(const bool which, const uint32_t addr)
-{
-#ifdef MSB_FIRST
- return ((const uint8_t*)VDP1_FB[which])[addr & 0x3FFFF];
-#else
- return ((const uint8_t*)VDP1_FB[which])[(addr & 0x3FFFF) ^ 1];
-#endif
-}
-
-static INLINE void VDP1_PokeFB(const bool which, const uint32_t addr, const uint8_t val)
-{
-#ifdef MSB_FIRST
- ((uint8_t*)VDP1_FB[which])[addr & 0x3FFFF] = val;
-#else
- ((uint8_t*)VDP1_FB[which])[(addr & 0x3FFFF) ^ 1] = val;
-#endif
-}
-
 #ifdef __cplusplus
 }
 #endif

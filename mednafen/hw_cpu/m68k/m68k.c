@@ -167,43 +167,6 @@ void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
  if(load)
   z->XPending &= XPENDING_MASK__VALID;
 }
-void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value)
-{
- switch(id)
- {
-  case GSREG_D0: case GSREG_D1: case GSREG_D2: case GSREG_D3:
-  case GSREG_D4: case GSREG_D5: case GSREG_D6: case GSREG_D7:
-	z->D[id - GSREG_D0] = value;
-	break;
-
-  case GSREG_A0: case GSREG_A1: case GSREG_A2: case GSREG_A3:
-  case GSREG_A4: case GSREG_A5: case GSREG_A6: case GSREG_A7:
-	z->A[id - GSREG_A0] = value;
-	break;
-
-  case GSREG_PC:
-	z->PC = value;
-	break;
-
-  case GSREG_SR:
-	SetSR(z, value);
-	break;
-
-  case GSREG_SSP:
-	if(GetSVisor(z))
-	 z->A[7] = value;
-	else
-	 z->SP_Inactive = value;
-	break;
-
-  case GSREG_USP:
-	if(!GetSVisor(z))
-	 z->A[7] = value;
-	else
-	 z->SP_Inactive = value;
-	break;
- }
-}
 
 //
 // Instruction traps(TRAP, TRAPV, CHK, DIVS, DIVU):

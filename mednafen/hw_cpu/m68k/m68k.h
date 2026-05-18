@@ -117,32 +117,6 @@ enum  /* EXCEPTION class -- first arg to Exception() */
  EXCEPTION_TRAP
 };
 
-enum  /* GSREG -- id parameter of M68K_GetRegister / M68K_SetRegister */
-{
- GSREG_D0 = 0,
- GSREG_D1,
- GSREG_D2,
- GSREG_D3,
- GSREG_D4,
- GSREG_D5,
- GSREG_D6,
- GSREG_D7,
-
- GSREG_A0 = 8,
- GSREG_A1,
- GSREG_A2,
- GSREG_A3,
- GSREG_A4,
- GSREG_A5,
- GSREG_A6,
- GSREG_A7,
-
- GSREG_PC = 16,
- GSREG_SR,
- GSREG_SSP,
- GSREG_USP
-};
-
 /* Phase-9c: class -> struct.  See Phase-9a comment in scsp.h
  * for rationale.  M68K already had `//private:` (commented out)
  * markers, so all members were de facto public; this commit
@@ -326,7 +300,6 @@ void     M68K_RunSplit1          (M68K* z, uint16_t instr, const unsigned instr_
 void     M68K_SetExtHalted       (M68K* z, bool state);
 void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
                                   const bool data_only, const char* sname);
-void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t value);
 
 #ifdef __cplusplus
 } /* extern "C" */

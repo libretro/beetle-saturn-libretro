@@ -2865,32 +2865,3 @@ void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bo
 //
 //
 
-void SS_SCSP_SetRegister(SS_SCSP* z, const unsigned id, const uint32_t value)
-{
- switch(id)
- {
-  //case GSREG_MVOL: z->MVOL = value & 0xF; // TODO cache
-
-  case GSREG_DAC18B:
-	z->DAC18bit = value & 1;
-	break;
-
-  case GSREG_MEM4MB:
-	z->Mem4Mb = value & 1;
-	break;
-
-  case GSREG_RBC:
-	z->RBP = value & 0x7F;
-	z->RBL = (value >> 7) & 0x3;
-	break;
-
-  case GSREG_MSLC:
-	z->SlotMonitorWhich = value & 0x1F;
-	break;
-
-  case GSREG_EFREG0 ... GSREG_EFREGF:
-	z->DSP.EFREG[id - GSREG_EFREG0] = (uint16_t)value;
-	break;
- }
-}
-
