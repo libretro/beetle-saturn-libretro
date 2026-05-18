@@ -59,8 +59,8 @@ static INLINE void MDFN_DecodeColor(uint32_t value,
  * the (NULL, w, h, w) construction shape each time.
  *
  * The pitch32/pitchinpix union preserves the historical name
- * "pitch32" used by older call sites in gpu.cpp; new code should
- * use pitchinpix.
+ * "pitch32" used by upstream Mednafen call sites; new code in
+ * this fork should use pitchinpix.
  */
 typedef struct
 {

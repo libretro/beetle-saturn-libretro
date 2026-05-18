@@ -126,12 +126,18 @@ static INLINE unsigned MDFN_log2(uint64_t v) { return 63 ^ MDFN_lzcount64_0UD(v 
 
 // Rounds up to the nearest power of 2(treats input as unsigned to a degree, but be aware of integer promotion rules).
 // Returns 0 on overflow.
-// Single 64-bit form; the only caller (cart/bootrom.cpp) passes
+// Single 64-bit form; the only caller (cart/bootrom.c) passes
 // uint32_t / uint64_t values, which promote without surprise.
 static INLINE uint64_t round_up_pow2(uint64_t v) { uint64_t tmp = (uint64_t)1 << MDFN_log2(v); return tmp << (tmp < v); }
 
-// Some compilers' optimizers and some platforms might fubar the generated code from these macros,
-// so some tests are run in...tests.cpp
+// Some compilers' optimizers and some platforms might fubar the
+// generated code from these macros, so upstream Mednafen ran a
+// dedicated tests TU to validate them.  That tests TU was never
+// part of this libretro fork; the macros are nonetheless considered
+// "load-bearing" and are not to be replaced with the more obvious
+// `int16_t result = (int8_t)value;` form (the explicit-shift idiom
+// works around codegen bugs on a few historical toolchain x target
+// combinations -- see the upstream commit history for details).
 #define sign_8_to_s16(_value) ((int16_t)(int8_t)(_value))
 #define sign_9_to_s16(_value)  (((int16_t)((unsigned int)(_value) << 7)) >> 7)
 #define sign_10_to_s16(_value)  (((int16_t)((uint32_t)(_value) << 6)) >> 6)

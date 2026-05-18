@@ -209,8 +209,8 @@ static bool ccd_read_uint(const struct CCD_Section *s, const char *key, unsigned
 
 /* ----------------------------------------------------------------
  * Path helpers - C versions of MDFN_GetFilePathComponents and
- * MDFN_EvalFIP from general.cpp.  Inline because pulling C++ utilities
- * across the language boundary is awkward and the logic is short. */
+ * MDFN_EvalFIP from general.c.  Inlined here so this TU doesn't
+ * depend on general.c for two short string-massage helpers. */
 
 #ifdef _WIN32
 # define PATH_SEP '\\'

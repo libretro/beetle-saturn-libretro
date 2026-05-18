@@ -34,10 +34,11 @@
 #include "mednafen/ss/db.h"
 #include "mednafen/ss/smpc.h"
 #include "mednafen/ss/vdp1.h"
-/* mednafen/ss/vdp2.h is C++-only (namespace VDP2 { ... } wrap);
- * this TU's one VDP2 entry point goes via the extern "C"
- * VDP2_SetDeinterlaceOff proxy in vdp2.cpp, locally forward-
- * declared below.  Same pattern as vdp1.c uses for VDP2_Update. */
+/* vdp2.h's one entry point used here is forward-declared below
+ * to keep this TU's include surface light -- vdp2.h would
+ * transitively pull in ss.h's full event-system surface for a
+ * single function call.  Same pattern as vdp1.c uses for
+ * VDP2_Update. */
 #include "mednafen/ss/sound.h"
 
 #include "libretro_core_options.h"
@@ -133,10 +134,9 @@ MDFNGI *MDFNGameInfo = NULL;
 
 extern MDFNGI EmulatedSS;
 
-/* VDP2 itself is still C++ (the `namespace VDP2 { ... }` wrap in
- * vdp2.h hasn't been lifted yet), so this C TU reaches the single
- * VDP2 entry point it needs via the matching extern "C" proxy in
- * vdp2.cpp.  Same pattern as vdp1.c's VDP2_Update forward decl. */
+/* Local forward decl for the single VDP2 entry point this TU
+ * reaches into.  See the include block above for why vdp2.h isn't
+ * pulled in directly. */
 extern void VDP2_SetDeinterlaceOff(bool off);
 
 static bool overscan;
@@ -188,7 +188,7 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 }
 
 /* LED interface */
-extern int Running; // variable in ss.cpp
+extern int Running; // variable in ss.c
 extern uint8_t GetDriveStatus(void);
 static retro_set_led_state_t led_state_cb = NULL;
 static unsigned int retro_led_state[2] = {0};
@@ -725,7 +725,7 @@ static bool MDFNI_LoadGame(const char *name)
          strncpy(dir_buf, name, sizeof(dir_buf) - 1);
          dir_buf[sizeof(dir_buf) - 1] = '\0';
          fill_pathname_basedir(dir_buf, name, sizeof(dir_buf));
-         // path_basedir leaves a trailing slash; trim it so cart/stv.cpp's
+         // path_basedir leaves a trailing slash; trim it so cart/stv.c's
          // JoinPath doesn't double up.
          size_t dirlen = strlen(dir_buf);
          while (dirlen && (dir_buf[dirlen - 1] == '/' || dir_buf[dirlen - 1] == '\\'))

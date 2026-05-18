@@ -7,13 +7,11 @@
 
 #include "mednafen/mednafen-types.h"
 /* log_cb and MDFNGI are the only symbols disc needs from git.h.
- * git.h is C++-only (class MDFNGI's surroundings -- CheatFormatStruct
- * with std::exception, GameDB_Database with std::vector<...>, etc).
- * MDFNGI itself is POD and lives in mdfn_gameinfo.h, which is C-
- * includable; log_cb's retro_log_printf_t type comes from libretro.h
- * (above) and the variable is defined in libretro.cpp -- variables
- * don't name-mangle so the cross-language reference resolves without
- * extern "C". */
+ * disc.c doesn't include git.h directly; MDFNGI itself is POD
+ * and lives in mdfn_gameinfo.h, which is what disc.c needs.
+ * log_cb's retro_log_printf_t type comes from libretro.h (above)
+ * and log_cb is defined in libretro.c -- forward-declared here to
+ * keep disc.c's include surface minimal. */
 #include "mednafen/mdfn_gameinfo.h"
 extern retro_log_printf_t log_cb;
 
@@ -144,7 +142,7 @@ static bool disc_list_push(CDIF *cdif, const char *path, const char *label)
 }
 
 //
-// Remember to rebuild region database in db.cpp if changing the order of
+// Remember to rebuild region database in db.c if changing the order of
 // entries in this table(and be careful about game id collisions,
 // e.g. with some Korean games).
 //
@@ -492,7 +490,7 @@ static bool disk_get_image_label(unsigned index, char *label, size_t len)
 
 /* This has to be 'global', since we need to
  * access the current disk index inside
- * libretro.cpp */
+ * libretro.c */
 unsigned disk_get_image_index(void)
 {
 	return g_current_disc;

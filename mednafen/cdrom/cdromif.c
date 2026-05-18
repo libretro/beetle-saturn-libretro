@@ -614,10 +614,10 @@ CDIF *CDIF_Open(const char *path, bool image_memcache)
       {
          log_cb(RETRO_LOG_ERROR, "TOC first(%d)/last(%d) track numbers bad.\n",
                cdif->disc_toc.first_track, cdif->disc_toc.last_track);
-         /* The C++ ST ctor threw on this; the call chain in
-          * disc.cpp / libretro.cpp didn't actually catch it, so
-          * the emulator would terminate.  Mirror that behaviour
-          * with a NULL return - callers already null-check. */
+         /* The C++ ST ctor used to throw on this; the call chain in
+          * disc.c / libretro.c didn't actually catch it, so the
+          * emulator would terminate.  Mirror that behaviour with a
+          * NULL return - callers already null-check. */
          cdif->disc_cdaccess->destroy(cdif->disc_cdaccess);
          free(cdif);
          return NULL;

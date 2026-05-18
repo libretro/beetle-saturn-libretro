@@ -25,7 +25,7 @@ typedef enum
 } MakeFName_Type;
 
 // Caller-allocated buffer (buf, buflen). Returns buf for chaining.
-// See libretro.cpp definition for the migration rationale.
+// See libretro.c definition for the migration rationale.
 char *MDFN_MakeFName(char *buf, size_t buflen, MakeFName_Type type, int id1, const char *cd1);
 
 const char * GetFNComponent(const char *str);
@@ -41,10 +41,10 @@ void MDFN_GetFilePathComponents(const char *file_path,
 // Absolute rel_path values are copied through unchanged.
 void MDFN_EvalFIP(char *out, size_t out_size, const char *dir_path, const char *rel_path);
 
-// Mid-frame synchronisation hook called from inside Emulate() (ss.cpp).
-// Defined in the libretro entry-point TU (libretro.c after the C
-// conversion).  The C-linkage declaration here matches the C
-// definition so ss.cpp's call resolves on the unmangled symbol.
+// Mid-frame synchronisation hook called from inside Emulate() (ss.c).
+// Defined in libretro.c.  The decl is wrapped in the extern "C" guard
+// at the top of this header for any future C++ consumer; the SS-core
+// callers are all C now and consume this through the normal C linkage.
 void MDFN_MidSync(void);
 
 #ifdef __cplusplus

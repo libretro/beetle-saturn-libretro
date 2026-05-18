@@ -3,18 +3,18 @@
 
 #include <libretro.h>
 /* disc.h's only need from git.h is MDFNGI (for disc_load_content's
- * signature).  MDFNGI is POD and factored out into mdfn_gameinfo.h
- * which is C-includable; git.h's other content (class MDFNGI's
- * surroundings -- std::vector / std::string / std::exception) is
- * C++-only and not needed here. */
+ * signature).  MDFNGI is POD and factored out into mdfn_gameinfo.h,
+ * which is what we include here; pulling in the rest of git.h would
+ * drag in the state-action / EmulateSpecStruct surface this header
+ * doesn't need. */
 #include "mednafen/mdfn_gameinfo.h"
 #include "mednafen/mednafen-types.h"
 
-/* disc.cpp -> disc.c: definitions move to C linkage, but
- * libretro.cpp (C++) calls these.  Force C linkage on both sides
- * so the C++ caller doesn't mangle and the linker resolves
- * against the unmangled symbols disc.c emits.  Same pattern as
- * ss.h / smpc.h / sound.h / input.h / db.h. */
+/* disc.c's entry points are C functions; the surrounding extern "C"
+ * guard is defensive header hygiene for any future C++ consumer.
+ * All current callers (libretro.c, ss.c, mempatcher.c) are C and
+ * consume these through normal C linkage; the guard is a no-op at
+ * every current compile. */
 #ifdef __cplusplus
 extern "C" {
 #endif

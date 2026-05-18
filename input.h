@@ -4,14 +4,11 @@
 #include "libretro.h"
 #include "mednafen/state.h"
 
-/* input.cpp -> input.c (this conversion): the input_* entry points
- * are defined in C now, but libretro.cpp (C++) calls them.  Force
- * C linkage on both sides via the extern "C" wrap so the C++ caller
- * doesn't name-mangle the references and the linker sees the same
- * unmangled symbols input.c emits.  Same pattern as ss.h / smpc.h /
- * sound.h after the SS-core C-compat omnibus.  Without this, an
- * LTO+mingw build fails with undefined-reference errors -- the
- * a7fa45b class of bug. */
+/* input.c's entry points are C functions; the surrounding
+ * extern "C" guard is defensive header hygiene for any future
+ * C++ consumer.  All current callers (libretro.c, ss.c) are C
+ * and consume these through normal C linkage; the guard is a
+ * no-op at every current compile. */
 #ifdef __cplusplus
 extern "C" {
 #endif

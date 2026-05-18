@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen - Multi-system Emulator                                           */
 /******************************************************************************/
-/* crc.cpp:
+/* crc.c:
 **  Copyright (C) 2018-2023 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or

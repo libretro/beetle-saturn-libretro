@@ -26,8 +26,11 @@
 #include "general.h"
 #include "state.h"
 
-/* Provided by libretro.cpp. Declared here directly rather than via
-   git.h, which is a C++ header; state.cpp is plain C. */
+/* log_cb's defining TU is libretro.c.  Forward-declare here so this
+   TU keeps its include surface minimal -- git.h would otherwise need
+   to be pulled in just to chase the retro_log_printf_t typedef, and
+   git.h carries a chunk of unrelated state-action / EmulateSpecStruct
+   surface this state.c TU doesn't use. */
 extern retro_log_printf_t log_cb;
 
 #define RLSB MDFNSTATE_RLSB	//0x80000000

@@ -2,14 +2,12 @@
 #include "libretro.h"
 #include "libretro_settings.h"
 #include "mednafen/mednafen-types.h"
-/* log_cb is the only symbol this TU uses from mednafen/git.h.  git.h
- * is C++-only (class MDFNGI with std::vector / std::string members),
- * so the C-converted input.c can no longer include it.  Forward-
- * declare directly: retro_log_printf_t comes from libretro.h
- * (included above), and log_cb is defined as a file-scope variable
- * in libretro.cpp.  Variables aren't name-mangled in C++, so the
- * cross-language reference resolves on the unmangled symbol -- no
- * extern "C" wrap is required on either side. */
+/* log_cb is the only symbol this TU uses from mednafen/git.h.
+ * Forward-declare directly so this TU's include surface stays
+ * minimal: retro_log_printf_t comes from libretro.h (above) and
+ * the defining TU for log_cb is libretro.c.  Pulling in git.h
+ * here would also drag in emuspec.h / mdfn_gameinfo.h / state.h
+ * which input.c doesn't otherwise need. */
 extern retro_log_printf_t log_cb;
 
 #include "mednafen/ss/ss.h"

@@ -232,7 +232,10 @@ static void str_to_upper(char *s)
 }
 
 /* Trim leading/trailing ASCII whitespace in place.  Replaces
- * MDFN_ltrim + MDFN_rtrim from mednafen/general.cpp. */
+ * MDFN_ltrim + MDFN_rtrim from mednafen/general.c (which were
+ * upstream Mednafen helpers; this fork inlines them here so the
+ * CDAccess_Image TU doesn't depend on general.c for two short
+ * string functions). */
 static void str_trim(char *s)
 {
    char *start = s;
@@ -258,7 +261,7 @@ static void str_trim(char *s)
 }
 
 /* ---- Path helpers - C versions of MDFN_GetFilePathComponents /
- *      MDFN_EvalFIP from mednafen/general.cpp.  Same logic as the
+ *      MDFN_EvalFIP from mednafen/general.c.  Same logic as the
  *      CCD conversion. */
 
 #ifdef _WIN32
