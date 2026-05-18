@@ -47,6 +47,7 @@
 #include "../../state.h"            /* SFORMAT, SFVAR, SFEND, MDFNSS_StateAction */
 #include "../cart.h"
 #include "../db_stv.h"
+#include "../stvio.h"               /* STVIO_StateAction -- chained from this driver's StateAction */
 #include "stv.h"
 
 /* SS_SetPhysMemMap: defined in ss.c, declared in ss.h.
@@ -130,6 +131,18 @@ static void StateAction(StateMem *sm, const unsigned load, const bool data_only)
    };
 
    MDFNSS_StateAction(sm, load, data_only, StateRegs, "STV_CART", false);
+
+   /* ST-V's runtime state is split between this cart driver
+    * (rsg_thingy / rsg_counter -- the security-chip handshake
+    * counters above) and stvio.c (IOGA DataIn/DataOut/DataDir,
+    * CoinPending / CoinActiveCounter, HammerX / HammerY for
+    * the hammer-control scheme, and the AK93C45 EEPROM).  We
+    * own the StateAction entry that CART_StateAction reaches,
+    * so chain through to STVIO_StateAction here -- that keeps
+    * the cart's full state under a single save-state branch
+    * and means LibRetro_StateAction doesn't need an ST-V-only
+    * dispatch case. */
+   STVIO_StateAction(sm, load, data_only);
 }
 
 static void Kill(void)
