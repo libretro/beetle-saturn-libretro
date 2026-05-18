@@ -98,7 +98,7 @@ void     M68K_SetIPL             (M68K* z, uint8_t ipl_new)
   z->XPending &= ~XPENDING_MASK_NMI;
 
  z->IPL = ipl_new;
- z->RecalcInt();
+ RecalcInt(z);
 }
 void     M68K_SignalDTACKHalted  (M68K* z, uint32_t addr)
 {
@@ -140,7 +140,7 @@ void     M68K_Reset              (M68K* z, bool pwr)
 
   z->SP_Inactive = 0;
 
-  z->SetSR(0);
+  SetSR(z, 0);
  }
  z->XPending = (z->XPending & ~(XPENDING_MASK_STOPPED | XPENDING_MASK_NMI | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED)) | XPENDING_MASK_RESET;
 }
@@ -203,16 +203,16 @@ uint32_t M68K_GetRegister        (M68K* z, const unsigned id, char* const specia
 	return z->PC;
 
   case GSREG_SR:
-	return z->GetSR();
+	return GetSR(z);
 
   case GSREG_SSP:
-	if(z->GetSVisor())
+	if(GetSVisor(z))
 	 return z->A[7];
 	else
 	 return z->SP_Inactive;
 
   case GSREG_USP:
-	if(!z->GetSVisor())
+	if(!GetSVisor(z))
 	 return z->A[7];
 	else
 	 return z->SP_Inactive;
@@ -237,18 +237,18 @@ void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t val
 	break;
 
   case GSREG_SR:
-	z->SetSR(value);
+	SetSR(z, value);
 	break;
 
   case GSREG_SSP:
-	if(z->GetSVisor())
+	if(GetSVisor(z))
 	 z->A[7] = value;
 	else
 	 z->SP_Inactive = value;
 	break;
 
   case GSREG_USP:
-	if(!z->GetSVisor())
+	if(!GetSVisor(z))
 	 z->A[7] = value;
 	else
 	 z->SP_Inactive = value;
@@ -291,48 +291,48 @@ void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t val
 // 	Saved PC points to the instruction that generated the privilege violation.
 //
 // Base exception timing is 34 cycles?
-void NO_INLINE M68K::Exception(unsigned which, unsigned vecnum)
+void NO_INLINE Exception(M68K* z, unsigned which, unsigned vecnum)
 {
- const uint32_t PC_save = PC;
- const uint16_t SR_save = GetSR();
+ const uint32_t PC_save = z->PC;
+ const uint16_t SR_save = GetSR(z);
 
- SetSR((GetSR() & ~0x2000) | (1 << 13));
- SetSR((GetSR() & ~0x8000));
+ SetSR(z, (GetSR(z) & ~0x2000) | (1 << 13));
+ SetSR(z, (GetSR(z) & ~0x8000));
  
  if(which == EXCEPTION_INT)
  {
   unsigned evn;
 
-  timestamp += 4;
+  z->timestamp += 4;
 
-  SetSR((GetSR() & ~0x0700) | ((IPL & 0x7) << 8));
+  SetSR(z, (GetSR(z) & ~0x0700) | ((z->IPL & 0x7) << 8));
 
-  evn = BusIntAck(IPL);
+  evn = z->BusIntAck(z->IPL);
 
   if(evn > 255)
-   vecnum = vecnum + IPL;
+   vecnum = vecnum + z->IPL;
   else
    vecnum = evn;
 
-  timestamp += 2;
+  z->timestamp += 2;
  }
 
- Push_u32(PC_save);
- Push_u16(SR_save);
+ Push_u32(z, PC_save);
+ Push_u16(z, SR_save);
 
  if(MDFN_UNLIKELY(which == EXCEPTION_BUS_ERROR || which == EXCEPTION_ADDRESS_ERROR))
  {
-  Push_u16(0); // TODO: Instruction register
-  Push_u32(0); // TODO: Access address
-  Push_u16(0); // TODO: R/W, I/N, function code
+  Push_u16(z, 0); // TODO: Instruction register
+  Push_u32(z, 0); // TODO: Access address
+  Push_u16(z, 0); // TODO: R/W, I/N, function code
  }
 
- PC = Read_u32(vecnum << 2);
+ z->PC = Read_u32(z, vecnum << 2);
 
  // TODO: Prefetch
- ReadOp();
- ReadOp();
- PC -= 4;
+ ReadOp(z);
+ ReadOp(z);
+ z->PC -= 4;
 }
 
 //
@@ -344,7 +344,7 @@ void NO_INLINE M68K::Exception(unsigned which, unsigned vecnum)
 //
 MDFN_FASTCALL uint8_t TAS_Callback(M68K* zptr, uint8_t data)
 {
- zptr->CalcZN_u8(data);
+ CalcZN_u8(zptr, data);
  zptr->Flag_C = false;
  zptr->Flag_V = false;
 
@@ -364,22 +364,22 @@ void NO_INLINE M68K::Run(int32_t run_until_time)
 			 {
 				 if(XPending & XPENDING_MASK_RESET)
 				 {
-					 SetSR((GetSR() & ~0x2000) | (1 << 13));
-					 SetSR((GetSR() & ~0x8000));
-					 SetSR((GetSR() & ~0x0700) | (0x7 << 8));
+					 SetSR(this, (GetSR(this) & ~0x2000) | (1 << 13));
+					 SetSR(this, (GetSR(this) & ~0x8000));
+					 SetSR(this, (GetSR(this) & ~0x0700) | (0x7 << 8));
 
-					 A[7] = Read_u32(VECNUM_RESET_SSP << 2);
-					 PC = Read_u32(VECNUM_RESET_PC << 2);
+					 A[7] = Read_u32(this, VECNUM_RESET_SSP << 2);
+					 PC = Read_u32(this, VECNUM_RESET_PC << 2);
 					 //
 					 XPending &= ~XPENDING_MASK_RESET;
 				 }
 				 else
 				 {
 					 if(XPending & XPENDING_MASK_BUS)
-						 Exception(EXCEPTION_BUS_ERROR, VECNUM_BUS_ERROR);
+						 Exception(this, EXCEPTION_BUS_ERROR, VECNUM_BUS_ERROR);
 					 else
-						 Exception(EXCEPTION_ADDRESS_ERROR, VECNUM_ADDRESS_ERROR);
-					 // Clear bus/address error bits in XPending only after Exception() returns normally:
+						 Exception(this, EXCEPTION_ADDRESS_ERROR, VECNUM_ADDRESS_ERROR);
+					 // Clear bus/address error bits in XPending only after Exception(this, this) returns normally:
 					 XPending &= ~(XPENDING_MASK_BUS | XPENDING_MASK_ADDRESS);
 				 }
 
@@ -387,10 +387,10 @@ void NO_INLINE M68K::Run(int32_t run_until_time)
 			 }
 			 else if(XPending & (XPENDING_MASK_INT | XPENDING_MASK_NMI))
 			 {
-				 assert(IPL == 0x7 || IPL > ((GetSR() >> 8) & 0x7));
+				 assert(IPL == 0x7 || IPL > ((GetSR(this) >> 8) & 0x7));
 				 XPending &= ~(XPENDING_MASK_STOPPED | XPENDING_MASK_INT | XPENDING_MASK_NMI);
 
-				 Exception(EXCEPTION_INT, VECNUM_INT_BASE);
+				 Exception(this, EXCEPTION_INT, VECNUM_INT_BASE);
 
 				 return;
 			 }
@@ -403,7 +403,7 @@ void NO_INLINE M68K::Run(int32_t run_until_time)
 	 //
 	 //
 	 //
-	 uint16_t instr = ReadOp();
+	 uint16_t instr = ReadOp(this);
 	 const unsigned instr_b11_b9 = (instr >> 9) & 0x7;
 	 const unsigned instr_b2_b0 = instr & 0x7;
 #ifdef M68K_SPLIT_SWITCH
@@ -414,7 +414,7 @@ void NO_INLINE M68K::Run(int32_t run_until_time)
 #else
 	 switch(instr)
 	 {
-		 default: ILLEGAL(instr); break;
+		 default: ILLEGAL(this, instr); break;
 #include "m68k_instr.inc"
 	 }
 #endif

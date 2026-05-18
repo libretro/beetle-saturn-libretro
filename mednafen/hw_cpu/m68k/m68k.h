@@ -215,6 +215,7 @@ struct M68K
   * in the savestate SFORMAT array intentionally keep their pre-9d
   * spellings so on-disk savestate compat is preserved. */
 
+
 #endif /* __cplusplus */
 
  //
@@ -260,7 +261,6 @@ struct M68K
 
 #ifdef __cplusplus
  //private:
- void RecalcInt(void);
 
  /* Phase-8a: M68K's width-template family.  Read<T> / Write<T,
   * long_dec> stay as 1-line dispatchers for the 2 T-parametric
@@ -272,26 +272,14 @@ struct M68K
   * uint16_t / uint32_t at the call site, so the 4 named variants
   * below replace them outright.
   */
- uint8_t  Read_u8(uint32_t addr);
- uint16_t Read_u16(uint32_t addr);
- uint32_t Read_u32(uint32_t addr);
 
- void     Write_u8(uint32_t addr, const uint8_t val);
- void     Write_u16(uint32_t addr, const uint16_t val);
  /* For 32-bit writes the M68K has two bus-ordering modes:
   *   default -- high half first   (BusWrite16(addr, hi); BusWrite16(addr+2, lo))
   *   _longdec -- low half first   (BusWrite16(addr+2, lo); BusWrite16(addr, hi))
   * The longdec variant is what Push_u32 uses, mirroring the old
   * `Write<uint32_t, true>` template instantiation. */
- void     Write_u32(uint32_t addr, const uint32_t val);
- void     Write_u32_longdec(uint32_t addr, const uint32_t val);
 
- void     Push_u16(const uint16_t value);
- void     Push_u32(const uint32_t value);
- uint16_t Pull_u16(void);
- uint32_t Pull_u32(void);
 
- uint16_t ReadOp(void);
 
 #ifdef M68K_SPLIT_SWITCH
  void RunSplit0(uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
@@ -319,13 +307,7 @@ struct M68K
  template<typename T, AddressMode am>
  struct HAM;
 
- bool GetC(void);
- bool GetV(void);
- bool GetZ(void);
- bool GetN(void);
- bool GetX(void);
 
- void SetCX(bool val);
 
  /* Phase-9d-6: CalcZN<T, Z_OnlyClear> template retired.  The six
   * named width-typed variants below remain as class methods; the
@@ -340,19 +322,8 @@ struct M68K
   * The named methods are still T-typed (uint8_t / uint16_t /
   * uint32_t) by their parameter so the existing template-op
   * callers don't need to cast values. */
- void CalcZN_u8       (const uint8_t  val);
- void CalcZN_u8_clear (const uint8_t  val);
- void CalcZN_u16      (const uint16_t val);
- void CalcZN_u16_clear(const uint16_t val);
- void CalcZN_u32      (const uint32_t val);
- void CalcZN_u32_clear(const uint32_t val);
 
- uint8_t GetCCR(void);
- void SetCCR(uint8_t val);
- uint16_t GetSR(void);
- void SetSR(uint16_t val);
 
- bool GetSVisor(void);
 #endif /* __cplusplus */
 
  //
@@ -362,7 +333,6 @@ struct M68K
   * op-body that raises an exception. */
 
 #ifdef __cplusplus
- void NO_INLINE Exception(unsigned which, unsigned vecnum);
 
  /* Phase-8e: Subtract's `bool X_form` template parameter moved to
   * a runtime first-arg.  T, DT, SAM, DAM stay HAM-locked. */
@@ -373,19 +343,10 @@ struct M68K
  /* Phase-9d-12: OR, EOR, AND retired from struct M68K scope; see
   * the free-template block after struct M68K closes. */
 
- void ORI_CCR(void);
- void ORI_SR(void);
- void ANDI_CCR(void);
- void ANDI_SR(void);
- void EORI_CCR(void);
- void EORI_SR(void);
 
  /* Phase-8b: Divide<sdiv> retired -- two callers (DIVU, DIVS) each
   * with a concrete `sdiv` value, no T-parametric dispatch needed. */
- void Divide_u(uint16_t divisor, const unsigned dr);
- void Divide_s(uint16_t divisor, const unsigned dr);
 
- uint8_t DecimalSubtractX(const uint8_t src_data, const uint8_t dst_data);
 
  /* Phase-8d: MOVEP<T, reg_to_mem> retired.  Only 4 instantiations
   * (T = uint16_t / uint32_t cross-product with reg_to_mem = false /
@@ -393,10 +354,6 @@ struct M68K
   * sizeof(T) are both compile-time folded by the template form;
   * the 4 named methods below carry the post-folding bodies
   * directly. */
- void MOVEP_w_mem_to_reg(const unsigned ar, const unsigned dr);
- void MOVEP_l_mem_to_reg(const unsigned ar, const unsigned dr);
- void MOVEP_w_reg_to_mem(const unsigned ar, const unsigned dr);
- void MOVEP_l_reg_to_mem(const unsigned ar, const unsigned dr);
 
  /* Phase-9d-12: BTST, BCHG, BCLR, BSET retired from struct M68K
   * scope; see the free-template block after struct M68K closes. */
@@ -420,9 +377,7 @@ struct M68K
   * struct M68K's closing brace; see the declaration block down
   * there. */
 
- void SWAP(const unsigned dr);
 
- void EXG(uint32_t* a, uint32_t* b);
 
  /* Phase-8c: BCC condition-code family detempleted.
   *
@@ -438,9 +393,6 @@ struct M68K
   * Scc keeps its T and DAM template parameters (still HAM-locked)
   * but `cc` moves to a runtime argument too -- one fewer template
   * dimension, cleaner instr.inc call sites. */
- bool TestCond(unsigned cc);
- void Bxx(unsigned cc, uint32_t disp);
- void DBcc(unsigned cc, const unsigned dr);
 
  /* Phase-9d-11: Scc, JSR, JMP, MOVE_from_SR, MOVE_to_CCR,
   * MOVE_to_SR retired from struct M68K scope; see the
@@ -451,25 +403,10 @@ struct M68K
   * combinations privileged supervisor mode permits); the body
   * is a 3-line ternary that doesn't benefit from compile-time
   * folding the bool.  Cleaner as a runtime first-arg. */
- void MOVE_USP(bool direction, const unsigned ar);
 
  /* Phase-9d-11: LEA, PEA retired from struct M68K scope; see
   * the free-template block after struct M68K closes. */
- void UNLK(const unsigned ar);
- void LINK(const unsigned ar);
- void RTE(void);
- void RTR(void);
- void RTS(void);
- void TRAP(const unsigned vf);
- void TRAPV(void);
- void ILLEGAL(const uint16_t instr);
- void LINEA(void);
- void LINEF(void);
- void NOP(void);
- void RESET(void);
- void STOP(void);
 
- bool CheckPrivilege(void);
 #endif /* __cplusplus */
  //
  //
@@ -676,6 +613,77 @@ template<typename T, AddressMode TAM>
 void ROXR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count);
 
 #endif /* __cplusplus */
+
+/* Phase-9d-14: 63 non-template class methods extracted to free
+ * functions, parallel to Phase-9d-13s template-op extraction.  After
+ * this, struct M68K's __cplusplus block contains only HAM and Run/
+ * RunSplit0/RunSplit1 -- everything else is a free function taking
+ * an explicit M68K* z first parameter. */
+void RecalcInt(M68K* z);
+uint8_t Read_u8(M68K* z, uint32_t addr);
+uint16_t Read_u16(M68K* z, uint32_t addr);
+uint32_t Read_u32(M68K* z, uint32_t addr);
+void Write_u8(M68K* z, uint32_t addr, const uint8_t val);
+void Write_u16(M68K* z, uint32_t addr, const uint16_t val);
+void Write_u32(M68K* z, uint32_t addr, const uint32_t val);
+void Write_u32_longdec(M68K* z, uint32_t addr, const uint32_t val);
+void Push_u16(M68K* z, const uint16_t value);
+void Push_u32(M68K* z, const uint32_t value);
+uint16_t Pull_u16(M68K* z);
+uint32_t Pull_u32(M68K* z);
+uint16_t ReadOp(M68K* z);
+bool GetC(M68K* z);
+bool GetV(M68K* z);
+bool GetZ(M68K* z);
+bool GetN(M68K* z);
+bool GetX(M68K* z);
+void SetCX(M68K* z, bool val);
+void CalcZN_u8(M68K* z, const uint8_t  val);
+void CalcZN_u8_clear(M68K* z, const uint8_t  val);
+void CalcZN_u16(M68K* z, const uint16_t val);
+void CalcZN_u16_clear(M68K* z, const uint16_t val);
+void CalcZN_u32(M68K* z, const uint32_t val);
+void CalcZN_u32_clear(M68K* z, const uint32_t val);
+uint8_t GetCCR(M68K* z);
+void SetCCR(M68K* z, uint8_t val);
+uint16_t GetSR(M68K* z);
+void SetSR(M68K* z, uint16_t val);
+bool GetSVisor(M68K* z);
+void NO_INLINE Exception(M68K* z, unsigned which, unsigned vecnum);
+void ORI_CCR(M68K* z);
+void ORI_SR(M68K* z);
+void ANDI_CCR(M68K* z);
+void ANDI_SR(M68K* z);
+void EORI_CCR(M68K* z);
+void EORI_SR(M68K* z);
+void Divide_u(M68K* z, uint16_t divisor, const unsigned dr);
+void Divide_s(M68K* z, uint16_t divisor, const unsigned dr);
+uint8_t DecimalSubtractX(M68K* z, const uint8_t src_data, const uint8_t dst_data);
+void MOVEP_w_mem_to_reg(M68K* z, const unsigned ar, const unsigned dr);
+void MOVEP_l_mem_to_reg(M68K* z, const unsigned ar, const unsigned dr);
+void MOVEP_w_reg_to_mem(M68K* z, const unsigned ar, const unsigned dr);
+void MOVEP_l_reg_to_mem(M68K* z, const unsigned ar, const unsigned dr);
+void SWAP(M68K* z, const unsigned dr);
+void EXG(M68K* z, uint32_t* a, uint32_t* b);
+bool TestCond(M68K* z, unsigned cc);
+void Bxx(M68K* z, unsigned cc, uint32_t disp);
+void DBcc(M68K* z, unsigned cc, const unsigned dr);
+void MOVE_USP(M68K* z, bool direction, const unsigned ar);
+void UNLK(M68K* z, const unsigned ar);
+void LINK(M68K* z, const unsigned ar);
+void RTE(M68K* z);
+void RTR(M68K* z);
+void RTS(M68K* z);
+void TRAP(M68K* z, const unsigned vf);
+void TRAPV(M68K* z);
+void ILLEGAL(M68K* z, const uint16_t instr);
+void LINEA(M68K* z);
+void LINEF(M68K* z);
+void NOP(M68K* z);
+void RESET(M68K* z);
+void STOP(M68K* z);
+bool CheckPrivilege(M68K* z);
+
 
 /* M68K_* free-function API exposed to consumers of m68k.h.
  *

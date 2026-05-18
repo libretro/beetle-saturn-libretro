@@ -4,12 +4,12 @@
 #include "../../mednafen.h"
 #include "m68k.h"
 
-INLINE void M68K::RecalcInt(void)
+INLINE void RecalcInt(M68K* z)
 {
- XPending &= ~XPENDING_MASK_INT;
+ z->XPending &= ~XPENDING_MASK_INT;
 
- if(IPL > (SRHB & 0x7))
-  XPending |= XPENDING_MASK_INT;
+ if(z->IPL > (z->SRHB & 0x7))
+  z->XPending |= XPENDING_MASK_INT;
 }
 
 /* Phase-8a: named width-typed Read methods.  The Read<T> template
@@ -18,32 +18,32 @@ INLINE void M68K::RecalcInt(void)
  *   - HAM<T, AM>::Read   (the addressing-mode helper)
  *   - MOVEM_to_REGS body (T from its template param)
  * Both retire when the HAM cascade lands. */
-INLINE uint8_t M68K::Read_u8(uint32_t addr)
+INLINE uint8_t Read_u8(M68K* z, uint32_t addr)
 {
- return BusRead8(addr);
+ return z->BusRead8(addr);
 }
 
-INLINE uint16_t M68K::Read_u16(uint32_t addr)
+INLINE uint16_t Read_u16(M68K* z, uint32_t addr)
 {
- return BusRead16(addr);
+ return z->BusRead16(addr);
 }
 
-INLINE uint32_t M68K::Read_u32(uint32_t addr)
+INLINE uint32_t Read_u32(M68K* z, uint32_t addr)
 {
  uint32_t ret;
 
- ret  = BusRead16(addr) << 16;
- ret |= BusRead16(addr + 2);
+ ret  = z->BusRead16(addr) << 16;
+ ret |= z->BusRead16(addr + 2);
 
  return ret;
 }
 
-INLINE uint16_t M68K::ReadOp(void)
+INLINE uint16_t ReadOp(M68K* z)
 {
  uint16_t ret;
 
- ret = BusReadInstr(PC);
- PC += 2;
+ ret = z->BusReadInstr(z->PC);
+ z->PC += 2;
 
  return ret;
 }
@@ -58,26 +58,26 @@ INLINE uint16_t M68K::ReadOp(void)
  *  - Write_u32          : high half first (default for non-predec)
  *  - Write_u32_longdec  : low half first  (used by Push_u32 and by
  *                                          MOVEM_to_MEM in predec mode) */
-INLINE void M68K::Write_u8(uint32_t addr, const uint8_t val)
+INLINE void Write_u8(M68K* z, uint32_t addr, const uint8_t val)
 {
- BusWrite8(addr, val);
+ z->BusWrite8(addr, val);
 }
 
-INLINE void M68K::Write_u16(uint32_t addr, const uint16_t val)
+INLINE void Write_u16(M68K* z, uint32_t addr, const uint16_t val)
 {
- BusWrite16(addr, val);
+ z->BusWrite16(addr, val);
 }
 
-INLINE void M68K::Write_u32(uint32_t addr, const uint32_t val)
+INLINE void Write_u32(M68K* z, uint32_t addr, const uint32_t val)
 {
- BusWrite16(addr,     val >> 16);
- BusWrite16(addr + 2, val);
+ z->BusWrite16(addr,     val >> 16);
+ z->BusWrite16(addr + 2, val);
 }
 
-INLINE void M68K::Write_u32_longdec(uint32_t addr, const uint32_t val)
+INLINE void Write_u32_longdec(M68K* z, uint32_t addr, const uint32_t val)
 {
- BusWrite16(addr + 2, val);
- BusWrite16(addr,     val >> 16);
+ z->BusWrite16(addr + 2, val);
+ z->BusWrite16(addr,     val >> 16);
 }
 
 
@@ -87,29 +87,29 @@ INLINE void M68K::Write_u32_longdec(uint32_t addr, const uint32_t val)
  * are the entire callsite ABI.  Push_u32 uses Write_u32_longdec
  * (low half first) to match the M68K's 32-bit predec semantics
  * for stack pushes. */
-INLINE void M68K::Push_u16(const uint16_t value)
+INLINE void Push_u16(M68K* z, const uint16_t value)
 {
- A[7] -= 2;
- Write_u16(A[7], value);
+ z->A[7] -= 2;
+ Write_u16(z, z->A[7], value);
 }
 
-INLINE void M68K::Push_u32(const uint32_t value)
+INLINE void Push_u32(M68K* z, const uint32_t value)
 {
- A[7] -= 4;
- Write_u32_longdec(A[7], value);
+ z->A[7] -= 4;
+ Write_u32_longdec(z, z->A[7], value);
 }
 
-INLINE uint16_t M68K::Pull_u16(void)
+INLINE uint16_t Pull_u16(M68K* z)
 {
- uint16_t ret = Read_u16(A[7]);
- A[7] += 2;
+ uint16_t ret = Read_u16(z, z->A[7]);
+ z->A[7] += 2;
  return ret;
 }
 
-INLINE uint32_t M68K::Pull_u32(void)
+INLINE uint32_t Pull_u32(M68K* z)
 {
- uint32_t ret = Read_u32(A[7]);
- A[7] += 4;
+ uint32_t ret = Read_u32(z, z->A[7]);
+ z->A[7] += 4;
  return ret;
 }
 
@@ -134,27 +134,27 @@ struct M68K::HAM
    case PC_DISP:   // (d16, PC)
    case PC_INDEX:  // PC with index
 	ea = zptr->PC;
-	ext = zptr->ReadOp();
+	ext = ReadOp(zptr);
 	break;
 
    case ABS_SHORT: // (xxxx).W
-	ext = zptr->ReadOp();
+	ext = ReadOp(zptr);
 	break;
 
    case ABS_LONG: // (xxxx).L
-	ext = zptr->ReadOp() << 16;
-	ext |= zptr->ReadOp();
+	ext = ReadOp(zptr) << 16;
+	ext |= ReadOp(zptr);
 	break;
 
    case IMMEDIATE: // Immediate
 	if(sizeof(T) == 4)
 	{
-	 ext = zptr->ReadOp() << 16;
-	 ext |= zptr->ReadOp();
+	 ext = ReadOp(zptr) << 16;
+	 ext |= ReadOp(zptr);
 	}
 	else
 	{
-	 ext = zptr->ReadOp();
+	 ext = ReadOp(zptr);
 	}
 	break;
   }
@@ -177,7 +177,7 @@ struct M68K::HAM
   
    case ADDR_REG_INDIR_DISP:	// (d16, An)
    case ADDR_REG_INDIR_INDX: 	// (d8, An, Xn)
-	ext = zptr->ReadOp();
+	ext = ReadOp(zptr);
 	break;
 
    case IMMEDIATE: 	// Immediate (quick)
@@ -278,10 +278,10 @@ struct M68K::HAM
 	/* Phase-8s-pre: Write<T, long_dec> inlined.  sizeof(T) and
 	 * `am == ADDR_REG_INDIR_PRE` fold at HAM<T,am> template
 	 * instantiation. */
-	if(sizeof(T) == 1)      zptr->Write_u8 (ea, val);
-	else if(sizeof(T) == 2) zptr->Write_u16(ea, val);
-	else if(am == ADDR_REG_INDIR_PRE) zptr->Write_u32_longdec(ea, val);
-	else                    zptr->Write_u32(ea, val);
+	if(sizeof(T) == 1)      Write_u8(zptr, ea, val);
+	else if(sizeof(T) == 2) Write_u16(zptr, ea, val);
+	else if(am == ADDR_REG_INDIR_PRE) Write_u32_longdec(zptr, ea, val);
+	else                    Write_u32(zptr, ea, val);
 	break;
   }
  }
@@ -311,9 +311,9 @@ struct M68K::HAM
 	calcea(2);
 	/* Phase-8s-pre: Read<T>(ea) inlined.  sizeof(T) folds at
 	 * HAM<T,am> template instantiation. */
-	if(sizeof(T) == 1)      return zptr->Read_u8 (ea);
-	else if(sizeof(T) == 2) return zptr->Read_u16(ea);
-	else                    return zptr->Read_u32(ea);
+	if(sizeof(T) == 1)      return Read_u8(zptr, ea);
+	else if(sizeof(T) == 2) return Read_u16(zptr, ea);
+	else                    return Read_u32(zptr, ea);
   }
  }
 
@@ -374,16 +374,16 @@ struct M68K::HAM
 
 
 
-INLINE bool M68K::GetC(void) { return Flag_C; }
-INLINE bool M68K::GetV(void) { return Flag_V; }
-INLINE bool M68K::GetZ(void) { return Flag_Z; }
-INLINE bool M68K::GetN(void) { return Flag_N; }
-INLINE bool M68K::GetX(void) { return Flag_X; }
+INLINE bool GetC(M68K* z) { return z->Flag_C; }
+INLINE bool GetV(M68K* z) { return z->Flag_V; }
+INLINE bool GetZ(M68K* z) { return z->Flag_Z; }
+INLINE bool GetN(M68K* z) { return z->Flag_N; }
+INLINE bool GetX(M68K* z) { return z->Flag_X; }
 
-INLINE void M68K::SetCX(bool val)
+INLINE void SetCX(M68K* z, bool val)
 {
- Flag_C = (val);
- Flag_X = (val);
+ z->Flag_C = (val);
+ z->Flag_X = (val);
 }
 
 //
@@ -398,43 +398,43 @@ INLINE void M68K::SetCX(bool val)
 // methods are the live API now and stay class members of M68K.
 //
 
-INLINE void M68K::CalcZN_u8(const uint8_t val)
+INLINE void CalcZN_u8(M68K* z, const uint8_t val)
 {
- Flag_Z = (val == 0);
- Flag_N = ((int8_t)val < 0);
+ z->Flag_Z = (val == 0);
+ z->Flag_N = ((int8_t)val < 0);
 }
 
-INLINE void M68K::CalcZN_u8_clear(const uint8_t val)
+INLINE void CalcZN_u8_clear(M68K* z, const uint8_t val)
 {
  if(val != 0)
-  Flag_Z = false;
- Flag_N = ((int8_t)val < 0);
+  z->Flag_Z = false;
+ z->Flag_N = ((int8_t)val < 0);
 }
 
-INLINE void M68K::CalcZN_u16(const uint16_t val)
+INLINE void CalcZN_u16(M68K* z, const uint16_t val)
 {
- Flag_Z = (val == 0);
- Flag_N = ((int16_t)val < 0);
+ z->Flag_Z = (val == 0);
+ z->Flag_N = ((int16_t)val < 0);
 }
 
-INLINE void M68K::CalcZN_u16_clear(const uint16_t val)
-{
- if(val != 0)
-  Flag_Z = false;
- Flag_N = ((int16_t)val < 0);
-}
-
-INLINE void M68K::CalcZN_u32(const uint32_t val)
-{
- Flag_Z = (val == 0);
- Flag_N = ((int32_t)val < 0);
-}
-
-INLINE void M68K::CalcZN_u32_clear(const uint32_t val)
+INLINE void CalcZN_u16_clear(M68K* z, const uint16_t val)
 {
  if(val != 0)
-  Flag_Z = false;
- Flag_N = ((int32_t)val < 0);
+  z->Flag_Z = false;
+ z->Flag_N = ((int16_t)val < 0);
+}
+
+INLINE void CalcZN_u32(M68K* z, const uint32_t val)
+{
+ z->Flag_Z = (val == 0);
+ z->Flag_N = ((int32_t)val < 0);
+}
+
+INLINE void CalcZN_u32_clear(M68K* z, const uint32_t val)
+{
+ if(val != 0)
+  z->Flag_Z = false;
+ z->Flag_N = ((int32_t)val < 0);
 }
 
 /* Phase-9d-6: CalcZN<T, Z_OnlyClear> template retired.
@@ -469,59 +469,59 @@ INLINE void M68K::CalcZN_u32_clear(const uint32_t val)
  */
 #define CALC_ZN(z, T, val) \
  do { \
-  if      (sizeof(T) == 4) (z)->CalcZN_u32((val)); \
-  else if (sizeof(T) == 2) (z)->CalcZN_u16((val)); \
-  else                     (z)->CalcZN_u8 ((val)); \
+  if      (sizeof(T) == 4) CalcZN_u32((z), (val)); \
+  else if (sizeof(T) == 2) CalcZN_u16((z), (val)); \
+  else                     CalcZN_u8((z), (val)); \
  } while(0)
 
 #define CALC_ZN_CLEAR(z, T, val) \
  do { \
-  if      (sizeof(T) == 4) (z)->CalcZN_u32_clear((val)); \
-  else if (sizeof(T) == 2) (z)->CalcZN_u16_clear((val)); \
-  else                     (z)->CalcZN_u8_clear ((val)); \
+  if      (sizeof(T) == 4) CalcZN_u32_clear((z), (val)); \
+  else if (sizeof(T) == 2) CalcZN_u16_clear((z), (val)); \
+  else                     CalcZN_u8_clear((z), (val)); \
  } while(0)
 
-INLINE uint8_t M68K::GetCCR(void)
+INLINE uint8_t GetCCR(M68K* z)
 {
- return (GetC() << 0) | (GetV() << 1) | (GetZ() << 2) | (GetN() << 3) | (GetX() << 4);
+ return (GetC(z) << 0) | (GetV(z) << 1) | (GetZ(z) << 2) | (GetN(z) << 3) | (GetX(z) << 4);
 }
 
-INLINE void M68K::SetCCR(uint8_t val)
+INLINE void SetCCR(M68K* z, uint8_t val)
 {
- Flag_C   = ((val >> 0) & 1);
- Flag_V   = ((val >> 1) & 1);
- Flag_Z   = ((val >> 2) & 1);
- Flag_N   = ((val >> 3) & 1);
- Flag_X   = ((val >> 4) & 1);
+ z->Flag_C   = ((val >> 0) & 1);
+ z->Flag_V   = ((val >> 1) & 1);
+ z->Flag_Z   = ((val >> 2) & 1);
+ z->Flag_N   = ((val >> 3) & 1);
+ z->Flag_X   = ((val >> 4) & 1);
 }
 
-INLINE uint16_t M68K::GetSR(void)
+INLINE uint16_t GetSR(M68K* z)
 {
- return GetCCR() | (SRHB << 8);
+ return GetCCR(z) | (z->SRHB << 8);
 }
 
-INLINE void M68K::SetSR(uint16_t val)
+INLINE void SetSR(M68K* z, uint16_t val)
 {
  const uint8_t new_srhb = (val >> 8) & 0xA7;
 
- Flag_C   = ((val >> 0) & 1);
- Flag_V   = ((val >> 1) & 1);
- Flag_Z   = ((val >> 2) & 1);
- Flag_N   = ((val >> 3) & 1);
- Flag_X   = ((val >> 4) & 1);
+ z->Flag_C   = ((val >> 0) & 1);
+ z->Flag_V   = ((val >> 1) & 1);
+ z->Flag_Z   = ((val >> 2) & 1);
+ z->Flag_N   = ((val >> 3) & 1);
+ z->Flag_X   = ((val >> 4) & 1);
 
- if((SRHB ^ new_srhb) & 0x20)	// Supervisor mode change
+ if((z->SRHB ^ new_srhb) & 0x20)	// Supervisor mode change
  {
-  std::swap(A[7], SP_Inactive);
+  std::swap(z->A[7], z->SP_Inactive);
  }
 
- SRHB = new_srhb;
- RecalcInt();
+ z->SRHB = new_srhb;
+ RecalcInt(z);
 }
 
-INLINE bool M68K::GetSVisor(void)
+INLINE bool GetSVisor(M68K* z)
 {
- return (bool)(GetSR() & 0x2000);
+ return (bool)(GetSR(z) & 0x2000);
 }
 
 //
@@ -558,7 +558,7 @@ INLINE void ADD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst)
  if(DAM != ADDR_REG_DIR)
  {
   CALC_ZN(z, DT, result);
-  z->SetCX((result >> (sizeof(DT) * 8)) & 1);
+  SetCX(z, (result >> (sizeof(DT) * 8)) & 1);
   z->Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
  }
 
@@ -574,7 +574,7 @@ INLINE void ADDX(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
 {
  uint32_t const src_data = src.read();
  uint32_t const dst_data = dst.read();
- uint64_t const result = (uint64_t)dst_data + src_data + z->GetX();
+ uint64_t const result = (uint64_t)dst_data + src_data + GetX(z);
 
  if(DAM != DATA_REG_DIR)
  {
@@ -587,7 +587,7 @@ INLINE void ADDX(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
  }
 
  CALC_ZN_CLEAR(z, T, result);
- z->SetCX((result >> (sizeof(T) * 8)) & 1);
+ SetCX(z, (result >> (sizeof(T) * 8)) & 1);
  z->Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
 
  dst.write(result);
@@ -616,7 +616,7 @@ INLINE DT Subtract(M68K* z, bool X_form, M68K::HAM<T, SAM> &src, M68K::HAM<DT, D
 
  uint32_t const src_data = (DT)static_cast<typename std::make_signed<T>::type>(src.read());
  uint32_t const dst_data = dst.read();
- const uint64_t result = (uint64_t)dst_data - src_data - (X_form ? z->GetX() : 0);
+ const uint64_t result = (uint64_t)dst_data - src_data - (X_form ? GetX(z) : 0);
 
  if(DAM == ADDR_REG_DIR)	// SUBA, SUBQ(A) only.
  {
@@ -654,7 +654,7 @@ INLINE DT Subtract(M68K* z, bool X_form, M68K::HAM<T, SAM> &src, M68K::HAM<DT, D
    CALC_ZN_CLEAR(z, DT, result);
   else
    CALC_ZN(z, DT, result);
-  z->SetCX((result >> (sizeof(DT) * 8)) & 1);
+  SetCX(z, (result >> (sizeof(DT) * 8)) & 1);
   z->Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
  }
 
@@ -741,9 +741,9 @@ INLINE void CHK(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
  z->timestamp += 6;
 
  CALC_ZN(z, T, dst_data);
- if(z->GetN())
+ if(GetN(z))
  {
-  z->Exception(EXCEPTION_CHK, VECNUM_CHK);
+  Exception(z, EXCEPTION_CHK, VECNUM_CHK);
  }
  else
  {
@@ -754,9 +754,9 @@ INLINE void CHK(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
   z->Flag_C = ((result >> (sizeof(T) * 8)) & 1);
   z->Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
 
-  if(z->GetN() == z->GetV() && !z->GetZ())
+  if(GetN(z) == GetV(z) && !GetZ(z))
   {
-   z->Exception(EXCEPTION_CHK, VECNUM_CHK);
+   Exception(z, EXCEPTION_CHK, VECNUM_CHK);
   }
  }
 }
@@ -848,102 +848,102 @@ INLINE void AND(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
 //
 // ORI CCR
 //
-INLINE void M68K::ORI_CCR(void)
+INLINE void ORI_CCR(M68K* z)
 {
- const uint8_t imm = ReadOp();
+ const uint8_t imm = ReadOp(z);
 
- SetCCR(GetCCR() | imm);
+ SetCCR(z, GetCCR(z) | imm);
 
  //
  //
- timestamp += 8;
- ReadOp();
- PC -= 2;
+ z->timestamp += 8;
+ ReadOp(z);
+ z->PC -= 2;
 }
 
 
 //
 // ORI SR
 //
-INLINE void M68K::ORI_SR(void)
+INLINE void ORI_SR(M68K* z)
 {
- const uint16_t imm = ReadOp();
+ const uint16_t imm = ReadOp(z);
 
- SetSR(GetSR() | imm);
+ SetSR(z, GetSR(z) | imm);
 
  //
  //
- timestamp += 8;
- ReadOp();
- PC -= 2;
+ z->timestamp += 8;
+ ReadOp(z);
+ z->PC -= 2;
 }
 
 
 //
 // ANDI CCR
 //
-INLINE void M68K::ANDI_CCR(void)
+INLINE void ANDI_CCR(M68K* z)
 {
- const uint8_t imm = ReadOp();
+ const uint8_t imm = ReadOp(z);
 
- SetCCR(GetCCR() & imm);
+ SetCCR(z, GetCCR(z) & imm);
 
  //
  //
- timestamp += 8;
- ReadOp();
- PC -= 2;
+ z->timestamp += 8;
+ ReadOp(z);
+ z->PC -= 2;
 }
 
 
 //
 // ANDI SR
 //
-INLINE void M68K::ANDI_SR(void)
+INLINE void ANDI_SR(M68K* z)
 {
- const uint16_t imm = ReadOp();
+ const uint16_t imm = ReadOp(z);
 
- SetSR(GetSR() & imm);
+ SetSR(z, GetSR(z) & imm);
 
  //
  //
- timestamp += 8;
- ReadOp();
- PC -= 2;
+ z->timestamp += 8;
+ ReadOp(z);
+ z->PC -= 2;
 }
 
 
 //
 // EORI CCR
 //
-INLINE void M68K::EORI_CCR(void)
+INLINE void EORI_CCR(M68K* z)
 {
- const uint8_t imm = ReadOp();
+ const uint8_t imm = ReadOp(z);
 
- SetCCR(GetCCR() ^ imm);
+ SetCCR(z, GetCCR(z) ^ imm);
 
  //
  //
- timestamp += 8;
- ReadOp();
- PC -= 2;
+ z->timestamp += 8;
+ ReadOp(z);
+ z->PC -= 2;
 }
 
 
 //
 // EORI SR
 //
-INLINE void M68K::EORI_SR(void)
+INLINE void EORI_SR(M68K* z)
 {
- const uint16_t imm = ReadOp();
+ const uint16_t imm = ReadOp(z);
 
- SetSR(GetSR() ^ imm);
+ SetSR(z, GetSR(z) ^ imm);
 
  //
  //
- timestamp += 8;
- ReadOp();
- PC -= 2;
+ z->timestamp += 8;
+ ReadOp(z);
+ z->PC -= 2;
 }
 
 
@@ -964,7 +964,7 @@ INLINE void MULU(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr)
  for(uint32_t tmp = src_data; tmp; tmp &= tmp - 1)
   z->timestamp += 2;
 
- z->CalcZN_u32(result);
+ CalcZN_u32(z, result);
  z->Flag_C = false;
  z->Flag_V = false;
 
@@ -989,7 +989,7 @@ INLINE void MULS(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr)
  for(uint32_t tmp = src_data << 1, i = 0; i < 16; tmp >>= 1, i++)
   z->timestamp += (tmp ^ (tmp << 1)) & 2;
 
- z->CalcZN_u32(result);
+ CalcZN_u32(z, result);
  z->Flag_C = false;
  z->Flag_V = false;
 
@@ -1002,16 +1002,16 @@ INLINE void MULS(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr)
  * methods below are bit-equivalent to the original template's two
  * instantiations (sdiv=false -> Divide_u for DIVU, sdiv=true ->
  * Divide_s for DIVS). */
-INLINE void M68K::Divide_u(uint16_t divisor, const unsigned dr)
+INLINE void Divide_u(M68K* z, uint16_t divisor, const unsigned dr)
 {
- uint32_t dividend = D[dr];
+ uint32_t dividend = z->D[dr];
  uint32_t tmp;
  bool oflow = false;
  int i;
 
  if(!divisor)
  {
-  Exception(EXCEPTION_ZERO_DIVIDE, VECNUM_ZERO_DIVIDE);
+  Exception(z, EXCEPTION_ZERO_DIVIDE, VECNUM_ZERO_DIVIDE);
   return;
  }
 
@@ -1039,17 +1039,17 @@ INLINE void M68K::Divide_u(uint16_t divisor, const unsigned dr)
   oflow = true;
 
  /* Doesn't affect X flag */
- CalcZN_u16((uint16_t)tmp);
- Flag_C = false;
- Flag_V = oflow;
+ CalcZN_u16(z, (uint16_t)tmp);
+ z->Flag_C = false;
+ z->Flag_V = oflow;
 
  if(!oflow)
-  D[dr] = tmp;
+  z->D[dr] = tmp;
 }
 
-INLINE void M68K::Divide_s(uint16_t divisor, const unsigned dr)
+INLINE void Divide_s(M68K* z, uint16_t divisor, const unsigned dr)
 {
- uint32_t dividend = D[dr];
+ uint32_t dividend = z->D[dr];
  uint32_t tmp;
  bool neg_quotient = false;
  bool neg_remainder = false;
@@ -1058,7 +1058,7 @@ INLINE void M68K::Divide_s(uint16_t divisor, const unsigned dr)
 
  if(!divisor)
  {
-  Exception(EXCEPTION_ZERO_DIVIDE, VECNUM_ZERO_DIVIDE);
+  Exception(z, EXCEPTION_ZERO_DIVIDE, VECNUM_ZERO_DIVIDE);
   return;
  }
 
@@ -1108,12 +1108,12 @@ INLINE void M68K::Divide_s(uint16_t divisor, const unsigned dr)
  }
 
  /* Doesn't affect X flag */
- CalcZN_u16((uint16_t)tmp);
- Flag_C = false;
- Flag_V = oflow;
+ CalcZN_u16(z, (uint16_t)tmp);
+ z->Flag_C = false;
+ z->Flag_V = oflow;
 
  if(!oflow)
-  D[dr] = tmp;
+  z->D[dr] = tmp;
 }
 
 
@@ -1127,7 +1127,7 @@ INLINE void DIVU(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr)
 
  T const src_data = src.read();
 
- z->Divide_u(src_data, dr);
+ Divide_u(z, src_data, dr);
 }
 
 
@@ -1142,7 +1142,7 @@ INLINE void DIVS(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr)
 
  T const src_data = src.read();
 
- z->Divide_s(src_data, dr);
+ Divide_s(z, src_data, dr);
 }
 
 
@@ -1159,7 +1159,7 @@ INLINE void ABCD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)	// ...
  uint8_t const dst_data = dst.read();
  uint32_t tmp;
 
- tmp = dst_data + src_data + z->GetX();
+ tmp = dst_data + src_data + GetX(z);
 
  if(((dst_data ^ src_data ^ tmp) & 0x10) || (tmp & 0xF) >= 0x0A)
  {
@@ -1175,8 +1175,8 @@ INLINE void ABCD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)	// ...
   V |= ((~prev_tmp & 0x80) & (tmp & 0x80));
  }
 
- z->CalcZN_u8_clear(tmp);
- z->SetCX((bool)(tmp >> 8));
+ CalcZN_u8_clear(z, tmp);
+ SetCX(z, (bool)(tmp >> 8));
  z->Flag_V = V;
 
  if(DAM == DATA_REG_DIR)
@@ -1188,12 +1188,12 @@ INLINE void ABCD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)	// ...
 }
 
 
-INLINE uint8_t M68K::DecimalSubtractX(const uint8_t src_data, const uint8_t dst_data)
+INLINE uint8_t DecimalSubtractX(M68K* z, const uint8_t src_data, const uint8_t dst_data)
 {
  bool V = false;
  uint32_t tmp;
 
- tmp = dst_data - src_data - GetX();
+ tmp = dst_data - src_data - GetX(z);
 
  const bool adj0 = ((dst_data ^ src_data ^ tmp) & 0x10);
  const bool adj1 = (tmp & 0x100);
@@ -1212,9 +1212,9 @@ INLINE uint8_t M68K::DecimalSubtractX(const uint8_t src_data, const uint8_t dst_
   V |= (prev_tmp & 0x80) & (~tmp & 0x80);
  }
 
- Flag_V = V;
- CalcZN_u8_clear(tmp);
- SetCX((bool)(tmp >> 8));
+ z->Flag_V = V;
+ CalcZN_u8_clear(z, tmp);
+ SetCX(z, (bool)(tmp >> 8));
 
  return tmp;
 }
@@ -1234,7 +1234,7 @@ INLINE void SBCD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
  else
   z->timestamp += 4;
 
- dst.write(z->DecimalSubtractX(src_data, dst_data));
+ dst.write(DecimalSubtractX(z, src_data, dst_data));
 }
 
 
@@ -1249,7 +1249,7 @@ INLINE void NBCD(M68K* z, M68K::HAM<T, DAM> &dst)
 
  z->timestamp += 2;
 
- dst.write(z->DecimalSubtractX(dst_data, 0));
+ dst.write(DecimalSubtractX(z, dst_data, 0));
 }
 
 //
@@ -1265,63 +1265,63 @@ INLINE void NBCD(M68K* z, M68K::HAM<T, DAM> &dst)
 
 /* MOVEP.W (Dn -> mem):  upper-half-of-Dn[15:8], Dn[7:0]
  * written into (An+disp), (An+disp+2). */
-INLINE void M68K::MOVEP_w_reg_to_mem(const unsigned ar, const unsigned dr)
+INLINE void MOVEP_w_reg_to_mem(M68K* z, const unsigned ar, const unsigned dr)
 {
- const int16_t ext = ReadOp();
- uint32_t ea = A[ar] + (int16_t)ext;
+ const int16_t ext = ReadOp(z);
+ uint32_t ea = z->A[ar] + (int16_t)ext;
  unsigned shift = 8; /* (sizeof(uint16_t) - 1) << 3 */
 
- Write_u8(ea, D[dr] >> shift);
+ Write_u8(z, ea, z->D[dr] >> shift);
  ea += 2;
  shift -= 8;
- Write_u8(ea, D[dr] >> shift);
+ Write_u8(z, ea, z->D[dr] >> shift);
 }
 
 /* MOVEP.W (mem -> Dn):  two bytes from (An+disp), (An+disp+2)
  * packed back into Dn[15:0]. */
-INLINE void M68K::MOVEP_w_mem_to_reg(const unsigned ar, const unsigned dr)
+INLINE void MOVEP_w_mem_to_reg(M68K* z, const unsigned ar, const unsigned dr)
 {
- const int16_t ext = ReadOp();
- uint32_t ea = A[ar] + (int16_t)ext;
+ const int16_t ext = ReadOp(z);
+ uint32_t ea = z->A[ar] + (int16_t)ext;
  unsigned shift = 8;
 
- D[dr] &= ~(0xFF << shift);
- D[dr] |= Read_u8(ea) << shift;
+ z->D[dr] &= ~(0xFF << shift);
+ z->D[dr] |= Read_u8(z, ea) << shift;
  ea += 2;
  shift -= 8;
- D[dr] &= ~(0xFF << shift);
- D[dr] |= Read_u8(ea) << shift;
+ z->D[dr] &= ~(0xFF << shift);
+ z->D[dr] |= Read_u8(z, ea) << shift;
 }
 
 /* MOVEP.L (Dn -> mem):  four bytes from Dn[31:24..7:0] written
  * into (An+disp), (An+disp+2), (An+disp+4), (An+disp+6). */
-INLINE void M68K::MOVEP_l_reg_to_mem(const unsigned ar, const unsigned dr)
+INLINE void MOVEP_l_reg_to_mem(M68K* z, const unsigned ar, const unsigned dr)
 {
- const int16_t ext = ReadOp();
- uint32_t ea = A[ar] + (int16_t)ext;
+ const int16_t ext = ReadOp(z);
+ uint32_t ea = z->A[ar] + (int16_t)ext;
  unsigned shift = 24; /* (sizeof(uint32_t) - 1) << 3 */
  unsigned i;
 
  for(i = 0; i < 4; i++)
  {
-  Write_u8(ea, D[dr] >> shift);
+  Write_u8(z, ea, z->D[dr] >> shift);
   ea += 2;
   shift -= 8;
  }
 }
 
 /* MOVEP.L (mem -> Dn):  four bytes packed back into Dn[31:0]. */
-INLINE void M68K::MOVEP_l_mem_to_reg(const unsigned ar, const unsigned dr)
+INLINE void MOVEP_l_mem_to_reg(M68K* z, const unsigned ar, const unsigned dr)
 {
- const int16_t ext = ReadOp();
- uint32_t ea = A[ar] + (int16_t)ext;
+ const int16_t ext = ReadOp(z);
+ uint32_t ea = z->A[ar] + (int16_t)ext;
  unsigned shift = 24;
  unsigned i;
 
  for(i = 0; i < 4; i++)
  {
-  D[dr] &= ~(0xFF << shift);
-  D[dr] |= Read_u8(ea) << shift;
+  z->D[dr] &= ~(0xFF << shift);
+  z->D[dr] |= Read_u8(z, ea) << shift;
   ea += 2;
   shift -= 8;
  }
@@ -1430,14 +1430,14 @@ INLINE void MOVEM_to_MEM(M68K* z, bool pseudo_predec, const uint16_t reglist, M6
    if(sizeof(T) == 4)
    {
     if(pseudo_predec)
-     z->Write_u32_longdec(ea, val);
+     Write_u32_longdec(z, ea, val);
     else
-     z->Write_u32(ea, val);
+     Write_u32(z, ea, val);
    }
    else if(sizeof(T) == 2)
-    z->Write_u16(ea, val);
+    Write_u16(z, ea, val);
    else
-    z->Write_u8(ea, val);
+    Write_u8(z, ea, val);
 
    if(!pseudo_predec)
     ea += sizeof(T);
@@ -1468,9 +1468,9 @@ INLINE void MOVEM_to_REGS(M68K* z, bool pseudo_postinc, M68K::HAM<T, SAM> &src, 
    /* Phase-8s-pre: Read<T>(ea) inlined.  sizeof(T) folds at
     * MOVEM_to_REGS template instantiation. */
    T tmp;
-   if(sizeof(T) == 1)      tmp = z->Read_u8 (ea);
-   else if(sizeof(T) == 2) tmp = z->Read_u16(ea);
-   else                    tmp = z->Read_u32(ea);
+   if(sizeof(T) == 1)      tmp = Read_u8(z, ea);
+   else if(sizeof(T) == 2) tmp = Read_u16(z, ea);
+   else                    tmp = Read_u32(z, ea);
 
    z->DA[i] = static_cast<typename std::make_signed<T>::type>(tmp);
 
@@ -1478,7 +1478,7 @@ INLINE void MOVEM_to_REGS(M68K* z, bool pseudo_postinc, M68K::HAM<T, SAM> &src, 
   }
  }
 
- z->Read_u16(ea);	// or should be <T> ?
+ Read_u16(z, ea);	// or should be <T> ?
 
  if(pseudo_postinc)
   z->A[src.reg] = ea;
@@ -1543,7 +1543,7 @@ INLINE void ShiftBase(M68K* z, bool Arithmetic, bool ShiftLeft, M68K::HAM<T, TAM
    }
   } while(--count != 0);
 
-  z->SetCX(shifted_out);
+  SetCX(z, shifted_out);
  }
 
  CALC_ZN(z, T, result);
@@ -1596,13 +1596,13 @@ INLINE void RotateBase(M68K* z, bool X_Form, bool ShiftLeft, M68K::HAM<T, TAM> &
  if(count == 0)
  {
   if(X_Form)
-   z->Flag_C = z->GetX();
+   z->Flag_C = GetX(z);
   else
    z->Flag_C = false;
  }
  else
  {
-  bool shifted_out = z->GetX();
+  bool shifted_out = GetX(z);
 
   do
   {
@@ -1777,22 +1777,22 @@ INLINE void EXT(M68K* z, M68K::HAM<T, DAM> &dst)
 //
 // SWAP
 //
-INLINE void M68K::SWAP(const unsigned dr)
+INLINE void SWAP(M68K* z, const unsigned dr)
 {
- D[dr] = (D[dr] << 16) | (D[dr] >> 16);
+ z->D[dr] = (z->D[dr] << 16) | (z->D[dr] >> 16);
 
- CalcZN_u32(D[dr]);
- Flag_C = false;
- Flag_V = false;
+ CalcZN_u32(z, z->D[dr]);
+ z->Flag_C = false;
+ z->Flag_V = false;
 }
 
 
 //
 // EXG (doesn't affect flags)
 //
-INLINE void M68K::EXG(uint32_t* a, uint32_t* b)
+INLINE void EXG(M68K* z, uint32_t* a, uint32_t* b)
 {
- timestamp += 2;
+ z->timestamp += 2;
 
  std::swap(*a, *b); 
 }
@@ -1804,7 +1804,7 @@ INLINE void M68K::EXG(uint32_t* a, uint32_t* b)
 /* Phase-8c: TestCond, Bxx, DBcc fully detempleted.  Scc keeps its
  * T / DAM template parameters (still HAM-locked) but its cc
  * parameter moved to a runtime first-arg too. */
-INLINE bool M68K::TestCond(unsigned cc)
+INLINE bool TestCond(M68K* z, unsigned cc)
 {
  switch(cc)
  {
@@ -1815,46 +1815,46 @@ INLINE bool M68K::TestCond(unsigned cc)
 	return false;
 
   case 0x02:	// HI
-	return !GetC() && !GetZ();
+	return !GetC(z) && !GetZ(z);
 
   case 0x03:	// LS
-	return GetC() || GetZ();
+	return GetC(z) || GetZ(z);
 
   case 0x04:	// CC/HS
-	return !GetC();
+	return !GetC(z);
 
   case 0x05:	// CS/LO
-	return GetC();
+	return GetC(z);
 
   case 0x06:	// NE
-	return !GetZ();
+	return !GetZ(z);
 
   case 0x07:	// EQ
-	return GetZ();
+	return GetZ(z);
 
   case 0x08:	// VC
-	return !GetV();
+	return !GetV(z);
 
   case 0x09:	// VS
-	return GetV();
+	return GetV(z);
 
   case 0x0A:	// PL
-	return !GetN();
+	return !GetN(z);
 
   case 0x0B:	// MI
-	return GetN();
+	return GetN(z);
 
   case 0x0C:	// GE
-	return GetN() == GetV();
+	return GetN(z) == GetV(z);
 
   case 0x0D:	// LT
-	return GetN() != GetV();
+	return GetN(z) != GetV(z);
 
   case 0x0E:	// GT
-	return GetN() == GetV() && !GetZ();
+	return GetN(z) == GetV(z) && !GetZ(z);
 
   case 0x0F:	// LE
-	return GetN() != GetV() || GetZ();
+	return GetN(z) != GetV(z) || GetZ(z);
  }
  return false; /* unreachable, but keeps -Wreturn-type happy now
                 * that cc is no longer a static-assert'd template arg */
@@ -1865,57 +1865,57 @@ INLINE bool M68K::TestCond(unsigned cc)
 //
 //  (caller of this function should sign-extend the 8-bit displacement)
 //
-INLINE void M68K::Bxx(unsigned cc, uint32_t disp)
+INLINE void Bxx(M68K* z, unsigned cc, uint32_t disp)
 {
- const uint32_t BPC = PC;
+ const uint32_t BPC = z->PC;
 
  /* cc == 0x01 here means BSR (Branch to Subroutine), not "Bcc-False"
   * -- override to TRUE so the branch is always taken. */
- if(TestCond((cc == 0x01) ? 0x00 : cc))
+ if(TestCond(z, (cc == 0x01) ? 0x00 : cc))
  {
-  const uint16_t disp16 = (int16_t)ReadOp();
+  const uint16_t disp16 = (int16_t)ReadOp(z);
 
   if(!disp)
    disp = (int16_t)disp16;
   else
-   PC -= 2;
+   z->PC -= 2;
 
   if(cc == 0x01)
-   Push_u32(PC);
+   Push_u32(z, z->PC);
 
-  timestamp += 2;
-  PC = BPC + disp;
+  z->timestamp += 2;
+  z->PC = BPC + disp;
  }
  else
  {
   if(!disp)
-   ReadOp();
+   ReadOp(z);
 
-  timestamp += 4;
+  z->timestamp += 4;
  }
 }
 
-INLINE void M68K::DBcc(unsigned cc, const unsigned dr)
+INLINE void DBcc(M68K* z, unsigned cc, const unsigned dr)
 {
- const uint32_t BPC = PC;
+ const uint32_t BPC = z->PC;
  uint32_t disp;
 
- disp = (int16_t)ReadOp();
+ disp = (int16_t)ReadOp(z);
 
- if(!TestCond(cc))
+ if(!TestCond(z, cc))
  {
-  const uint16_t result = D[dr] - 1;
+  const uint16_t result = z->D[dr] - 1;
 
-  timestamp += 2;
-  D[dr] = (D[dr] & 0xFFFF0000) | result;
+  z->timestamp += 2;
+  z->D[dr] = (z->D[dr] & 0xFFFF0000) | result;
 
   if(result != 0xFFFF)
-   PC = BPC + disp;
+   z->PC = BPC + disp;
   else
-   timestamp += 4;
+   z->timestamp += 4;
  }
  else
-  timestamp += 4;
+  z->timestamp += 4;
 }
 
 
@@ -1927,7 +1927,7 @@ INLINE void Scc(M68K* z, unsigned cc, M68K::HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint8_t>::value, "Wrong type");
 
- T const result = z->TestCond(cc) ? ~(T)0 : 0;
+ T const result = TestCond(z, cc) ? ~(T)0 : 0;
 
  if(DAM == DATA_REG_DIR && result)
   z->timestamp += 2;
@@ -1942,7 +1942,7 @@ INLINE void Scc(M68K* z, unsigned cc, M68K::HAM<T, DAM> &dst)
 template<typename T, AddressMode TAM>
 INLINE void JSR(M68K* z, M68K::HAM<T, TAM> &targ)
 {
- z->Push_u32(z->PC);
+ Push_u32(z, z->PC);
  targ.jump();
 }
 
@@ -1971,7 +1971,7 @@ INLINE void MOVE_from_SR(M68K* z, M68K::HAM<T, DAM> &dst)
  if(DAM == DATA_REG_DIR)
   z->timestamp += 2;
 
- dst.write(z->GetSR());
+ dst.write(GetSR(z));
 }
 
 
@@ -1983,7 +1983,7 @@ INLINE void MOVE_to_CCR(M68K* z, M68K::HAM<T, SAM> &src)
 {
  static_assert(std::is_same<T, uint16_t>::value, "Wrong type");
 
- z->SetCCR(src.read());
+ SetCCR(z, src.read());
 
  z->timestamp += 8;
 }
@@ -1996,7 +1996,7 @@ INLINE void MOVE_to_SR(M68K* z, M68K::HAM<T, SAM> &src)
 {
  static_assert(std::is_same<T, uint16_t>::value, "Wrong type");
 
- z->SetSR(src.read());
+ SetSR(z, src.read());
 
  z->timestamp += 8;
 }
@@ -2005,12 +2005,12 @@ INLINE void MOVE_to_SR(M68K* z, M68K::HAM<T, SAM> &src)
 //
 // MOVE to/from USP
 //
-INLINE void M68K::MOVE_USP(bool direction, const unsigned ar)
+INLINE void MOVE_USP(M68K* z, bool direction, const unsigned ar)
 {
  if(!direction)
-  SP_Inactive = A[ar];
+  z->SP_Inactive = z->A[ar];
  else
-  A[ar] = SP_Inactive;
+  z->A[ar] = z->SP_Inactive;
 }
 
 
@@ -2034,29 +2034,29 @@ INLINE void PEA(M68K* z, M68K::HAM<T, SAM> &src)
 {
  const uint32_t ea = src.getea();
 
- z->Push_u32(ea);
+ Push_u32(z, ea);
 }
 
 //
 // UNLK
 //
-INLINE void M68K::UNLK(const unsigned ar)
+INLINE void UNLK(M68K* z, const unsigned ar)
 {
- A[7] = A[ar];
- A[ar] = Pull_u32();
+ z->A[7] = z->A[ar];
+ z->A[ar] = Pull_u32(z);
 }
 
 
 //
 // LINK
 //
-INLINE void M68K::LINK(const unsigned ar)
+INLINE void LINK(M68K* z, const unsigned ar)
 {
- const uint32_t disp = (int16_t)ReadOp();
+ const uint32_t disp = (int16_t)ReadOp(z);
 
- Push_u32(A[ar]);
- A[ar] = A[7];
- A[7] += disp;
+ Push_u32(z, z->A[ar]);
+ z->A[ar] = z->A[7];
+ z->A[7] += disp;
 }
 
 
@@ -2066,82 +2066,82 @@ INLINE void M68K::LINK(const unsigned ar)
 //
 // RTE
 //
-INLINE void M68K::RTE(void)
+INLINE void RTE(M68K* z)
 {
  uint16_t new_SR;
 
- new_SR = Pull_u16();
- PC = Pull_u32();
+ new_SR = Pull_u16(z);
+ z->PC = Pull_u32(z);
 
- SetSR(new_SR);
+ SetSR(z, new_SR);
 }
 
 
 //
 // RTR
 //
-INLINE void M68K::RTR(void)
+INLINE void RTR(M68K* z)
 {
- SetCCR(Pull_u16());
- PC = Pull_u32();
+ SetCCR(z, Pull_u16(z));
+ z->PC = Pull_u32(z);
 }
 
 
 //
 // RTS
 //
-INLINE void M68K::RTS(void)
+INLINE void RTS(M68K* z)
 {
- PC = Pull_u32();
+ z->PC = Pull_u32(z);
 }
 
 
 //
 // TRAP
 //
-INLINE void M68K::TRAP(const unsigned vf)
+INLINE void TRAP(M68K* z, const unsigned vf)
 {
- Exception(EXCEPTION_TRAP, VECNUM_TRAP_BASE + vf);
+ Exception(z, EXCEPTION_TRAP, VECNUM_TRAP_BASE + vf);
 }
 
 
 //
 // TRAPV
 //
-INLINE void M68K::TRAPV(void)
+INLINE void TRAPV(M68K* z)
 {
- if(GetV())
-  Exception(EXCEPTION_TRAPV, VECNUM_TRAPV);
+ if(GetV(z))
+  Exception(z, EXCEPTION_TRAPV, VECNUM_TRAPV);
 }
 
 
 //
 // ILLEGAL
 //
-INLINE void M68K::ILLEGAL(const uint16_t instr)
+INLINE void ILLEGAL(M68K* z, const uint16_t instr)
 {
- PC -= 2;
- Exception(EXCEPTION_ILLEGAL, VECNUM_ILLEGAL);
+ z->PC -= 2;
+ Exception(z, EXCEPTION_ILLEGAL, VECNUM_ILLEGAL);
 }
 
 
-INLINE void M68K::LINEA(void)
+INLINE void LINEA(M68K* z)
 {
- PC -= 2;
- Exception(EXCEPTION_ILLEGAL, VECNUM_LINEA);
+ z->PC -= 2;
+ Exception(z, EXCEPTION_ILLEGAL, VECNUM_LINEA);
 }
 
-INLINE void M68K::LINEF(void)
+INLINE void LINEF(M68K* z)
 {
- PC -= 2;
- Exception(EXCEPTION_ILLEGAL, VECNUM_LINEF);
+ z->PC -= 2;
+ Exception(z, EXCEPTION_ILLEGAL, VECNUM_LINEF);
 }
 
 
 //
 // NOP
 //
-INLINE void M68K::NOP(void)
+INLINE void NOP(M68K* z)
 {
 
 }
@@ -2150,36 +2150,36 @@ INLINE void M68K::NOP(void)
 //
 // RESET
 //
-INLINE void M68K::RESET(void)
+INLINE void RESET(M68K* z)
 {
- timestamp += 2;
+ z->timestamp += 2;
  //
- BusRESET(true);
- timestamp += 124;
- BusRESET(false);
+ z->BusRESET(true);
+ z->timestamp += 124;
+ z->BusRESET(false);
  //
- timestamp += 2;
+ z->timestamp += 2;
 }
 
 
 //
 // STOP
 //
-INLINE void M68K::STOP(void)
+INLINE void STOP(M68K* z)
 {
- uint16_t new_SR = ReadOp();
+ uint16_t new_SR = ReadOp(z);
 
- SetSR(new_SR);
- XPending |= XPENDING_MASK_STOPPED;
+ SetSR(z, new_SR);
+ z->XPending |= XPENDING_MASK_STOPPED;
 }
 
 
-INLINE bool M68K::CheckPrivilege(void)
+INLINE bool CheckPrivilege(M68K* z)
 {
- if(MDFN_UNLIKELY(!GetSVisor()))
+ if(MDFN_UNLIKELY(!GetSVisor(z)))
  {
-  PC -= 2;
-  Exception(EXCEPTION_PRIVILEGE, VECNUM_PRIVILEGE);
+  z->PC -= 2;
+  Exception(z, EXCEPTION_PRIVILEGE, VECNUM_PRIVILEGE);
   return false;
  }
 

@@ -1,6 +1,6 @@
 case 0x023c:
 	{
-	 ANDI_CCR();
+	 ANDI_CCR(this);
 	}
 	break;
 
@@ -261,7 +261,7 @@ case 0x60fd:
 case 0x60fe:
 case 0x60ff:
 	{
-	 Bxx(0x00, (int8_t)instr);
+	 Bxx(this, 0x00, (int8_t)instr);
 	}
 	break;
 
@@ -522,7 +522,7 @@ case 0x61fd:
 case 0x61fe:
 case 0x61ff:
 	{
-	 Bxx(0x01, (int8_t)instr);
+	 Bxx(this, 0x01, (int8_t)instr);
 	}
 	break;
 
@@ -783,7 +783,7 @@ case 0x62fd:
 case 0x62fe:
 case 0x62ff:
 	{
-	 Bxx(0x02, (int8_t)instr);
+	 Bxx(this, 0x02, (int8_t)instr);
 	}
 	break;
 
@@ -1044,7 +1044,7 @@ case 0x63fd:
 case 0x63fe:
 case 0x63ff:
 	{
-	 Bxx(0x03, (int8_t)instr);
+	 Bxx(this, 0x03, (int8_t)instr);
 	}
 	break;
 
@@ -1305,7 +1305,7 @@ case 0x64fd:
 case 0x64fe:
 case 0x64ff:
 	{
-	 Bxx(0x04, (int8_t)instr);
+	 Bxx(this, 0x04, (int8_t)instr);
 	}
 	break;
 
@@ -1566,7 +1566,7 @@ case 0x65fd:
 case 0x65fe:
 case 0x65ff:
 	{
-	 Bxx(0x05, (int8_t)instr);
+	 Bxx(this, 0x05, (int8_t)instr);
 	}
 	break;
 
@@ -1827,7 +1827,7 @@ case 0x66fd:
 case 0x66fe:
 case 0x66ff:
 	{
-	 Bxx(0x06, (int8_t)instr);
+	 Bxx(this, 0x06, (int8_t)instr);
 	}
 	break;
 
@@ -2088,7 +2088,7 @@ case 0x67fd:
 case 0x67fe:
 case 0x67ff:
 	{
-	 Bxx(0x07, (int8_t)instr);
+	 Bxx(this, 0x07, (int8_t)instr);
 	}
 	break;
 
@@ -2349,7 +2349,7 @@ case 0x68fd:
 case 0x68fe:
 case 0x68ff:
 	{
-	 Bxx(0x08, (int8_t)instr);
+	 Bxx(this, 0x08, (int8_t)instr);
 	}
 	break;
 
@@ -2610,7 +2610,7 @@ case 0x69fd:
 case 0x69fe:
 case 0x69ff:
 	{
-	 Bxx(0x09, (int8_t)instr);
+	 Bxx(this, 0x09, (int8_t)instr);
 	}
 	break;
 
@@ -2871,7 +2871,7 @@ case 0x6afd:
 case 0x6afe:
 case 0x6aff:
 	{
-	 Bxx(0x0a, (int8_t)instr);
+	 Bxx(this, 0x0a, (int8_t)instr);
 	}
 	break;
 
@@ -3132,7 +3132,7 @@ case 0x6bfd:
 case 0x6bfe:
 case 0x6bff:
 	{
-	 Bxx(0x0b, (int8_t)instr);
+	 Bxx(this, 0x0b, (int8_t)instr);
 	}
 	break;
 
@@ -3393,7 +3393,7 @@ case 0x6cfd:
 case 0x6cfe:
 case 0x6cff:
 	{
-	 Bxx(0x0c, (int8_t)instr);
+	 Bxx(this, 0x0c, (int8_t)instr);
 	}
 	break;
 
@@ -3654,7 +3654,7 @@ case 0x6dfd:
 case 0x6dfe:
 case 0x6dff:
 	{
-	 Bxx(0x0d, (int8_t)instr);
+	 Bxx(this, 0x0d, (int8_t)instr);
 	}
 	break;
 
@@ -3915,7 +3915,7 @@ case 0x6efd:
 case 0x6efe:
 case 0x6eff:
 	{
-	 Bxx(0x0e, (int8_t)instr);
+	 Bxx(this, 0x0e, (int8_t)instr);
 	}
 	break;
 
@@ -4176,7 +4176,7 @@ case 0x6ffd:
 case 0x6ffe:
 case 0x6fff:
 	{
-	 Bxx(0x0f, (int8_t)instr);
+	 Bxx(this, 0x0f, (int8_t)instr);
 	}
 	break;
 
@@ -4189,7 +4189,7 @@ case 0x50cd:
 case 0x50ce:
 case 0x50cf:
 	{
-	 DBcc(0x00, instr_b2_b0);
+	 DBcc(this, 0x00, instr_b2_b0);
 	}
 	break;
 
@@ -4202,7 +4202,7 @@ case 0x51cd:
 case 0x51ce:
 case 0x51cf:
 	{
-	 DBcc(0x01, instr_b2_b0);
+	 DBcc(this, 0x01, instr_b2_b0);
 	}
 	break;
 
@@ -4215,7 +4215,7 @@ case 0x52cd:
 case 0x52ce:
 case 0x52cf:
 	{
-	 DBcc(0x02, instr_b2_b0);
+	 DBcc(this, 0x02, instr_b2_b0);
 	}
 	break;
 
@@ -4228,7 +4228,7 @@ case 0x53cd:
 case 0x53ce:
 case 0x53cf:
 	{
-	 DBcc(0x03, instr_b2_b0);
+	 DBcc(this, 0x03, instr_b2_b0);
 	}
 	break;
 
@@ -4241,7 +4241,7 @@ case 0x54cd:
 case 0x54ce:
 case 0x54cf:
 	{
-	 DBcc(0x04, instr_b2_b0);
+	 DBcc(this, 0x04, instr_b2_b0);
 	}
 	break;
 
@@ -4254,7 +4254,7 @@ case 0x55cd:
 case 0x55ce:
 case 0x55cf:
 	{
-	 DBcc(0x05, instr_b2_b0);
+	 DBcc(this, 0x05, instr_b2_b0);
 	}
 	break;
 
@@ -4267,7 +4267,7 @@ case 0x56cd:
 case 0x56ce:
 case 0x56cf:
 	{
-	 DBcc(0x06, instr_b2_b0);
+	 DBcc(this, 0x06, instr_b2_b0);
 	}
 	break;
 
@@ -4280,7 +4280,7 @@ case 0x57cd:
 case 0x57ce:
 case 0x57cf:
 	{
-	 DBcc(0x07, instr_b2_b0);
+	 DBcc(this, 0x07, instr_b2_b0);
 	}
 	break;
 
@@ -4293,7 +4293,7 @@ case 0x58cd:
 case 0x58ce:
 case 0x58cf:
 	{
-	 DBcc(0x08, instr_b2_b0);
+	 DBcc(this, 0x08, instr_b2_b0);
 	}
 	break;
 
@@ -4306,7 +4306,7 @@ case 0x59cd:
 case 0x59ce:
 case 0x59cf:
 	{
-	 DBcc(0x09, instr_b2_b0);
+	 DBcc(this, 0x09, instr_b2_b0);
 	}
 	break;
 
@@ -4319,7 +4319,7 @@ case 0x5acd:
 case 0x5ace:
 case 0x5acf:
 	{
-	 DBcc(0x0a, instr_b2_b0);
+	 DBcc(this, 0x0a, instr_b2_b0);
 	}
 	break;
 
@@ -4332,7 +4332,7 @@ case 0x5bcd:
 case 0x5bce:
 case 0x5bcf:
 	{
-	 DBcc(0x0b, instr_b2_b0);
+	 DBcc(this, 0x0b, instr_b2_b0);
 	}
 	break;
 
@@ -4345,7 +4345,7 @@ case 0x5ccd:
 case 0x5cce:
 case 0x5ccf:
 	{
-	 DBcc(0x0c, instr_b2_b0);
+	 DBcc(this, 0x0c, instr_b2_b0);
 	}
 	break;
 
@@ -4358,7 +4358,7 @@ case 0x5dcd:
 case 0x5dce:
 case 0x5dcf:
 	{
-	 DBcc(0x0d, instr_b2_b0);
+	 DBcc(this, 0x0d, instr_b2_b0);
 	}
 	break;
 
@@ -4371,7 +4371,7 @@ case 0x5ecd:
 case 0x5ece:
 case 0x5ecf:
 	{
-	 DBcc(0x0e, instr_b2_b0);
+	 DBcc(this, 0x0e, instr_b2_b0);
 	}
 	break;
 
@@ -4384,13 +4384,13 @@ case 0x5fcd:
 case 0x5fce:
 case 0x5fcf:
 	{
-	 DBcc(0x0f, instr_b2_b0);
+	 DBcc(this, 0x0f, instr_b2_b0);
 	}
 	break;
 
 case 0x0a3c:
 	{
-	 EORI_CCR();
+	 EORI_CCR(this);
 	}
 	break;
 
@@ -4459,7 +4459,7 @@ case 0xcf4d:
 case 0xcf4e:
 case 0xcf4f:
 	{
-	 EXG(&A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
+	 EXG(this, &A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
 	}
 	break;
 
@@ -4528,7 +4528,7 @@ case 0xcf8d:
 case 0xcf8e:
 case 0xcf8f:
 	{
-	 EXG(&D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
+	 EXG(this, &D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
 	}
 	break;
 
@@ -4597,7 +4597,7 @@ case 0xcf45:
 case 0xcf46:
 case 0xcf47:
 	{
-	 EXG(&D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
+	 EXG(this, &D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
 	}
 	break;
 
@@ -56315,7 +56315,7 @@ case 0xaffd:
 case 0xaffe:
 case 0xafff:
 	{
-	 LINEA();
+	 LINEA(this);
 	}
 	break;
 
@@ -60416,7 +60416,7 @@ case 0xfffd:
 case 0xfffe:
 case 0xffff:
 	{
-	 LINEF();
+	 LINEF(this);
 	}
 	break;
 
@@ -60429,7 +60429,7 @@ case 0x4e55:
 case 0x4e56:
 case 0x4e57:
 	{
-	 LINK(instr_b2_b0);
+	 LINK(this, instr_b2_b0);
 	}
 	break;
 
@@ -60498,7 +60498,7 @@ case 0x0f0d:
 case 0x0f0e:
 case 0x0f0f:
 	{
-	 MOVEP_w_mem_to_reg(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_mem_to_reg(this, instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -60567,7 +60567,7 @@ case 0x0f8d:
 case 0x0f8e:
 case 0x0f8f:
 	{
-	 MOVEP_w_reg_to_mem(instr_b2_b0, instr_b11_b9);
+	 MOVEP_w_reg_to_mem(this, instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -60636,7 +60636,7 @@ case 0x0f4d:
 case 0x0f4e:
 case 0x0f4f:
 	{
-	 MOVEP_l_mem_to_reg(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_mem_to_reg(this, instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
@@ -60705,31 +60705,31 @@ case 0x0fcd:
 case 0x0fce:
 case 0x0fcf:
 	{
-	 MOVEP_l_reg_to_mem(instr_b2_b0, instr_b11_b9);
+	 MOVEP_l_reg_to_mem(this, instr_b2_b0, instr_b11_b9);
 	}
 	break;
 
 case 0x4e71:
 	{
-	 NOP();
+	 NOP(this);
 	}
 	break;
 
 case 0x003c:
 	{
-	 ORI_CCR();
+	 ORI_CCR(this);
 	}
 	break;
 
 case 0x4e77:
 	{
-	 RTR();
+	 RTR(this);
 	}
 	break;
 
 case 0x4e75:
 	{
-	 RTS();
+	 RTS(this);
 	}
 	break;
 
@@ -60742,7 +60742,7 @@ case 0x4845:
 case 0x4846:
 case 0x4847:
 	{
-	 SWAP(instr_b2_b0);
+	 SWAP(this, instr_b2_b0);
 	}
 	break;
 
@@ -60763,13 +60763,13 @@ case 0x4e4d:
 case 0x4e4e:
 case 0x4e4f:
 	{
-	 TRAP(instr & 0xF);
+	 TRAP(this, instr & 0xF);
 	}
 	break;
 
 case 0x4e76:
 	{
-	 TRAPV();
+	 TRAPV(this);
 	}
 	break;
 
@@ -60782,31 +60782,31 @@ case 0x4e5d:
 case 0x4e5e:
 case 0x4e5f:
 	{
-	 UNLK(instr_b2_b0);
+	 UNLK(this, instr_b2_b0);
 	}
 	break;
 
 case 0x48b9:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_LONG> dst(this); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ABS_LONG> dst(this); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
 case 0x4cb9:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_LONG> src(this); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ABS_LONG> src(this); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
 case 0x48b8:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_SHORT> dst(this); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ABS_SHORT> dst(this); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
 case 0x4cb8:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ABS_SHORT> src(this); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ABS_SHORT> src(this); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
@@ -60819,7 +60819,7 @@ case 0x4895:
 case 0x4896:
 case 0x4897:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
@@ -60832,7 +60832,7 @@ case 0x48a5:
 case 0x48a6:
 case 0x48a7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(this, true, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(this, true, reglist, dst);
 	}
 	break;
 
@@ -60845,7 +60845,7 @@ case 0x4c95:
 case 0x4c96:
 case 0x4c97:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
@@ -60858,7 +60858,7 @@ case 0x4c9d:
 case 0x4c9e:
 case 0x4c9f:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(this, true, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(this, true, src, reglist);
 	}
 	break;
 
@@ -60871,7 +60871,7 @@ case 0x48ad:
 case 0x48ae:
 case 0x48af:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
@@ -60884,7 +60884,7 @@ case 0x4cad:
 case 0x4cae:
 case 0x4caf:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
@@ -60897,7 +60897,7 @@ case 0x48b5:
 case 0x48b6:
 case 0x48b7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
@@ -60910,43 +60910,43 @@ case 0x4cb5:
 case 0x4cb6:
 case 0x4cb7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
 case 0x4cba:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, PC_DISP> src(this); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, PC_DISP> src(this); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
 case 0x4cbb:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint16_t, PC_INDEX> src(this); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint16_t, PC_INDEX> src(this); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
 case 0x48f9:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_LONG> dst(this); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ABS_LONG> dst(this); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
 case 0x4cf9:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_LONG> src(this); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ABS_LONG> src(this); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
 case 0x48f8:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_SHORT> dst(this); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ABS_SHORT> dst(this); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
 case 0x4cf8:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ABS_SHORT> src(this); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ABS_SHORT> src(this); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
@@ -60959,7 +60959,7 @@ case 0x48d5:
 case 0x48d6:
 case 0x48d7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
@@ -60972,7 +60972,7 @@ case 0x48e5:
 case 0x48e6:
 case 0x48e7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(this, true, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVEM_to_MEM(this, true, reglist, dst);
 	}
 	break;
 
@@ -60985,7 +60985,7 @@ case 0x4cd5:
 case 0x4cd6:
 case 0x4cd7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
@@ -60998,7 +60998,7 @@ case 0x4cdd:
 case 0x4cde:
 case 0x4cdf:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(this, true, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVEM_to_REGS(this, true, src, reglist);
 	}
 	break;
 
@@ -61011,7 +61011,7 @@ case 0x48ed:
 case 0x48ee:
 case 0x48ef:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
@@ -61024,7 +61024,7 @@ case 0x4ced:
 case 0x4cee:
 case 0x4cef:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
@@ -61037,7 +61037,7 @@ case 0x48f5:
 case 0x48f6:
 case 0x48f7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVEM_to_MEM(this, false, reglist, dst);
 	}
 	break;
 
@@ -61050,31 +61050,31 @@ case 0x4cf5:
 case 0x4cf6:
 case 0x4cf7:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
 case 0x4cfa:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, PC_DISP> src(this); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, PC_DISP> src(this); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
 case 0x4cfb:
 	{
-	 const uint16_t reglist = ReadOp(); HAM<uint32_t, PC_INDEX> src(this); MOVEM_to_REGS(this, false, src, reglist);
+	 const uint16_t reglist = ReadOp(this); HAM<uint32_t, PC_INDEX> src(this); MOVEM_to_REGS(this, false, src, reglist);
 	}
 	break;
 
 case 0x40f9:
 	{
-	 if(!Revision_E || CheckPrivilege()) { HAM<uint16_t, ABS_LONG> dst(this); MOVE_from_SR(this, dst); }
+	 if(!Revision_E || CheckPrivilege(this)) { HAM<uint16_t, ABS_LONG> dst(this); MOVE_from_SR(this, dst); }
 	}
 	break;
 
 case 0x40f8:
 	{
-	 if(!Revision_E || CheckPrivilege()) { HAM<uint16_t, ABS_SHORT> dst(this); MOVE_from_SR(this, dst); }
+	 if(!Revision_E || CheckPrivilege(this)) { HAM<uint16_t, ABS_SHORT> dst(this); MOVE_from_SR(this, dst); }
 	}
 	break;
 
@@ -61087,7 +61087,7 @@ case 0x40d5:
 case 0x40d6:
 case 0x40d7:
 	{
-	 if(!Revision_E || CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
+	 if(!Revision_E || CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
 	}
 	break;
 
@@ -61100,7 +61100,7 @@ case 0x40ed:
 case 0x40ee:
 case 0x40ef:
 	{
-	 if(!Revision_E || CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
+	 if(!Revision_E || CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR_DISP> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
 	}
 	break;
 
@@ -61113,7 +61113,7 @@ case 0x40f5:
 case 0x40f6:
 case 0x40f7:
 	{
-	 if(!Revision_E || CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
+	 if(!Revision_E || CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR_INDX> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
 	}
 	break;
 
@@ -61126,7 +61126,7 @@ case 0x40dd:
 case 0x40de:
 case 0x40df:
 	{
-	 if(!Revision_E || CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
+	 if(!Revision_E || CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR_POST> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
 	}
 	break;
 
@@ -61139,7 +61139,7 @@ case 0x40e5:
 case 0x40e6:
 case 0x40e7:
 	{
-	 if(!Revision_E || CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
+	 if(!Revision_E || CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR_PRE> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
 	}
 	break;
 
@@ -61152,31 +61152,31 @@ case 0x40c5:
 case 0x40c6:
 case 0x40c7:
 	{
-	 if(!Revision_E || CheckPrivilege()) { HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
+	 if(!Revision_E || CheckPrivilege(this)) { HAM<uint16_t, DATA_REG_DIR> dst(this, instr_b2_b0); MOVE_from_SR(this, dst); }
 	}
 	break;
 
 case 0x027c:
 	{
-	 if(CheckPrivilege()) { ANDI_SR(); }
+	 if(CheckPrivilege(this)) { ANDI_SR(this); }
 	}
 	break;
 
 case 0x0a7c:
 	{
-	 if(CheckPrivilege()) { EORI_SR(); }
+	 if(CheckPrivilege(this)) { EORI_SR(this); }
 	}
 	break;
 
 case 0x46f9:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, ABS_LONG> src(this); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, ABS_LONG> src(this); MOVE_to_SR(this, src); }
 	}
 	break;
 
 case 0x46f8:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, ABS_SHORT> src(this); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, ABS_SHORT> src(this); MOVE_to_SR(this, src); }
 	}
 	break;
 
@@ -61189,7 +61189,7 @@ case 0x46d5:
 case 0x46d6:
 case 0x46d7:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
 	}
 	break;
 
@@ -61202,7 +61202,7 @@ case 0x46ed:
 case 0x46ee:
 case 0x46ef:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR_DISP> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
 	}
 	break;
 
@@ -61215,7 +61215,7 @@ case 0x46f5:
 case 0x46f6:
 case 0x46f7:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR_INDX> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
 	}
 	break;
 
@@ -61228,7 +61228,7 @@ case 0x46dd:
 case 0x46de:
 case 0x46df:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR_POST> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
 	}
 	break;
 
@@ -61241,7 +61241,7 @@ case 0x46e5:
 case 0x46e6:
 case 0x46e7:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, ADDR_REG_INDIR_PRE> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
 	}
 	break;
 
@@ -61254,25 +61254,25 @@ case 0x46c5:
 case 0x46c6:
 case 0x46c7:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, DATA_REG_DIR> src(this, instr_b2_b0); MOVE_to_SR(this, src); }
 	}
 	break;
 
 case 0x46fc:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, IMMEDIATE> src(this); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, IMMEDIATE> src(this); MOVE_to_SR(this, src); }
 	}
 	break;
 
 case 0x46fa:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, PC_DISP> src(this); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, PC_DISP> src(this); MOVE_to_SR(this, src); }
 	}
 	break;
 
 case 0x46fb:
 	{
-	 if(CheckPrivilege()) { HAM<uint16_t, PC_INDEX> src(this); MOVE_to_SR(this, src); }
+	 if(CheckPrivilege(this)) { HAM<uint16_t, PC_INDEX> src(this); MOVE_to_SR(this, src); }
 	}
 	break;
 
@@ -61285,7 +61285,7 @@ case 0x4e65:
 case 0x4e66:
 case 0x4e67:
 	{
-	 if(CheckPrivilege()) { MOVE_USP(false, instr_b2_b0); }
+	 if(CheckPrivilege(this)) { MOVE_USP(this, false, instr_b2_b0); }
 	}
 	break;
 
@@ -61298,31 +61298,31 @@ case 0x4e6d:
 case 0x4e6e:
 case 0x4e6f:
 	{
-	 if(CheckPrivilege()) { MOVE_USP(true, instr_b2_b0); }
+	 if(CheckPrivilege(this)) { MOVE_USP(this, true, instr_b2_b0); }
 	}
 	break;
 
 case 0x007c:
 	{
-	 if(CheckPrivilege()) { ORI_SR(); }
+	 if(CheckPrivilege(this)) { ORI_SR(this); }
 	}
 	break;
 
 case 0x4e70:
 	{
-	 if(CheckPrivilege()) { RESET(); }
+	 if(CheckPrivilege(this)) { RESET(this); }
 	}
 	break;
 
 case 0x4e73:
 	{
-	 if(CheckPrivilege()) { RTE(); }
+	 if(CheckPrivilege(this)) { RTE(this); }
 	}
 	break;
 
 case 0x4e72:
 	{
-	 if(CheckPrivilege()) { STOP(); }
+	 if(CheckPrivilege(this)) { STOP(this); }
 	}
 	break;
 
@@ -61335,7 +61335,7 @@ case 0x0845:
 case 0x0846:
 case 0x0847:
 	{
-	 unsigned wb = ReadOp(); HAM<uint32_t, DATA_REG_DIR> targ(this, instr_b2_b0); BCHG(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint32_t, DATA_REG_DIR> targ(this, instr_b2_b0); BCHG(this, targ, wb);
 	}
 	break;
 
@@ -61348,7 +61348,7 @@ case 0x0885:
 case 0x0886:
 case 0x0887:
 	{
-	 unsigned wb = ReadOp(); HAM<uint32_t, DATA_REG_DIR> targ(this, instr_b2_b0); BCLR(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint32_t, DATA_REG_DIR> targ(this, instr_b2_b0); BCLR(this, targ, wb);
 	}
 	break;
 
@@ -61361,7 +61361,7 @@ case 0x08c5:
 case 0x08c6:
 case 0x08c7:
 	{
-	 unsigned wb = ReadOp(); HAM<uint32_t, DATA_REG_DIR> targ(this, instr_b2_b0); BSET(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint32_t, DATA_REG_DIR> targ(this, instr_b2_b0); BSET(this, targ, wb);
 	}
 	break;
 
@@ -61374,55 +61374,55 @@ case 0x0805:
 case 0x0806:
 case 0x0807:
 	{
-	 unsigned wb = ReadOp(); HAM<uint32_t, DATA_REG_DIR> targ(this, instr_b2_b0); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint32_t, DATA_REG_DIR> targ(this, instr_b2_b0); BTST(this, targ, wb);
 	}
 	break;
 
 case 0x0879:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ABS_LONG> targ(this); BCHG(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ABS_LONG> targ(this); BCHG(this, targ, wb);
 	}
 	break;
 
 case 0x08b9:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ABS_LONG> targ(this); BCLR(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ABS_LONG> targ(this); BCLR(this, targ, wb);
 	}
 	break;
 
 case 0x08f9:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ABS_LONG> targ(this); BSET(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ABS_LONG> targ(this); BSET(this, targ, wb);
 	}
 	break;
 
 case 0x0839:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ABS_LONG> targ(this); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ABS_LONG> targ(this); BTST(this, targ, wb);
 	}
 	break;
 
 case 0x0878:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ABS_SHORT> targ(this); BCHG(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ABS_SHORT> targ(this); BCHG(this, targ, wb);
 	}
 	break;
 
 case 0x08b8:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ABS_SHORT> targ(this); BCLR(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ABS_SHORT> targ(this); BCLR(this, targ, wb);
 	}
 	break;
 
 case 0x08f8:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ABS_SHORT> targ(this); BSET(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ABS_SHORT> targ(this); BSET(this, targ, wb);
 	}
 	break;
 
 case 0x0838:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ABS_SHORT> targ(this); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ABS_SHORT> targ(this); BTST(this, targ, wb);
 	}
 	break;
 
@@ -61435,7 +61435,7 @@ case 0x0855:
 case 0x0856:
 case 0x0857:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR> targ(this, instr_b2_b0); BCHG(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR> targ(this, instr_b2_b0); BCHG(this, targ, wb);
 	}
 	break;
 
@@ -61448,7 +61448,7 @@ case 0x0895:
 case 0x0896:
 case 0x0897:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR> targ(this, instr_b2_b0); BCLR(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR> targ(this, instr_b2_b0); BCLR(this, targ, wb);
 	}
 	break;
 
@@ -61461,7 +61461,7 @@ case 0x08d5:
 case 0x08d6:
 case 0x08d7:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR> targ(this, instr_b2_b0); BSET(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR> targ(this, instr_b2_b0); BSET(this, targ, wb);
 	}
 	break;
 
@@ -61474,7 +61474,7 @@ case 0x0815:
 case 0x0816:
 case 0x0817:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR> targ(this, instr_b2_b0); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR> targ(this, instr_b2_b0); BTST(this, targ, wb);
 	}
 	break;
 
@@ -61487,7 +61487,7 @@ case 0x086d:
 case 0x086e:
 case 0x086f:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_DISP> targ(this, instr_b2_b0); BCHG(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_DISP> targ(this, instr_b2_b0); BCHG(this, targ, wb);
 	}
 	break;
 
@@ -61500,7 +61500,7 @@ case 0x08ad:
 case 0x08ae:
 case 0x08af:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_DISP> targ(this, instr_b2_b0); BCLR(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_DISP> targ(this, instr_b2_b0); BCLR(this, targ, wb);
 	}
 	break;
 
@@ -61513,7 +61513,7 @@ case 0x08ed:
 case 0x08ee:
 case 0x08ef:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_DISP> targ(this, instr_b2_b0); BSET(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_DISP> targ(this, instr_b2_b0); BSET(this, targ, wb);
 	}
 	break;
 
@@ -61526,7 +61526,7 @@ case 0x082d:
 case 0x082e:
 case 0x082f:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_DISP> targ(this, instr_b2_b0); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_DISP> targ(this, instr_b2_b0); BTST(this, targ, wb);
 	}
 	break;
 
@@ -61539,7 +61539,7 @@ case 0x0875:
 case 0x0876:
 case 0x0877:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_INDX> targ(this, instr_b2_b0); BCHG(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_INDX> targ(this, instr_b2_b0); BCHG(this, targ, wb);
 	}
 	break;
 
@@ -61552,7 +61552,7 @@ case 0x08b5:
 case 0x08b6:
 case 0x08b7:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_INDX> targ(this, instr_b2_b0); BCLR(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_INDX> targ(this, instr_b2_b0); BCLR(this, targ, wb);
 	}
 	break;
 
@@ -61565,7 +61565,7 @@ case 0x08f5:
 case 0x08f6:
 case 0x08f7:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_INDX> targ(this, instr_b2_b0); BSET(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_INDX> targ(this, instr_b2_b0); BSET(this, targ, wb);
 	}
 	break;
 
@@ -61578,7 +61578,7 @@ case 0x0835:
 case 0x0836:
 case 0x0837:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_INDX> targ(this, instr_b2_b0); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_INDX> targ(this, instr_b2_b0); BTST(this, targ, wb);
 	}
 	break;
 
@@ -61591,7 +61591,7 @@ case 0x085d:
 case 0x085e:
 case 0x085f:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_POST> targ(this, instr_b2_b0); BCHG(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_POST> targ(this, instr_b2_b0); BCHG(this, targ, wb);
 	}
 	break;
 
@@ -61604,7 +61604,7 @@ case 0x089d:
 case 0x089e:
 case 0x089f:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_POST> targ(this, instr_b2_b0); BCLR(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_POST> targ(this, instr_b2_b0); BCLR(this, targ, wb);
 	}
 	break;
 
@@ -61617,7 +61617,7 @@ case 0x08dd:
 case 0x08de:
 case 0x08df:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_POST> targ(this, instr_b2_b0); BSET(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_POST> targ(this, instr_b2_b0); BSET(this, targ, wb);
 	}
 	break;
 
@@ -61630,7 +61630,7 @@ case 0x081d:
 case 0x081e:
 case 0x081f:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_POST> targ(this, instr_b2_b0); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_POST> targ(this, instr_b2_b0); BTST(this, targ, wb);
 	}
 	break;
 
@@ -61643,7 +61643,7 @@ case 0x0865:
 case 0x0866:
 case 0x0867:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_PRE> targ(this, instr_b2_b0); BCHG(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_PRE> targ(this, instr_b2_b0); BCHG(this, targ, wb);
 	}
 	break;
 
@@ -61656,7 +61656,7 @@ case 0x08a5:
 case 0x08a6:
 case 0x08a7:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_PRE> targ(this, instr_b2_b0); BCLR(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_PRE> targ(this, instr_b2_b0); BCLR(this, targ, wb);
 	}
 	break;
 
@@ -61669,7 +61669,7 @@ case 0x08e5:
 case 0x08e6:
 case 0x08e7:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_PRE> targ(this, instr_b2_b0); BSET(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_PRE> targ(this, instr_b2_b0); BSET(this, targ, wb);
 	}
 	break;
 
@@ -61682,19 +61682,19 @@ case 0x0825:
 case 0x0826:
 case 0x0827:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, ADDR_REG_INDIR_PRE> targ(this, instr_b2_b0); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, ADDR_REG_INDIR_PRE> targ(this, instr_b2_b0); BTST(this, targ, wb);
 	}
 	break;
 
 case 0x083a:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, PC_DISP> targ(this); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, PC_DISP> targ(this); BTST(this, targ, wb);
 	}
 	break;
 
 case 0x083b:
 	{
-	 unsigned wb = ReadOp(); HAM<uint8_t, PC_INDEX> targ(this); BTST(this, targ, wb);
+	 unsigned wb = ReadOp(this); HAM<uint8_t, PC_INDEX> targ(this); BTST(this, targ, wb);
 	}
 	break;
 

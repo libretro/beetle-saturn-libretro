@@ -17679,7 +17679,7 @@ case 0x2ffd:
 case 0x2ffe:
 case 0x2fff:
 	{
-	 LINEA();
+	 LINEA(this);
 	}
 	break;
 
@@ -25435,7 +25435,7 @@ case 0x4145:
 case 0x4146:
 case 0x4147:
 	{
-	 EXG(&D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
+	 EXG(this, &D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
 	}
 	break;
 
@@ -25448,7 +25448,7 @@ case 0x414d:
 case 0x414e:
 case 0x414f:
 	{
-	 EXG(&A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
+	 EXG(this, &A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
 	}
 	break;
 
@@ -25538,7 +25538,7 @@ case 0x418d:
 case 0x418e:
 case 0x418f:
 	{
-	 EXG(&D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
+	 EXG(this, &D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
 	}
 	break;
 
@@ -26271,7 +26271,7 @@ case 0x4345:
 case 0x4346:
 case 0x4347:
 	{
-	 EXG(&D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
+	 EXG(this, &D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
 	}
 	break;
 
@@ -26284,7 +26284,7 @@ case 0x434d:
 case 0x434e:
 case 0x434f:
 	{
-	 EXG(&A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
+	 EXG(this, &A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
 	}
 	break;
 
@@ -26374,7 +26374,7 @@ case 0x438d:
 case 0x438e:
 case 0x438f:
 	{
-	 EXG(&D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
+	 EXG(this, &D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
 	}
 	break;
 
@@ -27107,7 +27107,7 @@ case 0x4545:
 case 0x4546:
 case 0x4547:
 	{
-	 EXG(&D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
+	 EXG(this, &D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
 	}
 	break;
 
@@ -27120,7 +27120,7 @@ case 0x454d:
 case 0x454e:
 case 0x454f:
 	{
-	 EXG(&A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
+	 EXG(this, &A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
 	}
 	break;
 
@@ -27210,7 +27210,7 @@ case 0x458d:
 case 0x458e:
 case 0x458f:
 	{
-	 EXG(&D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
+	 EXG(this, &D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
 	}
 	break;
 
@@ -27943,7 +27943,7 @@ case 0x4745:
 case 0x4746:
 case 0x4747:
 	{
-	 EXG(&D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
+	 EXG(this, &D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
 	}
 	break;
 
@@ -27956,7 +27956,7 @@ case 0x474d:
 case 0x474e:
 case 0x474f:
 	{
-	 EXG(&A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
+	 EXG(this, &A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
 	}
 	break;
 
@@ -28046,7 +28046,7 @@ case 0x478d:
 case 0x478e:
 case 0x478f:
 	{
-	 EXG(&D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
+	 EXG(this, &D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
 	}
 	break;
 
@@ -28779,7 +28779,7 @@ case 0x4945:
 case 0x4946:
 case 0x4947:
 	{
-	 EXG(&D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
+	 EXG(this, &D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
 	}
 	break;
 
@@ -28792,7 +28792,7 @@ case 0x494d:
 case 0x494e:
 case 0x494f:
 	{
-	 EXG(&A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
+	 EXG(this, &A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
 	}
 	break;
 
@@ -28882,7 +28882,7 @@ case 0x498d:
 case 0x498e:
 case 0x498f:
 	{
-	 EXG(&D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
+	 EXG(this, &D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
 	}
 	break;
 
@@ -29615,7 +29615,7 @@ case 0x4b45:
 case 0x4b46:
 case 0x4b47:
 	{
-	 EXG(&D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
+	 EXG(this, &D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
 	}
 	break;
 
@@ -29628,7 +29628,7 @@ case 0x4b4d:
 case 0x4b4e:
 case 0x4b4f:
 	{
-	 EXG(&A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
+	 EXG(this, &A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
 	}
 	break;
 
@@ -29718,7 +29718,7 @@ case 0x4b8d:
 case 0x4b8e:
 case 0x4b8f:
 	{
-	 EXG(&D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
+	 EXG(this, &D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
 	}
 	break;
 
@@ -30451,7 +30451,7 @@ case 0x4d45:
 case 0x4d46:
 case 0x4d47:
 	{
-	 EXG(&D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
+	 EXG(this, &D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
 	}
 	break;
 
@@ -30464,7 +30464,7 @@ case 0x4d4d:
 case 0x4d4e:
 case 0x4d4f:
 	{
-	 EXG(&A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
+	 EXG(this, &A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
 	}
 	break;
 
@@ -30554,7 +30554,7 @@ case 0x4d8d:
 case 0x4d8e:
 case 0x4d8f:
 	{
-	 EXG(&D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
+	 EXG(this, &D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
 	}
 	break;
 
@@ -31287,7 +31287,7 @@ case 0x4f45:
 case 0x4f46:
 case 0x4f47:
 	{
-	 EXG(&D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
+	 EXG(this, &D[instr_b11_b9], &D[instr_b2_b0]); /* EXG Dx, Dy */
 	}
 	break;
 
@@ -31300,7 +31300,7 @@ case 0x4f4d:
 case 0x4f4e:
 case 0x4f4f:
 	{
-	 EXG(&A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
+	 EXG(this, &A[instr_b11_b9], &A[instr_b2_b0]); /* EXG Ax, Ay */
 	}
 	break;
 
@@ -31390,7 +31390,7 @@ case 0x4f8d:
 case 0x4f8e:
 case 0x4f8f:
 	{
-	 EXG(&D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
+	 EXG(this, &D[instr_b11_b9], &A[instr_b2_b0]); /* EXG Dx, Ay */
 	}
 	break;
 
@@ -48492,7 +48492,7 @@ case 0x7ffd:
 case 0x7ffe:
 case 0x7fff:
 	{
-	 LINEF();
+	 LINEF(this);
 	}
 	break;
 

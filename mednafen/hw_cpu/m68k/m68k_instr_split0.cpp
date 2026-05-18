@@ -8,7 +8,7 @@ void M68K::RunSplit0(uint16_t instr, const unsigned instr_b11_b9, const unsigned
 {
  switch(instr)
  {
-  default: ILLEGAL(instr); break;
+  default: ILLEGAL(this, instr); break;
 #include "m68k_instr_split0.inc"
  }
 }
