@@ -57,10 +57,10 @@ struct HAM_NAME
  * read/write/getea/jump).  GCC sees the static-inline body below
  * at every call site within this TU's worth of HAM_NAME functions
  * and inlines it. */
-static INLINE void HAM_FN(_calcea) (struct HAM_NAME* h, const int predec_penalty);
+static MDFN_FORCE_INLINE void HAM_FN(_calcea) (struct HAM_NAME* h, const int predec_penalty);
 
 /* ctor #1: single-arg "from PC/instruction stream" */
-static INLINE void HAM_FN(_init_self) (struct HAM_NAME* h, M68K* z)
+static MDFN_FORCE_INLINE void HAM_FN(_init_self) (struct HAM_NAME* h, M68K* z)
 {
  h->zptr = z;
  h->reg = 0;
@@ -99,7 +99,7 @@ static INLINE void HAM_FN(_init_self) (struct HAM_NAME* h, M68K* z)
 }
 
 /* ctor #2: two-arg "from register field + optional displacement" */
-static INLINE void HAM_FN(_init_arg) (struct HAM_NAME* h, M68K* z, uint32_t arg)
+static MDFN_FORCE_INLINE void HAM_FN(_init_arg) (struct HAM_NAME* h, M68K* z, uint32_t arg)
 {
  h->zptr = z;
  h->reg = arg;
@@ -114,7 +114,7 @@ static INLINE void HAM_FN(_init_arg) (struct HAM_NAME* h, M68K* z, uint32_t arg)
 }
 
 /* Compute effective address.  Cached after first call. */
-static INLINE void HAM_FN(_calcea) (struct HAM_NAME* h, const int predec_penalty)
+static MDFN_FORCE_INLINE void HAM_FN(_calcea) (struct HAM_NAME* h, const int predec_penalty)
 {
  if (h->have_ea)
   return;
@@ -168,7 +168,7 @@ static INLINE void HAM_FN(_calcea) (struct HAM_NAME* h, const int predec_penalty
  * be a real value type, not void.  Skip generation when HAM_TSIZE
  * is 0 (the std::tuple<> case used by LEA/PEA/JMP/JSR). */
 #if HAM_TSIZE != 0
-static INLINE void HAM_FN(_write) (struct HAM_NAME* h, HAM_T val, const int predec_penalty)
+static MDFN_FORCE_INLINE void HAM_FN(_write) (struct HAM_NAME* h, HAM_T val, const int predec_penalty)
 {
  if (HAM_AM == ADDR_REG_DIR)
  {
@@ -199,7 +199,7 @@ static INLINE void HAM_FN(_write) (struct HAM_NAME* h, HAM_T val, const int pred
  }
 }
 
-static INLINE HAM_T HAM_FN(_read) (struct HAM_NAME* h)
+static MDFN_FORCE_INLINE HAM_T HAM_FN(_read) (struct HAM_NAME* h)
 {
  if (HAM_AM == DATA_REG_DIR)
   return h->zptr->D[h->reg];
@@ -223,7 +223,7 @@ static INLINE HAM_T HAM_FN(_read) (struct HAM_NAME* h)
 /* rmw — only valid for HAM_T==uint8_t per BusRMW's signature.
  * TAS is the only caller, and it asserts T==uint8_t. */
 #if HAM_TSIZE == 1
-static INLINE void HAM_FN(_rmw) (struct HAM_NAME* h, HAM_T (MDFN_FASTCALL *cb)(M68K*, HAM_T))
+static MDFN_FORCE_INLINE void HAM_FN(_rmw) (struct HAM_NAME* h, HAM_T (MDFN_FASTCALL *cb)(M68K*, HAM_T))
 {
  if (HAM_AM == DATA_REG_DIR)
  {
@@ -245,13 +245,13 @@ static INLINE void HAM_FN(_rmw) (struct HAM_NAME* h, HAM_T (MDFN_FASTCALL *cb)(M
 
 /* jump / getea are valid even for HAM_TSIZE==0 (the addressing-mode-
  * only forms used by LEA/PEA/JMP/JSR). */
-static INLINE void HAM_FN(_jump) (struct HAM_NAME* h)
+static MDFN_FORCE_INLINE void HAM_FN(_jump) (struct HAM_NAME* h)
 {
  HAM_FN(_calcea) (h, 0);
  h->zptr->PC = h->ea;
 }
 
-static INLINE uint32_t HAM_FN(_getea) (struct HAM_NAME* h)
+static MDFN_FORCE_INLINE uint32_t HAM_FN(_getea) (struct HAM_NAME* h)
 {
  HAM_FN(_calcea) (h, 0);
  return h->ea;
