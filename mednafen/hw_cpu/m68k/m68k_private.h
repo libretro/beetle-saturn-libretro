@@ -532,7 +532,7 @@ INLINE bool M68K::GetSVisor(void)
 // ADD
 //
 template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::ADD(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
+INLINE void ADD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst)
 {
  static_assert(DAM == ADDR_REG_DIR || std::is_same<T, DT>::value, "Type mismatch");
 
@@ -543,23 +543,23 @@ INLINE void M68K::ADD(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
  if(DAM == ADDR_REG_DIR)
  {
   if(sizeof(T) != 4 || SAM == DATA_REG_DIR || SAM == ADDR_REG_DIR || SAM == IMMEDIATE)
-   timestamp += 4;
+   z->timestamp += 4;
   else
-   timestamp += 2;
+   z->timestamp += 2;
  }
  else if(DAM == DATA_REG_DIR && sizeof(DT) == 4)
  {
   if(SAM == DATA_REG_DIR || SAM == IMMEDIATE)
-   timestamp += 4;
+   z->timestamp += 4;
   else
-   timestamp += 2;
+   z->timestamp += 2;
  }
 
  if(DAM != ADDR_REG_DIR)
  {
-  CALC_ZN(this, DT, result);
-  SetCX((result >> (sizeof(DT) * 8)) & 1);
-  Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
+  CALC_ZN(z, DT, result);
+  z->SetCX((result >> (sizeof(DT) * 8)) & 1);
+  z->Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
  }
 
  dst.write(result);
@@ -570,25 +570,25 @@ INLINE void M68K::ADD(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 // ADDX
 //
 template<typename T, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst)
+INLINE void ADDX(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
 {
  uint32_t const src_data = src.read();
  uint32_t const dst_data = dst.read();
- uint64_t const result = (uint64_t)dst_data + src_data + GetX();
+ uint64_t const result = (uint64_t)dst_data + src_data + z->GetX();
 
  if(DAM != DATA_REG_DIR)
  {
-  timestamp += 2;
+  z->timestamp += 2;
  }
  else
  {
   if(sizeof(T) == 4)
-   timestamp += 4;
+   z->timestamp += 4;
  }
 
- CALC_ZN_CLEAR(this, T, result);
- SetCX((result >> (sizeof(T) * 8)) & 1);
- Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
+ CALC_ZN_CLEAR(z, T, result);
+ z->SetCX((result >> (sizeof(T) * 8)) & 1);
+ z->Flag_V = ((((~(dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
 
  dst.write(result);
 }
@@ -610,52 +610,52 @@ INLINE void M68K::ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 //      full-Z form).
 //
 template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
-INLINE DT M68K::Subtract(bool X_form, HAM<T, SAM> &src, HAM<DT, DAM> &dst)
+INLINE DT Subtract(M68K* z, bool X_form, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst)
 {
  static_assert(DAM == ADDR_REG_DIR || std::is_same<T, DT>::value, "Type mismatch");
 
  uint32_t const src_data = (DT)static_cast<typename std::make_signed<T>::type>(src.read());
  uint32_t const dst_data = dst.read();
- const uint64_t result = (uint64_t)dst_data - src_data - (X_form ? GetX() : 0);
+ const uint64_t result = (uint64_t)dst_data - src_data - (X_form ? z->GetX() : 0);
 
  if(DAM == ADDR_REG_DIR)	// SUBA, SUBQ(A) only.
  {
   if(sizeof(T) != 4 || SAM == DATA_REG_DIR || SAM == ADDR_REG_DIR || SAM == IMMEDIATE)
-   timestamp += 4;
+   z->timestamp += 4;
   else
-   timestamp += 2;
+   z->timestamp += 2;
  }
  else if(DAM == DATA_REG_DIR)	// SUB, SUBQ, SUBX only.
  {
   if(sizeof(DT) == 4)
   {
    if(SAM == DATA_REG_DIR || SAM == IMMEDIATE)
-    timestamp += 4;
+    z->timestamp += 4;
    else
-    timestamp += 2;
+    z->timestamp += 2;
   }
  }
  else if(DAM == IMMEDIATE)	// NEG, NEGX only and always.
  {
   if(sizeof(T) == 4)
   {
-   timestamp += 2;
+   z->timestamp += 2;
   }
  }
  else if(SAM != IMMEDIATE && SAM != ADDR_REG_DIR && SAM != DATA_REG_DIR) // SUBX m,m
  {
-  timestamp += 2;
+  z->timestamp += 2;
  }
 
 
  if(DAM != ADDR_REG_DIR)
  {
   if(X_form)
-   CALC_ZN_CLEAR(this, DT, result);
+   CALC_ZN_CLEAR(z, DT, result);
   else
-   CALC_ZN(this, DT, result);
-  SetCX((result >> (sizeof(DT) * 8)) & 1);
-  Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
+   CALC_ZN(z, DT, result);
+  z->SetCX((result >> (sizeof(DT) * 8)) & 1);
+  z->Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
  }
 
  return result;
@@ -666,9 +666,9 @@ INLINE DT M68K::Subtract(bool X_form, HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 // SUB
 //
 template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::SUB(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
+INLINE void SUB(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst)
 {
- dst.write(Subtract(false, src, dst));
+ dst.write(Subtract(z, false, src, dst));
 }
 
 
@@ -676,24 +676,24 @@ INLINE void M68K::SUB(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 // SUBX
 //
 template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::SUBX(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
+INLINE void SUBX(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst)
 {
- dst.write(Subtract(true, src, dst));
+ dst.write(Subtract(z, true, src, dst));
 }
 
 
 //
 // NEG
 //
-// Phase-9d-10: extracted to free template; calls z->Subtract since
-// Subtract is still a class method.
+// Phase-9d-10/9d-13: extracted to free template; calls free Subtract
+// since Phase-9d-13 also extracted Subtract.
 //
 template<typename DT, AddressMode DAM>
 INLINE void NEG(M68K* z, M68K::HAM<DT, DAM> &dst)
 {
  M68K::HAM<DT, IMMEDIATE> dummy_zero(z, 0);
 
- dst.write(z->Subtract(false, dst, dummy_zero));
+ dst.write(Subtract(z, false, dst, dummy_zero));
 }
 
 
@@ -705,7 +705,7 @@ INLINE void NEGX(M68K* z, M68K::HAM<DT, DAM> &dst)
 {
  M68K::HAM<DT, IMMEDIATE> dummy_zero(z, 0);
 
- dst.write(z->Subtract(true, dst, dummy_zero));
+ dst.write(Subtract(z, true, dst, dummy_zero));
 }
 
 
@@ -713,7 +713,7 @@ INLINE void NEGX(M68K* z, M68K::HAM<DT, DAM> &dst)
 // CMP
 //
 template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
+INLINE void CMP(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst)
 {
  static_assert(DAM == ADDR_REG_DIR || std::is_same<T, DT>::value, "Type mismatch");
 
@@ -722,9 +722,9 @@ INLINE void M68K::CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
  uint32_t const dst_data = dst.read();
  uint64_t const result = (uint64_t)dst_data - src_data;
 
- CALC_ZN(this, DT, result);
- Flag_C = ((result >> (sizeof(DT) * 8)) & 1);
- Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
+ CALC_ZN(z, DT, result);
+ z->Flag_C = ((result >> (sizeof(DT) * 8)) & 1);
+ z->Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(DT) * 8 - 1)) & 1);
 }
 
 
@@ -733,30 +733,30 @@ INLINE void M68K::CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst)
 //
 // Exception on dst < 0 || dst > src
 template<typename T, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst)
+INLINE void CHK(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
 {
  uint32_t const src_data = src.read();
  uint32_t const dst_data = dst.read();
  
- timestamp += 6;
+ z->timestamp += 6;
 
- CALC_ZN(this, T, dst_data);
- if(GetN())
+ CALC_ZN(z, T, dst_data);
+ if(z->GetN())
  {
-  Exception(EXCEPTION_CHK, VECNUM_CHK);
+  z->Exception(EXCEPTION_CHK, VECNUM_CHK);
  }
  else
  {
   // 7 - 1
   uint64_t const result = (uint64_t)dst_data - src_data;
 
-  CALC_ZN(this, T, result);
-  Flag_C = ((result >> (sizeof(T) * 8)) & 1);
-  Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
+  CALC_ZN(z, T, result);
+  z->Flag_C = ((result >> (sizeof(T) * 8)) & 1);
+  z->Flag_V = (((((dst_data ^ src_data)) & (dst_data ^ result)) >> (sizeof(T) * 8 - 1)) & 1);
 
-  if(GetN() == GetV() && !GetZ())
+  if(z->GetN() == z->GetV() && !z->GetZ())
   {
-   Exception(EXCEPTION_CHK, VECNUM_CHK);
+   z->Exception(EXCEPTION_CHK, VECNUM_CHK);
   }
  }
 }
@@ -951,24 +951,24 @@ INLINE void M68K::EORI_SR(void)
 // MULU
 //
 template<typename T, AddressMode SAM>
-INLINE void M68K::MULU(HAM<T, SAM> &src, const unsigned dr)
+INLINE void MULU(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr)
 {
  // Doesn't affect X flag
  static_assert(sizeof(T) == 2, "Wrong type.");
 
  T const src_data = src.read();
- uint32_t const result = (uint32_t)(uint16_t)D[dr] * (uint32_t)src_data;
+ uint32_t const result = (uint32_t)(uint16_t)z->D[dr] * (uint32_t)src_data;
 
- timestamp += 34;
+ z->timestamp += 34;
 
  for(uint32_t tmp = src_data; tmp; tmp &= tmp - 1)
-  timestamp += 2;
+  z->timestamp += 2;
 
- CalcZN_u32(result);
- Flag_C = false;
- Flag_V = false;
+ z->CalcZN_u32(result);
+ z->Flag_C = false;
+ z->Flag_V = false;
 
- D[dr] = result;
+ z->D[dr] = result;
 }
 
 
@@ -976,24 +976,24 @@ INLINE void M68K::MULU(HAM<T, SAM> &src, const unsigned dr)
 // MULS
 //
 template<typename T, AddressMode SAM>
-INLINE void M68K::MULS(HAM<T, SAM> &src, const unsigned dr)
+INLINE void MULS(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr)
 {
  // Doesn't affect X flag
  static_assert(sizeof(T) == 2, "Wrong type.");
 
  T const src_data = src.read();
- uint32_t const result = (int16_t)D[dr] * (int16_t)src_data;
+ uint32_t const result = (int16_t)z->D[dr] * (int16_t)src_data;
 
- timestamp += 34;
+ z->timestamp += 34;
 
  for(uint32_t tmp = src_data << 1, i = 0; i < 16; tmp >>= 1, i++)
-  timestamp += (tmp ^ (tmp << 1)) & 2;
+  z->timestamp += (tmp ^ (tmp << 1)) & 2;
 
- CalcZN_u32(result);
- Flag_C = false;
- Flag_V = false;
+ z->CalcZN_u32(result);
+ z->Flag_C = false;
+ z->Flag_V = false;
 
- D[dr] = result;
+ z->D[dr] = result;
 }
 
 
@@ -1121,13 +1121,13 @@ INLINE void M68K::Divide_s(uint16_t divisor, const unsigned dr)
 // DIVU
 //
 template<typename T, AddressMode SAM>
-INLINE void M68K::DIVU(HAM<T, SAM> &src, const unsigned dr)
+INLINE void DIVU(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr)
 {
  static_assert(sizeof(T) == 2, "Wrong type.");
 
  T const src_data = src.read();
 
- Divide_u(src_data, dr);
+ z->Divide_u(src_data, dr);
 }
 
 
@@ -1135,14 +1135,14 @@ INLINE void M68K::DIVU(HAM<T, SAM> &src, const unsigned dr)
 // DIVS
 //
 template<typename T, AddressMode SAM>
-INLINE void M68K::DIVS(HAM<T, SAM> &src, const unsigned dr)
+INLINE void DIVS(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr)
 {
  // Doesn't affect X flag
  static_assert(sizeof(T) == 2, "Wrong type.");
 
  T const src_data = src.read();
 
- Divide_s(src_data, dr);
+ z->Divide_s(src_data, dr);
 }
 
 
@@ -1150,7 +1150,7 @@ INLINE void M68K::DIVS(HAM<T, SAM> &src, const unsigned dr)
 // ABCD
 //
 template<typename T, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::ABCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)	// ...XYZ, now I know my ABCs~
+INLINE void ABCD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)	// ...XYZ, now I know my ABCs~
 {
  static_assert(sizeof(T) == 1, "Wrong size.");
 
@@ -1159,7 +1159,7 @@ INLINE void M68K::ABCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)	// ...XYZ, now I know
  uint8_t const dst_data = dst.read();
  uint32_t tmp;
 
- tmp = dst_data + src_data + GetX();
+ tmp = dst_data + src_data + z->GetX();
 
  if(((dst_data ^ src_data ^ tmp) & 0x10) || (tmp & 0xF) >= 0x0A)
  {
@@ -1175,14 +1175,14 @@ INLINE void M68K::ABCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)	// ...XYZ, now I know
   V |= ((~prev_tmp & 0x80) & (tmp & 0x80));
  }
 
- CalcZN_u8_clear(tmp);
- SetCX((bool)(tmp >> 8));
- Flag_V = V;
+ z->CalcZN_u8_clear(tmp);
+ z->SetCX((bool)(tmp >> 8));
+ z->Flag_V = V;
 
  if(DAM == DATA_REG_DIR)
-  timestamp += 2;
+  z->timestamp += 2;
  else
-  timestamp += 4;
+  z->timestamp += 4;
 
  dst.write(tmp);
 }
@@ -1223,18 +1223,18 @@ INLINE uint8_t M68K::DecimalSubtractX(const uint8_t src_data, const uint8_t dst_
 // SBCD
 //
 template<typename T, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::SBCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)
+INLINE void SBCD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
 {
  static_assert(sizeof(T) == 1, "Wrong size.");
  uint8_t const src_data = src.read();
  uint8_t const dst_data = dst.read();
 
  if(DAM == DATA_REG_DIR)
-  timestamp += 2;
+  z->timestamp += 2;
  else
-  timestamp += 4;
+  z->timestamp += 4;
 
- dst.write(DecimalSubtractX(src_data, dst_data));
+ dst.write(z->DecimalSubtractX(src_data, dst_data));
 }
 
 
@@ -1242,14 +1242,14 @@ INLINE void M68K::SBCD(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 // NBCD
 //
 template<typename T, AddressMode DAM>
-INLINE void M68K::NBCD(HAM<T, DAM> &dst)
+INLINE void NBCD(M68K* z, M68K::HAM<T, DAM> &dst)
 {
  static_assert(sizeof(T) == 1, "Wrong size.");
  uint8_t const dst_data = dst.read();
 
- timestamp += 2;
+ z->timestamp += 2;
 
- dst.write(DecimalSubtractX(dst_data, 0));
+ dst.write(z->DecimalSubtractX(dst_data, 0));
 }
 
 //
@@ -1376,15 +1376,15 @@ INLINE void BSET(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb)
 // MOVE
 //
 template<typename T, AddressMode SAM, AddressMode DAM>
-INLINE void M68K::MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst)
+INLINE void MOVE(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst)
 {
  T const tmp = src.read();
 
  if(DAM != ADDR_REG_DIR)
  {
-  CALC_ZN(this, T, tmp);
-  Flag_V = false;
-  Flag_C = false;
+  CALC_ZN(z, T, tmp);
+  z->Flag_V = false;
+  z->Flag_C = false;
  }
 
  dst.write(tmp);
@@ -1412,7 +1412,7 @@ INLINE void MOVEA(M68K* z, M68K::HAM<T, SAM> &src, const unsigned ar)
 // the sizeof(T) ladder folds.
 //
 template<typename T, AddressMode DAM>
-INLINE void M68K::MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T, DAM> &dst)
+INLINE void MOVEM_to_MEM(M68K* z, bool pseudo_predec, const uint16_t reglist, M68K::HAM<T, DAM> &dst)
 {
  static_assert(DAM != ADDR_REG_INDIR_PRE && DAM != ADDR_REG_INDIR_POST, "Wrong address mode.");
 
@@ -1425,19 +1425,19 @@ INLINE void M68K::MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T
    if(pseudo_predec)
     ea -= sizeof(T);
 
-   const T val = DA[pseudo_predec ? (15 - i) : i];
+   const T val = z->DA[pseudo_predec ? (15 - i) : i];
 
    if(sizeof(T) == 4)
    {
     if(pseudo_predec)
-     Write_u32_longdec(ea, val);
+     z->Write_u32_longdec(ea, val);
     else
-     Write_u32(ea, val);
+     z->Write_u32(ea, val);
    }
    else if(sizeof(T) == 2)
-    Write_u16(ea, val);
+    z->Write_u16(ea, val);
    else
-    Write_u8(ea, val);
+    z->Write_u8(ea, val);
 
    if(!pseudo_predec)
     ea += sizeof(T);
@@ -1445,7 +1445,7 @@ INLINE void M68K::MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T
  }
 
  if(pseudo_predec)
-  A[dst.reg] = ea;
+  z->A[dst.reg] = ea;
 }
 
 
@@ -1455,7 +1455,7 @@ INLINE void M68K::MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T
 // Phase-8e: `bool pseudo_postinc` moved to runtime first-arg.
 //
 template<typename T, AddressMode SAM>
-INLINE void M68K::MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uint16_t reglist)
+INLINE void MOVEM_to_REGS(M68K* z, bool pseudo_postinc, M68K::HAM<T, SAM> &src, const uint16_t reglist)
 {
  static_assert(SAM != ADDR_REG_INDIR_PRE && SAM != ADDR_REG_INDIR_POST, "Wrong address mode.");
 
@@ -1468,20 +1468,20 @@ INLINE void M68K::MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uin
    /* Phase-8s-pre: Read<T>(ea) inlined.  sizeof(T) folds at
     * MOVEM_to_REGS template instantiation. */
    T tmp;
-   if(sizeof(T) == 1)      tmp = Read_u8 (ea);
-   else if(sizeof(T) == 2) tmp = Read_u16(ea);
-   else                    tmp = Read_u32(ea);
+   if(sizeof(T) == 1)      tmp = z->Read_u8 (ea);
+   else if(sizeof(T) == 2) tmp = z->Read_u16(ea);
+   else                    tmp = z->Read_u32(ea);
 
-   DA[i] = static_cast<typename std::make_signed<T>::type>(tmp);
+   z->DA[i] = static_cast<typename std::make_signed<T>::type>(tmp);
 
    ea += sizeof(T);
   }
  }
 
- Read_u16(ea);	// or should be <T> ?
+ z->Read_u16(ea);	// or should be <T> ?
 
  if(pseudo_postinc)
-  A[src.reg] = ea;
+  z->A[src.reg] = ea;
 }
 
 
@@ -1497,18 +1497,18 @@ INLINE void M68K::MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uin
 // dispatch).
 //
 template<typename T, AddressMode TAM>
-INLINE void M68K::ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count)
+INLINE void ShiftBase(M68K* z, bool Arithmetic, bool ShiftLeft, M68K::HAM<T, TAM> &targ, unsigned count)
 {
  T vchange = 0;
  T result = targ.read();
  count &= 0x3F;
 
  if(TAM == DATA_REG_DIR)
-  timestamp += (sizeof(T) == 4) ? 4 : 2;
+  z->timestamp += (sizeof(T) == 4) ? 4 : 2;
 
  // X is unaffected with a shift count of 0!
  if(count == 0)
-  Flag_C = false;
+  z->Flag_C = false;
  else
  {
   bool shifted_out = false;
@@ -1516,7 +1516,7 @@ INLINE void M68K::ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, 
   do
   {
    if(TAM == DATA_REG_DIR)
-    timestamp += 2;
+    z->timestamp += 2;
 
    if(ShiftLeft)
     shifted_out = (result >> (sizeof(T) * 8 - 1)) & 1;
@@ -1543,41 +1543,41 @@ INLINE void M68K::ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, 
    }
   } while(--count != 0);
 
-  SetCX(shifted_out);
+  z->SetCX(shifted_out);
  }
 
- CALC_ZN(this, T, result);
+ CALC_ZN(z, T, result);
 
  if(Arithmetic)
-  Flag_V = ((vchange >> (sizeof(T) * 8 - 1)) & 1);
+  z->Flag_V = ((vchange >> (sizeof(T) * 8 - 1)) & 1);
  else
-  Flag_V = (false);
+  z->Flag_V = (false);
 
  targ.write(result);
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::ASL(HAM<T, TAM> &targ, unsigned count)
+INLINE void ASL(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count)
 {
- ShiftBase(true, true, targ, count);
+ ShiftBase(z, true, true, targ, count);
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::ASR(HAM<T, TAM> &targ, unsigned count)
+INLINE void ASR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count)
 {
- ShiftBase(true, false, targ, count);
+ ShiftBase(z, true, false, targ, count);
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::LSL(HAM<T, TAM> &targ, unsigned count)
+INLINE void LSL(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count)
 {
- ShiftBase(false, true, targ, count);
+ ShiftBase(z, false, true, targ, count);
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::LSR(HAM<T, TAM> &targ, unsigned count)
+INLINE void LSR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count)
 {
- ShiftBase(false, false, targ, count);
+ ShiftBase(z, false, false, targ, count);
 }
 
 //
@@ -1585,31 +1585,31 @@ INLINE void M68K::LSR(HAM<T, TAM> &targ, unsigned count)
 // parameters moved to runtime first-args.  Same shape as ShiftBase.
 //
 template<typename T, AddressMode TAM>
-INLINE void M68K::RotateBase(bool X_Form, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count)
+INLINE void RotateBase(M68K* z, bool X_Form, bool ShiftLeft, M68K::HAM<T, TAM> &targ, unsigned count)
 {
  T result = targ.read();
  count &= 0x3F;
 
  if(TAM == DATA_REG_DIR)
-  timestamp += (sizeof(T) == 4) ? 4 : 2;
+  z->timestamp += (sizeof(T) == 4) ? 4 : 2;
 
  if(count == 0)
  {
   if(X_Form)
-   Flag_C = GetX();
+   z->Flag_C = z->GetX();
   else
-   Flag_C = false;
+   z->Flag_C = false;
  }
  else
  {
-  bool shifted_out = GetX();
+  bool shifted_out = z->GetX();
 
   do
   {
    const bool shift_in = shifted_out;
 
    if(TAM == DATA_REG_DIR)
-    timestamp += 2;
+    z->timestamp += 2;
 
    if(ShiftLeft)
    {
@@ -1625,39 +1625,39 @@ INLINE void M68K::RotateBase(bool X_Form, bool ShiftLeft, HAM<T, TAM> &targ, uns
    }
   } while(--count != 0);
 
-  Flag_C  = shifted_out;
+  z->Flag_C  = shifted_out;
   if(X_Form)
-   Flag_X = shifted_out;
+   z->Flag_X = shifted_out;
  }
 
- CALC_ZN(this, T, result);
- Flag_V = (false);
+ CALC_ZN(z, T, result);
+ z->Flag_V = (false);
 
  targ.write(result);
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::ROL(HAM<T, TAM> &targ, unsigned count)
+INLINE void ROL(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count)
 {
- RotateBase(false, true, targ, count);
+ RotateBase(z, false, true, targ, count);
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::ROR(HAM<T, TAM> &targ, unsigned count)
+INLINE void ROR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count)
 {
- RotateBase(false, false, targ, count);
+ RotateBase(z, false, false, targ, count);
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::ROXL(HAM<T, TAM> &targ, unsigned count)
+INLINE void ROXL(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count)
 {
- RotateBase(true, true, targ, count);
+ RotateBase(z, true, true, targ, count);
 }
 
 template<typename T, AddressMode TAM>
-INLINE void M68K::ROXR(HAM<T, TAM> &targ, unsigned count)
+INLINE void ROXR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count)
 {
- RotateBase(true, false, targ, count);
+ RotateBase(z, true, false, targ, count);
 }
 
 //

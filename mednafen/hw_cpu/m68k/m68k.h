@@ -364,32 +364,11 @@ struct M68K
 #ifdef __cplusplus
  void NO_INLINE Exception(unsigned which, unsigned vecnum);
 
- template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
- void ADD(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
-
- template<typename T, AddressMode SAM, AddressMode DAM>
- void ADDX(HAM<T, SAM> &src, HAM<T, DAM> &dst);
-
  /* Phase-8e: Subtract's `bool X_form` template parameter moved to
   * a runtime first-arg.  T, DT, SAM, DAM stay HAM-locked. */
- template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
- DT Subtract(bool X_form, HAM<T, SAM> &src, HAM<DT, DAM> &dst);
-
- template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
- void SUB(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
-
- template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
- void SUBX(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
-
  /* Phase-9d-10: NEG/NEGX retired from struct M68K scope; now
   * free templates below struct M68K, in the same block as EXT
   * (added in Phase-9d-9). */
-
- template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
- void CMP(HAM<T, SAM> &src, HAM<DT, DAM> &dst);
-
- template<typename T, AddressMode SAM, AddressMode DAM>
- void CHK(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
  /* Phase-9d-12: OR, EOR, AND retired from struct M68K scope; see
   * the free-template block after struct M68K closes. */
@@ -401,33 +380,12 @@ struct M68K
  void EORI_CCR(void);
  void EORI_SR(void);
 
- template<typename T, AddressMode SAM>
- void MULU(HAM<T, SAM> &src, const unsigned dr);
-
- template<typename T, AddressMode SAM>
- void MULS(HAM<T, SAM> &src, const unsigned dr);
-
  /* Phase-8b: Divide<sdiv> retired -- two callers (DIVU, DIVS) each
   * with a concrete `sdiv` value, no T-parametric dispatch needed. */
  void Divide_u(uint16_t divisor, const unsigned dr);
  void Divide_s(uint16_t divisor, const unsigned dr);
 
- template<typename T, AddressMode SAM>
- void DIVU(HAM<T, SAM> &src, const unsigned dr);
-
- template<typename T, AddressMode SAM>
- void DIVS(HAM<T, SAM> &src, const unsigned dr);
-
- template<typename T, AddressMode SAM, AddressMode DAM>
- void ABCD(HAM<T, SAM> &src, HAM<T, DAM> &dst);
-
  uint8_t DecimalSubtractX(const uint8_t src_data, const uint8_t dst_data);
-
- template<typename T, AddressMode SAM, AddressMode DAM>
- void SBCD(HAM<T, SAM> &src, HAM<T, DAM> &dst);
-
- template<typename T, AddressMode DAM>
- void NBCD(HAM<T, DAM> &dst);
 
  /* Phase-8d: MOVEP<T, reg_to_mem> retired.  Only 4 instantiations
   * (T = uint16_t / uint32_t cross-product with reg_to_mem = false /
@@ -443,20 +401,11 @@ struct M68K
  /* Phase-9d-12: BTST, BCHG, BCLR, BSET retired from struct M68K
   * scope; see the free-template block after struct M68K closes. */
 
- template<typename T, AddressMode SAM, AddressMode DAM>
- void MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst);
-
  /* Phase-9d-11: MOVEA retired from struct M68K scope; see the
   * free-template block after struct M68K closes. */
 
  /* Phase-8e: MOVEM_to_MEM's `bool pseudo_predec` moved to runtime. */
- template<typename T, AddressMode DAM>
- void MOVEM_to_MEM(bool pseudo_predec, const uint16_t reglist, HAM<T, DAM> &dst);
-
  /* Phase-8e: MOVEM_to_REGS's `bool pseudo_postinc` moved to runtime. */
- template<typename T, AddressMode SAM>
- void MOVEM_to_REGS(bool pseudo_postinc, HAM<T, SAM> &src, const uint16_t reglist);
-
  /* Phase-8e: ShiftBase's `bool Arithmetic, bool ShiftLeft` moved
   * to runtime first-args.  The four ASL/ASR/LSL/LSR wrappers
   * (kept as templates because they take HAM<T, TAM>&) now pass
@@ -464,38 +413,8 @@ struct M68K
   * and constprops the bools, so callsites generate identical
   * instruction streams to the previous template-instantiation
   * form. */
- template<typename T, AddressMode TAM>
- void ShiftBase(bool Arithmetic, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count);
-
- template<typename T, AddressMode TAM>
- void ASL(HAM<T, TAM> &targ, unsigned count);
-
- template<typename T, AddressMode TAM>
- void ASR(HAM<T, TAM> &targ, unsigned count);
-
- template<typename T, AddressMode TAM>
- void LSL(HAM<T, TAM> &targ, unsigned count);
-
- template<typename T, AddressMode TAM>
- void LSR(HAM<T, TAM> &targ, unsigned count);
-
  /* Phase-8e: RotateBase's `bool X_Form, bool ShiftLeft` moved
   * to runtime first-args.  Same shape as ShiftBase. */
- template<typename T, AddressMode TAM>
- void RotateBase(bool X_Form, bool ShiftLeft, HAM<T, TAM> &targ, unsigned count);
-
- template<typename T, AddressMode TAM>
- void ROL(HAM<T, TAM> &targ, unsigned count);
-
- template<typename T, AddressMode TAM>
- void ROR(HAM<T, TAM> &targ, unsigned count);
-
- template<typename T, AddressMode TAM>
- void ROXL(HAM<T, TAM> &targ, unsigned count);
-
- template<typename T, AddressMode TAM>
- void ROXR(HAM<T, TAM> &targ, unsigned count);
-
  /* Phase-9d-9 + Phase-9d-10: EXT, TAS, TST, CLR, NOT retired from
   * struct M68K scope.  All five are now free templates living after
   * struct M68K's closing brace; see the declaration block down
@@ -666,6 +585,96 @@ void BCLR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb);
 
 template<typename T, AddressMode TAM>
 void BSET(M68K* z, M68K::HAM<T, TAM> &targ, unsigned wb);
+
+/* Phase-9d-13: ALL remaining template ops + helpers (ADD/ADDX/
+ * Subtract/SUB/SUBX/CMP/CHK + MULU/MULS/DIVU/DIVS +
+ * ABCD/SBCD/NBCD + MOVE/MOVEM_to_MEM/MOVEM_to_REGS +
+ * ShiftBase/ASL/ASR/LSL/LSR + RotateBase/ROL/ROR/ROXL/ROXR)
+ * extracted in one batch.  All 27 follow the same mechanical
+ * pattern proven in Phase-9d-9..12.  Subtract/ShiftBase/RotateBase
+ * are template helper callees of multiple op templates; their
+ * extraction lets the calling ops detemplate cleanly. */
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
+void ADD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst);
+
+template<typename T, AddressMode SAM, AddressMode DAM>
+void ADDX(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst);
+
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
+DT Subtract(M68K* z, bool X_form, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst);
+
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
+void SUB(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst);
+
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
+void SUBX(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst);
+
+template<typename T, typename DT, AddressMode SAM, AddressMode DAM>
+void CMP(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<DT, DAM> &dst);
+
+template<typename T, AddressMode SAM, AddressMode DAM>
+void CHK(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode SAM>
+void MULU(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr);
+
+template<typename T, AddressMode SAM>
+void MULS(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr);
+
+template<typename T, AddressMode SAM>
+void DIVU(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr);
+
+template<typename T, AddressMode SAM>
+void DIVS(M68K* z, M68K::HAM<T, SAM> &src, const unsigned dr);
+
+template<typename T, AddressMode SAM, AddressMode DAM>
+void ABCD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode SAM, AddressMode DAM>
+void SBCD(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode DAM>
+void NBCD(M68K* z, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode SAM, AddressMode DAM>
+void MOVE(M68K* z, M68K::HAM<T, SAM> &src, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode DAM>
+void MOVEM_to_MEM(M68K* z, bool pseudo_predec, const uint16_t reglist, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode SAM>
+void MOVEM_to_REGS(M68K* z, bool pseudo_postinc, M68K::HAM<T, SAM> &src, const uint16_t reglist);
+
+template<typename T, AddressMode TAM>
+void ShiftBase(M68K* z, bool Arithmetic, bool ShiftLeft, M68K::HAM<T, TAM> &targ, unsigned count);
+
+template<typename T, AddressMode TAM>
+void ASL(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count);
+
+template<typename T, AddressMode TAM>
+void ASR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count);
+
+template<typename T, AddressMode TAM>
+void LSL(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count);
+
+template<typename T, AddressMode TAM>
+void LSR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count);
+
+template<typename T, AddressMode TAM>
+void RotateBase(M68K* z, bool X_Form, bool ShiftLeft, M68K::HAM<T, TAM> &targ, unsigned count);
+
+template<typename T, AddressMode TAM>
+void ROL(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count);
+
+template<typename T, AddressMode TAM>
+void ROR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count);
+
+template<typename T, AddressMode TAM>
+void ROXL(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count);
+
+template<typename T, AddressMode TAM>
+void ROXR(M68K* z, M68K::HAM<T, TAM> &targ, unsigned count);
+
 #endif /* __cplusplus */
 
 /* M68K_* free-function API exposed to consumers of m68k.h.
