@@ -50,6 +50,14 @@ typedef struct __CHEATF
            unsigned int icount; // Instance count
            char type;   /* 'R' for replace, 'S' for substitute(GG), 'C' for substitute with compare */
            int status;
+
+           /* libretro frontend slot owning this entry.  Multiple
+            * CHEATF rows may share the same frontend_slot when a
+            * single retro_cheat_set call decoded into more than one
+            * write operation (a '+'-joined multi-line code).  Used
+            * by MDFNMP_SetCheat to in-place compact away the prior
+            * occupants of a slot before appending the new ones. */
+           unsigned int frontend_slot;
 } CHEATF;
 
 /* cheats: was std::vector<CHEATF>. Plain grow-on-append array; CHEATF
@@ -232,74 +240,89 @@ void MDFNMP_RecomputeCheatsActive(void)
  RebuildSubCheats();
 }
 
-/* Set or replace the cheat at slot `index` (the libretro frontend
- * slot, as passed to retro_cheat_set).  If index < cheats_count the
- * existing cheat is replaced; if index == cheats_count a new cheat
- * is appended; if index > cheats_count the array is grown with
- * disabled placeholder entries to fill the gap.
+/* Compact-remove every cheats[] entry whose frontend_slot == slot,
+ * preserving the relative order of the surviving entries.  Freed
+ * strings are released before the slot's row is overwritten by the
+ * shift.  Called from MDFNMP_SetCheat ahead of appending new ops.
  *
- * All cheats added through this API are type 'R' (periodic-write
- * replace).  Saturn cheats are conventionally big-endian; the caller
- * passes `bigendian = true` for Saturn workram.  length is 1, 2, or
- * 4 bytes; val carries the new value padded out to 64 bits.
- *
- * CheatsActive is recomputed after the update. */
-void MDFNMP_SetCheat(unsigned index, bool enabled, uint32_t addr,
-                     uint64_t val, unsigned length, bool bigendian)
+ * O(N) per call where N = cheats_count.  For the typical libretro
+ * cheat list (a handful of slots), N is small enough that the
+ * single-pass scan is the right tradeoff against a more complex
+ * slot->indices index. */
+static void mdfnmp_drop_slot(unsigned slot)
 {
- CHEATF *chit;
+ size_t i, j = 0;
+ for(i = 0; i < cheats_count; i++)
+ {
+  if(cheats[i].frontend_slot == slot)
+  {
+   free(cheats[i].name);
+   free(cheats[i].conditions); /* free(NULL) is well-defined */
+  }
+  else
+  {
+   if(i != j)
+    cheats[j] = cheats[i];
+   j++;
+  }
+ }
+ cheats_count = j;
+}
 
- /* Grow array up to and including the target index, padding any
-  * unused slots between cheats_count and index with disabled,
-  * zeroed entries.  realloc-on-grow matches MDFN_AddCheat's
-  * upstream policy.  Cap doubles starting at 16; bumped to at
-  * least index+1 if the doubling isn't enough. */
- if(index >= cheats_cap)
+/* Replace the set of cheats associated with libretro frontend slot
+ * `slot` with the `op_count` operations in `ops[]`.  All ops share
+ * the single `enabled` flag (libretro's API only carries one
+ * enable bit per slot).  Each op becomes its own CHEATF row of
+ * type 'R' with frontend_slot == slot so the next SetCheat or
+ * Flush can find and remove them together.
+ *
+ * op_count == 0 is valid and means "drop this slot's entries
+ * without adding any" -- useful when the parser couldn't decode
+ * the new code but the frontend still expects the prior cheats at
+ * `slot` to be gone.
+ *
+ * CheatsActive is recomputed at the tail. */
+void MDFNMP_SetCheat(unsigned slot, bool enabled,
+                     const MDFNCheatOp *ops, size_t op_count)
+{
+ size_t i;
+
+ mdfnmp_drop_slot(slot);
+
+ if(cheats_count + op_count > cheats_cap)
  {
   size_t newcap = cheats_cap ? cheats_cap : 16;
   CHEATF *np;
-  while(newcap <= index)
+  while(newcap < cheats_count + op_count)
    newcap *= 2;
   np = (CHEATF *)realloc(cheats, newcap * sizeof(CHEATF));
   if(!np)
+  {
+   /* Slot's prior entries are already gone; appending the new
+    * ones failed, so the slot ends up empty.  RecomputeCheatsActive
+    * below handles that consistently. */
+   MDFNMP_RecomputeCheatsActive();
    return;
+  }
   cheats = np;
   cheats_cap = newcap;
  }
- while(cheats_count <= index)
- {
-  memset(&cheats[cheats_count], 0, sizeof(CHEATF));
-  cheats[cheats_count].type   = 'R';
-  cheats[cheats_count].status = 0;
-  cheats_count++;
- }
 
- chit = &cheats[index];
-
- /* Free any prior strings owned by this slot (replace path). */
- if(chit->name)
+ for(i = 0; i < op_count; i++)
  {
-  free(chit->name);
-  chit->name = NULL;
+  CHEATF *chit = &cheats[cheats_count++];
+  memset(chit, 0, sizeof(*chit));
+  chit->frontend_slot = slot;
+  chit->addr          = ops[i].addr;
+  chit->val           = ops[i].val;
+  chit->length        = ops[i].length;
+  chit->bigendian     = ops[i].bigendian;
+  chit->type          = 'R';
+  chit->status        = enabled ? 1 : 0;
+  /* Name is purely diagnostic in this fork; strdup failure leaves
+   * name=NULL which Flush / Kill handle via free(NULL)-is-fine. */
+  chit->name          = strdup("retro");
  }
- if(chit->conditions)
- {
-  free(chit->conditions);
-  chit->conditions = NULL;
- }
-
- chit->addr      = addr;
- chit->val       = val;
- chit->compare   = 0;
- chit->length    = length;
- chit->bigendian = bigendian;
- chit->icount    = 0;
- chit->type      = 'R';
- chit->status    = enabled ? 1 : 0;
- /* Name is purely diagnostic in this fork (the libretro frontend
-  * tracks the user-facing label itself).  strdup failure leaves
-  * name=NULL which Flush / Kill handle via free(NULL)-is-fine. */
- chit->name      = strdup("retro");
 
  MDFNMP_RecomputeCheatsActive();
 }

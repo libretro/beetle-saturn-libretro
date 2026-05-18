@@ -1337,40 +1337,37 @@ size_t retro_get_memory_size(unsigned type)
    return 0;
 }
 
-/* Pro Action Replay (PAR) -style cheat parser.
- *
- *   "AAAAAAAA VVVV"      -- 32-bit SH-2 address, then 16-bit value
- *
- * The two fields are hexadecimal; leading zeros may be omitted in
- * either.  Accepted separators between them are one or more of:
- * space, tab, colon.  Leading and trailing whitespace are ignored.
- * Anything else trailing the value (extra fields, comments, codes
- * concatenated with `+`) is rejected -- a future commit will widen
- * the format to multi-line codes.
- *
- * Saturn cheats are big-endian by convention, so the parsed value
- * is handed to MDFNMP_SetCheat with bigendian = true.  length is
- * fixed at 2 bytes for this baseline parser.
- *
- * Returns true on success, false on any malformed input. */
-static bool parse_par_cheat(const char *code, uint32_t *addr_out,
-                            uint16_t *val_out)
+/* Maximum number of write operations that can be packed into a
+ * single libretro slot via '+'-joined multi-line codes.  Saturn
+ * databases occasionally chain ~16 ops onto one cheat; 32 is
+ * comfortable headroom without making the on-stack buffer huge. */
+#define SS_CHEAT_OPS_MAX 32
+
+/* Lex two hex fields (the address part and the value part) separated
+ * by space, tab, or colon (any combination, repeated).  Leading and
+ * trailing whitespace are tolerated.  Anything trailing the value
+ * field other than whitespace causes a failure.  On success:
+ *   *addr_out / *val_out  - the two 64-bit accumulators
+ *   *addr_n / *val_n      - number of hex digits actually consumed
+ *                           in each field (used by the caller to
+ *                           disambiguate PAR-type-prefix codes vs
+ *                           raw addresses).
+ * Both fields cap at 8 hex digits; longer fields are rejected. */
+static bool ss_cheat_lex(const char *s,
+                         uint64_t *addr_out, int *addr_n,
+                         uint64_t *val_out,  int *val_n)
 {
-   uint64_t addr = 0;
-   uint64_t val  = 0;
-   const char *p = code;
+   const char *p = s;
+   uint64_t acc;
    int n;
 
    if (!p)
       return false;
 
-   /* Skip leading whitespace. */
    while (*p == ' ' || *p == '\t')
       p++;
 
-   /* Parse hex address.  Bail if no digits or more than 8 -- the
-    * SH-2 has a 32-bit address space and we'd silently truncate. */
-   n = 0;
+   acc = 0; n = 0;
    while (*p)
    {
       int d;
@@ -1379,22 +1376,20 @@ static bool parse_par_cheat(const char *code, uint32_t *addr_out,
       else if (*p >= 'A' && *p <= 'F') d = *p - 'A' + 10;
       else break;
       if (++n > 8) return false;
-      addr = (addr << 4) | (uint64_t)d;
+      acc = (acc << 4) | (uint64_t)d;
       p++;
    }
    if (n == 0)
       return false;
+   *addr_out = acc;
+   *addr_n   = n;
 
-   /* Separator: at least one of space / tab / colon, then any
-    * number of additional whitespace characters. */
    if (*p != ' ' && *p != '\t' && *p != ':')
       return false;
    while (*p == ' ' || *p == '\t' || *p == ':')
       p++;
 
-   /* Parse hex value.  Same digit / length policy as the address;
-    * a 16-bit value caps at 4 hex chars. */
-   n = 0;
+   acc = 0; n = 0;
    while (*p)
    {
       int d;
@@ -1402,22 +1397,171 @@ static bool parse_par_cheat(const char *code, uint32_t *addr_out,
       else if (*p >= 'a' && *p <= 'f') d = *p - 'a' + 10;
       else if (*p >= 'A' && *p <= 'F') d = *p - 'A' + 10;
       else break;
-      if (++n > 4) return false;
-      val = (val << 4) | (uint64_t)d;
+      if (++n > 8) return false;
+      acc = (acc << 4) | (uint64_t)d;
       p++;
    }
    if (n == 0)
       return false;
+   *val_out = acc;
+   *val_n   = n;
 
-   /* Tolerate only trailing whitespace. */
    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
       p++;
    if (*p != '\0')
       return false;
 
-   *addr_out = (uint32_t)addr;
-   *val_out  = (uint16_t)val;
    return true;
+}
+
+/* Decode one cheat sub-code (no '+' inside) into a write operation.
+ *
+ * Two accepted forms, distinguished by inspecting the address field:
+ *
+ *   1. Saturn Pro Action Replay (PAR) type-prefix
+ *      ----------------------------------------------
+ *      "TTAAAAAA VVVV[VVVV]"   - 8-hex address whose high byte
+ *                                TT is a known PAR type encoding
+ *                                width + workram region:
+ *
+ *        0x14 -> 8-bit  write at 0x06000000 + AAAAAA  (WorkRAM High)
+ *        0x16 -> 16-bit write at 0x06000000 + AAAAAA
+ *        0x18 -> 32-bit write at 0x06000000 + AAAAAA
+ *        0x34 -> 8-bit  write at 0x00200000 + AAAAAA  (WorkRAM Low)
+ *        0x36 -> 16-bit write at 0x00200000 + AAAAAA
+ *        0x38 -> 32-bit write at 0x00200000 + AAAAAA
+ *
+ *      Bit 5 of TT selects the region (set -> Low at 0x00200000,
+ *      clear -> High at 0x06000000); bits 1-2 encode the byte width
+ *      (1/2/3 -> 1/2/4 bytes).  Other PAR type bytes (master codes,
+ *      conditionals, ROM patches, find-and-replace, disable-when,
+ *      etc.) are not supported and fall through to raw mode, which
+ *      will then reject them as out-of-range raw addresses.
+ *
+ *      For 8-bit writes the value field is masked to the low byte
+ *      (PAR databases write 8-bit codes both as "00YY" and as
+ *      "YY"; either parses identically here).
+ *
+ *   2. Raw 32-bit address
+ *      ----------------------------------------------
+ *      "AAAAAAAA VVVV"        - up to 8-hex address (any value,
+ *                                so long as it fits in 32 bits)
+ *                                and up to 4-hex 16-bit value.
+ *      The 16-bit width is the default for the raw path; users
+ *      who want 8-bit or 32-bit access should use the PAR form.
+ *
+ * Saturn cheats are big-endian by community convention; that flag
+ * is set unconditionally on the output op. */
+static bool ss_cheat_parse_one(const char *s, MDFNCheatOp *out)
+{
+   uint64_t a64, v64;
+   int      a_n,  v_n;
+
+   if (!ss_cheat_lex(s, &a64, &a_n, &v64, &v_n))
+      return false;
+
+   /* PAR type-prefix: address must be a full 8 hex digits so the
+    * high byte sits where the type code is expected. */
+   if (a_n == 8)
+   {
+      uint8_t  tt   = (uint8_t)(a64 >> 24);
+      uint32_t aoff = (uint32_t)(a64 & 0xFFFFFFu);
+      uint32_t base = 0;
+      unsigned len  = 0;
+
+      switch (tt)
+      {
+         case 0x14: base = 0x06000000u; len = 1; break;
+         case 0x16: base = 0x06000000u; len = 2; break;
+         case 0x18: base = 0x06000000u; len = 4; break;
+         case 0x34: base = 0x00200000u; len = 1; break;
+         case 0x36: base = 0x00200000u; len = 2; break;
+         case 0x38: base = 0x00200000u; len = 4; break;
+         default:   break;
+      }
+
+      if (len != 0)
+      {
+         if (len == 1)
+            v64 &= 0xFFu;
+         else if (len == 2 && v64 > 0xFFFFull)
+            return false;
+         else if (len == 4 && v64 > 0xFFFFFFFFull)
+            return false;
+
+         out->addr      = base + aoff;
+         out->val       = v64;
+         out->length    = len;
+         out->bigendian = true;
+         return true;
+      }
+   }
+
+   /* Raw 32-bit address + 16-bit value fallback. */
+   if (a64 > 0xFFFFFFFFull)
+      return false;
+   if (v64 > 0xFFFFull)
+      return false;
+   out->addr      = (uint32_t)a64;
+   out->val       = v64;
+   out->length    = 2;
+   out->bigendian = true;
+   return true;
+}
+
+/* Split `code` on '+' separators, parse each sub-code, accumulate
+ * into ops[].  Whitespace surrounding the '+' is tolerated, as are
+ * trailing '+' (which produce an empty trailing segment that's
+ * silently skipped).  Returns the number of ops parsed (>= 1) on
+ * success, or -1 if any sub-code fails to parse or the op count
+ * would exceed ops_max. */
+static int ss_cheat_parse(const char *code,
+                          MDFNCheatOp *ops, size_t ops_max)
+{
+   size_t count = 0;
+   const char *p = code;
+
+   if (!p)
+      return -1;
+
+   while (*p)
+   {
+      char        scratch[64];
+      const char *q = p;
+      size_t      len;
+      const char *trim;
+
+      /* Run to the next '+' or end of string. */
+      while (*q && *q != '+')
+         q++;
+
+      len = (size_t)(q - p);
+      if (len >= sizeof(scratch))
+         return -1;
+      memcpy(scratch, p, len);
+      scratch[len] = '\0';
+
+      /* Tolerate whitespace-only / empty segments (e.g. "a + + b"
+       * or a trailing '+').  The lexer would reject them as
+       * malformed, so screen them out here. */
+      trim = scratch;
+      while (*trim == ' ' || *trim == '\t')
+         trim++;
+      if (*trim != '\0')
+      {
+         if (count >= ops_max)
+            return -1;
+         if (!ss_cheat_parse_one(scratch, &ops[count]))
+            return -1;
+         count++;
+      }
+
+      p = (*q == '+') ? q + 1 : q;
+   }
+
+   if (count == 0)
+      return -1;
+   return (int)count;
 }
 
 void retro_cheat_reset(void)
@@ -1430,26 +1574,32 @@ void retro_cheat_reset(void)
 
 void retro_cheat_set(unsigned index, bool enabled, const char *code)
 {
-   uint32_t addr;
-   uint16_t val;
+   MDFNCheatOp ops[SS_CHEAT_OPS_MAX];
+   int n = ss_cheat_parse(code, ops, SS_CHEAT_OPS_MAX);
 
-   if (!parse_par_cheat(code, &addr, &val))
+   if (n < 0)
    {
       if (log_cb)
          log_cb(RETRO_LOG_WARN,
                 "[Cheats] Ignoring malformed code at slot %u: '%s'\n"
-                "[Cheats] Expected PAR format: AAAAAAAA VVVV "
-                "(8-hex address, 4-hex 16-bit value).\n",
+                "[Cheats] Accepted forms (sub-codes joined with '+'):\n"
+                "[Cheats]   TTAAAAAA VVVV         PAR type-prefix\n"
+                "[Cheats]     TT = 0x14/16/18 -> 8/16/32-bit @ 0x06000000+AAAAAA\n"
+                "[Cheats]     TT = 0x34/36/38 -> 8/16/32-bit @ 0x00200000+AAAAAA\n"
+                "[Cheats]   AAAAAAAA VVVV         raw 32-bit addr, 16-bit val\n",
                 index, code ? code : "(null)");
+      /* Drop any prior occupants of the slot so the frontend's view
+       * of "slot is set" matches our view of "slot is empty". */
+      MDFNMP_SetCheat(index, false, NULL, 0);
       return;
    }
 
-   /* length = 2 (16-bit), bigendian = true (Saturn convention).
-    * MDFNMP_SetCheat handles both new-at-index and replace-at-index,
-    * and recomputes CheatsActive so the per-frame apply path picks
-    * up the new state on the next VBlank-In. */
-   MDFNMP_SetCheat(index, enabled, addr, (uint64_t)val,
-                   2 /* length */, true /* bigendian */);
+   /* MDFNMP_SetCheat handles slot bookkeeping: it compact-removes any
+    * prior entries that belonged to this libretro slot and then
+    * appends the n new ones, all tagged with frontend_slot == index.
+    * RecomputeCheatsActive runs at the tail so the per-frame apply
+    * path picks up the new state on the next VBlank-In. */
+   MDFNMP_SetCheat(index, enabled, ops, (size_t)n);
 }
 
 // Use a simpler approach to make sure that things go right for libretro.
