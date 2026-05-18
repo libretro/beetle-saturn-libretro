@@ -30,48 +30,13 @@
  * keyword macros; C++ has `bool` as a built-in. */
 #include <boolean.h>
 
- enum
- {
-  SS_DBG_ERROR     = (1U <<  0),
-  SS_DBG_WARNING   = (1U <<  1),
-
-  SS_DBG_M68K 	   = (1U <<  2),
-
-  SS_DBG_SH2  	   = (1U <<  3),
-  SS_DBG_SH2_REGW  = (1U <<  4),
-  SS_DBG_SH2_CACHE = (1U <<  5),
-  SS_DBG_SH2_CACHE_NOISY = (1U << 6),
-  SS_DBG_SH2_EXCEPT= (1U <<  7),
-  SS_DBG_SH2_DMARACE=(1U <<  8),
-
-  SS_DBG_SCU  	   = (1U <<  9),
-  SS_DBG_SCU_REGW  = (1U << 10),
-  SS_DBG_SCU_INT   = (1U << 11),
-  //SS_DBG_SCU_TIMER = (1U << 12),
-  SS_DBG_SCU_DSP   = (1U << 13),
-
-  SS_DBG_SMPC 	   = (1U << 14),
-  SS_DBG_SMPC_REGW = (1U << 15),
-
-  SS_DBG_BIOS	   = (1U << 16),
-
-  SS_DBG_CDB  	   = (1U << 17),
-  SS_DBG_CDB_REGW  = (1U << 18),
-
-  SS_DBG_VDP1 	   = (1U << 19),
-  SS_DBG_VDP1_REGW = (1U << 20),
-  SS_DBG_VDP1_VRAMW= (1U << 21),
-  SS_DBG_VDP1_FBW  = (1U << 22),
-  SS_DBG_VDP1_RACE = (1U << 23),
-
-  SS_DBG_VDP2 	   = (1U << 24),
-  SS_DBG_VDP2_REGW = (1U << 25),
-
-  SS_DBG_SCSP 	   = (1U << 26),
-  SS_DBG_SCSP_REGW = (1U << 27),
-  SS_DBG_SCSP_MOBUF= (1U << 28),
- };
- enum { ss_dbg_mask = 0 };
+/* (The Mednafen-standalone build wraps each SS_DBG()/SS_DBGTI()
+ * logging callsite in an `ss_dbg_mask & SS_DBG_*`-style gate fed
+ * by the debugger UI's "active log categories" bitmask.  This
+ * libretro core does not expose that interface and never produced
+ * any callsite for it -- the entire SS_DBG_* enum and the
+ * always-zero `ss_dbg_mask` constant have been retired together
+ * with the rest of the standalone debugger machinery.) */
 
 #if 1
  enum

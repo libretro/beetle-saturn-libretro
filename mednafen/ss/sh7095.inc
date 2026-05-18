@@ -5133,14 +5133,12 @@ do {                                                    \
 #endif
 #define SH7095_NEED_RESUME_TABLE_INIT 1
 
-#define SH7095_DEBUG_MODE 0
 #include "sh7095s_cnorm.inc"
 MDFN_STATIC_ASSERT(__COUNTER__ == 5000, "Unexpected __COUNTER__ value.");
 NO_CLONE NO_INLINE MDFN_HOT void SH7095_RunSlaveUntil(SH7095* z, const sscpu_timestamp_t bound_timestamp)
 {
  #include "sh7095s_rsu.inc"
 }
-#undef SH7095_DEBUG_MODE
 
 #if defined(__GNUC__) && !defined(__clang__)
  #pragma GCC pop_options
