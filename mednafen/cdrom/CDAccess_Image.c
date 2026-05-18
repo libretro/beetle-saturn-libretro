@@ -905,9 +905,17 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
             {
                /* Treat as raw audio - same path as BINARY. */
             }
-            else if (!strcasecmp(args[1], "OGG") || !strcasecmp(args[1], "VORBIS")
-                  || !strcasecmp(args[1], "MPC") || !strcasecmp(args[1], "MP+"))
+            else if (!strcasecmp(args[1], "OGG") || !strcasecmp(args[1], "VORBIS"))
             {
+               /* Beetle-Saturn's audioreader is Vorbis-only.  Upstream
+                * Mednafen historically listed MPC / MP+ here, but the
+                * libretro fork has never shipped a Musepack decoder
+                * (no libmpcdec in deps/, no HAVE_MPC code path).  An
+                * MPC-track CUE would reach this arm, hand the MPC byte
+                * stream to ov_open_callbacks, and fail at the Ogg
+                * magic check inside tremor; dropping the keywords
+                * makes that failure happen one branch earlier with a
+                * more honest path through the parser. */
                TmpTrack.AReader = AR_Open(TmpTrack.fp);
                if (!TmpTrack.AReader)
                   goto cleanup_close;
