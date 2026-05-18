@@ -271,6 +271,28 @@ void retro_init(void)
    setting_initial_scanline_pal = 0;
    setting_last_scanline_pal = 287;
 
+   /* The save-state size emitted by MDFNSS_SaveSM is data-driven --
+    * the SMPC sub-state writes one SFORMAT block per attached I/O
+    * device, and each device subclass (Control Pad / 3D Control Pad
+    * / Mission Stick / Arcade Racer / Mouse / Twin Stick / Keyboard)
+    * has a different SFORMAT.  Switching device type via
+    * retro_set_controller_port_device therefore grows or shrinks
+    * the serialized state size from one frame to the next.
+    *
+    * Without this hint, RetroArch's rewind buffer (which allocates
+    * `retro_serialize_size()` bytes per frame at start-up) treats
+    * a mid-session size change as "save state failed", invalidates
+    * the buffer entries that pre-date the device switch, and
+    * effectively rewinds only as far back as the moment the input
+    * device was changed.  CORE_VARIABLE_SIZE tells the front-end
+    * to size each rewind slot from the live serialize_size() rather
+    * than the cached startup value, which keeps the rewind chain
+    * intact across device changes.  See issue #21. */
+   {
+      uint64_t serial_quirks = RETRO_SERIALIZATION_QUIRK_CORE_VARIABLE_SIZE;
+      environ_cb(RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS, &serial_quirks);
+   }
+
    check_system_specs();
 }
 
