@@ -140,8 +140,7 @@ SOURCES_C += $(CORE_EMU_DIR)/db.c \
 		$(CORE_EMU_DIR)/scu_dsp_mvi.c \
 		$(CORE_EMU_DIR)/scu_dsp_jmp.c \
 		$(CORE_EMU_DIR)/scu_dsp_misc.c \
-		$(CORE_EMU_DIR)/sound.c \
-		$(CORE_EMU_DIR)/ss_state.c
+		$(CORE_EMU_DIR)/sound.c
 
 # The cartridge subsystem, converted from C++ to C. CartInfo was
 # already a plain struct of function pointers (C-style polymorphism),
