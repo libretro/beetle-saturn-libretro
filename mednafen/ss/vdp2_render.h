@@ -42,7 +42,6 @@ void VDP2REND_GetGunXTranslation(const bool clock28m, float* scale, float* offs)
 void VDP2REND_StartFrame(struct EmulateSpecStruct* espec, const bool clock28m, const int SurfInterlaceField);
 void VDP2REND_EndFrame(void);
 void VDP2REND_Reset(bool powering_up) MDFN_COLD;
-void VDP2REND_SetLayerEnableMask(uint64_t mask) MDFN_COLD;
 void VDP2REND_SetDeinterlaceOff(bool off) MDFN_COLD;
 
 /* Array reference parameters (uint16_t (&rr)[0x100] etc.) replaced

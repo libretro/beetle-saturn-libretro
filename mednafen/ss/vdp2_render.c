@@ -90,7 +90,17 @@ static uint8_t RDBS_Mode;
 static uint8_t VCPRegs[4][8];
 static const uint16_t DummyTileNT[8 * 8 * 4 / sizeof(uint16_t)] = { 0 };
 
-static uint32_t UserLayerEnableMask;
+/* Was a runtime-mutable static updated by VDP2REND_SetLayerEnableMask
+ * via the COMMAND_SET_LEM work-queue entry, which let an upstream
+ * Mednafen debugger UI mask out individual NBG/RBG/sprite layers.
+ * The libretro fork never exposed this as a core option, so neither
+ * the public setter nor COMMAND_SET_LEM ever fired; the mask stayed
+ * at ~0U for the whole run.  With no writer left, the AND-with-mask
+ * checks in DrawLine fold trivially at -O2 (BGON & ~0U & 0x10 ==>
+ * BGON & 0x10), so leaving the symbol here as a const keeps the
+ * existing check-site source structure -- and the "all layers
+ * visible" semantics it documents -- without any runtime cost. */
+static const uint32_t UserLayerEnableMask = ~0U;
 
 /*
  * "Deinterlace = Off" toggle, read by the consumer thread inside
@@ -112,7 +122,7 @@ static uint32_t UserLayerEnableMask;
  * motion, deinterlacer becomes a no-op.
  *
  * Set via COMMAND_SET_DEINT_OFF on the render-thread command queue
- * (same lock-free pattern used for UserLayerEnableMask).
+ * (single-producer / single-consumer, no per-line lock).
  */
 static bool DeinterlaceOff;
 
@@ -4678,8 +4688,6 @@ enum
 
  COMMAND_DRAW_LINE,
 
- COMMAND_SET_LEM,
-
  COMMAND_SET_DEINT_OFF,
 
  COMMAND_SET_BUSYWAIT,
@@ -4875,10 +4883,6 @@ static void/*int*/ RThreadEntry(void* data)
 	Reset(wqe->Arg32);
 	break;
 
-   case COMMAND_SET_LEM:
-	UserLayerEnableMask = wqe->Arg32;
-	break;
-
    case COMMAND_SET_DEINT_OFF:
 	DeinterlaceOff = (bool)wqe->Arg32;
 	break;
@@ -4911,7 +4915,6 @@ void VDP2REND_Init(const bool IsPAL, const uint64_t affinity)
  PAL = IsPAL;
  VisibleLines = PAL ? 288 : 240;
  //
- UserLayerEnableMask = ~0U;
  Clock28M = false;
  //
  /* C++ aggregate-init `X = {};` zeroed Prod/Cons in the .cpp form;
@@ -5147,16 +5150,11 @@ void VDP2REND_Reset(bool powering_up)
  WWQ(COMMAND_RESET, powering_up, 0);
 }
 
-void VDP2REND_SetLayerEnableMask(uint64_t mask)
-{
- WWQ(COMMAND_SET_LEM, mask, 0);
-}
-
 void VDP2REND_SetDeinterlaceOff(bool off)
 {
  // Normally routed through the consumer command queue (not a direct
  // atomic store) so the flag flips exactly between scanlines, never
- // mid-line. Matches the SetLayerEnableMask threading pattern.
+ // mid-line.
  //
  // Pre-Init path (RThread NULL): libretro's check_variables(true)
  // fires from retro_load_game *before* MDFNI_LoadGame brings up
