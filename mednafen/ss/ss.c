@@ -2026,6 +2026,23 @@ void SS_LoadCartNV(void)
    uint64_t nv_size  = 0;
    char fpath[4096];
 
+   /* ST-V's NV storage isn't a contiguous buffer reachable through
+    * CART_GetNVInfo (the data lives behind the AK93C45 EEPROM
+    * abstraction in stvio.c, accessed via Peek/Poke).  Dispatch
+    * to STVIO_LoadNV directly; it walks the EEPROM at the right
+    * granularity using a cdstream as transport. */
+   if(ActiveCartType == CART_STV)
+   {
+      cdstream s;
+      if(cdstream_open(&s,
+            MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, "stveep")))
+      {
+         STVIO_LoadNV(&s);
+         cdstream_close(&s);
+      }
+      return;
+   }
+
    CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
 
    if (!ext)
@@ -2086,6 +2103,22 @@ void SS_SaveCartNV(void)
    bool nv16 = false;
    uint64_t nv_size = 0;
    char fpath[4096];
+
+   /* See SS_LoadCartNV: ST-V's EEPROM lives behind the AK93C45
+    * abstraction and isn't reachable as a contiguous CART_GetNVInfo
+    * buffer.  STVIO_SaveNV walks the EEPROM in the right
+    * granularity using a cdstream as transport. */
+   if(ActiveCartType == CART_STV)
+   {
+      cdstream s;
+      if(cdstream_open_write(&s,
+            MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, "stveep")))
+      {
+         STVIO_SaveNV(&s);
+         cdstream_close(&s);
+      }
+      return;
+   }
 
    CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
 
