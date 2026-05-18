@@ -59,8 +59,6 @@ void SS_SaveCartNV(void)      MDFN_COLD;
 void SS_LoadCartNV(void)      MDFN_COLD;
 void SS_SaveRTC(void)         MDFN_COLD;
 void SS_LoadRTC(void)         MDFN_COLD;
-void SS_BackupBackupRAM(void) MDFN_COLD;
-void SS_BackupCartNV(void)    MDFN_COLD;
 
 /* Emulator state save/load orchestration.  Reaches into ss.c
  * globals (NeedEmuICache, BIOS_SHA256, ActiveCartType,

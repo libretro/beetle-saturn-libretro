@@ -211,10 +211,6 @@ extern "C" {
  void Emulate(struct EmulateSpecStruct* espec_arg);
  void CloseGame(void) MDFN_COLD;
 
- /* Defined in ss.c; called from libretro.c's save-state /
-  * end-of-game path via the same TU boundary. */
- void MDFN_BackupSavFile(const uint8_t max_backup_count, const char* sav_ext);
-
 #ifdef __cplusplus
 }
 #endif

@@ -1607,8 +1607,7 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
 }
 
 /* ===================================================================
- * InitCommon / SS_Reset / Cleanup / CloseGame /
- *           MDFN_BackupSavFile
+ * InitCommon / SS_Reset / Cleanup / CloseGame
  *
  * These are the boot-time orchestration entry points the libretro
  * front-end calls (InitCommon from retro_load_game, SS_Reset from
@@ -1914,9 +1913,6 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    SS_LoadBackupRAM();
    SS_LoadCartNV();
 
-   SS_BackupBackupRAM();
-   SS_BackupCartNV();
-
    /* Just-loaded state is by definition clean. The cycle-counted
     * SaveDelay variables are gone -- see comment in Emulate(). */
    BackupRAM_Dirty = false;
@@ -2006,13 +2002,6 @@ void MDFN_COLD CloseGame(void)
  Cleanup();
 }
 
-void MDFN_BackupSavFile(const uint8_t max_backup_count, const char* sav_ext)
-{
-   /* stub for libretro port */
-   (void)max_backup_count;
-   (void)sav_ext;
-}
-
 /* log_cb is declared in mednafen/git.h (formerly a header) and
  * defined as a plain C function pointer; redeclare here so we don't
  * need to drag git.h's <algorithm> / <vector> chain into this TU. */
@@ -2066,24 +2055,6 @@ void SS_LoadBackupRAM(void)
        BackupRAM[i] = BRAM_Init_Data[i & 0x0F];
  }
  filestream_close(brs);
-}
-
-void SS_BackupBackupRAM(void)
-{
- MDFN_BackupSavFile(10, "bkr");
-}
-
-void SS_BackupCartNV(void)
-{
- const char* ext = NULL;
- void* nv_ptr = NULL;
- bool nv16 = false;
- uint64_t nv_size = 0;
-
- CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
-
- if(ext)
-  MDFN_BackupSavFile(10, ext);
 }
 
 void SS_LoadCartNV(void)
