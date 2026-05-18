@@ -2873,12 +2873,8 @@ void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bo
 
   for(uint32_t A = 0x100000; A < 0x100400; A += 2)
   {
-   /* MDAP(z->SlotRegs) -- mednafen-types.h's
-    * `template<typename T> T* MDAP(T (*v)[N])` helper -- isn't
-    * parseable in C.  z->SlotRegs is `uint16_t[0x20][0x10]`, so
-    * `&z->SlotRegs[0][0]` yields the same flat-array pointer
-    * to the first uint16_t with no template machinery (parallels
-    * the scu.inc MDAP(DSP.DataRAM) -> explicit-cast fix). */
+   /* &z->SlotRegs[0][0] gives the flat-array pointer to the first
+    * uint16_t of the [0x20][0x10] array. */
    SS_SCSP_RW_u16_W1(z, A, &z->SlotRegs[0][0] + ((A & 0x3FE) >> 1));
   }
   SS_SCSP_RecalcSoundInt(z);

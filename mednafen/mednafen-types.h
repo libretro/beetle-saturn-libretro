@@ -5,10 +5,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-#include <type_traits>
-#endif
-
 /* int{8,16,32,64} / uint{8,16,32,64} were typedef'd here to the
  * <stdint.h> fixed-width types.  All call sites now use the
  * <stdint.h> spellings (uint8_t, ...) directly; <stdint.h> above
@@ -138,10 +134,6 @@
  #define NO_CLONE
  #define MDFN_FORCE_INLINE inline
  #define MDFN_UNREACHABLE  /* nothing -- compiler keeps any bounds checks */
-#endif
-
-#ifdef __cplusplus
-template<typename T> typename std::remove_all_extents<T>::type* MDAP(T* v) { return (typename std::remove_all_extents<T>::type*)v; }
 #endif
 
 /* MDFN_STATIC_ASSERT(condition, message) -- portable compile-time
