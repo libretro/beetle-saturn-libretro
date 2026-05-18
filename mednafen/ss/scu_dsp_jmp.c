@@ -28,7 +28,7 @@
 
 #include "scu_dsp_common.inc"
 
-/* Phase-5b: was `template<bool looped, unsigned cond> static NO_INLINE
+/* was `template<bool looped, unsigned cond> static NO_INLINE
  * NO_CLONE void JMPInstr(DSPS* dsp)` -- a 2x128 template that, after
  * the underlying DSP_TestCond folding, collapses to 2 x 65 = 130
  * unique function instantiations (the low-6-bit cond values 0x00..0x3F

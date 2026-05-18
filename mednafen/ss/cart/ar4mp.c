@@ -41,7 +41,7 @@
 #include "../cart.h"
 #include "ar4mp.h"
 
-/* SS_SetPhysMemMap: defined in ss.cpp, declared in the C++ ss.h.
+/* SS_SetPhysMemMap: defined in ss.c, declared in ss.h.
    Mirror the prototype (trailing is_writeable default arg dropped). */
 void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t *ptr, uint32_t length, bool is_writeable);
 

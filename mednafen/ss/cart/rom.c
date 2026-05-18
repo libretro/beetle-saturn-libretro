@@ -33,8 +33,8 @@
 #include "../cart.h"
 #include "rom.h"
 
-/* SS_SetPhysMemMap is defined in ss.cpp; its declaration lives in the
-   C++ ss.h (class SH7095, default args), so it cannot be included
+/* SS_SetPhysMemMap is defined in ss.c; its declaration lives in
+   ss.h (uses SH7095 struct), so it should not be included
    here. Mirror the prototype -- the trailing is_writeable argument
    had a C++ default of false, dropped here, so callers pass it
    explicitly. */

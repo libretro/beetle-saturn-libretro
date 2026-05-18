@@ -55,11 +55,11 @@
 
   extern uint8_t WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
 
- // Backup RAM is exposed so libretro.cpp can hand it to the frontend via
+ // Backup RAM is exposed so libretro.c can hand it to the frontend via
  // RETRO_MEMORY_SAVE_RAM. The dirty flags are maintained by the emulation
  // (the BackupRAM_Dirty bit is set on every write to the BRAM region,
  // CartNV_Dirty is set at end-of-frame when CART_GetClearNVDirty returns
- // true), and consumed by libretro.cpp after Emulate() returns. See the
+ // true), and consumed by libretro.c after Emulate() returns. See the
  // long comment in Emulate() in ss.c.
  extern uint8_t BackupRAM[32768];
  extern bool BackupRAM_Dirty;

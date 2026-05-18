@@ -393,7 +393,7 @@ int32_t SCU_SetHBVB(int32_t pclocks, bool new_HB_FromVDP2, bool new_VB_FromVDP2)
  return Timer1_Counter ? Timer1_Counter : 0x200;
 }
 
-/* Phase-7e: promoted from file-static so ss_init.c’s Emulate can call it. */
+/* promoted from file-static so ss_init.c’s Emulate can call it. */
 void SCU_AdjustTS(const int32_t delta)
 {
  SCU_DMA_TimeCounter += delta;
@@ -2780,7 +2780,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u8_W0(uint32_t A, uint32_t* DB, int32_t*
   else
    *SH2DMAHax -=  8;
 
-  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+  /* sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
    * macro-monomorphized form. */
 
    SCU_RegRW_DB_u8_W0 (A, DB);
@@ -2810,7 +2810,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u8_W1(uint32_t A, uint32_t* DB, int32_t*
  {
   CheckForceDMAFinish();
 
-   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+   /* sizeof(T) folds at template-instantiation time. */
    ABus_Write_DB32_u8 (A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
 
   return;
@@ -2825,7 +2825,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u8_W1(uint32_t A, uint32_t* DB, int32_t*
 
     uint16_t tmp = *DB >> (((A & 2) ^ 2) << 3);
 
-    /* Phase-8q1: sizeof(T) folds at SCU_FromSH2_BusRW_DB instantiation.
+    /* sizeof(T) folds at SCU_FromSH2_BusRW_DB instantiation.
      * The outer `if(sizeof(T) == 4)` already split off the u32 case,
      * so T here is u8 or u16. */
     BBusRW_DB_u8_W1_SH0 (A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
@@ -2846,7 +2846,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u8_W1(uint32_t A, uint32_t* DB, int32_t*
   else
    *SH2DMAHax -=  4 ;
 
-  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+  /* sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
    * macro-monomorphized form. */
 
    SCU_RegRW_DB_u8_W1 (A, DB);
@@ -2912,7 +2912,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u16_W0(uint32_t A, uint32_t* DB, int32_t
   else
    *SH2DMAHax -=  8;
 
-  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+  /* sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
    * macro-monomorphized form. */
 
    SCU_RegRW_DB_u16_W0(A, DB);
@@ -2942,7 +2942,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u16_W1(uint32_t A, uint32_t* DB, int32_t
  {
   CheckForceDMAFinish();
 
-   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+   /* sizeof(T) folds at template-instantiation time. */
    ABus_Write_DB32_u16(A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
 
   return;
@@ -2957,7 +2957,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u16_W1(uint32_t A, uint32_t* DB, int32_t
 
     uint16_t tmp = *DB >> (((A & 2) ^ 2) << 3);
 
-    /* Phase-8q1: sizeof(T) folds at SCU_FromSH2_BusRW_DB instantiation.
+    /* sizeof(T) folds at SCU_FromSH2_BusRW_DB instantiation.
      * The outer `if(sizeof(T) == 4)` already split off the u32 case,
      * so T here is u8 or u16. */
     BBusRW_DB_u16_W1_SH0(A, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
@@ -2978,7 +2978,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u16_W1(uint32_t A, uint32_t* DB, int32_t
   else
    *SH2DMAHax -=  4 ;
 
-  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+  /* sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
    * macro-monomorphized form. */
 
    SCU_RegRW_DB_u16_W1(A, DB);
@@ -3044,7 +3044,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u32_W0(uint32_t A, uint32_t* DB, int32_t
   else
    *SH2DMAHax -=  8;
 
-  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+  /* sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
    * macro-monomorphized form. */
 
    SCU_RegRW_DB_u32_W0(A, DB);
@@ -3074,7 +3074,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u32_W1(uint32_t A, uint32_t* DB, int32_t
  {
   CheckForceDMAFinish();
 
-   /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+   /* sizeof(T) folds at template-instantiation time. */
    ABus_Write_DB32_u32(A, *DB, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
 
   return;
@@ -3111,7 +3111,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u32_W1(uint32_t A, uint32_t* DB, int32_t
   else
    *SH2DMAHax -=  4 ;
 
-  /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
+  /* sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
    * macro-monomorphized form. */
 
    SCU_RegRW_DB_u32_W1(A, DB);
@@ -3444,7 +3444,7 @@ static INLINE void DMA_Write_WB0_u8(DMALevelS* d, uint32_t DB)
  const uint32_t A = d->CurWriteAddr &~ (1 - 1);
  int32_t WriteOverhead = 0;
 
-  /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+  /* sizeof(T) folds at template-instantiation time. */
   ABus_Write_DB32_u8 (A, DB, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -3457,7 +3457,7 @@ static INLINE void DMA_Write_WB0_u16(DMALevelS* d, uint32_t DB)
  const uint32_t A = d->CurWriteAddr &~ (2 - 1);
  int32_t WriteOverhead = 0;
 
-  /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+  /* sizeof(T) folds at template-instantiation time. */
   ABus_Write_DB32_u16(A, DB, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -3470,7 +3470,7 @@ static INLINE void DMA_Write_WB0_u32(DMALevelS* d, uint32_t DB)
  const uint32_t A = d->CurWriteAddr &~ (4 - 1);
  int32_t WriteOverhead = 0;
 
-  /* Phase-8k: sizeof(T) folds at template-instantiation time. */
+  /* sizeof(T) folds at template-instantiation time. */
   ABus_Write_DB32_u32(A, DB, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -3486,7 +3486,7 @@ static INLINE void DMA_Write_WB1_u8(DMALevelS* d, uint32_t DB)
   uint16_t DB16;
 
   DB16 = DB >> (((A & 0x2) ^ 0x2) * 8);
-  /* Phase-8q1: sizeof(T) folds at DMA_Write macro-monomorphized form. */
+  /* sizeof(T) folds at DMA_Write macro-monomorphized form. */
   BBusRW_DB_u8_W1_SH0 (A, &DB16, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -3502,7 +3502,7 @@ static INLINE void DMA_Write_WB1_u16(DMALevelS* d, uint32_t DB)
   uint16_t DB16;
 
   DB16 = DB >> (((A & 0x2) ^ 0x2) * 8);
-  /* Phase-8q1: sizeof(T) folds at DMA_Write macro-monomorphized form. */
+  /* sizeof(T) folds at DMA_Write macro-monomorphized form. */
   BBusRW_DB_u16_W1_SH0(A, &DB16, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -3518,7 +3518,7 @@ static INLINE void DMA_Write_WB1_u32(DMALevelS* d, uint32_t DB)
   uint16_t DB16;
 
   DB16 = DB >> (((A & 0x2) ^ 0x2) * 8);
-  /* Phase-8q1: sizeof(T) folds at DMA_Write macro-monomorphized form. */
+  /* sizeof(T) folds at DMA_Write macro-monomorphized form. */
   BBusRW_DB_u32_W1_SH0(A, &DB16, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -3891,7 +3891,7 @@ void DSP_FinishPRAMDMA(void)
 } /* extern "C" */
 #endif
 
-/* Phase-5d: was `template<bool looped, bool hold, bool format, bool dir,
+/* was `template<bool looped, bool hold, bool format, bool dir,
  * unsigned drw> static NO_INLINE NO_CLONE void DMAInstr(DSPS* dsp)` --
  * 2 x 2 x 2 x 2 x 8 = 128 instantiations (no hand-dedup in
  * scu_dsp_dmatab.inc; every slot has its own unique template-arg
@@ -4148,7 +4148,7 @@ MDFN_HIDE void (*const DSP_DMAFuncTable[2][8][8])(struct DSPS*) =
 //
 //
 
-/* Phase-7f: promoted from file-static so ss_init.c’s InitCommon can call it. */
+/* promoted from file-static so ss_init.c’s InitCommon can call it. */
 MDFN_COLD void SCU_Init(void)
 {
  SCU_DMA_TimeCounter = 0;
@@ -4227,7 +4227,7 @@ void SCU_Reset(bool powering_up)
  SH7095_SetIRL(&CPU[0], ILevel);
 }
 
-/* Phase-7d: promoted from file-static -- ss_state.c calls this. */
+/* promoted from file-static -- ss_state.c calls this. */
 MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {
  uint32_t DSP_ProgRAM[256];

@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen - Multi-system Emulator                                           */
 /******************************************************************************/
-/* CDAccess_CHD.cpp:
+/* CDAccess_CHD.c:
 **  Copyright (C) 2017 Romain Tisserand
 **
 ** This program is free software; you can redistribute it and/or

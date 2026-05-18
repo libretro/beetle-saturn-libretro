@@ -65,7 +65,7 @@ static FORCE_INLINE void CalcZS48(struct DSPS* dsp, uint64_t val)
  #define DGI_CT_INC_HOST_FIX(ct_inc) ((void)0)
 #endif
 
-/* Phase-5d: was `template<const bool looped, const unsigned alu_op,
+/* was `template<const bool looped, const unsigned alu_op,
  * const unsigned x_op, const unsigned y_op, const unsigned d1_op>
  * static NO_INLINE NO_CLONE void GeneralInstr(DSPS* dsp)` -- 5-axis
  * template (2 x 16 x 8 x 8 x 4 = 8192 table slots, 2 x 12 x 7 x 8 x

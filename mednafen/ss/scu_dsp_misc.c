@@ -24,7 +24,7 @@
 
 #include "scu_dsp_common.inc"
 
-/* Phase-5d: was `template<bool looped, unsigned op> static NO_INLINE
+/* was `template<bool looped, unsigned op> static NO_INLINE
  * NO_CLONE void MiscInstr(DSPS* dsp)` -- 2 x 4 = 8 instantiations
  * (BTM / LPS / END / ENDI per looped value).  Monomorphized via
  * X-macro into 8 named functions following the same pattern as

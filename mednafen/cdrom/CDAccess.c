@@ -12,10 +12,11 @@
 
 #include "CDAccess.h"
 
-/* Backend factories.  Each is implemented in C++ in the matching
- * CDAccess_<X>.cpp (still C++ because the parsers use std::string /
- * std::map heavily); the factories themselves are extern "C" so
- * this C dispatcher can call them. */
+/* Backend factories.  Each is implemented in CDAccess_<X>.c.  Pre-
+ * C-conversion these lived in CDAccess_<X>.cpp and used std::string /
+ * std::map heavily, so the factories were `extern "C"` to bridge from
+ * the C dispatcher; the parsers are pure C now and the bridge is no
+ * longer needed.  Plain C decls below. */
 CDAccess *CDAccess_Image_New(const char *path, bool image_memcache);
 CDAccess *CDAccess_CCD_New  (const char *path, bool image_memcache);
 #ifdef HAVE_CHD

@@ -124,7 +124,7 @@ do {                                                                           \
    }                                                                           \
 } while(0)
 
-/* Phase-9 (final): internal forward declarations for free functions
+/* internal forward declarations for free functions
  * defined later in this file.  Required because C/C++ resolves
  * names left-to-right and several methods call each other. */
 static void SS_SCSP_RecalcSoundInt(SS_SCSP* z);
@@ -2408,7 +2408,7 @@ static INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
 //
 //
 //
-/* Phase-8f: RunSample detempleted -- hardcoded T_out = int16_t.
+/* RunSample detempleted -- hardcoded T_out = int16_t.
  * See the matching note in scsp.h. */
 INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
 {

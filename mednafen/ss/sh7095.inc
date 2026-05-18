@@ -91,7 +91,7 @@
  * SH7095's 16-bit bus guarantees the incoming A is 2-byte aligned for
  * word/longword accesses (address-error exception elsewhere covers
  * misuse); the `A & ~1u` masks off the within-word bit for safety. */
-/* Phase-9 step 4: forward declarations for free functions defined
+/* forward declarations for free functions defined
  * later in this file. */
 static void SH7095_RecalcMRWFP_0(SH7095* z);
 static void SH7095_RecalcMRWFP_1_7(SH7095* z);
@@ -4066,7 +4066,7 @@ static INLINE uint32_t SH7095_Cache_ReadDataArray_u32(SH7095* z, uint32_t A)
  return tmp;
 }
 
-/* Phase-8h: detempleted -- body never used T. */
+/* detempleted -- body never used T. */
 static INLINE void SH7095_Cache_WriteAddressArray(SH7095* z, uint32_t A, uint32_t V)
 {
  const unsigned way = (z->CCR >> 6) & 0x3;
@@ -4076,7 +4076,7 @@ static INLINE void SH7095_Cache_WriteAddressArray(SH7095* z, uint32_t A, uint32_
  z->Cache_LRU[ena] = (V >> 4) & 0x3F;
 }
 
-/* Phase-8h: detempleted -- body never used T; returns a 32-bit
+/* detempleted -- body never used T; returns a 32-bit
  * tag value, callers truncate via `retval = (T)...` assignment. */
 static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 {
@@ -4289,7 +4289,7 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
         ( (sizeof(T) == 1) ? (T)SH7095_OnChipRegRead_INLINE_u8(z, A)		\
         : (sizeof(T) == 2) ? (T)SH7095_OnChipRegRead_INLINE_u16(z, A)		\
                            : (T)SH7095_OnChipRegRead_INLINE_u32(z, A) )
-/* Phase-8p: master-CPU dispatch.  `which` is the outer template arg
+/* master-CPU dispatch.  `which` is the outer template arg
  * (compile-time const, 0 or 1), sizeof(T) is concrete at macro
  * expansion, BurstHax is a literal at every call site -- gcc -O2
  * folds the ternary chain to a single direct call. */
@@ -4845,7 +4845,7 @@ void SS_DumpOpPairProfile(void)
 
 */
 
-/* Phase-8n: DoIDIF macro dispatches to one of 4 named
+/* DoIDIF macro dispatches to one of 4 named
  * NO_INLINE variants based on (EmulateICache, IntPreventNext).
  * Both bools are compile-time at macro expansion (EmulateICache
  * is the enclosing Step/RunLoop template arg, IntPreventNext
@@ -4869,7 +4869,7 @@ do {										\
         ( (sizeof(T) == 1) ? (T)SH7095_OnChipRegRead_INLINE_u8(z, A)		\
         : (sizeof(T) == 2) ? (T)SH7095_OnChipRegRead_INLINE_u16(z, A)		\
                            : (T)SH7095_OnChipRegRead_INLINE_u32(z, A) )
-/* Phase-8p: master-CPU dispatch.  `which` is the outer template arg
+/* master-CPU dispatch.  `which` is the outer template arg
  * (compile-time const, 0 or 1), sizeof(T) is concrete at macro
  * expansion, BurstHax is a literal at every call site -- gcc -O2
  * folds the ternary chain to a single direct call. */
@@ -5047,7 +5047,7 @@ FORCE_INLINE void SH7095_Step_w1_C0(SH7095* z)
         ( (sizeof(T) == 1) ? (T)OnChipRegRead_NI_u8(A)				\
         : (sizeof(T) == 2) ? (T)OnChipRegRead_NI_u16(A)				\
                            : (T)OnChipRegRead_NI_u32(A) )
-/* Phase-8p: slave-CPU dispatch (w=1, SP=true fixed). */
+/* slave-CPU dispatch (w=1, SP=true fixed). */
 #define ExtBusRead(T, BurstHax, A)                                              \
           ( (sizeof(T) == 1) ? (T)((BurstHax) ? ExtBusRead_NI_w1_SP1_u8_BH1(A)  : ExtBusRead_NI_w1_SP1_u8_BH0(A))   \
           : (sizeof(T) == 2) ? (T)((BurstHax) ? ExtBusRead_NI_w1_SP1_u16_BH1(A) : ExtBusRead_NI_w1_SP1_u16_BH0(A))  \

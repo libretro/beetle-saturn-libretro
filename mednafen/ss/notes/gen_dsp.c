@@ -1,4 +1,4 @@
-// g++ -Wall -O2 -o gen_dsp gen_dsp.cpp && ./gen_dsp
+// gcc -Wall -O2 -o gen_dsp gen_dsp.c && ./gen_dsp
 #include <stdio.h>
 
 int main(int argc, char* argv[])

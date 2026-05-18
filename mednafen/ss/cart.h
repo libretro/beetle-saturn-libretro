@@ -31,7 +31,7 @@
 
 /* Formerly relied on being a no longer used header. Now valid as C too, so
    cart.c and the cart/ device .c files can include it.
-   ss_event_handler is defined in ss.h, which is C++ (class SH7095,
+   ss_event_handler is defined in ss.h (uses SH7095 struct,
    default args); mirror the typedef here -- it is just a
    function-pointer type. The CS01 and CS2M SetRW8W16 helpers, which
    were CartInfo member functions, are now free functions taking a

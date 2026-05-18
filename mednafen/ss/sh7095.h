@@ -370,7 +370,7 @@ struct SH7095
  const char* cpu_name;
 };
 
-/* Phase-9 step 4: SH7095 public API as free functions. */
+/* SH7095 public API as free functions. */
 void SH7095_SetIRL                     (SH7095* z, unsigned level);
 void SH7095_Init                       (SH7095* z, bool EmulateICache, bool CacheBypassHack) MDFN_COLD;
 void SH7095_Reset                      (SH7095* z, bool power_on_reset, bool from_internal_wdt) MDFN_COLD;

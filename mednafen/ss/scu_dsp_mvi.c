@@ -24,7 +24,7 @@
 
 #include "scu_dsp_common.inc"
 
-/* Phase-5c: was `template<bool looped, unsigned dest, unsigned cond>
+/* was `template<bool looped, unsigned dest, unsigned cond>
  * static NO_INLINE NO_CLONE void MVIInstr(DSPS* dsp)` -- 2x16x128 in
  * the function-pointer table, 2x16x65 = 2080 unique instantiations
  * (the cond&0x40==0 short-circuit collapses cond 0x00..0x3F to the

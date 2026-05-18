@@ -146,7 +146,7 @@ void SH7095_SetExtHaltDMAKludge(int cpu, bool state)
  SH7095_SetExtHaltDMAKludgeFromVDP2(&CPU[cpu], state);
 }
 
-/* Phase-7f: promoted from file-static -- ss_init.c's InitCommon
+/* promoted from file-static -- ss_init.c's InitCommon
  * loads it from disk and assigns BIOS_SHA256.  Definition stays
  * here so the rest of ss.c's globals layout is undisturbed. */
 uint16_t BIOSROM[524288 / sizeof(uint16_t)];
@@ -154,17 +154,17 @@ uint8_t WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear a
 // Effectively 32-bit in reality, but 16-bit here because of CPU interpreter design(regarding fastmap).
 uint16_t* WorkRAML = (uint16_t*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*0));
 uint16_t* WorkRAMH = (uint16_t*)(WorkRAM + (WORKRAM_BANK_SIZE_BYTES*1));
-// BackupRAM is exposed (no longer file-static) so libretro.cpp can hand a
+// BackupRAM is exposed (no longer file-static) so libretro.c can hand a
 // pointer to the frontend via retro_get_memory_data(RETRO_MEMORY_SAVE_RAM).
 // BackupRAM_Dirty and CartNV_Dirty are sticky flags maintained here and
-// drained by libretro.cpp from outside Emulate() -- see comment in
+// drained by libretro.c from outside Emulate() -- see comment in
 // Emulate() above. The old master-cycle delay variables are gone.
 uint8_t BackupRAM[32768];
 uint8_t BackupRAM_StateHelper[32768];
 bool BackupRAM_Dirty;
 bool CartNV_Dirty;
 
-/* Phase-7e: ss.c's InitCommon zero-initialises this on game load
+/* ss.c's InitCommon zero-initialises this on game load
  * (line ~867); ss_init.c's MidSync helper UpdateSMPCInput / Emulate
  * loop read and update it.  Define lives here, extern declared in
  * ss_init.c for the C-side accessors. */
@@ -802,7 +802,7 @@ static INLINE void BusRW_DB_CS12_u8_W0(const uint32_t A, uint32_t* DB, int32_t* 
  //
  *DB = 0;
 
- /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+ /* sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u8_W0 (A, DB, SH2DMAHax);
@@ -816,7 +816,7 @@ static INLINE void BusRW_DB_CS12_u8_W1(const uint32_t A, uint32_t* DB, int32_t* 
  // CS1 and CS2: SCU
  //
 
- /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+ /* sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u8_W1 (A, DB, SH2DMAHax);
@@ -831,7 +831,7 @@ static INLINE void BusRW_DB_CS12_u16_W0(const uint32_t A, uint32_t* DB, int32_t*
  //
  *DB = 0;
 
- /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+ /* sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u16_W0(A, DB, SH2DMAHax);
@@ -845,7 +845,7 @@ static INLINE void BusRW_DB_CS12_u16_W1(const uint32_t A, uint32_t* DB, int32_t*
  // CS1 and CS2: SCU
  //
 
- /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+ /* sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u16_W1(A, DB, SH2DMAHax);
@@ -860,7 +860,7 @@ static INLINE void BusRW_DB_CS12_u32_W0(const uint32_t A, uint32_t* DB, int32_t*
  //
  *DB = 0;
 
- /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+ /* sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u32_W0(A, DB, SH2DMAHax);
@@ -874,7 +874,7 @@ static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t* DB, int32_t*
  // CS1 and CS2: SCU
  //
 
- /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
+ /* sizeof(T) + IsWrite fold at BusRW_DB_CS12
   * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u32_W1(A, DB, SH2DMAHax);
@@ -1072,7 +1072,7 @@ int32_t SH7095_S_DMA_Update(int32_t et) { return SH7095_DMA_Update(&CPU[1], et);
  * and not yet a C-callable wrapper.  After the SH7095 class -> struct
  * conversion (later phase) this function migrates to ss_init.c too.
  *
- * Called from RunLoop and (commented out) debug.cpp.  Touches the
+ * Called from RunLoop.  Touches the
  * event ring via the externs declared in ss_init.h. */
 static void ForceEventUpdates(const sscpu_timestamp_t timestamp)
 {
@@ -1111,7 +1111,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_ICache(EmulateSpecStruct* espec)
   {
    do
    {
-    /* Phase-8p2: master Step dispatch.  RunLoop is templated on
+    /* master Step dispatch.  RunLoop is templated on
      * EmulateICache so this folds to one direct call per
      * instantiation. */
     SH7095_Step_w0_C1(&CPU[0]);
@@ -1149,7 +1149,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
   {
    do
    {
-    /* Phase-8p2: master Step dispatch.  RunLoop is templated on
+    /* master Step dispatch.  RunLoop is templated on
      * EmulateICache so this folds to one direct call per
      * instantiation. */
     SH7095_Step_w0_C0(&CPU[0]);
@@ -1184,7 +1184,7 @@ void    SS_ForceEventUpdates(int32_t timestamp)                                 
 void    SH7095_M_AdjustTS(int32_t delta)                                              { SH7095_AdjustTS(&CPU[0], delta); }
 void    SH7095_S_AdjustTS(int32_t delta)                                              { SH7095_AdjustTS(&CPU[1], delta); }
 
-/* Phase-7f: SH7095 wrappers used by InitCommon (Init / SetMD5 /
+/* SH7095 wrappers used by InitCommon (Init / SetMD5 /
  * TruePowerOn) and SS_Reset (TruePowerOn / Reset).  Retires when
  * SH7095 becomes a C struct. */
 MDFN_COLD void SH7095_M_Init(const bool emumode_full, const bool emumode_cb_only)     { SH7095_Init(&CPU[0], emumode_full, emumode_cb_only); }
@@ -1495,7 +1495,7 @@ void SS_RequestMLExit(void)
 }
 
 /* ===================================================================
- * Phase-7e: per-frame Emulate() loop + MidSync helper
+ * per-frame Emulate() loop + MidSync helper
  * =================================================================== */
 
 /* Externs into ss.c -- promoted to TU-external in phase 7d. */
@@ -1623,7 +1623,7 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
   *      emulation thread, so the duration is unpredictable under load.
   *
   * The fix is to keep BackupRAM_Dirty (and the cart-NV dirty bit) as
-  * pure flags here, and let libretro.cpp flush them from retro_run --
+  * pure flags here, and let libretro.c flush them from retro_run --
   * outside Emulate, with awareness of RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE
   * so run-ahead simulation frames don't trigger writes. The frontend
   * can also manage Backup RAM directly via RETRO_MEMORY_SAVE_RAM. */
@@ -1632,7 +1632,7 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
 }
 
 /* ===================================================================
- * Phase-7f: InitCommon / SS_Reset / Cleanup / CloseGame /
+ * InitCommon / SS_Reset / Cleanup / CloseGame /
  *           MDFN_BackupSavFile
  *
  * These are the boot-time orchestration entry points the libretro
@@ -2223,7 +2223,7 @@ void SS_LoadRTC(void)
 }
 
 /*
- * Public flush entry points for libretro.cpp.
+ * Public flush entry points for libretro.c.
  *
  * These wrap the (TU-local) SS_SaveBackupRAM / SS_SaveCartNV functions so
  * the file I/O can happen from outside Emulate(), after retro_run() has
@@ -2249,7 +2249,7 @@ bool SS_FlushCartNV(void)
 }
 
 /* ===================================================================
- * Phase-7d: emulator-state save/load
+ * emulator-state save/load
  * ===================================================================
  *
  * EventsPacker is the SH-2 event ring's save-state packer.  Was a

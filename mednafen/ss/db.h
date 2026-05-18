@@ -26,7 +26,7 @@
 #include "../cdstream.h"
 
 /* db.c -> db.c (this conversion sequence): DB_Lookup* are defined
- * in C now, but libretro.cpp (C++) calls them.  Force C linkage on
+ * in C now, but libretro.c (C++) calls them.  Force C linkage on
  * both sides via the extern "C" wrap so the C++ caller doesn't
  * name-mangle the references and the linker sees the same unmangled
  * symbols db.c emits.  Same pattern as ss.h / smpc.h / sound.h /

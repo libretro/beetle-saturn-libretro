@@ -174,7 +174,7 @@ MDFN_HIDE extern struct DSPS DSP;
 }
 #endif
 
-/* Phase-5a: was `template<bool looped = false> static FORCE_INLINE
+/* was `template<bool looped = false> static FORCE_INLINE
  * uint64_t DSP_DecodeInstruction(const uint32_t instr)`.  All call
  * sites pass a compile-time-constant `looped`, so with FORCE_INLINE
  * + -O2 the `looped` argument is constant-folded across the switch
@@ -221,7 +221,7 @@ static FORCE_INLINE uint64_t DSP_DecodeInstruction(const uint32_t instr, const b
  return ((uint64_t)instr << 32) | (uint32_t)((uintptr_t)aal - DSP_INSTR_BASE_UIPT);
 }
 
-/* Phase-5a: was `template<bool looped> static FORCE_INLINE uint32_t
+/* was `template<bool looped> static FORCE_INLINE uint32_t
  * DSP_InstrPre(DSPS* dsp)`.  Caller passes `looped` as a compile-time
  * constant (template arg of the surrounding instruction-handler in
  * scu_dsp_*.cpp); FORCE_INLINE + -O2 folds the if-branches identically
@@ -264,7 +264,7 @@ static FORCE_INLINE void DSP_TailDispatch(struct DSPS* dsp)
  next(dsp);
 }
 
-/* Phase-5a: was `template<unsigned cond> static FORCE_INLINE bool
+/* was `template<unsigned cond> static FORCE_INLINE bool
  * DSP_TestCond(DSPS* dsp)`.  Caller passes `cond` as a compile-time
  * constant; FORCE_INLINE + -O2 folds the bit-checks identically to
  * the template form. */

@@ -584,7 +584,7 @@ static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_32(struct TileFetcher_Non
  * function-table BODY macros.  At -O2 the compiler folds the ?:
  * chain and emits a direct call to the matching Fetch_N variant.
  * The macros take a TileFetcher_{Rot,NonRot}* `self_p` rather than
- * an object; call sites that currently have an `auto& tf` C++
+ * an object; call sites that previously had an `auto& tf` C++
  * reference pass `&tf`, which decays to the right pointer type. */
 #define TF_ROT_FETCH(self_p, bpp, bmen, ix, iy) \
  TileFetcher_Rot_Fetch_##bpp((self_p), (bmen), (ix), (iy))
@@ -4628,7 +4628,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
  // row of the surface with this scanline's content. Every emulated
  // frame thus produces a stable, full-vertical-resolution image
  // where both surface rows in each (even, odd) pair hold
- // current-frame pixels. The deinterlacer in libretro.cpp is set
+ // current-frame pixels. The deinterlacer in libretro.c is set
  // to DEINT_OFF alongside this flag so it doesn't try to combine
  // fields.
  //

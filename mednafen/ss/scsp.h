@@ -21,12 +21,12 @@
 
 #include "../state.h"
 
-/* Phase-9a: class -> struct.  Members formerly under `private:`
+/* class -> struct.  Members formerly under `private:`
  * are now (implicitly) public, preparing for eventual C
  * migration (C structs have no access control).  Member
  * functions remain methods of the struct -- they will be
  * converted to free functions in a later phase. */
-/* Phase-9 (final): SS_SCSP nested types and enums pulled to file
+/* SS_SCSP nested types and enums pulled to file
  * scope so the SS_SCSP: : qualifier needed inside the converted
  * free-function bodies disappears.  Bringing scsp one more step
  * closer to plain-C compatibility.  Names are unchanged; only the
@@ -248,7 +248,7 @@ static const uint16_t SS_SCSP_SB_XOR_Table[4] = { 0x0000, 0x7FFF, 0x8000, 0xFFFF
 
 struct SS_SCSP
 {
- /* Phase-8f: RunSample's `template<typename T_out = int16_t>` form
+ /* RunSample's `template<typename T_out = int16_t>` form
   * was the only path-traveled instantiation -- sound.c's
   * one and only caller passes an int16_t* (the IBuffer slot) and
   * always relied on the default template argument.  The 18-bit-DAC
@@ -258,10 +258,10 @@ struct SS_SCSP
   * gained no actual precision -- it was dead code.  Hard-coding
   * int16_t retires the template, makes the method a regular class
   * member, and leaves no behaviour change. */
- /* Phase-8r1: 4 named member methods replace
+ /* 4 named member methods replace
   *   template<T, IsWrite> void RW(uint32_t, T&);
   * Source-folded per (T, IsWrite) tuple. */
- /* Phase-9 step 3: GetEXTSPtr / GetRAMPtr / WriteMIDI and the
+ /* GetEXTSPtr / GetRAMPtr / WriteMIDI and the
   * RW_R8/R16/W8/W16 wrappers are now free functions after the
   * struct definition -- see SS_SCSP_* helpers below. */
 
