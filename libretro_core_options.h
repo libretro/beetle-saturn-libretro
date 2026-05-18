@@ -528,7 +528,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "beetle_saturn_analog_stick_deadzone",
       "Analog Stick Deadzone",
       NULL,
-      "Configure the analog deadzone of the '3D Control Pad' device type.",
+      "Inner deadzone applied to the '3D Control Pad' device type's analog stick, in addition to any front-end deadzone already configured in RetroArch's input settings.  Leave at 0% if you want the front-end deadzone to be authoritative; raise this if you want a stricter centre dead-region than RetroArch alone provides.  The two deadzones compound: setting 15% here on top of 15% in RetroArch results in roughly 28% combined dead-region.",
       NULL,
       "input",
       {
@@ -541,13 +541,13 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "30%", NULL },
          { NULL, NULL },
       },
-      "15%"
+      "0%"
    },
    {
       "beetle_saturn_trigger_deadzone",
       "Trigger Deadzone",
       NULL,
-      "Configure the trigger deadzone of the '3D Control Pad' device type.",
+      "Inner deadzone applied to the '3D Control Pad' device type's analog triggers, in addition to any front-end deadzone already configured in RetroArch's input settings.  Leave at 0% if you want the front-end deadzone to be authoritative; raise this if you want a stricter pull threshold before triggers begin to register.  The two deadzones compound.",
       NULL,
       "input",
       {
@@ -560,7 +560,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "30%", NULL },
          { NULL, NULL },
       },
-      "15%"
+      "0%"
    },
    {
       "beetle_saturn_mouse_sensitivity",
