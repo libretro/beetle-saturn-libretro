@@ -75,12 +75,12 @@ uint32_t IBufferCount;
 /* SCSP IRQ-line and main-CPU-int callbacks.  Pulled in by scsp.inc
  * and called from the SCSP state machine; touch the M68K IPL line
  * and the SCU interrupt latch respectively. */
-static INLINE void SCSP_SoundIntChanged(SS_SCSP* s, unsigned level)
+static INLINE void SCSP_SoundIntChanged(unsigned level)
 {
  M68K_SetIPL(&SoundCPU, level);
 }
 
-static INLINE void SCSP_MainIntChanged(SS_SCSP* s, bool state)
+static INLINE void SCSP_MainIntChanged(bool state)
 {
  SCU_SetInt(SCU_INT_SCSP, state);
 }

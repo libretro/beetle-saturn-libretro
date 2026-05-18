@@ -172,12 +172,12 @@ static void SS_SCSP_RecalcSoundInt(SS_SCSP* z)	// Sound CPU interrupts
  out_level |= (bool)lvmasked[0];
  //
  //
- SCSP_SoundIntChanged(z, out_level);
+ SCSP_SoundIntChanged(out_level);
 }
 
 static void SS_SCSP_RecalcMainInt(SS_SCSP* z)	// Main CPU interrupts
 {
- SCSP_MainIntChanged(z, (bool)(z->MCIPD & z->MCIEB));
+ SCSP_MainIntChanged((bool)(z->MCIPD & z->MCIEB));
 }
 
 static INLINE void SS_SCSP_RecalcShortWaveMask(SS_SCSP_Slot* s)
