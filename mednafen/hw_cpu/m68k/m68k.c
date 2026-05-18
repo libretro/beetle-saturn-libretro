@@ -47,7 +47,6 @@
 #include "../../mednafen.h"
 #include "m68k.h"
 
-#include <tuple>
 
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC optimize ("no-crossjumping,no-gcse")
@@ -68,7 +67,6 @@ static MDFN_FASTCALL void Dummy_BusRESET(bool state) { }
  * struct M68K member method.  Bodies are in this TU (m68k.cpp)
  * because they reach Dummy_BusRESET / member methods / sources
  * not exposed in the public header. */
-extern "C" {
 
 void M68K_Construct(M68K* z, bool rev_e)
 {
@@ -144,7 +142,6 @@ void     M68K_Reset              (M68K* z, bool pwr)
  }
  z->XPending = (z->XPending & ~(XPENDING_MASK_STOPPED | XPENDING_MASK_NMI | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS | XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED)) | XPENDING_MASK_RESET;
 }
-void     M68K_Run                (M68K* z, int32_t until)               { z->Run(until); }
 void     M68K_SetExtHalted       (M68K* z, bool state)
 {
  z->XPending &= ~XPENDING_MASK_EXTHALTED;
@@ -256,7 +253,6 @@ void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t val
  }
 }
 
-} /* extern "C" */
 
 /* Phase-9 cleanup: M68K::M68K(const bool) and M68K::~M68K() retired.
  * Zero remaining callers after sound_glue.cpp -> sound_glue.c
@@ -352,69 +348,69 @@ MDFN_FASTCALL uint8_t TAS_Callback(M68K* zptr, uint8_t data)
  return data;
 }
 
-void NO_INLINE M68K::Run(int32_t run_until_time)
+void NO_INLINE M68K_Run(M68K* z, int32_t run_until_time)
 {
- while(MDFN_LIKELY(timestamp < run_until_time))
+ while(MDFN_LIKELY(z->timestamp < run_until_time))
  {
-	 if(MDFN_UNLIKELY(XPending))
+	 if(MDFN_UNLIKELY(z->XPending))
 	 {
-		 if(MDFN_LIKELY(!(XPending & (XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED | XPENDING_MASK_EXTHALTED))))
+		 if(MDFN_LIKELY(!(z->XPending & (XPENDING_MASK_ERRORHALTED | XPENDING_MASK_DTACKHALTED | XPENDING_MASK_EXTHALTED))))
 		 {
-			 if(MDFN_UNLIKELY(XPending & (XPENDING_MASK_RESET | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS)))
+			 if(MDFN_UNLIKELY(z->XPending & (XPENDING_MASK_RESET | XPENDING_MASK_ADDRESS | XPENDING_MASK_BUS)))
 			 {
-				 if(XPending & XPENDING_MASK_RESET)
+				 if(z->XPending & XPENDING_MASK_RESET)
 				 {
-					 SetSR(this, (GetSR(this) & ~0x2000) | (1 << 13));
-					 SetSR(this, (GetSR(this) & ~0x8000));
-					 SetSR(this, (GetSR(this) & ~0x0700) | (0x7 << 8));
+					 SetSR(z, (GetSR(z) & ~0x2000) | (1 << 13));
+					 SetSR(z, (GetSR(z) & ~0x8000));
+					 SetSR(z, (GetSR(z) & ~0x0700) | (0x7 << 8));
 
-					 A[7] = Read_u32(this, VECNUM_RESET_SSP << 2);
-					 PC = Read_u32(this, VECNUM_RESET_PC << 2);
+					 z->A[7] = Read_u32(z, VECNUM_RESET_SSP << 2);
+					 z->PC = Read_u32(z, VECNUM_RESET_PC << 2);
 					 //
-					 XPending &= ~XPENDING_MASK_RESET;
+					 z->XPending &= ~XPENDING_MASK_RESET;
 				 }
 				 else
 				 {
-					 if(XPending & XPENDING_MASK_BUS)
-						 Exception(this, EXCEPTION_BUS_ERROR, VECNUM_BUS_ERROR);
+					 if(z->XPending & XPENDING_MASK_BUS)
+						 Exception(z, EXCEPTION_BUS_ERROR, VECNUM_BUS_ERROR);
 					 else
-						 Exception(this, EXCEPTION_ADDRESS_ERROR, VECNUM_ADDRESS_ERROR);
-					 // Clear bus/address error bits in XPending only after Exception(this, this) returns normally:
-					 XPending &= ~(XPENDING_MASK_BUS | XPENDING_MASK_ADDRESS);
+						 Exception(z, EXCEPTION_ADDRESS_ERROR, VECNUM_ADDRESS_ERROR);
+					 // Clear bus/address error bits in z->XPending only after Exception(z, z) returns normally:
+					 z->XPending &= ~(XPENDING_MASK_BUS | XPENDING_MASK_ADDRESS);
 				 }
 
 				 return;
 			 }
-			 else if(XPending & (XPENDING_MASK_INT | XPENDING_MASK_NMI))
+			 else if(z->XPending & (XPENDING_MASK_INT | XPENDING_MASK_NMI))
 			 {
-				 assert(IPL == 0x7 || IPL > ((GetSR(this) >> 8) & 0x7));
-				 XPending &= ~(XPENDING_MASK_STOPPED | XPENDING_MASK_INT | XPENDING_MASK_NMI);
+				 assert(z->IPL == 0x7 || z->IPL > ((GetSR(z) >> 8) & 0x7));
+				 z->XPending &= ~(XPENDING_MASK_STOPPED | XPENDING_MASK_INT | XPENDING_MASK_NMI);
 
-				 Exception(this, EXCEPTION_INT, VECNUM_INT_BASE);
+				 Exception(z, EXCEPTION_INT, VECNUM_INT_BASE);
 
 				 return;
 			 }
 		 }
 
 		 // STOP and ExtHalted fallthrough:
-		 timestamp += 4;
+		 z->timestamp += 4;
 		 return;
 	 }
 	 //
 	 //
 	 //
-	 uint16_t instr = ReadOp(this);
+	 uint16_t instr = ReadOp(z);
 	 const unsigned instr_b11_b9 = (instr >> 9) & 0x7;
 	 const unsigned instr_b2_b0 = instr & 0x7;
 #ifdef M68K_SPLIT_SWITCH
 	 if(instr & 0x8000)
-	  RunSplit1(instr & 0x7fff, instr_b11_b9, instr_b2_b0);
+	  M68K_RunSplit1(z, instr & 0x7fff, instr_b11_b9, instr_b2_b0);
 	 else
-	  RunSplit0(instr, instr_b11_b9, instr_b2_b0);
+	  M68K_RunSplit0(z, instr, instr_b11_b9, instr_b2_b0);
 #else
 	 switch(instr)
 	 {
-		 default: ILLEGAL(this, instr); break;
+		 default: ILLEGAL(z, instr); break;
 #include "m68k_instr.inc"
 	 }
 #endif

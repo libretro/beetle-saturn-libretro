@@ -250,7 +250,9 @@ INLINE void SetSR(M68K* z, uint16_t val)
 
  if((z->SRHB ^ new_srhb) & 0x20)	// Supervisor mode change
  {
-  std::swap(z->A[7], z->SP_Inactive);
+  uint32_t tmp     = z->A[7];
+  z->A[7]          = z->SP_Inactive;
+  z->SP_Inactive   = tmp;
  }
 
  z->SRHB = new_srhb;
@@ -784,9 +786,12 @@ INLINE void SWAP(M68K* z, const unsigned dr)
 //
 INLINE void EXG(M68K* z, uint32_t* a, uint32_t* b)
 {
+ uint32_t tmp;
  z->timestamp += 2;
 
- std::swap(*a, *b); 
+ tmp = *a;
+ *a  = *b;
+ *b  = tmp;
 }
 
 //

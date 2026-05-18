@@ -67,7 +67,7 @@ SOURCE_GLOBS = [
     "mednafen/ss/input/*.cpp",
     "mednafen/cdrom/*.c",
     "mednafen/hash/*.c",
-    "mednafen/hw_cpu/m68k/*.cpp",
+    "mednafen/hw_cpu/m68k/*.c", "mednafen/hw_cpu/m68k/*.cpp",
     "mednafen/video/*.c", "mednafen/video/*.cpp",
     "mednafen/*.c", "mednafen/*.cpp",
     "libretro.c", "disc.c", "input.c",
@@ -251,8 +251,8 @@ def main():
     # Files that are only in SOURCES under specific flags, per
     # Makefile.common.  Excluded from configs where the flag is off.
     M68K_SPLIT_ONLY = (
-        "mednafen/hw_cpu/m68k/m68k_instr_split0.cpp",
-        "mednafen/hw_cpu/m68k/m68k_instr_split1.cpp",
+        "mednafen/hw_cpu/m68k/m68k_instr_split0.c",
+        "mednafen/hw_cpu/m68k/m68k_instr_split1.c",
     )
     CHD_ONLY = ("mednafen/cdrom/CDAccess_CHD.c",)
 

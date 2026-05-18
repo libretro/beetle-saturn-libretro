@@ -173,49 +173,6 @@ enum  /* GSREG -- id parameter of M68K_GetRegister / M68K_SetRegister */
 struct M68K
 {
 
-#ifdef __cplusplus
- /* C++-only: class methods reachable on this struct.  C
-  * consumers see this header as a plain data struct (same
-  * layout, same member offsets).  All bodies live in
-  * m68k.cpp / m68k_instr.inc / m68k_instr_split{0,1}.cpp;
-  * C consumers reach them via the `extern "C"` M68K_* free
-  * functions declared at the bottom of this header. */
-
- /* Phase-9: M68K::M68K(rev_e) and M68K::~M68K() retired.  Zero
-  * callers after sound_glue.cpp -> sound_glue.c switched to
-  * M68K_Construct.  M68K is pure-data now; instances are
-  * zero-initialised at file scope and finalised with an
-  * explicit M68K_Construct(&inst, rev_e) call. */
-
- void Run(int32_t run_until_time);
-
- /* Phase-9d-4: Reset retired from the class.  Body moved inline into the
-  * M68K_Reset extern "C" wrapper in m68k.cpp.  Both prior callers
-  * (M68K_Construct in m68k.cpp and the M68K_Reset wrapper) now reach the
-  * body the same way the BusRESET callback path always did: through
-  * M68K_Reset(z, ...).  No class-method dispatch step in between. */
-
- /* Phase-9d-1: SetIPL and SetExtHalted retired from the class.
-  * Bodies moved inline into the M68K_SetIPL / M68K_SetExtHalted
-  * extern "C" wrappers in m68k.cpp -- they were already 1-line
-  * forwarders to z->SetIPL(...) / z->SetExtHalted(...) and the
-  * 8 / 4 line bodies don't need the dispatch round-trip. */
-
- /* Phase-9d-5: SignalDTACKHalted and SignalAddressError retired from
-  * the class.  Bodies moved inline into the M68K_SignalDTACKHalted /
-  * M68K_SignalAddressError extern "C" wrappers in m68k.cpp.  These
-  * are called from external bus read/write handlers, followed by a
-  * longjmp() back to above Run(), so an extra dispatch round-trip
-  * through a class method was pure cost. */
-
- /* Phase-9d-3: StateAction retired -- body moved to the
-  * M68K_StateAction extern "C" wrapper in m68k.cpp (parallel to
-  * Phase-9d-1's SetIPL/SetExtHalted treatment).  Field-name strings
-  * in the savestate SFORMAT array intentionally keep their pre-9d
-  * spellings so on-disk savestate compat is preserved. */
-
-#endif /* __cplusplus */
-
  //
  //
  //
@@ -257,61 +214,11 @@ struct M68K
   * convention, not by compiler-enforced const-correctness. */
  bool Revision_E;
 
-#ifdef __cplusplus
- //private:
-
- /* Phase-8a: M68K's width-template family.  Read<T> / Write<T,
-  * long_dec> stay as 1-line dispatchers for the 2 T-parametric
-  * call sites still in HAM<T, AM>::Read / ::Write (and Read<T>
-  * also in MOVEM_to_REGS' body).  Their bodies forward to the
-  * named uX variants below.  Both retire when HAM detemplates.
-  *
-  * Push<T> / Pull<T> are gone -- every caller used a concrete
-  * uint16_t / uint32_t at the call site, so the 4 named variants
-  * below replace them outright.
-  */
-
- /* For 32-bit writes the M68K has two bus-ordering modes:
-  *   default -- high half first   (BusWrite16(addr, hi); BusWrite16(addr+2, lo))
-  *   _longdec -- low half first   (BusWrite16(addr+2, lo); BusWrite16(addr, hi))
-  * The longdec variant is what Push_u32 uses, mirroring the old
-  * `Write<uint32_t, true>` template instantiation. */
-
-#ifdef M68K_SPLIT_SWITCH
- void RunSplit0(uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
- void RunSplit1(uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
-#endif
-
-#endif /* __cplusplus */
-
  /* Phase-9d-7: enum AddressMode hoisted to file scope above
   * struct M68K.  Bare-name references (DATA_REG_DIR etc.)
   * inside class methods continue to resolve via file-scope
   * lookup; `AddressMode` is used as a template parameter type
   * (was `AddressMode`) by HAM and the op templates. */
-
-#ifdef __cplusplus
- //
- // MOVE byte and word: instructions, 2 cycle penalty for source predecrement only
- //  	2 cycle penalty for (d8, An, Xn) for both source and dest ams
- //  	2 cycle penalty for (d8, PC, Xn) for dest am
- //
-
- /* Phase-9d-6: CalcZN<T, Z_OnlyClear> template retired.  The six
-  * named width-typed variants below remain as class methods; the
-  * dispatch that the template was doing now lives in
-  * m68k_private.h's CALC_ZN(z, T, val) and CALC_ZN_CLEAR(z, T, val)
-  * macros which expand to a `sizeof(T)`-keyed if/else-if chain
-  * selecting the right named call.  gcc -O2 constant-folds the
-  * sizeof check so each compile-time-known T at the call site
-  * collapses to the right single call (byte-equivalent to the
-  * prior template instantiation).
-  *
-  * The named methods are still T-typed (uint8_t / uint16_t /
-  * uint32_t) by their parameter so the existing template-op
-  * callers don't need to cast values. */
-
-#endif /* __cplusplus */
 
  //
  /* Phase-9d-7: VECNUM_* and EXCEPTION_* enums hoisted to file
@@ -319,78 +226,6 @@ struct M68K
   * (declared just below in the __cplusplus block) and by every
   * op-body that raises an exception. */
 
-#ifdef __cplusplus
-
- /* Phase-8e: Subtract's `bool X_form` template parameter moved to
-  * a runtime first-arg.  T, DT, SAM, DAM stay HAM-locked. */
- /* Phase-9d-10: NEG/NEGX retired from struct M68K scope; now
-  * free templates below struct M68K, in the same block as EXT
-  * (added in Phase-9d-9). */
-
- /* Phase-9d-12: OR, EOR, AND retired from struct M68K scope; see
-  * the free-template block after struct M68K closes. */
-
- /* Phase-8b: Divide<sdiv> retired -- two callers (DIVU, DIVS) each
-  * with a concrete `sdiv` value, no T-parametric dispatch needed. */
-
- /* Phase-8d: MOVEP<T, reg_to_mem> retired.  Only 4 instantiations
-  * (T = uint16_t / uint32_t cross-product with reg_to_mem = false /
-  * true), and the body's `if(reg_to_mem)` branch and the loop's
-  * sizeof(T) are both compile-time folded by the template form;
-  * the 4 named methods below carry the post-folding bodies
-  * directly. */
-
- /* Phase-9d-12: BTST, BCHG, BCLR, BSET retired from struct M68K
-  * scope; see the free-template block after struct M68K closes. */
-
- /* Phase-9d-11: MOVEA retired from struct M68K scope; see the
-  * free-template block after struct M68K closes. */
-
- /* Phase-8e: MOVEM_to_MEM's `bool pseudo_predec` moved to runtime. */
- /* Phase-8e: MOVEM_to_REGS's `bool pseudo_postinc` moved to runtime. */
- /* Phase-8e: ShiftBase's `bool Arithmetic, bool ShiftLeft` moved
-  * to runtime first-args.  The four ASL/ASR/LSL/LSR wrappers
-  * (kept as templates because they take HAM<T, TAM>&) now pass
-  * the booleans by runtime constants -- gcc -O2 inlines them
-  * and constprops the bools, so callsites generate identical
-  * instruction streams to the previous template-instantiation
-  * form. */
- /* Phase-8e: RotateBase's `bool X_Form, bool ShiftLeft` moved
-  * to runtime first-args.  Same shape as ShiftBase. */
- /* Phase-9d-9 + Phase-9d-10: EXT, TAS, TST, CLR, NOT retired from
-  * struct M68K scope.  All five are now free templates living after
-  * struct M68K's closing brace; see the declaration block down
-  * there. */
-
- /* Phase-8c: BCC condition-code family detempleted.
-  *
-  * TestCond / Bxx / DBcc lose their `unsigned cc` template
-  * parameter entirely -- cc moves from a template-time constant
-  * into a runtime first-argument.  Their bodies' switch(cc) used
-  * to fold to a single arm per instantiation; with cc as a
-  * runtime value gcc still emits the switch as a jump table or
-  * branch tree depending on density, and the per-callsite cost
-  * is the same single conditional that the old per-instantiation
-  * folded body produced.
-  *
-  * Scc keeps its T and DAM template parameters (still HAM-locked)
-  * but `cc` moves to a runtime argument too -- one fewer template
-  * dimension, cleaner instr.inc call sites. */
-
- /* Phase-9d-11: Scc, JSR, JMP, MOVE_from_SR, MOVE_to_CCR,
-  * MOVE_to_SR retired from struct M68K scope; see the
-  * free-template block after struct M68K closes. */
-
- /* Phase-8d: MOVE_USP bool template parameter -> runtime arg.
-  * Just two callers per build (the two MOVE-USP-direction
-  * combinations privileged supervisor mode permits); the body
-  * is a 3-line ternary that doesn't benefit from compile-time
-  * folding the bool.  Cleaner as a runtime first-arg. */
-
- /* Phase-9d-11: LEA, PEA retired from struct M68K scope; see
-  * the free-template block after struct M68K closes. */
-
-#endif /* __cplusplus */
  //
  //
  //
@@ -434,18 +269,6 @@ struct M68K
  * .inc files are #included inside M68K::Run() / M68K::RunSplit{0,1}()
  * where `this` is in scope).  The HAM<T,AM>& parameter type still
  * references M68K::HAM (HAM detempleting is a later commit). */
-#ifdef __cplusplus
-/* Phase-9d-11: 9-op single-arg-with-extra family. */
-/* Phase-9d-12: bitwise (AND/OR/EOR) + bit-test (BTST/BCHG/BCLR/BSET). */
-/* Phase-9d-13: ALL remaining template ops + helpers (ADD/ADDX/
- * Subtract/SUB/SUBX/CMP/CHK + MULU/MULS/DIVU/DIVS +
- * ABCD/SBCD/NBCD + MOVE/MOVEM_to_MEM/MOVEM_to_REGS +
- * ShiftBase/ASL/ASR/LSL/LSR + RotateBase/ROL/ROR/ROXL/ROXR)
- * extracted in one batch.  All 27 follow the same mechanical
- * pattern proven in Phase-9d-9..12.  Subtract/ShiftBase/RotateBase
- * are template helper callees of multiple op templates; their
- * extraction lets the calling ops detemplate cleanly. */
-#endif /* __cplusplus */
 
 /* Phase-9d-14: 63 non-template class methods extracted to free
  * functions, parallel to Phase-9d-13s template-op extraction.  After
@@ -550,6 +373,10 @@ void     M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type);
 
 void     M68K_Reset              (M68K* z, bool pwr) MDFN_COLD;
 void     M68K_Run                (M68K* z, int32_t until);
+#ifdef M68K_SPLIT_SWITCH
+void     M68K_RunSplit0          (M68K* z, uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
+void     M68K_RunSplit1          (M68K* z, uint16_t instr, const unsigned instr_b11_b9, const unsigned instr_b2_b0);
+#endif
 void     M68K_SetExtHalted       (M68K* z, bool state);
 void     M68K_StateAction        (M68K* z, StateMem* sm, const unsigned load,
                                   const bool data_only, const char* sname);

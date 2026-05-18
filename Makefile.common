@@ -190,12 +190,12 @@ SOURCES_C += $(MEDNAFEN_DIR)/hash/crc.c
 # hierarchy in input/*.{cpp,h} to a single C translation unit.
 SOURCES_C += $(CORE_EMU_DIR)/smpc_iodevice.c
 
-SOURCES_CXX += $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k.cpp
+SOURCES_C += $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k.c
 
 ifeq ($(M68K_SPLIT_SWITCH), 1)
    FLAGS += -DM68K_SPLIT_SWITCH
-   SOURCES_CXX += $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k_instr_split0.cpp \
-                  $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k_instr_split1.cpp
+   SOURCES_C += $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k_instr_split0.c \
+                $(MEDNAFEN_DIR)/hw_cpu/m68k/m68k_instr_split1.c
 endif
 
 ifeq ($(NEED_TREMOR), 1)

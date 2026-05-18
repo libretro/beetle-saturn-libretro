@@ -15,7 +15,7 @@ static INLINE void OP_NAME(M68K* z, struct OP_HAM_DST* dst)
 
  OP_T result = HAM_DST_FN(_read)(dst);
 
- if(std::is_same<OP_T, uint16_t>::value)
+ if(OP_TSIZE == 2)
   result = (int8_t)result;
  else
   result = (int16_t)result;
