@@ -55,21 +55,14 @@ ifeq ($(NEED_TREMOR), 1)
    FLAGS += -DNEED_TREMOR
 endif
 
-SOURCES_C += $(CORE_EMU_DIR)/ss.c \
-             $(CORE_EMU_DIR)/sound_glue.c
+SOURCES_C += $(CORE_EMU_DIR)/ss.c
 
-# sound.cpp -> sound.c + sound_glue.cpp (Phase-6c) -> sound_glue.c
-# (Phase-9).  The orchestration half (SOUND_* public ABI, the
-# SOUND_Update 32.32 fixed-point cycle loop, the SCSP IBuffer ring,
-# the setjmp recovery point) lives in sound.c; the struct instances
-# (SS_SCSP SCSP, M68K SoundCPU -- both retired from being C++
-# class types), the eight M68K bus callbacks they need, and
-# scsp.inc live in sound_glue.c.  The two halves exchange state
-# through sound_internal.h: a set of SoundGlue_* C-linkage wrappers
-# around the M68K_* / SS_SCSP_* free-function APIs, and four
-# extern symbols (SOUND_next_scsp_time, SOUND_jbuf, IBuffer,
-# SOUND_IBufferCount) owned by sound.c that the glue side reads /
-# writes during the bus-callback and RunSCSP paths.
+# sound.c covers the whole Saturn sound subsystem in a single TU:
+# the SOUND_* public ABI, the SOUND_Update 32.32 fixed-point cycle
+# loop, the SCSP IBuffer ring, the setjmp recovery point, the SS_SCSP
+# / M68K SoundCPU instances, the eight M68K bus callbacks, and
+# scsp.inc.  Previously split as sound.c / sound_glue.c during the
+# C++ -> C migration; merged once both halves were plain-C TUs.
 
 # scu_dsp_{gen,mvi,jmp,misc}.cpp -> .c.  Phase-5a detemplated the
 # four helper functions in scu_dsp_common.inc (DSP_TestCond,
