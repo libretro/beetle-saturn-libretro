@@ -94,11 +94,6 @@ extern sscpu_timestamp_t next_event_ts;
 extern "C" {
 #endif
 
-static INLINE bool FMIsWriteable_get(uint32_t i)
-{
- return (FMIsWriteable[i >> 5] >> (i & 31)) & 1;
-}
-
 static INLINE void FMIsWriteable_set(uint32_t i, bool v)
 {
  const uint32_t mask = (uint32_t)1 << (i & 31);
