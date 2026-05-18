@@ -23,7 +23,7 @@
 #define __MDFN_SS_SOUND_H
 
 #include "../state.h"
-/* MDFN_COLD / MDFN_HOT attribute macros.  Existing C++ TUs got
+/* MDFN_COLD / MDFN_HOT attribute macros.  Existing TUs got
  * these transitively (via ss.h / mednafen.h); for C consumers
  * include them explicitly so this header is self-contained. */
 #include "../mednafen-types.h"

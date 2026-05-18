@@ -19,7 +19,7 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-/* Converted from ak93c45.cpp. AK93C45 was a simple C++ class -- no
+/* Converted from ak93c45.c. AK93C45 was a simple struct -- no
    inheritance, no virtual methods, no templates -- so the conversion
    is mechanical: the class becomes a struct, the methods become free
    functions taking an AK93C45*, and the constructor/destructor fold

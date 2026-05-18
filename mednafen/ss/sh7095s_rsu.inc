@@ -1,6 +1,6 @@
- /* Plain enums (not C++11 `enum : type {}`).  The latter is rejected
+ /* Plain enums (not 11 `enum : type {}`).  The latter is rejected
   * by MSVC C89 mode and by strict ISO C.  enum constants are always
-  * `int` in C; the bool / unsigned typed-enum forms in C++11 only
+  * `int` in C; the bool / unsigned typed-enum forms in 11 only
   * affect the constant's underlying storage type, never its value --
   * so the downstream `if(EmulateICache)` / `case which:` /
   * `if(DebugMode)` macro expansions get the same compile-time fold

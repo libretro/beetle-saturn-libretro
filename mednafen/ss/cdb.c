@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* cdb.cpp - CD Block Emulation
+/* cdb.c - CD Block Emulation
 **  Copyright (C) 2016-2021 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -89,7 +89,6 @@
 
 	World Cup France '98
 		Same issues as Dragon Force II
-
 
 ********************************************************************************
  Other interesting games:
@@ -1224,10 +1223,8 @@ static void DT_ReadIntoFIFO(void)
  }
 }
 
-
-
 // Ratio between SH-2 clock and sound subsystem 68K clock (sound clock / 2)
-// (needs to match the algorithm precision in sound.cpp, for proper CD-DA stream synch without having to get into more complicated designs)
+// (needs to match the algorithm precision in sound.c, for proper CD-DA stream synch without having to get into more complicated designs)
 void CDB_SetClockRatio(uint32_t ratio)
 {
  CDB_ClockRatio = ratio;
@@ -1297,8 +1294,6 @@ void CDB_SetCDActive(bool active)	// TODO
 {
 
 }
-
-
 
 void CDB_Init(void)
 {
@@ -1468,7 +1463,6 @@ enum { CommandPhaseBias = __COUNTER__ + 1 };
 			     }									\
 			    }									\
 			   }
-
 
 uint8_t GetDriveStatus(void)
 {
@@ -1677,7 +1671,6 @@ static void BasicResults(uint32_t res0, uint32_t res1, uint32_t res2, uint32_t r
  Results[2] = res2;
  Results[3] = res3;
  ResultsRead = false;
-
 
  CommandPending = false;
  TriggerIRQ(HIRQ_CMOK | SWResetHIRQDeferred);
@@ -2006,7 +1999,6 @@ static void Drive_Run(int64_t clocks)
 	}
 	break;
 
-
     case DRIVEPHASE_SEEK:
 	//
 	// Extremely crude approximation.
@@ -2174,7 +2166,7 @@ static void Drive_Run(int64_t clocks)
   if(PeriodicIdleCounter <= 0)
   {
    PeriodicIdleCounter = PeriodicIdleCounter_Reload;
- 
+
    //
    //
    //
@@ -2407,7 +2399,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       DT.FIFO_In = 0;
 
       DT.BufList[0] = 0xFF;
-     
+
       DT.Writing = false;
       DT.NeedBufFree = false;
       DT.Active = true;
@@ -2671,12 +2663,12 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
        DT.BufCount = 1;
 
        DT.InBufOffs = 0;
-       
+
        DT.TotalCounter = 0;
        DT.FIFO_RP = 0;
        DT.FIFO_WP = 0;
        DT.FIFO_In = 0;
-     
+
        DT.Writing = false;
        DT.NeedBufFree = false;
        DT.Active = true;
@@ -3582,7 +3574,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       DT.FIFO_In = 0;
 
       DT.BufList[0] = 0xF0;
-      
+
       DT.Writing = false;
       DT.NeedBufFree = false;
       DT.Active = true;
@@ -3804,7 +3796,6 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
   //RunFLS(clocks);
  }
 
-
  assert(DriveCounter > 0);
 
  {
@@ -3824,7 +3815,6 @@ void CDB_ResetTS(void)
 {
  lastts = 0;
 }
-
 
 uint16_t CDB_Read(uint32_t offset)
 {
@@ -3937,8 +3927,6 @@ void CDB_Write_DBM(uint32_t offset, uint16_t DB, uint16_t mask)
 
  SS_SetEventNT(&events[SS_EVENT_CDB], nt);
 }
-
-
 
 void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {

@@ -48,16 +48,6 @@ INLINE uint16_t ReadOp(M68K* z)
  return ret;
 }
 
-/* Phase-8a: named width-typed Write methods.  The Write<T, long_dec>
- * template below is kept as a thin dispatcher for the one remaining
- * T-parametric call site (HAM<T, AM>::Write); phase 8e dropped
- * MOVEM_to_MEM's usage of it by inlining the width-dispatch
- * directly.  Retires when HAM detemplates.
- *
- * The two 32-bit variants differ only in bus-write ordering:
- *  - Write_u32          : high half first (default for non-predec)
- *  - Write_u32_longdec  : low half first  (used by Push_u32 and by
- *                                          MOVEM_to_MEM in predec mode) */
 INLINE void Write_u8(M68K* z, uint32_t addr, const uint8_t val)
 {
  z->BusWrite8(addr, val);
@@ -80,12 +70,6 @@ INLINE void Write_u32_longdec(M68K* z, uint32_t addr, const uint32_t val)
  z->BusWrite16(addr,     val >> 16);
 }
 
-/* Phase-8a: Push and Pull were `template<typename T>` member
- * methods.  Every caller used a concrete uint16_t or uint32_t, so
- * the templates are gone -- the two width-typed variants below
- * are the entire callsite ABI.  Push_u32 uses Write_u32_longdec
- * (low half first) to match the M68K's 32-bit predec semantics
- * for stack pushes. */
 INLINE void Push_u16(M68K* z, const uint16_t value)
 {
  z->A[7] -= 2;
@@ -130,7 +114,6 @@ INLINE void SetCX(M68K* z, bool val)
 // History: Phase-8b broke a single template<T, Z_OnlyClear> CalcZN
 // body into the six named methods below (three widths, two Z
 // behaviours) and kept the template as a thin dispatcher.
-// Phase-9d-6 retired the dispatcher entirely; the
 // CALC_ZN(z, T, val) / CALC_ZN_CLEAR(z, T, val) macros further
 // below do the size-keyed dispatch at the call site.  The named
 // methods are the live API now and stay class members of M68K.
@@ -175,36 +158,6 @@ INLINE void CalcZN_u32_clear(M68K* z, const uint32_t val)
  z->Flag_N = ((int32_t)val < 0);
 }
 
-/* Phase-9d-6: CalcZN<T, Z_OnlyClear> template retired.
- *
- * Previously CalcZN<T, Z_OnlyClear> was a one-line dispatcher template
- * that selected one of the six concrete CalcZN_uN[_clear] methods
- * above based on `sizeof(T)` and `Z_OnlyClear`.  Phase-8b broke the
- * body out into the six named variants and kept the template as the
- * single entry point for the 15+ T-parametric call sites inside
- * ADD/SUB/MOVE/etc. op templates.
- *
- * The CALC_ZN(z, T, val) / CALC_ZN_CLEAR(z, T, val) macros below
- * replace the template.  `T` is a type (template parameter of the
- * enclosing op or a concrete typedef); sizeof(T) is a compile-time
- * constant in every current caller.  Each macro emits an if/else-if
- * chain that selects the right named method, and gcc -O2 dead-code-
- * eliminates the unused arms after sizeof(T) is folded -- producing
- * byte-equivalent codegen to the prior template instantiation.
- *
- * Why macros, not non-template inline:  a free inline taking the
- * width as a runtime arg would still be constant-foldable for
- * compile-time-known T, but it adds a function-call frame the
- * optimizer has to chew through.  Macros keep the call site flat
- * and identical to what the template was already producing.
- *
- * Why the `z->` qualifier:  the called methods (CalcZN_u8 etc.)
- * are still class members of struct M68K.  When the macro is
- * expanded inside an M68K method body (which is where every caller
- * is today), `z` is just `this`; when the op templates eventually
- * detemplate to free functions taking `M68K* z`, the same spelling
- * keeps working without macro changes.
- */
 #define CALC_ZN(z, T, val) \
  do { \
   if      (sizeof(T) == 4) CalcZN_u32((z), (val)); \
@@ -279,7 +232,6 @@ INLINE bool GetSVisor(M68K* z)
 //
 // Used to implement SUB, SUBA, SUBX, NEG, NEGX
 //
-// Phase-8e: `bool X_form` template parameter moved to runtime
 // first-arg.  Three places used the template-time X_form:
 //   1. static_assert -- dropped (the dispatch table is the
 //      real safety net; SUBX-style m,m never gets generated
@@ -303,9 +255,6 @@ INLINE bool GetSVisor(M68K* z)
 //
 // NEG
 //
-// Phase-9d-10/9d-13: extracted to free template; calls free Subtract
-// since Phase-9d-13 also extracted Subtract.
-//
 
 //
 // NEGX
@@ -323,7 +272,6 @@ INLINE bool GetSVisor(M68K* z)
 //
 // OR
 //
-// Phase-9d-12: bitwise family (AND/OR/EOR) extracted from M68K
 // class scope.  Standard pattern (Flag_X -> z->Flag_X, timestamp
 // -> z->timestamp, CALC_ZN(this,...) -> CALC_ZN(z,...)); BTST/BCHG
 // /BCLR/BSET below follow the same transform with only Flag_Z.
@@ -441,11 +389,6 @@ INLINE void EORI_SR(M68K* z)
 // MULS
 //
 
-/* Phase-8b: Divide<sdiv> retired.  The previous template body's
- * `if(sdiv)` branches fold per-instantiation, so the two named
- * methods below are bit-equivalent to the original template's two
- * instantiations (sdiv=false -> Divide_u for DIVU, sdiv=true ->
- * Divide_s for DIVS). */
 INLINE void Divide_u(M68K* z, uint16_t divisor, const unsigned dr)
 {
  uint32_t dividend = z->D[dr];
@@ -614,12 +557,9 @@ INLINE uint8_t DecimalSubtractX(M68K* z, const uint8_t src_data, const uint8_t d
 //
 // MOVEP
 //
-// Phase-8d: was `template<typename T, bool reg_to_mem> M68K::MOVEP`;
-// the 4 named bodies below are the post-folding result of the four
-// template instantiations.  sizeof(T) was 2 or 4 (T = uint16_t /
-// uint32_t), giving 2- or 4-iteration loops with shift = 8 or 24
-// initial.  reg_to_mem picked between byte-out-to-bus and
-// byte-in-from-bus over the same EA/shift schedule.
+// Four monomorphized bodies (W/L x reg-to-mem/mem-to-reg) -- 2- or
+// 4-iteration loops over the EA/shift schedule.  reg_to_mem picks
+// between byte-out-to-bus and byte-in-from-bus.
 //
 
 /* MOVEP.W (Dn -> mem):  upper-half-of-Dn[15:8], Dn[7:0]
@@ -693,7 +633,6 @@ INLINE void MOVEP_l_mem_to_reg(M68K* z, const unsigned ar, const unsigned dr)
 //
 // MOVEM to memory
 //
-// Phase-8e: `bool pseudo_predec` moved to runtime first-arg.
 // The `Write<T, pseudo_predec>` call inside the loop expanded
 // to one of the named width-typed writes (Write_u8, Write_u16,
 // Write_u32 / Write_u32_longdec).  We inline that dispatch
@@ -705,8 +644,6 @@ INLINE void MOVEP_l_mem_to_reg(M68K* z, const unsigned ar, const unsigned dr)
 
 //
 // MOVEM to regs(from memory)
-//
-// Phase-8e: `bool pseudo_postinc` moved to runtime first-arg.
 //
 
 //
@@ -736,7 +673,6 @@ MDFN_FASTCALL uint8_t TAS_Callback(M68K* zptr, uint8_t data);
 //
 //
 
-// Phase-9d-10: TAS/TST/CLR/NOT extracted from M68K class scope to free
 // templates parallel to NEG/NEGX above (and EXT in bee65cf).  Each takes
 // an explicit M68K* z; member access patterns (`Flag_X`, `timestamp`)
 // become `z->Flag_X`/`z->timestamp`; CALC_ZN(this, ...) -> CALC_ZN(z, ...).
@@ -758,15 +694,6 @@ MDFN_FASTCALL uint8_t TAS_Callback(M68K* zptr, uint8_t data);
 
 //
 // EXT
-//
-// Phase-9d-9: moved out of M68K class scope to a free template
-// taking M68K* z + a still-templated HAM<T, DAM>& dst.  This is the
-// first step into the load-bearing template surface; it lets the
-// pattern get verified on a small, isolated op (4 call sites across
-// the three .inc files) before being applied to the rest of the 50-
-// op family.  HAM itself is unchanged -- still M68K::HAM<T, AM> --
-// because detempleting HAM is a separate (bigger) commit that
-// touches all 8,527 call sites in one go.
 //
 
 //
@@ -798,9 +725,6 @@ INLINE void EXG(M68K* z, uint32_t* a, uint32_t* b)
 //
 //
 
-/* Phase-8c: TestCond, Bxx, DBcc fully detempleted.  Scc keeps its
- * T / DAM template parameters (still HAM-locked) but its cc
- * parameter moved to a runtime first-arg too. */
 INLINE bool TestCond(M68K* z, unsigned cc)
 {
  switch(cc)
@@ -1092,18 +1016,6 @@ INLINE bool CheckPrivilege(M68K* z)
  return true;
 }
 
-/* Phase-9d-15a: HAM detempleting via preprocessor monomorphization.
- * The 36 (T, AddressMode) HAM combinations actually used in
- * m68k_instr*.inc are materialised here as concrete C structs
- * named M68K_HAM_<TSIZE>_<AM> plus a set of static inline functions
- * (init_self, init_arg, calcea, read, write, rmw, jump, getea).
- *
- * The macro-instantiated bodies are byte-equivalent to the C++
- * template specialisations of M68K::HAM<T, am> -- verified by
- * disassembly comparison.  Nothing references the macro instances
- * yet; this commit lays the infrastructure.  Subsequent commits
- * detemplate the 50 op templates the same way and switch the
- * m68k_instr*.inc call sites over. */
 #include "m68k_ham_instances.inc.h"
 
 /* Phase-9d-15b: op detempleting via the same preprocessor approach.

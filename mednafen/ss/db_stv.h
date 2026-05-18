@@ -30,7 +30,7 @@
    <string>, <vector>, git.h), but STVROMLayout / STVGameInfo and the
    STV_* enums are pure POD and several C files now need them --
    cart.c, cart/stv.c, and stvio.c. db.h #includes this header in
-   place of its former inline copy, so the C++ side sees the
+   place of its former inline copy, so this TU sees the
    identical definitions. */
 
 #ifdef __cplusplus

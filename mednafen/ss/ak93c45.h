@@ -32,7 +32,7 @@
 #include "../state.h"
 
 /* The AK93C45 serial EEPROM (used by the ST-V cart hardware).
-   Converted from a C++ class to a C struct + free functions; it had
+   Converted from a struct to a C struct + free functions; it had
    no inheritance, no virtual methods, and no templates, so the
    conversion is mechanical. The sole consumer is stvio.c, which
    holds one by-value instance and now calls the free functions as

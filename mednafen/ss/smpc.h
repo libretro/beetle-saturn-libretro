@@ -25,7 +25,7 @@
 #define __MDFN_SS_SMPC_H
 
 #include "../state.h"
-/* MDFN_COLD / MDFN_HOT attribute macros.  Existing C++ TUs got
+/* MDFN_COLD / MDFN_HOT attribute macros.  Existing TUs got
  * these transitively (via ss.h / mednafen.h); for C consumers the
  * header needs to be self-contained. */
 #include "../mednafen-types.h"
@@ -35,7 +35,7 @@
 
 #include "../cdstream.h"
 
-/* EmulateSpecStruct lives in git.h, which is C++-only (it uses
+/* EmulateSpecStruct lives in git.h, which is no longer used (it uses
  * std::vector / std::string).  smpc.h only uses the type as a
  * pointer parameter (SMPC_EndFrame), so a forward declaration is
  * sufficient and lets the header parse from C. */
@@ -76,7 +76,7 @@ enum
 /* C++ form keeps the default arg as a caller-side convenience. */
 void SMPC_Init(const uint8_t area_code, const int32_t master_clock, bool block_soundcpu_control = false) MDFN_COLD;
 #else
-/* C form: default arguments are C++-only syntax; C callers must
+/* C form: default arguments are no longer used syntax; C callers must
  * pass block_soundcpu_control explicitly. */
 void SMPC_Init(const uint8_t area_code, const int32_t master_clock, bool block_soundcpu_control) MDFN_COLD;
 #endif

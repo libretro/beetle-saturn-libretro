@@ -70,7 +70,6 @@ static int32_t (*LineFuncTab[2][3][0x20][8 + 1])(bool* need_line_resume) =
   LINEFN_BPP8(1, 2),
  }
 
-
  #undef LINEFN_BPP8
  #undef LINEFN_B
  #undef LINEFN_BC

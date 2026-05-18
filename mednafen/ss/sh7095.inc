@@ -37,7 +37,7 @@
 
 	Address errors occur one instruction too soon.
 
-	SLEEP instruction, standby mode, and DMA burst stalls are handled by thoroughly (ab)using the 
+	SLEEP instruction, standby mode, and DMA burst stalls are handled by thoroughly (ab)using the
 	IF/ID pipeline emulation and opcode dispatch mechanism.
 
 	Individual module clocking disabling functionality of z->SBYCR isn't handled.
@@ -155,7 +155,6 @@ static void SH7095_Cache_WriteDataArray_u16(SH7095* z, uint32_t A, uint16_t V);
 static void SH7095_Cache_WriteDataArray_u32(SH7095* z, uint32_t A, uint32_t V);
 static void SH7095_Cache_WriteAddressArray(SH7095* z, uint32_t A, uint32_t V);
 
-
 static INLINE uint32_t SH7095_RBO_BE_U32(const void* p)
 {
  uint32_t v;
@@ -207,26 +206,12 @@ void SH7095_Construct(SH7095* z, const char* const name_arg, const unsigned even
 
  if(z == &CPU[1])
  {
-  /* Slave CPU resume state: no runtime initialization needed any
-   * more.  Phase-9 conversion replaced the GCC `&&Resume_NNNN`
-   * label-address table with a portable `switch (z->resume_id)`
-   * dispatch, so the one-time `SH7095_RunSlaveUntil(z, 0)` call
-   * with bound_timestamp=0 (whose only purpose was to walk into
-   * PSEUDO_DMABURST and populate z->ResumeTableP[]) is gone. */
-  z->resume_id = 0;
+    z->resume_id = 0;
  }
 
  SH7095_Init(z, false, false);
 }
 
-/* Phase-9 step 5 part 2: the four SH7095 mega-templates (SH7095_MemReadRT,
- * SH7095_MemWriteRT and the C_ thunk wrappers) are retired here.  Their
- * 211 demangled instantiations -> 196 unique tuples (after deduping the
- * [clone .cold] variants GCC emits for MDFN_COLD) are now explicit named
- * C functions in sh7095_mem_dispatch.inc.  Forward decls live in
- * sh7095_mem_dispatch_proto.inc so the MAHL / MAHL_P assignments below
- * compile before the definitions arrive (the defs need MemRead / MemWrite
- * macros in scope, which is far below).  See tools/gen_mem_dispatch.py. */
 #include "sh7095_mem_dispatch_proto.inc"
 // WARNING: Template arguments CacheEnabled and CacheBypassHack are only valid for region==0.
 static void SH7095_RecalcMRWFP_0(SH7095* z)
@@ -619,7 +604,7 @@ static void SH7095_DMA_CheckEnterBurstHack(SH7095* z)
 //
 static INLINE void SH7095_DMA_DoTransfer(SH7095* z, unsigned ch)
 {
- static const int8_t ainc[3][4] = 
+ static const int8_t ainc[3][4] =
  {
   { 0, 1, -1, -1 },
   { 0, 2, -2, -2 },
@@ -949,7 +934,7 @@ static void SH7095_FRT_WDT_Update(SH7095* z)
  z->FRT.lastts = z->timestamp;
 
  //
- // 
+ //
  //
  const uint32_t PreAddCD = z->FRT_WDT_ClockDivider;
  z->FRT_WDT_ClockDivider += clocks;
@@ -1210,14 +1195,6 @@ static void SH7095_SCI_Reset(SH7095* z)
 //
 // Misaligned/wrong-sized accesses aren't handled correctly, it's a mess, but probably doesn't matter.
 //
-/* Phase-8o: OnChipRegWrite<T> retired -- 3 named NO_INLINE
- * width variants below.  Body identical to the previous
- * template form with `sizeof(T)` folded to the per-variant
- * literal width; gcc -O2 dead-branches the inactive arms.
- * Three concrete-T callsites (the macro at line ~2788 in
- * MemWriteRT, two macro definitions) dispatched via a
- * sizeof(T) ladder that folds at outer-template-
- * instantiation time. */
 
 static NO_INLINE MDFN_HOT void SH7095_OnChipRegWrite_u8(SH7095* z, uint32_t A, uint32_t V)
 {
@@ -1235,7 +1212,7 @@ static NO_INLINE MDFN_HOT void SH7095_OnChipRegWrite_u8(SH7095* z, uint32_t A, u
 
    //
    // Division Unit registers
-   // 
+   //
    case 0x20:
    case 0x00:
 	z->DVSR = V;
@@ -1549,7 +1526,7 @@ static NO_INLINE MDFN_HOT void SH7095_OnChipRegWrite_u16(SH7095* z, uint32_t A, 
 
    //
    // Division Unit registers
-   // 
+   //
    case 0x20:
    case 0x00:
 	z->DVSR = V;
@@ -1887,7 +1864,7 @@ static NO_INLINE MDFN_HOT void SH7095_OnChipRegWrite_u32(SH7095* z, uint32_t A, 
 
    //
    // Division Unit registers
-   // 
+   //
    case 0x20:
    case 0x00:
 	z->DVSR = V;
@@ -2220,13 +2197,6 @@ static NO_INLINE MDFN_HOT void SH7095_OnChipRegWrite_u32(SH7095* z, uint32_t A, 
  }
 }
 
-/* Phase-8o: OnChipRegRead_INLINE<T> retired -- 3 named INLINE
- * width variants below.  Each carries the previous template
- * body with `sizeof(T)` folded per width and the return type
- * concretised.  Used by the OnChipRegRead_NI_uN forwarders
- * (phase 8j) and the OnChipRegRead macros, which now
- * dispatch by sizeof(T) at the call site. */
-
 static INLINE uint8_t SH7095_OnChipRegRead_INLINE_u8(SH7095* z, uint32_t A)
 {
  if(A & 0x100)
@@ -2246,7 +2216,7 @@ static INLINE uint8_t SH7095_OnChipRegRead_INLINE_u8(SH7095* z, uint32_t A)
 
    //
    // Division Unit registers
-   // 
+   //
    case 0x20:
    case 0x22:
    case 0x00:
@@ -2604,7 +2574,7 @@ static INLINE uint16_t SH7095_OnChipRegRead_INLINE_u16(SH7095* z, uint32_t A)
 
    //
    // Division Unit registers
-   // 
+   //
    case 0x20:
    case 0x22:
    case 0x00:
@@ -2960,7 +2930,7 @@ static INLINE uint32_t SH7095_OnChipRegRead_INLINE_u32(SH7095* z, uint32_t A)
 
    //
    // Division Unit registers
-   // 
+   //
    case 0x20:
    case 0x22:
    case 0x00:
@@ -3128,16 +3098,6 @@ static INLINE uint32_t SH7095_OnChipRegRead_INLINE_u32(SH7095* z, uint32_t A)
   return ret;
  }
 }
-
-/* Phase-8l: BSC_BusWrite<T> retired -- 3 named variants below
- * carry the per-width specialisations of the original template
- * body.  In each variant: the CS0 branch's `if(sizeof(T) == 4)`
- * dispatch resolves at the source level, the shift/mask
- * constants come pre-computed for the matching width, and the
- * BusRW_DB_CSn<T, true> calls inside become concrete-T
- * instantiations.  Aside from collapsing the sizeof(T) chain
- * to one arm, the variants are textually identical to what
- * the previous template instantiations produced. */
 
 static INLINE void SH7095_BSC_BusWrite_u8(SH7095* z, uint32_t A, uint8_t V, const bool BurstHax, int32_t* SH2DMAHax)
 {
@@ -3311,9 +3271,6 @@ static INLINE void SH7095_BSC_BusWrite_u32(SH7095* z, uint32_t A, uint32_t V, co
  }
 }
 
-/* Phase-8l: BSC_BusRead<T> retired -- 3 named variants below
- * mirror BSC_BusWrite's structure for the read side. */
-
 static INLINE uint8_t SH7095_BSC_BusRead_u8(SH7095* z, uint32_t A, const bool BurstHax, int32_t* SH2DMAHax)
 {
  uint32_t DB = SH7095_DB;
@@ -3470,24 +3427,6 @@ static INLINE uint32_t SH7095_BSC_BusRead_u32(SH7095* z, uint32_t A, const bool 
 
  return ret;
 }
-
-/* Phase-8p: ExtBus{Read,Write}_{INLINE,NI} retired.  4 templates
- * with (SlavePenalty, T, BurstHax) parameters split into named
- * variants.  Source-fold methodology (see phase 8o fix-up): each
- * variant body is built by conditional inclusion of (SP, BH)-
- * dependent blocks at generation time, NOT by literal `if(true)`/
- * `if(false)` substitution.
- *
- * INLINE variants carry the actual work; NI variants are the
- * NO_INLINE entry points the macros call into.  The phase-8j
- * lesson stands: bool->runtime args break the MemReadRT inlining
- * cascade; named variants preserve the per-callsite constant
- * folding the previous template form delivered.
- *
- * Only the (w, SP) tuples actually invoked by the macros are
- * emitted: master MemReadRT uses (which, false), slave uses
- * (1, true).  The (0, true) tuple is never invoked and is not
- * generated. */
 
 /* === ExtBusRead_INLINE_SP*_u**_BH*  (12 variants) ===
  * Body folded at source level per (SP, BH) tuple. */
@@ -3938,17 +3877,6 @@ static NO_INLINE MDFN_HOT void ExtBusWrite_NI_w1_SP1_u32(uint32_t A, uint32_t V)
  SH7095_ExtBusWrite_INLINE_SP1_u32(&CPU[1], A, V);
 }
 
-/* Phase-8j: OnChipRegRead_NI<unsigned w, typename T> retired.
- * Only one (w, T) tuple-set is ever instantiated: w=1 (the slave
- * CPU's on-chip-register read path used by the slave-CPU
- * MemReadRT specialisation at line ~3256), with T in
- * {uint8_t, uint16_t, uint32_t}.  Three named NO_INLINE
- * forwarders below cover those three instantiations; the
- * w template parameter is gone because w=1 is the only value
- * that ever flowed through.  The OnChipRegRead macro at line
- * 3241 dispatches by sizeof(T) at preprocessor time (T is a
- * concrete macro argument at every invocation, so gcc -O2 folds
- * the sizeof chain to a single arm). */
 static NO_INLINE MDFN_HOT uint8_t OnChipRegRead_NI_u8(uint32_t A)
 {
  return SH7095_OnChipRegRead_INLINE_u8(&CPU[1], A);
@@ -4054,11 +3982,6 @@ static INLINE int SH7095_Cache_FindWay(SH7095* z, SH7095_CacheEntry* const cent,
  return way_match;
 #endif
 }
-
-/* Phase-8i: 3 z->Cache helpers detempleted into 9 named width
- * variants.  Bodies are identical to the previous template
- * instantiations with T replaced by the concrete width type;
- * NE32ASU8_IDX_ADJ folds at preprocessor time as before. */
 
 INLINE void SH7095_Cache_WriteUpdate_u8(SH7095* z, uint32_t A, uint8_t V)
 {
@@ -4176,11 +4099,6 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
  return (z->Cache[ena].Tag[way] & (0x7FFFF << 10)) | ((~z->Cache[ena].Tag[way] & 1) << 2) | (z->Cache_LRU[ena] << 4);
 }
 
-/* Phase-8h: Cache_CheckReadIncoherency<T> retired -- the body was
- * empty (it was a stub for cache-coherency tracking that was never
- * implemented).  Callers in the MemRead macro drop the line
- * outright. */
-
 #define MemRead(IsInstr, T, region, CacheEnabled, A_, outval_, A, unmasked_A, cent, way_match)			\
 {														\
  __label__ EBRCase, MemReturn;											\
@@ -4242,9 +4160,7 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 	   z->timestamp = SH7095_mem_timestamp;									\
 	 }													\
 														\
-	 /* Phase-8h: Cache_CheckReadIncoherency call dropped -- its
-	  * body was empty.  Macro continuation tightened up by one
-	  * line. */									\
+	 									\
 											\
 	 z->Cache_LRU[(A >> 4) & 0x3F] = (z->Cache_LRU[(A >> 4) & 0x3F] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;	\
 														\
@@ -4578,7 +4494,7 @@ void SH7095_ForceInternalEventUpdates(SH7095* z)
 }
 
 //
-// Default priority(for same ipr value), highest to lowest: 
+// Default priority(for same ipr value), highest to lowest:
 //  NMI
 //  User break
 //  IRL15
@@ -4998,14 +4914,6 @@ do {                                                                            
 #define CONST_VAR(T, n) const T n
 #define RESUME_VAR(T, n) T n
 
-/* Phase-8p2: DoIDIF_INLINE<EmulateICache, IntPreventNext> retired
- * into 4 named variants.  Each variant shadows EmulateICache as
- * a local `constexpr bool` so the DoIDIF_MACRO expansion (which
- * pulls in FetchIF / DoID -- those reference EmulateICache by
- * name in their bodies) resolves cleanly without the previous
- * template-parameter name lookup.  IntPreventNext is passed as
- * a concrete literal to DoIDIF_MACRO.  gcc -O2 dead-branches
- * the macro's `if(EmulateICache)` arm per-variant. */
 static INLINE void SH7095_DoIDIF_INLINE_C0_I0(SH7095* z)
 {
  const bool EmulateICache = false;
@@ -5030,15 +4938,6 @@ static INLINE void SH7095_DoIDIF_INLINE_C1_I1(SH7095* z)
  DoIDIF_MACRO(true);
 }
 
-/* Phase-8n: DoIDIF_NI retired -- 4 named NO_INLINE variants
- * below carry the previous template's (EmulateICache,
- * IntPreventNext) tuple instantiations.  Each just forwards
- * to the still-templated DoIDIF_INLINE with literal bools,
- * so the instruction stream is identical to what the
- * template form produced.  Per the phase-8j lesson:
- * detempleting NO_INLINE forwarders is safe (no inlining
- * cascade); the underlying INLINE that does the work
- * stays templated for now. */
 static NO_INLINE MDFN_HOT void SH7095_DoIDIF_NI_C0_I0(SH7095* z)
 {
  SH7095_DoIDIF_INLINE_C0_I0(z);
@@ -5059,18 +4958,6 @@ static NO_INLINE MDFN_HOT void SH7095_DoIDIF_NI_C1_I1(SH7095* z)
  SH7095_DoIDIF_INLINE_C1_I1(z);
 }
 
-/* Phase-8p2: Step<which, EmulateICache> retired into 3 named
- * variants (only the (w, C) tuples actually invoked by
- * ss.cpp's RunLoop are generated: (0,false), (0,true), (1,false);
- * the (1,true) tuple is never instantiated and is omitted).
- *
- * Each variant shadows `which` and `EmulateICache` as local
- * `constexpr` constants so the body's downstream macro
- * expansions (OP_PAIR_TICK uses `which`, CHECK_EXIT_RESUME and
- * sh7095_ops.inc reference `EmulateICache`) resolve cleanly
- * without the previous template-parameter name lookup.
- * gcc -O2 dead-branches per variant; codegen identical to the
- * previous template form. */
 FORCE_INLINE void SH7095_Step_w0_C0(SH7095* z)
 {
  const unsigned which = 0;
@@ -5228,8 +5115,8 @@ do {                                                    \
  * once the opexec_* macros have expanded).  Three language paths:
  *
  *   C++  -- std::is_same<T, decltype(n)>::value
- *           (decltype is C++11, std::is_same lives in <type_traits>
- *           which mednafen-types.h already pulls in for C++ TUs).
+ *           (decltype is 11, std::is_same lives in <type_traits>
+ *           which mednafen-types.h already pulls in for TUs).
  *
  *   C (GCC / clang) -- __builtin_types_compatible_p(T, __typeof__(n))
  *           (both are GCC extensions, available since gcc 2.x, also
@@ -6009,7 +5896,7 @@ static INLINE void SH7095_CheckRWBreakpoints(const SH7095* z, void (*MRead)(unsi
  switch(lpid >> 24)
  {
  #include "sh7095_opdefs.inc"
- #define BEGIN_BP_OP(x) OP_##x { 
+ #define BEGIN_BP_OP(x) OP_##x {
  #define END_BP_OP } break;
 
  //
@@ -6411,7 +6298,7 @@ static INLINE void SH7095_CheckRWBreakpoints(const SH7095* z, void (*MRead)(unsi
  END_BP_OP
 
  //
- // LDC.L 
+ // LDC.L
  //
  BEGIN_BP_OP(LDC_L)
 	const unsigned m = instr_nyb2;
@@ -6421,7 +6308,7 @@ static INLINE void SH7095_CheckRWBreakpoints(const SH7095* z, void (*MRead)(unsi
  END_BP_OP
 
  //
- // LDS.L 
+ // LDS.L
  //
  BEGIN_BP_OP(LDS_L)
 	const unsigned m = instr_nyb2;
@@ -6431,7 +6318,7 @@ static INLINE void SH7095_CheckRWBreakpoints(const SH7095* z, void (*MRead)(unsi
  END_BP_OP
 
  //
- // RTE 
+ // RTE
  //
  BEGIN_BP_OP(RTE)
 	MRead(4, z->R[15]);
@@ -6439,7 +6326,7 @@ static INLINE void SH7095_CheckRWBreakpoints(const SH7095* z, void (*MRead)(unsi
  END_BP_OP
 
  //
- // STC.L 
+ // STC.L
  //
  BEGIN_BP_OP(STC_L)
 	const unsigned n = instr_nyb2;
@@ -6449,7 +6336,7 @@ static INLINE void SH7095_CheckRWBreakpoints(const SH7095* z, void (*MRead)(unsi
  END_BP_OP
 
  //
- // STS.L 
+ // STS.L
  //
  BEGIN_BP_OP(STS_L)	// Pipeline same as ordinary store instruction
 	const unsigned n = instr_nyb2;

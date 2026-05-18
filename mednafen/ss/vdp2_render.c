@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* vdp2_render.cpp - VDP2 Rendering
+/* vdp2_render.c - VDP2 Rendering
 **  Copyright (C) 2016-2019 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -41,13 +41,6 @@
 #include <arm_neon.h>
 #endif
 
-/* C11 atomic bridge for the SPSC ring-buffer counters.  When this TU
- * was vdp2_render.cpp the same macros switched between std::atomic<>
- * (C++) and _Atomic (C11) via #ifdef __cplusplus; phase 4e renamed
- * the file to .c and the C++ branch was dropped.  atomic_*_explicit
- * with the requested acquire/release ordering produces the same raw
- * mov + memory barrier as the C++ form did, so the SPSC queue body
- * keeps the same per-counter codegen. */
 typedef _Atomic uint_least32_t vdp2_atomic_u32;
 #define VDP2_ATOMIC_INIT(a, v)        atomic_store_explicit(&(a), (v), memory_order_relaxed)
 #define VDP2_ATOMIC_LOAD_ACQ(a)       atomic_load_explicit(&(a), memory_order_acquire)
@@ -247,44 +240,6 @@ static uint8_t ColorOffsSel;
 //};
 
 static int32_t ColorOffs[2][3];	// [A,B] [R << 0, G << 8, B << 16]
-
-/* TileFetcher: phase 4a -- struct template `template<bool IsRot>
- * struct TileFetcher` with nested templated method
- * `template<unsigned TA_bpp> Fetch<>(...)` and INLINE Start(...)
- * is replaced here with two named structs plus free functions.
- *
- * The original struct had adj_map_regs[IsRot ? 16 : 4] -- the
- * array dimension was the only IsRot-dependent layout difference,
- * so we split into:
- *   struct TileFetcher_Rot     -- adj_map_regs[16]
- *   struct TileFetcher_NonRot  -- adj_map_regs[4]
- * with all other fields identical (declared via shared field-list
- * macros, which both structs include).  The methods become free
- * functions: TileFetcher_Rot_Start / TileFetcher_NonRot_Start, and
- * eight Fetch variants (per IsRot, per BPP in {4, 8, 16, 32}).
- *
- * The method bodies share source text via two body macros, each
- * parameterized on IS_ROT (0 or 1) and (for Fetch) TA_BPP (literal
- * 4, 8, 16, 32).  Field access inside the bodies uses the bare
- * field name (`pcco = 0;` instead of `this->pcco = 0;`); a block
- * of #define-then-#undef field-redirect macros bracketing the
- * function definitions translates each bare name to `self->NAME`.
- * The bracket is tight -- the redirects are #undef'd before any
- * code that accesses the same names via `tf.NAME` syntax, which
- * the existing function-table BODY macros do.
- *
- * Codegen impact: each TileFetcher<X>::Method spec produced by the
- * template is matched 1:1 by a free function with IS_ROT (and BPP
- * for Fetch) substituted as literal constants.  Dead branches in
- * the Start body (`if(IsRot)`, `(IsRot ? 16 : 4)`) fold identically.
- *
- * Call-site dispatch through TF_ROT_FETCH / TF_NR_FETCH macros uses
- * `##` token pasting to select the matching Fetch_N variant at
- * preprocessing time: the call sites inside the body macros pass
- * BPP bare (`TF_NR_FETCH(&tf, BPP, ...)`), and BPP is a literal
- * 4/8/16/32 at body-macro expansion, so the paste yields a single
- * direct call -- byte-equivalent to the template-instantiated
- * `tf.Fetch<BPP>(...)`. */
 
 /* Field declarations split into a head block (before adj_map_regs)
  * and a tail block (after), so the two named structs can differ
@@ -661,7 +616,7 @@ static struct
   struct
   {
    /* `sizeof(nbg)` here would walk up into the enclosing union, which
-    * the C++ name-lookup rules allow but C name-lookup doesn't.  Spell
+    * the non-standard name lookup.  Spell
     * the size out literally instead -- both branches stay in lockstep
     * with the nbg array's declared dimensions above. */
    uint8_t dummy[sizeof(uint64_t[4][8 + 704 + 8]) / 2];
@@ -1227,7 +1182,6 @@ static INLINE void RegsWrite(uint32_t A, uint16_t V)
 
 static INLINE void MemW_u8 (uint32_t A, const uint16_t DB) MEMW_BODY(0xFF00 >> ((A & 1) << 3))
 static INLINE void MemW_u16(uint32_t A, const uint16_t DB) MEMW_BODY(0xFFFF)
-
 
 static void Reset(bool powering_up)
 {
@@ -1868,11 +1822,6 @@ do                                                                              
  * gathers in one TBL.  The wrap case (pcco_m in [2033..2047]) falls back to
  * scalar.  On amd64 / others the scalar fallback runs unconditionally, which
  * is codegen-equivalent to the 8 inlined MAKE_NBG{,RBG}_PIX stamps it replaces. */
-/* Phase 4-style detemplated: was a C++ `template<bool IGNTP, unsigned
- * PMODE, unsigned CCMODE, bool REV>` function.  All call sites pass
- * compile-time-constant values (from the X-macro dispatch), so with
- * MDFN_FORCE_INLINE + -O2 the runtime const args fold identically to
- * the template instantiations. */
 static MDFN_FORCE_INLINE void DrawCell8_BPP4(uint64_t* out,
                                              uint32_t pcco,
                                              uint16_t vrb0,
@@ -2275,25 +2224,6 @@ static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomod
 //
 // CCMode will be forced to 0 in the effective instantiation if corresponding NBG CCE bit in CCCTL is 0.
 //
-/* T_DrawNBG23: was `template<unsigned TA_bpp, bool TA_igntp,
- * unsigned TA_PrioMode, unsigned TA_CCMode> static void T_DrawNBG23
- * (const unsigned n, uint64_t* bgbuf, const unsigned w, const
- * uint32_t pix_base_or)`.  48 specializations: bpp in {4, 8},
- * igntp in {0,1}, PrioMode in {0..2}, CCMode in {0..3}.
- *
- * Converted via the same X-macro pattern as T_DrawRBG_ConstAB
- * above: a single body macro takes the four template parameters
- * as preprocessor tokens, a DEFINE_* macro emits a named function
- * around the body, and three recursive enumeration macros expand
- * to (a) the cascade of 48 function definitions and (b) the
- * nested [2][2][3][4] table initializer with the same function-
- * pointer ordering as the previous template-instantiated table.
- *
- * Body's `tf.Fetch<BPP>(...)` calls were converted to TF_NR_FETCH
- * by phase 4a (which retired the TileFetcher<bool> struct template).
- *
- * Line-comments inside the body are rewritten as block-comments
- * because line-spliced macros eat line-comments past the splice. */
 #define T_DrawNBG23_BODY(BPP, IGNTP, PMODE, CCMODE) \
 {                                                                                                                       \
  assert(n >= 2);                                                                                                        \
@@ -4212,7 +4142,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
 
      CurYScrollIF[n] += (YScrollI[n] << 8) + YScrollF[n];
     }
- 
+
     if(sc & 0x8) // X zoom
     {
      CurXCoordInc[n] = (VRAM[CurLSA[n] & 0x3FFFF] & 0x7) << 8;
@@ -4970,7 +4900,6 @@ static void/*int*/ RThreadEntry(void* data)
 
  // return 0; // Libretro fix
 }
-
 
 //
 //

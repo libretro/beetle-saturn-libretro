@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* scu_dsp_jmp.cpp - SCU DSP JMP Instructions Emulation
+/* scu_dsp_jmp.c - SCU DSP JMP Instructions Emulation
 **  Copyright (C) 2015-2016 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or

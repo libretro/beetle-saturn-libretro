@@ -382,7 +382,7 @@ void STVIO_Kill(void)
   * Init) and across any non-STV game load that followed an STV one.
   *
   * IODevice_Free is NULL-safe, so this is also safe to call from
-  * ss.cpp's Cleanup() for non-STV games where STVIO_Init never ran
+  * ss.c's Cleanup() for non-STV games where STVIO_Init never ran
   * (gun is still NULL). */
  IODevice_Free(gun);
  gun = NULL;
@@ -487,7 +487,6 @@ void STVIO_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
  AK93C45_StateAction(&eep, sm, load, data_only, "STV_EEPROM");
 }
-
 
 /* The ST-V SMPC port shim. Was a template<bool sport> class deriving
    from IODevice; with IODevice now a C vtable struct, this becomes a

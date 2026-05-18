@@ -52,7 +52,7 @@
 #include "../state.h"
 #include "../mdfn_gameinfo.h"
 
-/* ss.h is a C++ header (class SH7095, default args, ...), so it
+/* ss.h is a header (class SH7095, default args, ...), so it
    cannot be included here. Cross-boundary constants come from the
    shared C/C++ leaf header instead of being re-typed -- see
    ss_c_abi.h. */
@@ -82,7 +82,7 @@ static void    IODevice_base_SetTSFreq(IODevice *self_, const int32_t rate);
 /* Base IODevice                                                      */
 /* ================================================================== */
 
-/* These were inline empty/passthrough definitions in smpc.cpp
+/* These were inline empty/passthrough definitions in smpc.c
    (IODevice::Power, ::UpdateInput, etc.). They are the default
    vtable slots that concrete devices reuse for methods they do not
    override. */

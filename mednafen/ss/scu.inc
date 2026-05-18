@@ -50,7 +50,6 @@
    Timer1 notes:
 	T1S of 1-426(HRES=0x00) causes interrupt for each line, 0 and 427+ causes it every other line?
 
-
  The effect of writes to MCIEB on the interrupt output signal(as examined indirectly via IST) from the SCSP appears to be delayed somewhat;
  is the SCU buffering writes, or is the SCSP, or is it something else entirely?
 
@@ -427,10 +426,6 @@ void SCU_AdjustTS(const int32_t delta)
 //
 // TODO: Test to see if the entire data bus or only parts are asserted for uint8_t and uint16_t reads
 //
-/* Phase-8q2: SCU_RegRW_DB retired into 6 named variants via
- * source-fold (tools/fold_source.py).  Each variant body is
- * the template body with template parameters substituted to
- * literals AND dead branches eliminated at source level. */
 
 /* === SCU_RegRW_DB variants (3 T x 2 IsWrite) === */
 static INLINE void SCU_RegRW_DB_u8_W0(uint32_t A, uint32_t* DB)
@@ -531,14 +526,14 @@ static INLINE void SCU_RegRW_DB_u8_W0(uint32_t A, uint32_t* DB)
 	 *DB = 0xFFFFFFFF;
 	break;
   }
- 
+
 }
 
 static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 {
  unsigned mask;
 
-  mask = 0xFF << (((A & 3) ^ 3) << 3); 
+  mask = 0xFF << (((A & 3) ^ 3) << 3);
 
   switch(A & 0xFC)
   {
@@ -673,7 +668,7 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 	 DMALevelS* d = &DMALevel[level];
 	 uint32_t tmp = (d->Enable << 8);
 
-	 tmp = (tmp &~ mask) | (*DB & mask);	 
+	 tmp = (tmp &~ mask) | (*DB & mask);	
 	 d->Enable = (tmp >> 8) & 0x1;
 
 	 if((tmp & 0x1) && d->Enable && d->SF == 0x7)
@@ -780,7 +775,7 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 	 ((uint32_t*)DSP.DataRAM)[DSP.RA++] = *DB;
 	break;
   }
- 
+
 }
 
 static INLINE void SCU_RegRW_DB_u16_W0(uint32_t A, uint32_t* DB)
@@ -881,14 +876,14 @@ static INLINE void SCU_RegRW_DB_u16_W0(uint32_t A, uint32_t* DB)
 	 *DB = 0xFFFFFFFF;
 	break;
   }
- 
+
 }
 
 static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 {
  unsigned mask;
 
-  mask = 0xFFFF << (((A & 2) ^ 2) << 3); 
+  mask = 0xFFFF << (((A & 2) ^ 2) << 3);
 
   switch(A & 0xFC)
   {
@@ -1023,7 +1018,7 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 	 DMALevelS* d = &DMALevel[level];
 	 uint32_t tmp = (d->Enable << 8);
 
-	 tmp = (tmp &~ mask) | (*DB & mask);	 
+	 tmp = (tmp &~ mask) | (*DB & mask);	
 	 d->Enable = (tmp >> 8) & 0x1;
 
 	 if((tmp & 0x1) && d->Enable && d->SF == 0x7)
@@ -1130,7 +1125,7 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 	 ((uint32_t*)DSP.DataRAM)[DSP.RA++] = *DB;
 	break;
   }
- 
+
 }
 
 static INLINE void SCU_RegRW_DB_u32_W0(uint32_t A, uint32_t* DB)
@@ -1231,14 +1226,14 @@ static INLINE void SCU_RegRW_DB_u32_W0(uint32_t A, uint32_t* DB)
 	 *DB = 0xFFFFFFFF;
 	break;
   }
- 
+
 }
 
 static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
 {
  unsigned mask;
 
-  mask = 0xFFFFFFFF; 
+  mask = 0xFFFFFFFF;
 
   switch(A & 0xFC)
   {
@@ -1373,7 +1368,7 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
 	 DMALevelS* d = &DMALevel[level];
 	 uint32_t tmp = (d->Enable << 8);
 
-	 tmp = (tmp &~ mask) | (*DB & mask);	 
+	 tmp = (tmp &~ mask) | (*DB & mask);	
 	 d->Enable = (tmp >> 8) & 0x1;
 
 	 if((tmp & 0x1) && d->Enable && d->SF == 0x7)
@@ -1480,30 +1475,16 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
 	 ((uint32_t*)DSP.DataRAM)[DSP.RA++] = *DB;
 	break;
   }
- 
-}
 
-/* Phase-8q1: BBusRW_DB / ABusRW_DB retired into named
- * per-(T, IsWrite, SH32) variants.  Only the tuples actually
- * invoked via the call graph (concrete and T-parametric
- * callers) are emitted -- the impossible BBusRW_DB read
- * variants with T != uint16_t are never generated.
- *
- * Each variant body is source-folded for its tuple via
- * tools/fold_source.py (phase 8q1-fold-fixup): template
- * parameters are substituted to literals, dead branches
- * eliminated, and `static_assert(...)`s evaluated and
- * removed.  Each variant carries ONLY the code that runs
- * for its tuple -- no constexpr-shadow indirection. */
+}
 
 /* === BBusRW_DB variants (6 used tuples) === */
 static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
- 
 
  if(time_thing != NULL)
  {
-  
+
    *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
     *time_thing += 2;
@@ -1533,7 +1514,7 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
     }
     else
      SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   
+
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1592,7 +1573,7 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
  //
  // SCSP
- // 
+ //
  if(A >= 0x05A00000 && A <= 0x05BFFFFF)
  {
   if(sh2_dma_time_thing != NULL)
@@ -1625,11 +1606,10 @@ static INLINE void BBusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
 
 static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
- 
 
  if(time_thing != NULL)
  {
-  
+
    *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
     *time_thing += 2;
@@ -1659,7 +1639,7 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     }
     else
      SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   
+
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1718,7 +1698,7 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
  //
  // SCSP
- // 
+ //
  if(A >= 0x05A00000 && A <= 0x05BFFFFF)
  {
   if(sh2_dma_time_thing != NULL)
@@ -1751,11 +1731,10 @@ static INLINE void BBusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
 static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
- 
 
  if(time_thing != NULL)
  {
-  
+
  }
 
  //
@@ -1780,7 +1759,7 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
     }
     else
      SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   
+
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1839,7 +1818,7 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
  //
  // SCSP
- // 
+ //
  if(A >= 0x05A00000 && A <= 0x05BFFFFF)
  {
   if(sh2_dma_time_thing != NULL)
@@ -1872,11 +1851,10 @@ static INLINE void BBusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
 static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
- 
 
  if(time_thing != NULL)
  {
-  
+
    *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
     *time_thing += 2;
@@ -1906,7 +1884,7 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
     }
     else
      SCU_DMA_VDP1WriteIgnoreKludge = 0;
-   
+
   }
 
   //if(IsWrite && (A & 0x100000) && SH32)
@@ -1965,7 +1943,7 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
  //
  // SCSP
- // 
+ //
  if(A >= 0x05A00000 && A <= 0x05BFFFFF)
  {
   if(sh2_dma_time_thing != NULL)
@@ -1998,11 +1976,10 @@ static INLINE void BBusRW_DB_u32_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
 static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
- 
 
  if(time_thing != NULL)
  {
-  
+
    *time_thing = ((sscpu_timestamp_t)(*time_thing) > (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS) ? (sscpu_timestamp_t)(*time_thing) : (sscpu_timestamp_t)(BBus_SH2_WriteFinishTS));
 
  }
@@ -2028,7 +2005,7 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   
+
     *time_thing += 14;
 
    CheckEventsByMemTS();
@@ -2073,7 +2050,7 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
  //
  // SCSP
- // 
+ //
  if(A >= 0x05A00000 && A <= 0x05BFFFFF)
  {
   if(sh2_dma_time_thing != NULL)
@@ -2089,7 +2066,7 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
    *time_thing += 24;
   }
 
-  *DB = SOUND_Read16(A & 0x1FFFFF); 
+  *DB = SOUND_Read16(A & 0x1FFFFF);
 
   return;
  }
@@ -2107,11 +2084,10 @@ static INLINE void BBusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
 static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
 {
- 
 
  if(time_thing != NULL)
  {
-  
+
  }
 
  //
@@ -2135,7 +2111,7 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
   if(time_thing != NULL)
   {
-   
+
     *time_thing += 14;
 
    CheckEventsByMemTS();
@@ -2180,7 +2156,7 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
  //
  // SCSP
- // 
+ //
  if(A >= 0x05A00000 && A <= 0x05BFFFFF)
  {
   if(sh2_dma_time_thing != NULL)
@@ -2196,7 +2172,7 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
    *time_thing += 24;
   }
 
-  *DB = SOUND_Read16(A & 0x1FFFFF); 
+  *DB = SOUND_Read16(A & 0x1FFFFF);
 
   return;
  }
@@ -2211,7 +2187,6 @@ static INLINE void BBusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
  *DB = 0;
 }
-
 
 /* === ABusRW_DB variants (5 used tuples) === */
 static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)	// add to time_thing, subtract from dma_time_thing
@@ -2241,7 +2216,7 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
    }
 
    // TODO: SCU seems to have its own internal write buffering...or something else complex going on, that complicates
-   // getting the SH-2 DMA timing right. 
+   // getting the SH-2 DMA timing right.
    if(sh2_dma_time_thing != NULL)
     *sh2_dma_time_thing += 1;
 
@@ -2299,7 +2274,7 @@ static INLINE void ABusRW_DB_u8_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_t
    const uint32_t mask = (false) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
     CDB_Write_DBM(offset, *DB, mask);
-   
+
    return;
   }
 
@@ -2342,7 +2317,7 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
    }
 
    // TODO: SCU seems to have its own internal write buffering...or something else complex going on, that complicates
-   // getting the SH-2 DMA timing right. 
+   // getting the SH-2 DMA timing right.
    if(sh2_dma_time_thing != NULL)
     *sh2_dma_time_thing += 1;
 
@@ -2400,7 +2375,7 @@ static INLINE void ABusRW_DB_u16_W1_SH0(uint32_t A, uint16_t* DB, int32_t* time_
    const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
     CDB_Write_DBM(offset, *DB, mask);
-   
+
    return;
   }
 
@@ -2443,7 +2418,7 @@ static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
    }
 
    // TODO: SCU seems to have its own internal write buffering...or something else complex going on, that complicates
-   // getting the SH-2 DMA timing right. 
+   // getting the SH-2 DMA timing right.
    if(sh2_dma_time_thing != NULL)
     *sh2_dma_time_thing += 1;
 
@@ -2501,7 +2476,7 @@ static INLINE void ABusRW_DB_u16_W1_SH1(uint32_t A, uint16_t* DB, int32_t* time_
    const uint32_t mask = (true) ? 0xFFFF : (0xFF << (((A & 1) ^ 1) << 3));
 
     CDB_Write_DBM(offset, *DB, mask);
-   
+
    return;
   }
 
@@ -2544,7 +2519,7 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
    }
 
    // TODO: SCU seems to have its own internal write buffering...or something else complex going on, that complicates
-   // getting the SH-2 DMA timing right. 
+   // getting the SH-2 DMA timing right.
    if(sh2_dma_time_thing != NULL)
     *sh2_dma_time_thing += 1;
 
@@ -2602,7 +2577,7 @@ static INLINE void ABusRW_DB_u16_W0_SH0(uint32_t A, uint16_t* DB, int32_t* time_
 
     if(true || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
      *DB = CDB_Read(offset);
-   
+
    return;
   }
 
@@ -2645,7 +2620,7 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
    }
 
    // TODO: SCU seems to have its own internal write buffering...or something else complex going on, that complicates
-   // getting the SH-2 DMA timing right. 
+   // getting the SH-2 DMA timing right.
    if(sh2_dma_time_thing != NULL)
     *sh2_dma_time_thing += 1;
 
@@ -2703,7 +2678,7 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
 
     if(false || !(A & 0x80000)) // CD block seems to effectively ignore second read access in 32-bit reads somehow, tested to occur HIRQ and the FIFO at least...
      *DB = CDB_Read(offset);
-   
+
    return;
   }
 
@@ -2719,26 +2694,6 @@ static INLINE void ABusRW_DB_u16_W0_SH1(uint32_t A, uint16_t* DB, int32_t* time_
   *dma_time_thing -= 1;
 }
 
-
-/* Phase-8k: ABus_Write_DB32<T> retired -- 3 named static
- * functions cover the three width slices the template was
- * instantiated for (uint8_t, uint16_t, uint32_t).  The u32
- * variant carries the 32-bit-into-two-16-bit-accesses path
- * the template's `if(sizeof(T) == 4)` branch held; the u8
- * and u16 variants take the single-access "else" branch
- * with the byte / halfword shift folded against their
- * respective widths (DB32 >> 24 for u8, DB32 >> 16 or 0
- * for u16 depending on A & 2).
- *
- * Caller sites pick the right named variant either via a
- * direct concrete call (the dsp T0 burst path, line ~1961)
- * or via a sizeof(T) ladder when called from inside the
- * SCU_FromSH2_BusRW_DB / DMA_Write templates -- T is a
- * template-time constant in those callers so the ladder
- * folds away under -O2.  ABusRW_DB<T, true> calls inside
- * the u8/u16 bodies are now concrete-T template
- * instantiations (uint8_t / uint16_t respectively).
- */
 static INLINE void ABus_Write_DB32_u8(uint32_t A, uint32_t DB32, int32_t* time_thing, int32_t* dma_time_thing, int32_t* sh2_dma_time_thing)
 {
  uint16_t tmp = DB32 >> (((A & 2) ^ 2) << 3);
@@ -2779,14 +2734,6 @@ static INLINE uint32_t ABus_Read(uint32_t A, int32_t* time_thing, int32_t* dma_t
  return ret;
 }
 
-/* Phase-8q3: SCU_FromSH2_BusRW_DB retired into 6 named variants
- * via source-fold (tools/fold_source.py).  Last SCU template --
- * completes the SCU tree.  Each variant body is the template
- * body with template parameters substituted to literals AND
- * dead branches eliminated at source level; the phase-8q2
- * sizeof(T)+IsWrite dispatch ladder for SCU_RegRW_DB collapses
- * to a single direct named call. */
-
 /* === SCU_FromSH2_BusRW_DB variants (3 T x 2 IsWrite) === */
 static INLINE void SCU_FromSH2_BusRW_DB_u8_W0(uint32_t A, uint32_t* DB, int32_t* SH2DMAHax)
 {
@@ -2816,7 +2763,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u8_W0(uint32_t A, uint32_t* DB, int32_t*
 
    BBusRW_DB_u16_W0_SH1(A | 2, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
    *DB |= tmp << 0;
-  
+
   return;
  }
 
@@ -2834,10 +2781,10 @@ static INLINE void SCU_FromSH2_BusRW_DB_u8_W0(uint32_t A, uint32_t* DB, int32_t*
    *SH2DMAHax -=  8;
 
   /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
-   * template instantiation. */
-  
+   * macro-monomorphized form. */
+
    SCU_RegRW_DB_u8_W0 (A, DB);
-  
+
   return;
  }
 
@@ -2900,10 +2847,10 @@ static INLINE void SCU_FromSH2_BusRW_DB_u8_W1(uint32_t A, uint32_t* DB, int32_t*
    *SH2DMAHax -=  4 ;
 
   /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
-   * template instantiation. */
-  
+   * macro-monomorphized form. */
+
    SCU_RegRW_DB_u8_W1 (A, DB);
-  
+
   return;
  }
 
@@ -2948,7 +2895,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u16_W0(uint32_t A, uint32_t* DB, int32_t
 
    BBusRW_DB_u16_W0_SH1(A | 2, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
    *DB |= tmp << 0;
-  
+
   return;
  }
 
@@ -2966,10 +2913,10 @@ static INLINE void SCU_FromSH2_BusRW_DB_u16_W0(uint32_t A, uint32_t* DB, int32_t
    *SH2DMAHax -=  8;
 
   /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
-   * template instantiation. */
-  
+   * macro-monomorphized form. */
+
    SCU_RegRW_DB_u16_W0(A, DB);
-  
+
   return;
  }
 
@@ -3032,10 +2979,10 @@ static INLINE void SCU_FromSH2_BusRW_DB_u16_W1(uint32_t A, uint32_t* DB, int32_t
    *SH2DMAHax -=  4 ;
 
   /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
-   * template instantiation. */
-  
+   * macro-monomorphized form. */
+
    SCU_RegRW_DB_u16_W1(A, DB);
-  
+
   return;
  }
 
@@ -3080,7 +3027,7 @@ static INLINE void SCU_FromSH2_BusRW_DB_u32_W0(uint32_t A, uint32_t* DB, int32_t
 
    BBusRW_DB_u16_W0_SH1(A | 2, &tmp, SH2DMAHax ? NULL : &SH7095_mem_timestamp, NULL, SH2DMAHax);
    *DB |= tmp << 0;
-  
+
   return;
  }
 
@@ -3098,10 +3045,10 @@ static INLINE void SCU_FromSH2_BusRW_DB_u32_W0(uint32_t A, uint32_t* DB, int32_t
    *SH2DMAHax -=  8;
 
   /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
-   * template instantiation. */
-  
+   * macro-monomorphized form. */
+
    SCU_RegRW_DB_u32_W0(A, DB);
-  
+
   return;
  }
 
@@ -3165,10 +3112,10 @@ static INLINE void SCU_FromSH2_BusRW_DB_u32_W1(uint32_t A, uint32_t* DB, int32_t
    *SH2DMAHax -=  4 ;
 
   /* Phase-8q2: sizeof(T) + IsWrite fold at SCU_FromSH2_BusRW_DB
-   * template instantiation. */
-  
+   * macro-monomorphized form. */
+
    SCU_RegRW_DB_u32_W1(A, DB);
-  
+
   return;
  }
 
@@ -3184,10 +3131,6 @@ static INLINE void SCU_FromSH2_BusRW_DB_u32_W1(uint32_t A, uint32_t* DB, int32_t
  else
   *SH2DMAHax -=  4 ;
 }
-
-
-
-
 
 //
 // Offset should have lower 2 bits as 0.
@@ -3414,14 +3357,6 @@ static void CheckDMASFByInt(unsigned int_which)
  }
 }
 
-/* Phase-8m: DMA_Read<unsigned count> retired.  The template was
- * instantiated for count = 1 / 2 / 4 (matching the three SCU DMA
- * transfer widths) via the 9 call sites in DMA_Loop_0 / _1 / _2
- * (themselves the phase-8g detempled variants of DMA_Loop).
- * Three named static helpers below carry the post-folding body
- * with count substituted as a literal; the `4 - count` and
- * `d->CurReadSub += count` terms collapse to constants at
- * compile time. */
 static INLINE uint32_t DMA_Read_c1(DMALevelS* d)
 {
  int shift = ((0x3 ^ (d->CurReadSub & 0x3)) - (0x3 ^ (d->CurWriteAddr & 0x3 & 3))) * 8;
@@ -3503,10 +3438,6 @@ static INLINE uint32_t DMA_Read_c4(DMALevelS* d)
   return d->Buffer << -shift;
 }
 
-/* Phase-8q2: DMA_Write retired into 9 named variants via
- * source-fold.  All 9 (WriteBus, T) tuples are reached by
- * concrete callers in DMA_Loop_WriteBus{0,1,2}. */
-
 /* === DMA_Write variants (3 WriteBus x 3 T) === */
 static INLINE void DMA_Write_WB0_u8(DMALevelS* d, uint32_t DB)
 {
@@ -3555,7 +3486,7 @@ static INLINE void DMA_Write_WB1_u8(DMALevelS* d, uint32_t DB)
   uint16_t DB16;
 
   DB16 = DB >> (((A & 0x2) ^ 0x2) * 8);
-  /* Phase-8q1: sizeof(T) folds at DMA_Write template instantiation. */
+  /* Phase-8q1: sizeof(T) folds at DMA_Write macro-monomorphized form. */
   BBusRW_DB_u8_W1_SH0 (A, &DB16, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -3571,7 +3502,7 @@ static INLINE void DMA_Write_WB1_u16(DMALevelS* d, uint32_t DB)
   uint16_t DB16;
 
   DB16 = DB >> (((A & 0x2) ^ 0x2) * 8);
-  /* Phase-8q1: sizeof(T) folds at DMA_Write template instantiation. */
+  /* Phase-8q1: sizeof(T) folds at DMA_Write macro-monomorphized form. */
   BBusRW_DB_u16_W1_SH0(A, &DB16, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -3587,7 +3518,7 @@ static INLINE void DMA_Write_WB1_u32(DMALevelS* d, uint32_t DB)
   uint16_t DB16;
 
   DB16 = DB >> (((A & 0x2) ^ 0x2) * 8);
-  /* Phase-8q1: sizeof(T) folds at DMA_Write template instantiation. */
+  /* Phase-8q1: sizeof(T) folds at DMA_Write macro-monomorphized form. */
   BBusRW_DB_u32_W1_SH0(A, &DB16, NULL, &WriteOverhead, NULL);
 
  SCU_DMA_TimeCounter -= WriteOverhead;
@@ -3603,7 +3534,7 @@ static INLINE void DMA_Write_WB2_u8(DMALevelS* d, uint32_t DB)
   /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded. */
   const uint32_t boff_ = A & 0xFFFFF;
   const uint8_t val_ = DB >> (((A & 3) ^ (4 - 1)) << 3);
-  
+
 #ifdef MSB_FIRST
    ((uint8_t*)WorkRAMH)[boff_] = val_;
 #else
@@ -3638,7 +3569,7 @@ static INLINE void DMA_Write_WB2_u32(DMALevelS* d, uint32_t DB)
   /* ne16_wbo_be<T>(WorkRAMH, byte_off, val) folded. */
   const uint32_t boff_ = A & 0xFFFFF;
   const uint32_t val_ = DB >> (((A & 3) ^ (4 - 4)) << 3);
-  
+
    WorkRAMH[(boff_ >> 1) + 0] = (uint32_t)val_ >> 16;
    WorkRAMH[(boff_ >> 1) + 1] = val_;
 
@@ -3647,20 +3578,6 @@ static INLINE void DMA_Write_WB2_u32(DMALevelS* d, uint32_t DB)
  d->CurByteCount -= 4;
 }
 
-/* Phase-8g: DMA_Loop<WriteBus> retired -- three concrete
- * instantiations (WriteBus = 0 / 1 / 2 for the SCU's A-bus,
- * B-bus, and "C" / DSP DMA paths), each used exactly once in
- * the LoopFuncs[] dispatch table.  The 25-line body is dupli-
- * cated three times below, once per WriteBus value, with the
- * template parameter inlined as a literal.  DMA_Write<W, T>
- * stays templated (W is one of 0/1/2 per body; T comes from
- * the per-byte-width switch).
- *
- * Each instance keeps the original's NO_INLINE attribute --
- * DMA_Loop was deliberately not inlined into UpdateDMAInner
- * to keep its stack frame separate from the SCU register-RW
- * hot path, and the function-pointer table use below means
- * inlining isn't an option anyway. */
 static bool NO_INLINE DMA_Loop_0(DMALevelS* d)
 {
  while(MDFN_LIKELY(d->Active > 0 && SCU_DMA_TimeCounter < SCU_DMA_RunUntil))
@@ -3778,7 +3695,7 @@ static void SCU_DoDMAEnd(const unsigned level)
  RecalcDMAHalt();
  SCU_SetInt(itab[level], true);
  SCU_SetInt(itab[level], false);
- CheckDMAStart(&DMALevel[level]);    
+ CheckDMAStart(&DMALevel[level]);
 }
 
 sscpu_timestamp_t SCU_UpdateDMA(sscpu_timestamp_t timestamp)
@@ -3853,13 +3770,9 @@ static INLINE void CheckForceDMAFinish(void)
 //
 //
 //
-/* Phase-5e: cross-TU symbol -- declared in scu_dsp_common.inc
- * (extern "C" wrapped on the C++ side, plain decl on the C side),
- * defined here in ss.cpp's TU.  `extern "C"` on the definition
- * forces the unmangled symbol so the scu_dsp_*.c files link
- * against the same `DSP` global.  Gated for C compilation: in C
- * the linkage is already C (no mangling), so the `extern "C"`
- * wrapper is C++-only syntax to suppress -- not semantics. */
+/* DSP global -- declared in scu_dsp_common.inc, defined here.
+ * The extern "C" guard keeps the symbol name unmangled if this
+ * TU is ever compiled as C++. */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -3947,12 +3860,9 @@ static void DSP_Reset(bool powering_up)
   DSP.PRAMDMABuf[i] = 0;
 }
 
-/* Phase-5e: cross-TU symbols.  See the matching extern "C" decl
- * in scu_dsp_common.inc -- ss.cpp emits these as unmangled
- * symbols here so scu_dsp_misc.c / scu_dsp_mvi.c link against
- * the same names.  DSP_Init's address is also used as the base
- * pointer for the DSP_INSTR_BASE_UIPT macro on 64-bit hosts, so
- * the same symbol address must be visible to both compilers. */
+/* Cross-TU symbols.  extern "C" guard keeps the symbol names
+ * unmangled if this TU is ever compiled as C++ so the scu_dsp_*
+ * TUs link against the same names. */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -4217,9 +4127,9 @@ DDMA_FOR_EACH_HOLD(DEFINE_DMAInstr, 1)
 #undef DDMA_FOR_EACH_DIR
 #undef DDMA_FOR_EACH_DRW
 
-/* Phase-5e: extern "C" so the table-symbol name matches the unmangled
- * scu_dsp_common.inc declaration that the C-side scu_dsp_misc.c sees
- * (DSP_DecodeInstruction inlines a read of this table in the LPS path). */
+/* extern "C" guard keeps the table-symbol name unmangled if this
+ * TU is ever compiled as C++ (DSP_DecodeInstruction inlines a read
+ * of this table in the LPS path from scu_dsp_misc.c). */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -4304,7 +4214,7 @@ void SCU_Reset(bool powering_up)
  }
  //SCU_DMA_CycleCounter = 0;
  SCU_DMA_ReadOverhead = 0;
- 
+
  SCU_DMA_SDRAM_Slowdown_Counter = 0;
 
  SCU_DMA_VDP1WriteIgnoreKludge = 0;
@@ -4555,8 +4465,6 @@ MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool dat
  }
 }
 
-
-
 //
 //
 //
@@ -4696,7 +4604,7 @@ void SCU_SetRegister(const unsigned id, const uint32_t value)
   case SCU_GSREG_ASR0_CS0:
 	ASR0 = (ASR0 & 0x0000FFFF) | ((value & 0xFFFD) << 16);
 	break;
-  
+
   case SCU_GSREG_ASR0_CS1:
 	ASR0 = (ASR0 & 0xFFFF0000) | ((value & 0xFFFD) <<  0);
 	break;

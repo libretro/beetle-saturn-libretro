@@ -30,18 +30,17 @@
 /* C-compat typedef for the DSPS state struct defined below.  The C
  * implementation files (scu_dsp_misc.c / scu_dsp_gen.c / scu_dsp_mvi.c)
  * spell the type with the `struct` keyword everywhere already; the
- * typedef lets scu.inc (included from C++ ss.cpp but now staged for
+ * typedef lets scu.inc (included from C++ ss.c but now staged for
  * a C-future) and any other future C consumer say plain `DSPS*`. */
 typedef struct DSPS DSPS;
 
-// See loop in "SCU_UpdateDSP()" in scu.inc, and END/ENDI handling in scu_dsp_misc.cpp
+// See loop in "SCU_UpdateDSP()" in scu.inc, and END/ENDI handling in scu_dsp_misc.c
 enum { DSP_EndCCSubVal = 1000000 };
 
-/* These two function symbols cross the C/C++ boundary: defined in
- * scu.inc (compiled as part of ss.cpp -- C++), called from the
- * scu_dsp_*.c files (post-phase-5e -- C).  Wrap the decls in
- * `extern "C"` when seen by C++ so the same unmangled symbol name
- * resolves on both sides at link time. */
+/* These two function symbols cross the TU boundary: defined in
+ * scu.inc (compiled as part of ss.c), called from the scu_dsp_*.c
+ * files.  extern "C" guards keep the symbol names unmangled if
+ * either side is ever compiled as C++. */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -71,12 +70,6 @@ union DSPR48
  uint64_t T;	// Upper 16 bits may be non-zero "garbage", so don't assume they're zero in code that reads from this variable.
 };
 
-/* Phase-5d: hoisted out of `struct DSPS` so bare-name access works
- * identically under both C and C++ -- C++'s struct-scoped member
- * enumerators require `DSPS::STATE_MASK_EXECUTE`, C scopes them to
- * the enclosing namespace (file scope here) and accepts only the
- * bare form.  Moving them out lets every TU (scu.inc / scu_dsp_misc
- * .cpp / future scu_dsp_misc.c) use the same spelling. */
 enum
 {
  /* No execute = 0x00000000		<= 0 */
@@ -135,26 +128,18 @@ struct DSPS
  uint32_t PRAMDMABufCount;
 };
 
-/* Phase-5a: replaces the struct's `FORCE_INLINE bool IsRunning(void)`
- * member function.  Same semantics (returns true iff not stopped and
- * not paused), C-callable free function form; pre-rename of the four
- * scu_dsp_*.cpp TUs.  All callers use `DSPS_IsRunning(&DSP)` or
- * `DSPS_IsRunning(dsp)` -- the member-function `DSP.IsRunning()` /
- * `dsp->IsRunning()` spellings are gone. */
 static FORCE_INLINE bool DSPS_IsRunning(const struct DSPS* dsp)
 {
  return dsp->State > 0;
 }
 
-
-/* All 5 function-pointer tables + the global DSPS state cross
- * the C/C++ boundary post-phase-5e: DSP_DMAFuncTable and `DSP DSP`
- * are defined in scu.inc (C++, in ss.cpp's TU); the other 4
- * tables are defined in the scu_dsp_*.c files (C).  All five
- * are read from both sides through DSP_DecodeInstruction (which
- * is FORCE_INLINE, so the references reproduce in both link
- * paths).  Wrap the externs in extern "C" when seen by C++ so
- * the unmangled symbol resolves both ways. */
+/* All 5 function-pointer tables + the global DSPS state cross the
+ * TU boundary: DSP_DMAFuncTable and `struct DSPS DSP` are defined
+ * in scu.inc (in ss.c's TU); the other 4 tables are defined in the
+ * scu_dsp_*.c files.  All five are read from both sides through
+ * DSP_DecodeInstruction (which is FORCE_INLINE).  extern "C" guards
+ * keep the symbol names unmangled if any side is ever compiled as
+ * C++. */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -193,7 +178,7 @@ MDFN_HIDE extern struct DSPS DSP;
  * uint64_t DSP_DecodeInstruction(const uint32_t instr)`.  All call
  * sites pass a compile-time-constant `looped`, so with FORCE_INLINE
  * + -O2 the `looped` argument is constant-folded across the switch
- * arms identically to the template instantiation -- gcc emits the
+ * arms identically to the macro-monomorphized form -- gcc emits the
  * same per-call code as the template did. */
 static FORCE_INLINE uint64_t DSP_DecodeInstruction(const uint32_t instr, const bool looped)
 {

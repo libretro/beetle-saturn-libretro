@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* ss.cpp - Saturn Core Emulation and Support Functions
+/* ss.c - Saturn Core Emulation and Support Functions
 **  Copyright (C) 2015-2023 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -23,12 +23,12 @@
 
 #include "../mempatcher.h"
 /* mednafen.h / git.h are intentionally NOT included -- they pull in
- * <algorithm>, <string>, <vector>, <map> (C++-only) into a TU whose
+ * <algorithm>, <string>, <vector>, <map> (no longer used) into a TU whose
  * body is otherwise pure C.  The MDFNGI typedef this file needs for
  * `extern MDFNGI EmulatedSS;` lives in mdfn_gameinfo.h which is
  * C-clean (factored out of git.h specifically so C TUs can include
  * it).  EmulateSpecStruct lives in emuspec.h for the same reason --
- * typedef'd at file scope so both C and C++ TUs can name the type
+ * typedef'd at file scope so both C and TUs can name the type
  * without the `struct` keyword.
  *
  * The _() translation-string identity macro normally lives in
@@ -62,13 +62,7 @@ extern uint32_t IBufferCount;
 #include "db.h"
 #include "stvio.h"
 
-/* Phase-7c: FastMemMap + SH-2 event system moved to ss_init.c.
- * The cross-TU plumbing (externs for SH7095_FastMap, FMIsWriteable,
- * events, event_handlers, next_event_ts, Running plus the
- * function prototypes ss.cpp's ForceEventUpdates / CheatMemWrite
- * still need from C) lives in this header. */
 #include "ss_init.h"
-
 
 // Libretro-specific
 #ifndef RETRO_SLASH
@@ -90,12 +84,7 @@ extern char retro_base_directory[4096];
 uint32_t ss_horrible_hacks;
 
 bool NeedEmuICache;
-/* BRAM_Init_Data moved to ss_state.c (phase 7b). */
 
-/* Phase-7b: the eight file-I/O functions and BRAM_Init_Data
- * moved to ss_state.c.  Pulled in here for the call sites in
- * Cleanup() / Emulate() / InitCommon() / SS_FlushBackupRAM() /
- * SS_FlushCartNV(). */
 #include "ss_state.h"
 
 #include "sh7095.h"
@@ -108,10 +97,6 @@ static uint8_t SCU_SSH2VectorFetch(void);
 
 SH7095 CPU[2];
 
-/* Phase-9 step 5: SH7095 ctor dropped; CPU[2] is now zero-initialized
- * (static storage duration) and the once-only per-CPU init that the
- * ctor used to do moves into SH7095_ConstructAll below.  Called from
- * InitCommon() before either CPU is touched. */
 MDFN_COLD void SH7095_ConstructAll(void)
 {
  SH7095_Construct(&CPU[0], "SH2-M", SS_EVENT_SH2_M_DMA, SCU_MSH2VectorFetch);
@@ -125,14 +110,14 @@ MDFN_COLD void SH7095_ConstructAll(void)
  * between SH-2 master (0) and slave (1); callers in smpc.c pass
  * literal 0/1 to match the historical CPU[0]/CPU[1] indexing.
  *
- * The proxies stay here in ss.cpp rather than in sh7095.cpp because
+ * The proxies stay here in ss.c rather than in sh7095.inc because
  * the CPU[2] global lives in this TU.  sh7095.h itself remains
- * C++-only (it exposes the class, and there is no current C TU that
+ * no longer used (it exposes the class, and there is no current C TU that
  * needs anything beyond these two methods); when more SH7095
  * operations need C-callable proxies they should be added here. */
 /* Phase-9 follow-up: these C-callable proxies used to shadow the
  * SH7095*-primary `SH7095_SetActive` / `SH7095_SetNMI` decls in
- * sh7095.h via C++ overloading (same name, different signature,
+ * sh7095.h via function-name overloading (same name, different signature,
  * different linkage namespace).  Once sh7095.h became C-parseable
  * the overload collapsed to a redefinition: C has no overloading.
  *
@@ -152,7 +137,7 @@ void SH7095_M_SetNMI(bool level)
  SH7095_SetNMI(&CPU[0], level);
 }
 
-/* Used by vdp2.c (converted from C++) for the HORRIBLEHACK_NOSH2DMA-
+/* Used by vdp2.c  for the HORRIBLEHACK_NOSH2DMA-
  * LINE106 path -- vdp2's CPU loop iterates CPU[0..1] once per scanline
  * advance and sets the kludge flag.  Matches the SetActive / SetNMI
  * proxies above; cpu index picks master (0) / slave (1). */
@@ -163,7 +148,7 @@ void SH7095_SetExtHaltDMAKludge(int cpu, bool state)
 
 /* Phase-7f: promoted from file-static -- ss_init.c's InitCommon
  * loads it from disk and assigns BIOS_SHA256.  Definition stays
- * here so the rest of ss.cpp's globals layout is undisturbed. */
+ * here so the rest of ss.c's globals layout is undisturbed. */
 uint16_t BIOSROM[524288 / sizeof(uint16_t)];
 uint8_t WorkRAM[2*WORKRAM_BANK_SIZE_BYTES]; // unified 2MB work ram for linear access.
 // Effectively 32-bit in reality, but 16-bit here because of CPU interpreter design(regarding fastmap).
@@ -179,14 +164,11 @@ uint8_t BackupRAM_StateHelper[32768];
 bool BackupRAM_Dirty;
 bool CartNV_Dirty;
 
-/* Phase-7e: ss.cpp's InitCommon zero-initialises this on game load
+/* Phase-7e: ss.c's InitCommon zero-initialises this on game load
  * (line ~867); ss_init.c's MidSync helper UpdateSMPCInput / Emulate
  * loop read and update it.  Define lives here, extern declared in
  * ss_init.c for the C-side accessors. */
 int64_t UpdateInputLastBigTS;
-
-/* SH7095_FastMap definition moved to ss_init.c (phase 7c).
- * SH7095_EXT_MAP_GRAN_BITS lives in ss_init.h now. */
 
 int32_t SH7095_mem_timestamp;
 /* SH7095_BusLock is read from ss_init.c's SH_DMA_EventHandler -- promoted
@@ -198,9 +180,6 @@ uint32_t SH7095_DB;
 
 sha256_digest BIOS_SHA256;   // SHA-256 hash of the currently-loaded BIOS; used for save state sanity checks.
 int ActiveCartType;		// Used in save states.
-/* FMIsWriteable + accessors + fmap_dummy moved to ss_init.c (phase 7c).
- * FMIsWriteable_get/set/reset are inline functions in ss_init.h
- * so ss.cpp callers (CheatMemWrite still here) keep their codegen. */
 
 /*
  SH-2 external bus address map:
@@ -238,15 +217,12 @@ int ActiveCartType;		// Used in save states.
 //
 // When BurstHax is true and we're accessing high work RAM, don't add anything.
 //
-/* Phase-8r2: BusRW_DB_CS0 retired into 4 named variants
- * via source-fold.  Only (u8/u16) x (W0/W1) tuples are
- * invoked by callers in sh7095.inc; no u32 CS0 access. */
 
 static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
  //
- // Low(and kinda slow) work RAM 
+ // Low(and kinda slow) work RAM
  //
  if(A >= 0x00200000 && A <= 0x003FFFFF)
  {
@@ -273,7 +249,7 @@ static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t* DB, const bool
    /* ne16_wbo_be<T>(WorkRAML, byte_off, val) folded.  T can be
     * uint8_t, uint16_t, or uint32_t; sizeof(T) dispatches the right
     * write width.  Compiler folds away the dead branches per
-    * template instantiation. */
+    * macro-monomorphized form. */
    const uint32_t boff_ = A & 0xFFFFF;
    const uint8_t val_ = *DB >> (((A & 1) ^ (2 - 1)) << 3);
    {
@@ -359,7 +335,7 @@ static INLINE void BusRW_DB_CS0_u8_W1(const uint32_t A, uint32_t* DB, const bool
    *SH2DMAHax += 8;
 
   {
-   
+
   }
   return;
  }
@@ -403,7 +379,7 @@ static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t* DB, const boo
 {
 
  //
- // Low(and kinda slow) work RAM 
+ // Low(and kinda slow) work RAM
  //
  if(A >= 0x00200000 && A <= 0x003FFFFF)
  {
@@ -430,7 +406,7 @@ static INLINE void BusRW_DB_CS0_u16_W1(const uint32_t A, uint32_t* DB, const boo
    /* ne16_wbo_be<T>(WorkRAML, byte_off, val) folded.  T can be
     * uint8_t, uint16_t, or uint32_t; sizeof(T) dispatches the right
     * write width.  Compiler folds away the dead branches per
-    * template instantiation. */
+    * macro-monomorphized form. */
    const uint32_t boff_ = A & 0xFFFFF;
    const uint16_t val_ = *DB >> (((A & 1) ^ (2 - 2)) << 3);
    WorkRAML[boff_ >> 1] = val_;
@@ -559,7 +535,7 @@ static INLINE void BusRW_DB_CS0_u8_W0(const uint32_t A, uint32_t* DB, const bool
 {
 
  //
- // Low(and kinda slow) work RAM 
+ // Low(and kinda slow) work RAM
  //
  if(A >= 0x00200000 && A <= 0x003FFFFF)
  {
@@ -689,7 +665,7 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t* DB, const boo
 {
 
  //
- // Low(and kinda slow) work RAM 
+ // Low(and kinda slow) work RAM
  //
  if(A >= 0x00200000 && A <= 0x003FFFFF)
  {
@@ -815,12 +791,6 @@ static INLINE void BusRW_DB_CS0_u16_W0(const uint32_t A, uint32_t* DB, const boo
   *SH2DMAHax += 4;
 }
 
-
-/* Phase-8r2: BusRW_DB_CS12 retired into 6 named variants
- * via source-fold.  Phase-8q3 sizeof(T)+IsWrite dispatch
- * ladder to SCU_FromSH2_BusRW_DB_* collapses to one
- * direct named call per variant. */
-
 static INLINE void BusRW_DB_CS12_u8_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
 
@@ -830,7 +800,7 @@ static INLINE void BusRW_DB_CS12_u8_W0(const uint32_t A, uint32_t* DB, const boo
  *DB = 0;
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
-  * template instantiation. */
+  * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u8_W0 (A, DB, SH2DMAHax);
  }
@@ -844,7 +814,7 @@ static INLINE void BusRW_DB_CS12_u8_W1(const uint32_t A, uint32_t* DB, const boo
  //
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
-  * template instantiation. */
+  * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u8_W1 (A, DB, SH2DMAHax);
  }
@@ -859,7 +829,7 @@ static INLINE void BusRW_DB_CS12_u16_W0(const uint32_t A, uint32_t* DB, const bo
  *DB = 0;
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
-  * template instantiation. */
+  * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u16_W0(A, DB, SH2DMAHax);
  }
@@ -873,7 +843,7 @@ static INLINE void BusRW_DB_CS12_u16_W1(const uint32_t A, uint32_t* DB, const bo
  //
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
-  * template instantiation. */
+  * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u16_W1(A, DB, SH2DMAHax);
  }
@@ -888,7 +858,7 @@ static INLINE void BusRW_DB_CS12_u32_W0(const uint32_t A, uint32_t* DB, const bo
  *DB = 0;
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
-  * template instantiation. */
+  * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u32_W0(A, DB, SH2DMAHax);
  }
@@ -902,15 +872,11 @@ static INLINE void BusRW_DB_CS12_u32_W1(const uint32_t A, uint32_t* DB, const bo
  //
 
  /* Phase-8q3: sizeof(T) + IsWrite fold at BusRW_DB_CS12
-  * template instantiation. */
+  * macro-monomorphized form. */
  {
   SCU_FromSH2_BusRW_DB_u32_W1(A, DB, SH2DMAHax);
  }
 }
-
-
-/* Phase-8r2: BusRW_DB_CS3 retired into 6 named variants
- * via source-fold. */
 
 static INLINE void BusRW_DB_CS3_u8_W0(const uint32_t A, uint32_t* DB, const bool BurstHax, int32_t* SH2DMAHax)
 {
@@ -1031,13 +997,9 @@ static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t* DB, const boo
  }
 }
 
-
 //
 //
 //
-/* CheatMemRead moved to ss_init.c (phase 7c).  Mednafen patches
- * (MDFNMP_RegSearchable) take its address by name; the extern decl is
- * in ss_init.h. */
 
 static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
 {
@@ -1067,8 +1029,6 @@ static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
 //
 //
 //
-/* SetFastMemMap (file-static), InitFastMemMap, and SS_SetPhysMemMap
- * moved to ss_init.c (phase 7c). */
 
 #include "sh7095.inc"
 #include <stdint.h>
@@ -1101,19 +1061,10 @@ static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
 #include <streams/file_stream.h>
 #include <libretro.h>
 
-/* Phase-7c: the SH-2 event ring + dispatch machinery (Running,
- * events[], event_handlers[], next_event_ts, FindNextEventTS,
- * SH_DMA_EventHandler_M/_S, InitEvents, RebaseTS, SS_SetEventNT,
- * EventHandler, CheckEventsByMemTS{_Sub}, SS_RequestEHLExit,
- * SS_RequestMLExit) moved to ss_init.c.  ss.cpp drives the loop
- * via the externs declared in ss_init.h and provides the two
- * extern "C" SH7095_{M,S}_DMA_Update helpers below that wrap the
- * C++-only SH7095_DMA_Update(&CPU[c], et) method dispatch. */
-
 int32_t SH7095_M_DMA_Update(int32_t et) { return SH7095_DMA_Update(&CPU[0], et); }
 int32_t SH7095_S_DMA_Update(int32_t et) { return SH7095_DMA_Update(&CPU[1], et); }
 
-/* ForceEventUpdates stays in ss.cpp -- the first loop dispatches into
+/* ForceEventUpdates stays in ss.c -- the first loop dispatches into
  * SH7095_ForceInternalEventUpdates(&CPU[c]), which is an SH7095 class method
  * and not yet a C-callable wrapper.  After the SH7095 class -> struct
  * conversion (later phase) this function migrates to ss_init.c too.
@@ -1136,14 +1087,10 @@ static void ForceEventUpdates(const sscpu_timestamp_t timestamp)
  next_event_ts = (Running > 0) ? FindNextEventTS() : 0;
 }
 
-
 #if defined(__GNUC__) && !defined(__clang__)
  #pragma GCC push_options
  #pragma GCC optimize("O2,no-unroll-loops,no-peel-loops,no-crossjumping")
 #endif
-/* Phase-8r2: RunLoop<bool EmulateICache> retired into 2
- * named variants via source-fold.  The extern "C"
- * wrappers call them directly. */
 
 static NO_INLINE MDFN_HOT int32_t RunLoop_ICache(EmulateSpecStruct* espec)
 {
@@ -1224,25 +1171,10 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
  return eff_ts;
 }
 
-
 #if defined(__GNUC__) && !defined(__clang__)
  #pragma GCC pop_options
 #endif
 
-/* Phase-7f: SS_Reset moved to ss_init.c.  The three CPU class-method
- * calls it dispatches (CPU[c].TruePowerOn, CPU[0].Reset) are exposed
- * through the SH7095_{M,S}_{TruePowerOn,Reset} extern "C" wrappers
- * added below in this phase.  Retires when SH7095 becomes a C struct. */
-
-/* Phase-7e: MidSync, UpdateSMPCInput, Emulate (and the file-statics
- * espec / AllowMidSync / cur_clock_div they share) moved to ss_init.c.
- * The C-side Emulate reaches the C++-only bits below through extern "C"
- * wrappers: SS_RunLoop_ICache / SS_RunLoop_NoICache wrap the
- * RunLoop<bool EmulateICache> template; SS_ForceEventUpdates wraps the
- * static ForceEventUpdates which keeps living in ss.cpp because its
- * first loop calls CPU[c].ForceInternalEventUpdates (an SH7095 class
- * method); SH7095_{M,S}_AdjustTS wraps CPU[0/1].AdjustTS.  All four
- * retire once the SH7095 class becomes a C struct. */
 int32_t SS_RunLoop_ICache(EmulateSpecStruct* espec)                                   { return RunLoop_ICache(espec); }
 int32_t SS_RunLoop_NoICache(EmulateSpecStruct* espec)                                 { return RunLoop_NoICache(espec); }
 void    SS_ForceEventUpdates(int32_t timestamp)                                       { ForceEventUpdates(timestamp); }
@@ -1260,33 +1192,9 @@ MDFN_COLD void SH7095_M_TruePowerOn(void)                                       
 MDFN_COLD void SH7095_S_TruePowerOn(void)                                             { SH7095_TruePowerOn(&CPU[1]); }
 MDFN_COLD void SH7095_M_Reset(bool power_on_reset)                                    { SH7095_Reset(&CPU[0], power_on_reset, false); }
 
-
 //
 //
 //
-
-/* Phase-7f: Cleanup, CartName typedef, InitCommon, CloseGame, and
- * MDFN_BackupSavFile moved to ss_init.c.  The SH7095 method calls
- * they used (CPU[c].Init/SetMD5/TruePowerOn from InitCommon, and
- * CPU[c].Reset/TruePowerOn from SS_Reset which also moved) are
- * reached through the extern "C" SH7095_{M,S}_{Init,SetMD5,
- * TruePowerOn,Reset} wrappers above.  Retires together with those
- * wrappers when the SH7095 class becomes a C struct. */
-
-/* Phase-7b: BackupRAM / Cart NV / RTC file I/O moved to
- * ss_state.c.  The SS_Flush* public wrappers above still live
- * here so the file holds the public-ABI surface; their thin
- * bodies forward into the new C TU via the extern "C" decls
- * in ss_state.h. */
-
-/* Phase-7d: EventsPacker struct + Save/Restore method bodies
- * moved to ss_state.c as a plain C struct (EventsPacker) + two
- * free functions (EventsPacker_Save / EventsPacker_Restore). */
-
-/* Phase-7d: LibRetro_StateAction moved to ss_state.c.  The
- * four CPU class-method dispatch sites it used are exposed
- * through extern "C" wrappers below; those wrappers retire
- * when the SH7095 class becomes a C struct. */
 
 void SH7095_M_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
 {
@@ -1455,14 +1363,6 @@ NO_INLINE sscpu_timestamp_t FindNextEventTS(void)
  return m;
 }
 
-/* Phase-7a: was `template<unsigned c> static sscpu_timestamp_t
- * SH_DMA_EventHandler(sscpu_timestamp_t et)` with c instantiated
- * to 0 (master SH-2) and 1 (slave SH-2).  The C++ body called
- * CPU[c].DMA_Update(et); the C-side rewrite reaches the same
- * dispatch through the extern "C" wrappers SH7095_M_DMA_Update /
- * SH7095_S_DMA_Update (defined in ss.cpp, where the SH7095 class
- * type still lives -- this gets retired once the SH7095 class is
- * fully converted to a C struct in a later phase). */
 extern int32_t SH7095_M_DMA_Update(int32_t et);
 extern int32_t SH7095_S_DMA_Update(int32_t et);
 extern uint32_t SH7095_BusLock;
@@ -1552,7 +1452,7 @@ void SS_SetEventNT(event_list_entry* e, const sscpu_timestamp_t next_timestamp)
 }
 
 /* EventHandler was static INLINE; promoted to TU-external in phase 7c
- * because ss.cpp's RunLoop template body calls it.  Keeping it INLINE
+ * because ss.c's RunLoop template body calls it.  Keeping it INLINE
  * (declared as such in ss_init.h via the prototype) lets gcc/LTO
  * fold it back into the hot loop at link time. */
 bool EventHandler(const sscpu_timestamp_t timestamp)
@@ -1608,7 +1508,7 @@ void SS_RequestMLExit(void)
  * Phase-7e: per-frame Emulate() loop + MidSync helper
  * =================================================================== */
 
-/* Externs into ss.cpp -- promoted to TU-external in phase 7d. */
+/* Externs into ss.c -- promoted to TU-external in phase 7d. */
 extern bool          NeedEmuICache;
 extern int           ActiveCartType;
 extern int64_t       UpdateInputLastBigTS;
@@ -1617,10 +1517,8 @@ extern int64_t       UpdateInputLastBigTS;
 extern MDFNGI        EmulatedSS;
 extern uint32_t      IBufferCount;
 
-/* C wrappers that ss.cpp publishes for our use (extern "C" defined
- * there); these forward into the SH7095 class instances and the
- * template-parameterised RunLoop body that still live in C++.
- * Each retires once the SH7095 class becomes a C struct. */
+/* Functions ss.c publishes for our use; these forward into the
+ * SH7095 CPU instances and the RunLoop dispatch in this TU. */
 int32_t SS_RunLoop_ICache(struct EmulateSpecStruct* espec);
 int32_t SS_RunLoop_NoICache(struct EmulateSpecStruct* espec);
 void    SS_ForceEventUpdates(int32_t timestamp);
@@ -1711,7 +1609,7 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
 
  SH7095_mem_timestamp -= end_ts; /* Update before SH7095 AdjustTS calls. */
 
- /* CPU[c].AdjustTS(-end_ts) for c in {0,1} via extern "C" wrappers. */
+ /* AdjustTS(-end_ts) for both SH7095 CPU instances. */
  SH7095_M_AdjustTS(-end_ts);
  SH7095_S_AdjustTS(-end_ts);
  (void)c;
@@ -1750,13 +1648,11 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
  * These are the boot-time orchestration entry points the libretro
  * front-end calls (InitCommon from retro_load_game, SS_Reset from
  * retro_reset, CloseGame from retro_unload_game).  Each reaches
- * into the SH7095 CPU[2] instances that still live in ss.cpp via
- * extern "C" wrappers added there in this phase
- * (SH7095_{M,S}_{Init,SetMD5,TruePowerOn,Reset}).  The wrappers
- * retire once the SH7095 class becomes a C struct.
+ * into the SH7095 CPU[2] instances via the SH7095_{M,S}_*
+ * dispatch wrappers (Init/SetMD5/TruePowerOn/Reset).
  * =================================================================== */
 
-/* Externs into ss.cpp (TU-external definitions live there). */
+/* Externs into ss.c (TU-external definitions live there). */
 extern uint8_t       WorkRAM[];
 extern uint16_t*     WorkRAML;
 extern uint16_t*     WorkRAMH;
@@ -1766,11 +1662,11 @@ extern uint32_t      ss_horrible_hacks;
 extern bool          is_pal;
 extern sha256_digest BIOS_SHA256;
 
-/* Defined in libretro.c (no header to include for this -- ss.cpp and
+/* Defined in libretro.c (no header to include for this -- ss.c and
  * settings.c each redeclare it locally; match that pattern). */
 extern char retro_base_directory[4096];
 
-/* SH7095 method dispatch wrappers (extern "C" defined in ss.cpp). */
+/* SH7095 dispatch wrappers defined later in this file. */
 void SH7095_ConstructAll(void) MDFN_COLD;
 void SH7095_M_Init(const bool emumode_full, const bool emumode_cb_only) MDFN_COLD;
 void SH7095_S_Init(const bool emumode_full, const bool emumode_cb_only) MDFN_COLD;
@@ -1865,12 +1761,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    }
 
    NeedEmuICache = (cpucache_emumode == CPUCACHE_EMUMODE_FULL);
-   /* Phase-9 step 5: SH7095 ctor dropped, so the once-only per-CPU
-    * member init that the ctor used to do has to run BEFORE the first
-    * SH7095_*_Init call.  SH7095_ConstructAll is idempotent in the
-    * sense that calling it twice would just re-init the same fields,
-    * but call sites should be single. */
-   SH7095_ConstructAll();
+      SH7095_ConstructAll();
    SH7095_M_Init((cpucache_emumode == CPUCACHE_EMUMODE_FULL), (cpucache_emumode == CPUCACHE_EMUMODE_DATA_CB));
    SH7095_S_Init((cpucache_emumode == CPUCACHE_EMUMODE_FULL), (cpucache_emumode == CPUCACHE_EMUMODE_DATA_CB));
    SH7095_M_SetMD5(false);
@@ -2088,7 +1979,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
 
 /* SS_Reset is the public-ABI reset entry called from libretro.c's
  * retro_reset and from InitCommon's final step.  Reaches into both
- * SH7095 CPU instances via the extern "C" wrappers. */
+ * SH7095 CPU instances via the SH7095_{M,S}_Reset wrappers. */
 void SS_Reset(bool powering_up)
 {
  SH7095_BusLock = 0;
@@ -2145,22 +2036,13 @@ void MDFN_BackupSavFile(const uint8_t max_backup_count, const char* sav_ext)
    (void)sav_ext;
 }
 
-
-/* ===================================================================
- * BackupRAM / Cart NV / RTC file I/O + state save/load orchestration
- *
- * Previously a separate ss_state.c TU (Phase-7b extraction); merged
- * back into ss.c since the split was about C-vs-C++ separation that
- * no longer applies.
- * =================================================================== */
-
-/* log_cb is declared in mednafen/git.h (formerly a C++ header) and
+/* log_cb is declared in mednafen/git.h (formerly a header) and
  * defined as a plain C function pointer; redeclare here so we don't
  * need to drag git.h's <algorithm> / <vector> chain into this TU. */
 extern retro_log_printf_t log_cb;
 
 /* "BackUpRam Format" ASCII -- the magic prefix every Saturn backup
- * memory region starts with.  Used both by InitCommon in ss.cpp (to
+ * memory region starts with.  Used both by InitCommon in ss.c (to
  * stamp a freshly-zeroed BackupRAM) and by SS_LoadBackupRAM below
  * (to restore the stamp after a short/failed read). */
 const uint8_t BRAM_Init_Data[0x10] = {
@@ -2388,13 +2270,10 @@ bool SS_FlushCartNV(void)
  * sizing array bounds inside the struct.
  *
  * LibRetro_StateAction is the libretro-level state-action entry
- * point.  Reaches into ss.cpp's globals (NeedEmuICache, BIOS_SHA256,
+ * point.  Reaches into ss.c's globals (NeedEmuICache, BIOS_SHA256,
  * ActiveCartType, BackupRAM_StateHelper, WorkRAML/H, SH7095_DB,
- * UpdateInputLastBigTS -- all promoted to TU-external in this
- * phase) and dispatches into the SH7095 cores through the four
- * extern "C" SH7095_{M,S}_{StateAction,PostStateLoad} wrappers
- * added to ss.cpp.  Those wrappers retire once the SH7095 class
- * itself becomes a C struct (later phase).
+ * UpdateInputLastBigTS) and dispatches into the SH7095 cores
+ * through the SH7095_{M,S}_{StateAction,PostStateLoad} wrappers.
  */
 
 #define EVENTCOPY_FIRST  (SS_EVENT__SYNFIRST + 1)
@@ -2473,7 +2352,7 @@ static INLINE bool EventsPacker_Restore(EventsPacker* ep, const unsigned state_v
  return true;
 }
 
-/* Externs into ss.cpp -- the ss.cpp globals these touch are
+/* Externs into ss.c -- the ss.c globals these touch are
  * promoted to TU-external in phase 7d.  Declared here rather
  * than in ss_state.h because they're internal to the save-state
  * machinery; nobody else needs them. */
@@ -2486,8 +2365,8 @@ extern uint16_t*     WorkRAMH;
 extern uint32_t      SH7095_DB;
 extern int64_t       UpdateInputLastBigTS;
 /* SH7095_mem_timestamp + SH7095_BusLock come via ss_init.h.  The
- * SH7095 C++-class state-action / post-state-load entry points are
- * extern "C" wrappers defined in ss.cpp. */
+ * SH7095 state-action / post-state-load entry points are wrappers
+ * defined below in this file. */
 extern int32_t       SH7095_mem_timestamp;
 extern uint32_t      SH7095_BusLock;
 void SH7095_M_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;

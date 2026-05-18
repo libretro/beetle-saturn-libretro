@@ -13,7 +13,7 @@
 /* ---------------------------------------------------------------------------
 ** Single source of truth for constants/types that cross the C <-> C++ boundary.
 **
-** Background: the Saturn core is being incrementally converted from C++ to C.
+** Background: the Saturn core is being incrementally in C.
 ** A converted C file (e.g. vdp1.c) can no longer #include the still-C++
 ** ss.h / scu.h. The FIRST conversion pass worked around this by RE-TYPING the
 ** enum values it needed by hand into vdp1.c -- and miscounted, producing
@@ -36,7 +36,7 @@
 #include <stdint.h>
 
 /* --- ss.h: emulator event scheduler -------------------------------------- */
-/* Order is load-bearing: these index events[] in ss.cpp. Keep verbatim. */
+/* Order is load-bearing: these index events[] in ss.c. Keep verbatim. */
 enum
 {
  SS_EVENT__SYNFIRST = 0,
@@ -65,7 +65,7 @@ enum
  SS_EVENT__COUNT
 };
 
-/* event_list_entry: layout-compatible POD shared with ss.cpp's events[].
+/* event_list_entry: layout-compatible POD shared with ss.c's events[].
 ** sscpu_timestamp_t is int32_t; spelled int32_t here so this header has no
 ** include-order dependency. */
 typedef struct event_list_entry

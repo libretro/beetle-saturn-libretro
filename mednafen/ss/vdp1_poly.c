@@ -127,7 +127,6 @@ int32_t VDP1_RESUME_Polygon(const uint16_t* cmd_data)
  return PolygonResumeBase(cmd_data, 0);
 }
 
-
 static INLINE int32_t CMD_PolygonG_T(const uint16_t* cmd_data, const int gourauden)
 {
  line_vertex p[4];

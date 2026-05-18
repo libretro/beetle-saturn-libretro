@@ -19,7 +19,7 @@
 ** 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-/* Converted from cart.cpp. CartInfo was already a plain struct of
+/* Converted from cart.c. CartInfo was already a plain struct of
    function pointers -- C-style polymorphism -- so there is no class
    hierarchy here; the conversion is mechanical. The two CartInfo
    member functions (CS01_SetRW8W16 / CS2M_SetRW8W16) become free

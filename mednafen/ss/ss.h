@@ -27,7 +27,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 /* C inclusion (for future C-converted SS modules) needs the boolean
- * keyword macros; C++ has `bool` built in. */
+ * keyword macros; C++ has `bool` as a built-in. */
 #include <boolean.h>
 
 /* SS_EVENT_*, HORRIBLEHACK_*, event_list_entry: shared verbatim with the
@@ -91,7 +91,7 @@
  // (the BackupRAM_Dirty bit is set on every write to the BRAM region,
  // CartNV_Dirty is set at end-of-frame when CART_GetClearNVDirty returns
  // true), and consumed by libretro.cpp after Emulate() returns. See the
- // long comment in Emulate() in ss.cpp.
+ // long comment in Emulate() in ss.c.
  extern uint8_t BackupRAM[32768];
  extern bool BackupRAM_Dirty;
  extern bool CartNV_Dirty;
@@ -104,8 +104,8 @@
  // CloseGame / InitCommon / SS_RequestMLExit / SS_RequestEHLExit) are
  // wrapped in extern "C" because the libretro entry-point TU
  // (libretro.c, converted from C++) calls them across the C/C++
- // boundary.  ss.cpp is still C++; the wrap propagates C linkage
- // from these declarations to the matching definitions in ss.cpp.
+ // boundary.  ss.c is still C++; the wrap propagates C linkage
+ // from these declarations to the matching definitions in ss.c.
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -117,17 +117,16 @@ extern "C" {
 }
 #endif
 
-
  typedef int32_t sscpu_timestamp_t;
 
 #ifdef __cplusplus
- /* SH7095 is a C++ class; C consumers of this header can't see the
+ /* SH7095 is a struct; C consumers of this header can't see the
   * type but also have no use for it (the CPU[] array is accessed only
-  * from smpc.cpp and ss.cpp internals).  Guard so the header parses
+  * from smpc.c and ss.c internals).  Guard so the header parses
   * as C. */
  class SH7095;
 
- MDFN_HIDE extern SH7095 CPU[2];	// for smpc.cpp
+ MDFN_HIDE extern SH7095 CPU[2];	// for smpc.c
 #endif
 
  MDFN_HIDE extern int32_t SH7095_mem_timestamp;
@@ -179,7 +178,7 @@ extern "C" {
  // cart/*.c device files) is C now and calls this across the C/C++
  // boundary.  C++ callers get the convenience default argument;
  // C callers must pass is_writeable explicitly (default args are
- // C++-only syntax, so the declaration is split).
+ // no longer used syntax, so the declaration is split).
 #ifdef __cplusplus
 extern "C" void SS_SetPhysMemMap(uint32_t Astart, uint32_t Aend, uint16_t* ptr, uint32_t length, bool is_writeable = false) MDFN_COLD;
 #else
@@ -202,9 +201,9 @@ extern "C" {
  void SS_Reset(bool powering_up) MDFN_COLD;
 
  /* Top-level SS-core entry points called from libretro.c.
-  * Defined in ss.cpp (still C++).  See the longer comment near
+  * Defined in ss.c (still C++).  See the longer comment near
   * SS_FlushBackupRAM above for the cross-language ABI rationale.
-  * InitCommon's C++-side default args (rom_dir, main_fname, sgi
+  * InitCommon's caller-side default args (rom_dir, main_fname, sgi
   * all default to NULL) are dropped here so the declaration is C-
   * parseable; the few libretro.c callsites that relied on defaults
   * pass NULL explicitly. */
@@ -212,8 +211,8 @@ extern "C" {
  void Emulate(struct EmulateSpecStruct* espec_arg);
  void CloseGame(void) MDFN_COLD;
 
- /* Defined in ss.cpp; called from libretro.c's save-state /
-  * end-of-game path via the same C/C++ boundary. */
+ /* Defined in ss.c; called from libretro.c's save-state /
+  * end-of-game path via the same TU boundary. */
  void MDFN_BackupSavFile(const uint8_t max_backup_count, const char* sav_ext);
 
 #ifdef __cplusplus

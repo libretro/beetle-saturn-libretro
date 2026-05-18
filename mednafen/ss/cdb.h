@@ -23,7 +23,7 @@
 #define __MDFN_SS_CDB_H
 
 #include "../state.h"
-/* MDFN_COLD / MDFN_HOT.  Existing C++ TUs got these transitively
+/* MDFN_COLD / MDFN_HOT.  Existing TUs got these transitively
  * via ss.h / mednafen.h; for C consumers include them directly. */
 #include "../mednafen-types.h"
 
@@ -35,7 +35,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 void CDB_Init(void) MDFN_COLD;
 void CDB_Kill(void) MDFN_COLD;
@@ -56,7 +55,6 @@ int32_t CDB_Update(int32_t timestamp);
 void CDB_ResetTS(void);
 
 void CDB_GetCDDA(uint16_t* outbuf);	// writes to outbuf[0] and outbuf[1]
-
 
 void CDB_SetClockRatio(uint32_t ratio);
 void CDB_ResetCD(void);
@@ -84,6 +82,5 @@ void CDB_SetRegister(const unsigned id, const uint32_t value) MDFN_COLD;
 #ifdef __cplusplus
 }
 #endif
-
 
 #endif

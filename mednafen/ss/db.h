@@ -25,7 +25,7 @@
 #include "../mednafen-types.h"
 #include "../cdstream.h"
 
-/* db.cpp -> db.c (this conversion sequence): DB_Lookup* are defined
+/* db.c -> db.c (this conversion sequence): DB_Lookup* are defined
  * in C now, but libretro.cpp (C++) calls them.  Force C linkage on
  * both sides via the extern "C" wrap so the C++ caller doesn't
  * name-mangle the references and the linker sees the same unmangled

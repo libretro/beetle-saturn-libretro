@@ -22,7 +22,6 @@
 #ifndef __MDFN_SS_MEMORY_H
 #define __MDFN_SS_MEMORY_H
 
-
 #include <stdlib.h>
 
 /* "Array" is a bit of a misnomer, but it helps avoid confusion with
@@ -31,7 +30,7 @@
  * narrower widths re-use it when source and count alignment allow.
  *
  * The original mednafen header used C++ function overloading on the
- * pointer type; after the vdp2_render.cpp -> .c rename this header is
+ * pointer type; after the vdp2_render.c -> .c rename this header is
  * compiled by a C TU and overloading no longer works.  The names below
  * are per-type, and a C11 _Generic dispatcher macro (or a small set of
  * C++ overload shims when __cplusplus) preserves call-site syntax. */

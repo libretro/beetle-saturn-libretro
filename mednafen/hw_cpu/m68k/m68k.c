@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen - Multi-system Emulator                                           */
 /******************************************************************************/
-/* m68k.cpp - Motorola 68000 CPU Emulator
+/* m68k.c - Motorola 68000 CPU Emulator
 **  Copyright (C) 2015-2021 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -47,7 +47,6 @@
 #include "../../mednafen.h"
 #include "m68k.h"
 
-
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC optimize ("no-crossjumping,no-gcse")
 #endif
@@ -55,18 +54,6 @@
 #include "m68k_private.h"
 
 static MDFN_FASTCALL void Dummy_BusRESET(bool state) { }
-
-/* All M68K_* free-function wrappers exposed by m68k.h live in this
- * `extern "C" { ... }` block so the symbol names are C-mangled
- * (i.e. unmangled).  Required because m68k.h's declarations are
- * also wrapped in `extern "C"` for C-consumer compatibility --
- * the definition and declaration linkage must match or the linker
- * gets two different mangled symbols and fails to resolve.
- *
- * The bodies are pure thunks: each forwards to the matching
- * struct M68K member method.  Bodies are in this TU (m68k.cpp)
- * because they reach Dummy_BusRESET / member methods / sources
- * not exposed in the public header. */
 
 void M68K_Construct(M68K* z, bool rev_e)
 {
@@ -253,29 +240,6 @@ void     M68K_SetRegister        (M68K* z, const unsigned id, const uint32_t val
  }
 }
 
-
-/* Phase-9 cleanup: M68K::M68K(const bool) and M68K::~M68K() retired.
- * Zero remaining callers after sound_glue.cpp -> sound_glue.c
- * (fd5bf98) switched from `static M68K SoundCPU(true);` to a
- * zero-initialised SoundCPU plus an explicit M68K_Construct call
- * in SoundGlue_Init().  The ctor body matched M68K_Construct's
- * body 1:1 (the prep commit 5cafd34's free-function counterpart
- * for the same work).  The dtor body was empty.  M68K is a pure-
- * data struct now -- no class methods need calling at end-of-
- * scope, no class methods need calling at construction. */
-
-/* Phase-9d-3: M68K::StateAction, M68K::GetRegister, M68K::SetRegister
- * retired -- bodies live in their M68K_* extern "C" wrappers above.
- * Same incremental-fold pattern as Phase-9d-1 (SetIPL/SetExtHalted).
- * Class declarations dropped from m68k.h's `#ifdef __cplusplus`
- * gated region 1. */
-
-/* Phase-9d-7: previously had duplicate file-scope copies of the
- * VECNUM_* and EXCEPTION_* enums here, redundant with the ones
- * inside struct M68K's `#ifdef __cplusplus`-gated region.  Both
- * sets now hoisted out of struct M68K and into file scope at
- * m68k.h, so this m68k.cpp-local copy is no longer needed. */
-
 //
 // Instruction traps(TRAP, TRAPV, CHK, DIVS, DIVU):
 //	Saved PC points to the instruction after the instruction that triggered the exception.
@@ -294,7 +258,7 @@ void NO_INLINE Exception(M68K* z, unsigned which, unsigned vecnum)
 
  SetSR(z, (GetSR(z) & ~0x2000) | (1 << 13));
  SetSR(z, (GetSR(z) & ~0x8000));
- 
+
  if(which == EXCEPTION_INT)
  {
   unsigned evn;
@@ -416,18 +380,3 @@ void NO_INLINE M68K_Run(M68K* z, int32_t run_until_time)
 #endif
  }
 }
-
-//
-// Phase-9d-4: M68K::Reset body retired -- now lives inline in the
-// M68K_Reset extern "C" wrapper at the top of this file.  The re-entrancy
-// note ("Reset() may be called from BusRESET, which is called from RESET")
-// moved with the body; the callback-through-BusRESET path now resolves to
-// M68K_Reset directly, no class-method dispatch step in between.
-//
-
-
-//
-// Phase-9d-3: M68K::GetRegister / M68K::SetRegister bodies retired -- both
-// now live in the M68K_GetRegister / M68K_SetRegister extern "C" wrappers
-// at the top of this file.  See the matching note further up.
-//

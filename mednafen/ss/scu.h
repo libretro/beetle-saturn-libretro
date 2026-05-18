@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <boolean.h>
-/* MDFN_COLD attribute macro.  C++ TUs got it transitively via ss.h /
+/* MDFN_COLD attribute macro.  TUs got it transitively via ss.h /
  * mednafen.h; C consumers need it directly. */
 #include "../mednafen-types.h"
 /* StateMem typedef for the SCU_StateAction prototype below.  Phase-7d. */

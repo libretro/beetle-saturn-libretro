@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* smpc.cpp - SMPC Emulation
+/* smpc.c - SMPC Emulation
 **  Copyright (C) 2015-2021 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -41,14 +41,14 @@
 					   external symbol to link against
 					   (the ss/vdp2: convert from C++ to C
 					   commit collapsed the extern "C"
-					   proxy in vdp2.cpp into the header
+					   proxy in vdp2.c into the header
 					   INLINE form). */
 #include "cdb.h"
 #include "scu.h"
 
-/* SH7095 is still a C++ class in sh7095.h, so smpc.c reaches the two
+/* SH7095 is still a struct in sh7095.h, so smpc.c reaches the two
  * methods it needs (SetActive / SetNMI) via the matching extern "C"
- * proxies in ss.cpp (which is where the CPU[2] global lives).  Local
+ * proxies in ss.c (which is where the CPU[2] global lives).  Local
  * forward decls here cover them. */
 extern void SH7095_S_SetActive(bool active);
 extern void SH7095_M_SetNMI(bool level);
@@ -847,7 +847,6 @@ void SMPC_UpdateInput(const int32_t time_elapsed)
  }
 }
 
-
 void SMPC_Write(const sscpu_timestamp_t timestamp, uint8_t A, uint8_t V)
 {
  BusBuffer = V;
@@ -1028,7 +1027,6 @@ void SMPC_ResetTS(void)
 		  goto Breakout;								\
 		 }										\
 		}										\
-
 
 static unsigned RTC_BCDInc(uint8_t v)
 {

@@ -29,7 +29,7 @@
 #include "../mednafen-types.h"   /* MDFN_HIDE, MDFN_COLD */
 #include "../state.h"
 
-/* Formerly relied on being a C++-only header. Now valid as C too, so
+/* Formerly relied on being a no longer used header. Now valid as C too, so
    cart.c and the cart/ device .c files can include it.
    ss_event_handler is defined in ss.h, which is C++ (class SH7095,
    default args); mirror the typedef here -- it is just a
@@ -65,14 +65,14 @@ struct CartInfo
  {
   void (*Read16)(uint32_t A, uint16_t* DB);
   void (*Write8)(uint32_t A, uint16_t* DB);
-  void (*Write16)(uint32_t A, uint16_t* DB);  
+  void (*Write16)(uint32_t A, uint16_t* DB);
  } CS01_RW[0x30];
 
  struct
  {
   void (*Read16)(uint32_t A, uint16_t* DB);
   void (*Write8)(uint32_t A, uint16_t* DB);
-  void (*Write16)(uint32_t A, uint16_t* DB);  
+  void (*Write16)(uint32_t A, uint16_t* DB);
  } CS2M_RW[0x20];
 
 };

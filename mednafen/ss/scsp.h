@@ -69,21 +69,6 @@ typedef struct SS_SCSP_DSPStep SS_SCSP_DSPStep;
 typedef struct SS_SCSP_DSPS    SS_SCSP_DSPS;
 typedef struct SS_SCSP         SS_SCSP;
 
-/* Phase-9d-8: enums that previously lived inside struct SS_SCSP_Slot
- * hoisted to file scope.  Parallel to the m68k.h treatment in 78d3f2d
- * (Phase-9d-7): anonymous-enums-in-struct trigger a "declaration does
- * not declare anything" warning under -Wall in both C and C++, and the
- * values aren't visible at file scope from a C TU under the old
- * placement.
- *
- * LOOP_* describes valid values for SS_SCSP_Slot::LoopMode (uint8_t)
- * and SOURCE_* for SS_SCSP_Slot::SourceControl (uint8_t).  Neither
- * enum is currently referenced by name anywhere in the tree -- they
- * exist purely as documentary constants for the byte fields above
- * them.  Keeping them at file scope preserves that documentation
- * while clearing the two final warnings sound_glue.c was reporting
- * (m68k.h's set of 5 was retired in 78d3f2d). */
-
 enum  /* LOOP -- valid SS_SCSP_Slot::LoopMode values */
 {
  LOOP_DISABLED    = 0,
@@ -110,12 +95,8 @@ struct SS_SCSP_Slot
  //
  bool WF8Bit;
  uint8_t LoopMode;
- /* Phase-9d-8: LOOP_* enum hoisted to file scope above struct
-  * SS_SCSP_Slot.  See note there. */
 
  uint8_t SourceControl;
- /* Phase-9d-8: SOURCE_* enum hoisted to file scope above struct
-  * SS_SCSP_Slot.  See note there. */
 
  uint16_t SBXOR;
 
@@ -265,12 +246,8 @@ struct SS_SCSP_DSPS
 };
 
 /* SS_SCSP_Timer -- file-scope so the SS_SCSP_Timer typedef at the
- * top of this header resolves to the same type the SS_SCSP::Timers[3]
- * field is declared with.  Defining the struct inline inside SS_SCSP
- * (as it used to be -- anonymous, then briefly named-but-nested)
- * would create the nested type `SS_SCSP::SS_SCSP_Timer` in C++,
- * which is a distinct type from the file-scope forward-declared
- * `struct SS_SCSP_Timer` -- breaking pointer assignments. */
+ * top of this header resolves to the same type the SS_SCSP.Timers[3]
+ * field is declared with. */
 struct SS_SCSP_Timer
 {
  uint8_t Control;
@@ -281,19 +258,15 @@ struct SS_SCSP_Timer
 /* SS_SCSP_SB_XOR_Table -- the 4-entry sign-bit XOR lookup used in
  * the CTL register-write paths to decode the per-slot
  * source-bit-XOR field (the (*SRV >> 9) & 0x3 selector picks one
- * of these 4 constants for s->SBXOR).  Used to live as
- * `const uint16_t SS_SCSP::SB_XOR_Table[4] = { ... };` inside the
- * struct -- a C++11 in-class default-member-initializer that C
- * doesn't parse.  Moved to file scope so both C and C++ TUs
- * compile.  Marked `static const` so each TU gets its own
- * 8-byte read-only copy (the data is identical across instances
- * and across TUs; no aliasing concern). */
+ * of these 4 constants for s->SBXOR).  Marked `static const` so
+ * each TU gets its own 8-byte read-only copy (the data is identical
+ * across instances and TUs; no aliasing concern). */
 static const uint16_t SS_SCSP_SB_XOR_Table[4] = { 0x0000, 0x7FFF, 0x8000, 0xFFFF };
 
 struct SS_SCSP
 {
  /* Phase-8f: RunSample's `template<typename T_out = int16_t>` form
-  * was the only path-traveled instantiation -- sound_glue.cpp's
+  * was the only path-traveled instantiation -- sound.c's
   * one and only caller passes an int16_t* (the IBuffer slot) and
   * always relied on the default template argument.  The 18-bit-DAC
   * path inside the body still shifts the clamped accumulators up
@@ -308,8 +281,6 @@ struct SS_SCSP
  /* Phase-9 step 3: GetEXTSPtr / GetRAMPtr / WriteMIDI and the
   * RW_R8/R16/W8/W16 wrappers are now free functions after the
   * struct definition -- see SS_SCSP_* helpers below. */
-
- /* Phase-9a: formerly `private:` -- access modifier dropped. */
 
  uint16_t SlotRegs[0x20][0x10];
 
@@ -376,7 +347,6 @@ struct SS_SCSP
  uint8_t RBP;
  uint8_t RBL;
 
-
  // Carried-state write bitmask, plus the one read-side bit the liveness pass needs.
 
  //
@@ -391,12 +361,6 @@ struct SS_SCSP
 #endif
 };
 
-/* Phase-9 step 3 (final): SS_SCSP public API as free functions.
- * The struct methods have moved to free-function form in scsp.inc;
- * the ctor/dtor remain on the struct so that `static SS_SCSP SCSP;`
- * in sound_glue.cpp constructs/destructs unchanged.  When
- * sound_glue.cpp becomes sound_glue.c, the thunks drop entirely
- * and an explicit SS_SCSP_Init(&SCSP) call replaces them. */
 void SS_SCSP_Reset      (SS_SCSP* z, bool pwr) MDFN_COLD;
 void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
 void SS_SCSP_RunSample  (SS_SCSP* z, int16_t* outlr);

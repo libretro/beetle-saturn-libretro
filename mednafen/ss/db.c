@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* db.cpp:
+/* db.c:
 **  Copyright (C) 2016-2021 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -318,7 +318,7 @@ static const struct
  { "T-8109H-50",NULL, NULL, CPUCACHE_EMUMODE_FULL, "NFL Quarterback Club 96 (Europe)", "Fixes minor FMV glitches." },
  { "T-7664G",	NULL, NULL, CPUCACHE_EMUMODE_FULL, "Nobunaga no Yabou Shouseiroku (Japan)", "Fixes game hang." },
  { "T-9510G",	NULL, NULL, CPUCACHE_EMUMODE_FULL, "Policenauts (Japan)",	"Fixes screen flickering on disc 2." },
- { "T-25416H50",NULL, NULL, CPUCACHE_EMUMODE_FULL, "Rampage - World Tour (Europe)", "Fixes game hang." }, 
+ { "T-25416H50",NULL, NULL, CPUCACHE_EMUMODE_FULL, "Rampage - World Tour (Europe)", "Fixes game hang." },
  { "T-99901G", "REAL BOUT", NULL, CPUCACHE_EMUMODE_FULL, "Real Bout Garou Densetsu Demo (Japan)", "" },
  { "T-3105G",	NULL, NULL, CPUCACHE_EMUMODE_FULL, "Real Bout Garou Densetsu (Japan)", "Fixes game hang." },
  { "T-8107H-50",NULL, NULL, CPUCACHE_EMUMODE_FULL, "Revolution X - Music Is the Weapon (Europe)", "Fixes game hang." },
@@ -367,11 +367,10 @@ static const struct
 #endif
 };
 
-
 // ============================================================================
 // ST-V (Sega Titan Video) arcade game database.
 //
-// Ported from upstream Mednafen 1.32.1 mednafen/ss/db.cpp (lines 508-1801).
+// Ported from upstream Mednafen 1.32.1 mednafen/ss/db.c (lines 508-1801).
 // Lookup uses crc32_zip on the first 128 bytes of the user-loaded ROM file
 // to disambiguate game variants that share a primary filename. Filename
 // match uses strcasecmp (POSIX strings.h) instead of upstream's
@@ -743,7 +742,6 @@ static const struct STVGameInfo STVGI[] =
   }
  },
 
-
  {
   "Final Fight Revenge",
   SMPC_AREA_JP,
@@ -894,7 +892,7 @@ static const struct STVGameInfo STVGI[] =
   {
    { 0x0000001, 0x0080000, STV_MAP_BYTE, "epr18937.13" },
    { 0x0100001, 0x0080000, STV_MAP_BYTE, "epr18937.13" },
-   { 0x0200000, 0x0100000, STV_MAP_16LE, "mpr18944.7" }, 
+   { 0x0200000, 0x0100000, STV_MAP_16LE, "mpr18944.7" },
    { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr18939.2" },
    { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr18940.3" },
    { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr18941.4" },
@@ -1436,7 +1434,6 @@ static const struct STVGameInfo STVGI[] =
   }
  },
 
-
  // Broken
  {
   "Technical Bowling",
@@ -1609,7 +1606,6 @@ static const struct STVGameInfo STVGI[] =
    //{ 0x0030001, 0x0020000, STV_MAP_BYTE,   "epr-21121.bin" },
    { 0x0200000, 0x0080000, STV_MAP_16LE,  "epr-21122.ic13" },
    { 0x0280000, 0x0080000, STV_MAP_16LE,  "epr-21122.ic13" },
-
 
    { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr-21125.ic02" },
    { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr-21130.ic03" },

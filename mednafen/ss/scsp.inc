@@ -124,7 +124,6 @@ do {                                                                           \
    }                                                                           \
 } while(0)
 
-
 /* Phase-9 (final): internal forward declarations for free functions
  * defined later in this file.  Required because C/C++ resolves
  * names left-to-right and several methods call each other. */
@@ -142,7 +141,6 @@ static uint8_t SS_SCSP_GetALFO(SS_SCSP* z, SS_SCSP_Slot* s);
 static int SS_SCSP_GetPLFO(SS_SCSP* z, SS_SCSP_Slot* s);
 static void SS_SCSP_RunLFO(SS_SCSP* z, SS_SCSP_Slot* s);
 static void SS_SCSP_RecalcShortWaveMask(SS_SCSP* z, SS_SCSP_Slot* s);
-
 
 static void SS_SCSP_RecalcSoundInt(SS_SCSP* z)	// Sound CPU interrupts
 {
@@ -194,7 +192,7 @@ static INLINE void SS_SCSP_RecalcShortWaveMask(SS_SCSP* z, SS_SCSP_Slot* s)
 void SS_SCSP_Reset(SS_SCSP* z, bool powering_up)
 {
  //
- // May need to add a DecodeSlotReg() function or something similar if we implement 
+ // May need to add a DecodeSlotReg() function or something similar if we implement
  // more aggressive slot register value optimizations on writes in the future.
  //
  memset(z->SlotRegs, 0, sizeof(z->SlotRegs));
@@ -297,7 +295,7 @@ static INLINE uint8_t SS_SCSP_MIDI_ReadInput(SS_SCSP* z)
   if(!z->MIDI.InputCount)
   {
    z->MIDI.Flags |= MIDIF_INPUT_EMPTY;
- 
+
    z->SCIPD &= ~0x008;
    z->MCIPD &= ~0x008;
    SS_SCSP_RecalcSoundInt(z);
@@ -427,13 +425,7 @@ static INLINE void SDL_PAN_ToVolume(int16_t* outvol, const unsigned level, const
  outvol[!pan_which] = basev;
 }
 
-/* Phase-8r1: SS_SCSP::RW retired into 4 named member methods
- * via source-fold (tools/fold_source.py).  Last SS_SCSP template;
- * completes the SS_SCSP module.  Each variant body is the
- * template body with template parameters substituted to
- * literals and dead branches eliminated. */
-
-/* === SS_SCSP::RW variants (2 T x 2 IsWrite -- 4 tuples) === */
+/* === SS_SCSP RW variants (2 T x 2 IsWrite -- 4 tuples) === */
 INLINE void SS_SCSP_RW_u8_W0(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
 {
 
@@ -1004,7 +996,7 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
  {
   if(MDFN_UNLIKELY(A >= 0x80000))
   {
-   
+
   }
   else
   {
@@ -1475,7 +1467,7 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
  {
   if(MDFN_UNLIKELY(A >= 0x80000))
   {
-   
+
   }
   else
   {
@@ -1920,8 +1912,6 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
 
 }
 
-
-
 //
 // Gate bit only forces the value to 0, the read still seems to occur(or at the very least timing side effects occur for the case of reg->mem).
 //
@@ -1971,7 +1961,6 @@ static NO_INLINE void SS_SCSP_RunDMA(SS_SCSP* z)
  SS_SCSP_RecalcSoundInt(z);
  SS_SCSP_RecalcMainInt(z);
 }
-
 
 static INLINE void SS_SCSP_RunEG(SS_SCSP* z, SS_SCSP_Slot* s, const unsigned key_eg_scale, const uint32_t sc, const uint32_t scxc)
 {
@@ -2547,7 +2536,7 @@ INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
    {
     if(s->LoopMode == 0)
      s->WFAllowAccess = false;
-    
+
     if(s->LoopMode == 3)
     {
      s->LoopSub = !s->LoopSub;
@@ -2657,7 +2646,6 @@ INLINE void SS_SCSP_RunSample(SS_SCSP* z, int16_t* outlr)
   // Do z->LFSR clocking between sample fetching and ALFO fetching.
   z->LFSR = (z->LFSR >> 1) | (((z->LFSR >> 5) ^ z->LFSR) & 1) << 16;
 
-  
   {
    int32_t vlevel;
 
@@ -2853,7 +2841,7 @@ void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bo
  if(load)
  {
   /* Range-based `for(auto& s : z->Slots)` retired for C-compat
-   * (will be needed once sound_glue.cpp -> .c).  Same iteration. */
+   * (will be needed once sound.c -> .c).  Same iteration. */
   {
    unsigned i;
    for(i = 0; i < 32; i++)
@@ -2880,7 +2868,7 @@ void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bo
   z->RBL &= 0x3;
 
   z->DSP.RWAddr &= 0x7FFFF;
-  
+
   z->DSP.MPROG_Dirty = true;
 
   for(uint32_t A = 0x100000; A < 0x100400; A += 2)

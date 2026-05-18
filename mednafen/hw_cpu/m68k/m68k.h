@@ -26,11 +26,7 @@
 
 /* M68K_BUS_INT_ACK_AUTO -- BusIntAck callback can return this to
  * tell M68K to use automatic interrupt-acknowledge vectoring (auto-
- * vector mode) instead of supplying an explicit vector number.
- * File-scope so consumers can spell it without the `M68K::` class-
- * scope qualifier (needed once sound_glue.cpp becomes sound_glue.c
- * -- C has no class-scope qualifier syntax).  Value matches the
- * former class-scoped `M68K::BUS_INT_ACK_AUTO` exactly. */
+ * vector mode) instead of supplying an explicit vector number. */
 enum { M68K_BUS_INT_ACK_AUTO = -1 };
 
 /* C-compat typedef: in C the struct tag is not auto-aliased to a
@@ -42,26 +38,7 @@ enum { M68K_BUS_INT_ACK_AUTO = -1 };
  * / SS_SCSP / etc. */
 typedef struct M68K M68K;
 
-/* Phase-9d-7: enums that previously lived inside struct M68K hoisted
- * to file scope.  Anonymous enums inside a struct generate a
- * "declaration does not declare anything" warning under -Wall in
- * both C and C++; the values were only ever reachable as M68K::X
- * from C++ TUs (the anonymous-enum-in-struct pattern doesn't
- * inject names at file scope in C, so C consumers couldn't see
- * them at all).  File-scope placement makes them visible to both
- * C and C++ consumers under their plain names and silences the
- * 5 advisory warnings sound_glue.c was reporting against m68k.h.
- *
- * The named `enum AddressMode` also moves out; it's used as a
- * template parameter type by the HAM struct and the op templates,
- * which now reference plain `AddressMode` instead of
- * `AddressMode`.  In C++ a regular (non-class) enum
- * introduces its members into the enclosing scope, so
- * bare-name references inside class methods (e.g. `case
- * PC_DISP:` inside HAM's switch on `am`) continue to work
- * via file-scope lookup. */
-
-enum  /* XPENDING_MASK -- bits of M68K::XPending */
+enum  /* XPENDING_MASK -- bits of M68K XPending */
 {
  XPENDING_MASK_INT          = 0x0001,
  XPENDING_MASK_NMI          = 0x0002,
@@ -202,10 +179,7 @@ struct M68K
  uint32_t SP_Inactive;
  uint32_t XPending;
 
- /* Phase-9d-7: XPENDING_MASK_* enum hoisted to file scope above
-  * struct M68K. */
-
- /* Set by M68K_Construct / M68K::M68K from the `rev_e` parameter
+ /* Set by M68K_Construct / M68K M68K from the `rev_e` parameter
   * and never written again.  Was `const bool` -- contractual
   * single-init via the ctor's member-initializer list.  Dropped
   * the const so the free-function M68K_Construct can assign to
@@ -214,24 +188,14 @@ struct M68K
   * convention, not by compiler-enforced const-correctness. */
  bool Revision_E;
 
- /* Phase-9d-7: enum AddressMode hoisted to file scope above
-  * struct M68K.  Bare-name references (DATA_REG_DIR etc.)
-  * inside class methods continue to resolve via file-scope
-  * lookup; `AddressMode` is used as a template parameter type
-  * (was `AddressMode`) by HAM and the op templates. */
-
  //
- /* Phase-9d-7: VECNUM_* and EXCEPTION_* enums hoisted to file
-  * scope above struct M68K.  Used by the Exception() method
-  * (declared just below in the __cplusplus block) and by every
-  * op-body that raises an exception. */
 
  //
  //
  //
  //
  //
- // These externally-provided functions should add >= 4 to M68K::timestamp per call:
+ // These externally-provided functions should add >= 4 to M68K timestamp per call:
 
  uint16_t (MDFN_FASTCALL *BusReadInstr)(uint32_t A);
  uint8_t (MDFN_FASTCALL *BusRead8)(uint32_t A);
@@ -250,31 +214,13 @@ struct M68K
  //
  //
  //
- /* Phase-9c: access modifier dropped. */
- /* Phase-9d-7: GSREG_* enum hoisted to file scope above struct M68K.
-  * Consumers (sh7095.inc, vdp2.c via sh-side dispatch) pass these
-  * values into M68K_GetRegister/M68K_SetRegister.  File-scope
-  * placement lets C callers refer to them directly. */
 
- /* Phase-9d-3: GetRegister / SetRegister retired -- bodies moved to
-  * the M68K_GetRegister / M68K_SetRegister extern "C" wrappers in
-  * m68k.cpp.  The whole `#ifdef __cplusplus` sub-block here used to
-  * hold those two declarations alone; it's gone now. */
-};
+ };
 
-/* Phase-9d-9 + Phase-9d-10: Free-template op declarations live at
- * file scope, outside struct M68K, taking an explicit M68K* `z`
- * first parameter.  Bodies are in m68k_private.h; the
- * m68k_instr*.inc call sites pass `this` as the M68K pointer (the
- * .inc files are #included inside M68K::Run() / M68K::RunSplit{0,1}()
- * where `this` is in scope).  The HAM<T,AM>& parameter type still
- * references M68K::HAM (HAM detempleting is a later commit). */
+/* Free-function op declarations taking an explicit M68K* `z` first
+ * parameter.  Bodies are in m68k_private.h; the m68k_instr*.inc call
+ * sites use these via the macro-monomorphized HAM and op families. */
 
-/* Phase-9d-14: 63 non-template class methods extracted to free
- * functions, parallel to Phase-9d-13s template-op extraction.  After
- * this, struct M68K's __cplusplus block contains only HAM and Run/
- * RunSplit0/RunSplit1 -- everything else is a free function taking
- * an explicit M68K* z first parameter. */
 void RecalcInt(M68K* z);
 uint8_t Read_u8(M68K* z, uint32_t addr);
 uint16_t Read_u16(M68K* z, uint32_t addr);
@@ -344,16 +290,16 @@ bool CheckPrivilege(M68K* z);
  *
  * All declarations live inside an `extern "C" { ... }` block (gated
  * by __cplusplus so plain C consumers can include this header
- * directly) -- the matching definitions in m68k.cpp also use
+ * directly) -- the matching definitions in m68k.c also use
  * `extern "C"` linkage.  This makes the wrappers callable from
  * both C++ and C TUs, with one well-defined ABI symbol per name.
  *
  * Trade-off vs the previous `static FORCE_INLINE` header-side
  * definitions:  we lose call-site inlining of the thunk body
  * (each wrapper became a real function call to a 1-2 instruction
- * out-of-line body in m68k.cpp), but gain a C-callable surface
- * that sound_glue.cpp -> sound_glue.c needs.  None of these
- * wrappers are on the M68K::Run inner loop -- they're called
+ * out-of-line body in m68k.c), but gain a C-callable surface
+ * that sound.c -> sound_glue.c needs.  None of these
+ * wrappers are on the M68K Run inner loop -- they're called
  * from external orchestration code (IRQ change, savestate,
  * reset, scheduler step, debugger register read/write) -- so
  * the per-call function-call overhead is negligible in profile

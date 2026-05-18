@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* vdp2.cpp - VDP2 Emulation
+/* vdp2.c - VDP2 Emulation
 **  Copyright (C) 2015-2019 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -39,7 +39,7 @@
  * provide.  Internal callsites between the namespace's own
  * functions (only `Update(SH7095_mem_timestamp)`, hit at 3 sites
  * in the SCU / register-write paths) were updated to the prefixed
- * names.  mednafen.h / general.h / sh7095.h dropped: the C++-only
+ * names.  mednafen.h / general.h / sh7095.h dropped: the no longer used
  * git.h transitive that mednafen.h pulled in is no longer
  * tolerable, general.h was unused, and sh7095.h was only providing
  * the SH7095 class -- this TU never used the class, only the
@@ -47,7 +47,7 @@
  *
  * Local forward decl: the SetExtHaltDMAKludgeFromVDP2 class method
  * call in the HORRIBLEHACK_NOSH2DMALINE106 path goes through a
- * matching extern "C" proxy in ss.cpp (where the CPU[2] global
+ * matching extern "C" proxy in ss.c (where the CPU[2] global
  * lives).  Same forward-decl pattern smpc.c uses. */
 extern void SH7095_SetExtHaltDMAKludge(int cpu, bool state);
 
@@ -243,7 +243,6 @@ static int SurfInterlaceField;
 //
 //
 
-
 //  (No 0)  8 accesses, No split: 0 added cycles
 //  (No 4)  4 accesses, No split: 1 added cycles
 //  (No 6)  2 accesses, No split: 2 added cycles
@@ -331,7 +330,6 @@ static uint16_t Latched_VCNT, Latched_HCNT;
 static bool HVIsExLatched;
 bool ExLatchIn;
 bool ExLatchPending;
-
 
 static INLINE unsigned GetNLVCounter(void)
 {
@@ -503,7 +501,7 @@ static INLINE int32_t AddHCounter(const sscpu_timestamp_t event_timestamp, int32
      // The rotation-parameter fetch AND the per-line matrix-multiply
      // that populates lib->rv[0..1] are both only useful when the
      // VDP2 is actually rendering an RBG (rotating background) layer.
-     // SetupRotVars in vdp2_render.cpp's consumer DrawLine is the
+     // SetupRotVars in vdp2_render.c's consumer DrawLine is the
      // sole reader of LIB[].rv, and it's gated on the same
      // BGON & 0x30 check. Because BGON updates are synchronous from
      // the SH-2 side (RegsWrite at register 0x20 writes BGON
@@ -538,7 +536,7 @@ static INLINE int32_t AddHCounter(const sscpu_timestamp_t event_timestamp, int32
        r->Ysp = ((int64_t)rp->RotMatrix[3] * ((int32_t)rp->XstAccum - (rp->Px * 1024)) +
 	       (int64_t)rp->RotMatrix[4] * ((int32_t)rp->YstAccum - (rp->Py * 1024)) +
 	       (int64_t)rp->RotMatrix[5] * (rp->Zst      - (rp->Pz * 1024))) >> 10;
-  
+
        r->Xp = rp->RotMatrix[0] * (rp->Px - rp->Cx) +
 	     rp->RotMatrix[1] * (rp->Py - rp->Cy) +
 	     rp->RotMatrix[2] * (rp->Pz - rp->Cz) +
@@ -936,7 +934,6 @@ uint16_t VDP2_Read16_DB(uint32_t A)
  return DB;
 }
 
-
 uint32_t VDP2_Write8_DB(uint32_t A, uint16_t DB)
 {
  VDP2REND_Write8_DB(A, DB);
@@ -969,7 +966,6 @@ uint32_t VDP2_Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, co
  return penalty_sum;
 }
 
-
 //
 //
 //
@@ -978,7 +974,6 @@ void VDP2_AdjustTS(const int32_t delta)
 {
  lastts += delta;
 }
-
 
 void VDP2_Init(const bool IsPAL, const uint64_t affinity)
 {

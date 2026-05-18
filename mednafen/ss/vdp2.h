@@ -26,12 +26,9 @@
 #include "ss.h"				/* sscpu_timestamp_t, events[], SS_SetEventNT, SS_EVENT_VDP2 */
 
 /* MDFNGI / EmulateSpecStruct: forward-declared rather than pulling
- * in the C++-only git.h.  This header is now C-compat (the
- * VDP2 subsystem was converted from C++ to C; the `namespace VDP2
- * { ... }` wrap was replaced with VDP2_-prefixed free functions
- * under an extern "C" wrap).  vdp2_render.cpp / ss.cpp stay C++
- * for now; smpc.c / vdp1.c / libretro.c are C and now consume
- * vdp2.h directly instead of going through extern "C" proxies. */
+ * in git.h.  This header is C-compat -- the VDP2 subsystem exposes
+ * VDP2_-prefixed free functions under an extern "C" guard for any
+ * future C++ consumer. */
 struct MDFNGI;
 struct EmulateSpecStruct;
 
@@ -64,7 +61,7 @@ void VDP2_GetGunXTranslation(const bool clock28m, float* scale, float* offs);
 void VDP2_StartFrame(struct EmulateSpecStruct* espec, const bool clock28m);
 
 /* MDFN_HIDE extern globals defined in vdp2.c, accessed via the
- * INLINE accessors below from C++ callers (ss.cpp's CRT-line and
+ * INLINE accessors below from C++ callers (ss.c's CRT-line and
  * VBlank handling).  Kept inline so the optimizer can fold the
  * cross-TU read into the caller. */
 MDFN_HIDE extern bool VBOut;

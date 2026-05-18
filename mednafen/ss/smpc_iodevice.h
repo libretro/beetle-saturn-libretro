@@ -28,7 +28,7 @@
 #include "../state.h"
 #include "../video/surface.h"
 
-/* Formerly a C++ class hierarchy: `class IODevice` plus nine derived
+/* Formerly a struct hierarchy: `class IODevice` plus nine derived
    device classes, each in its own input/<device>.{h,cpp}. Converted
    to C following the pattern beetle-psx-libretro used for the same
    hierarchy (mednafen/psx/frontio.c): one base struct carrying a

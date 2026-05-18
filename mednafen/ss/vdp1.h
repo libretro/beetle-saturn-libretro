@@ -31,7 +31,7 @@
 
 /* Formerly `namespace VDP1`. Converted to C: the namespace is removed
    and every exported symbol gets a VDP1_ prefix. sscpu_timestamp_t
-   is defined in the C++-only ss.h as `typedef int32_t
+   is defined in the no longer used ss.h as `typedef int32_t
    sscpu_timestamp_t;` -- mirror that here rather than pulling in
    ss.h. */
 #ifndef SS_SSCPU_TIMESTAMP_T_DEFINED

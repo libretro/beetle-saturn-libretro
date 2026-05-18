@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* ss_init.h:  Phase-7c cross-TU declarations between ss.cpp and ss_init.c.
+/* ss_init.h:  Phase-7c cross-TU declarations between ss.c and ss_init.c.
 **             Hosts the FastMemMap state (SH-2 page-mapped uintptr_t array
 **             accessed by every memory op in sh7095.inc) and the SH-2 event
 **             system (events[], event_handlers[], next_event_ts) plus their
@@ -130,7 +130,7 @@ void   RebaseTS(const sscpu_timestamp_t timestamp);
 bool    InitFastMemMap(void)                                            MDFN_COLD;
 uint8_t CheatMemRead(uint32_t A)                                        MDFN_COLD;
 
-/* MidSync lives in ss.cpp (uses statics shared with Emulate); InitEvents
+/* MidSync lives in ss.c (uses statics shared with Emulate); InitEvents
  * needs its address to install in the event-handler table.  The phase-7c
  * extraction promoted it from file-static to TU-external so the table
  * setup can take &MidSync from a different TU. */

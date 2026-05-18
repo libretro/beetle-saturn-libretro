@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* scu_dsp_misc.cpp - SCU DSP Miscellaneous Instructions Emulation
+/* scu_dsp_misc.c - SCU DSP Miscellaneous Instructions Emulation
 **  Copyright (C) 2015-2018 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or

@@ -24,13 +24,6 @@
 
 #include "../state.h"
 
-/* Phase-9b: class -> struct.  See Phase-9a comment in scsp.h
- * for rationale.  The `final` keyword is preserved (allowed on
- * struct in C++11); it will be dropped in the C migration. */
-/* Phase-9 step 5: SH7095-scoped enums + CacheEntry hoisted to file
- * scope for C compatibility.  All enumerators carry the SH7095_
- * prefix (avoids EXCEPTION_RESET collision with m68k.h). */
-
 /* C-compat typedefs: in C the struct tag is not auto-aliased to a
  * type name (that aliasing is C++ name-injection).  Forward-declare
  * the tags as typedefs so `SH7095*` and `SH7095_CacheEntry*` work
@@ -46,8 +39,6 @@ typedef struct SH7095_CacheEntry SH7095_CacheEntry;
   uint32_t Tag[4];
   uint8_t Data[4][16];
  };
-
-
 
  enum // must be in range of 0 ... 7
  {
@@ -65,7 +56,6 @@ typedef struct SH7095_CacheEntry SH7095_CacheEntry;
 
  enum { SH7095_EPENDING_OP_OR = 0xFF000000 };
 
-
  enum
  {
   SH7095_EXCEPTION_POWERON = 0,// Power-on
@@ -79,7 +69,6 @@ typedef struct SH7095_CacheEntry SH7095_CacheEntry;
   SH7095_EXCEPTION_TRAP,	// Trap instruction
   SH7095_EXCEPTION_INT,	// Interrupt
  };
-
 
  enum
  {
@@ -95,7 +84,6 @@ typedef struct SH7095_CacheEntry SH7095_CacheEntry;
   SH7095_VECNUM_TRAP_BASE = 32,	// Trap instruction
   SH7095_VECNUM_INT_BASE  = 64,	// Interrupt
  };
-
 
  enum
  {
@@ -214,10 +202,6 @@ typedef struct SH7095_CacheEntry SH7095_CacheEntry;
 struct SH7095
 {
 
- /* Phase-8p2: Step<which, EmulateICache> retired into 3 named
-  * variants (only the (w, C) tuples invoked by ss.cpp's RunLoop).
-  * EmulateICache must still match what was passed to Init(). */
-
  // Slave only
 
  //private:
@@ -240,8 +224,6 @@ struct SH7095
  sscpu_timestamp_t MM_until;
  sscpu_timestamp_t MA_until;
  sscpu_timestamp_t write_finish_timestamp;
-
-
 
  // System registers
  union
@@ -288,23 +270,7 @@ struct SH7095
  int32_t CCRC_Replace_OR[2];	// Cached cache var, calculated from the ID and OD bits of CCR in SetCCR()
  uint8_t CCRC_Replace_AND;	// Cached cache var, calculated from the TW bit of CCR in SetCCR()
  uint8_t CCR;	// Cache Enable	// Instruction Replacement Disable	// Data Replacement Disable	// Two-Way Mode	// Cache Purge	//	//
- /* Phase-8h: Cache_WriteAddressArray, Cache_ReadAddressArray,
-  * and Cache_CheckReadIncoherency lost their `template<typename T>`
-  * parameter -- none of their bodies use T.  The two address-array
-  * accessors handle a 32-bit tag word that's always the same width
-  * regardless of the macro-passed T (V truncates implicitly on
-  * write, and the caller's `retval = (T)...` truncates on read).
-  * Cache_CheckReadIncoherency had an empty body and is gone
-  * entirely; macro callsites drop the line.
-  *
-  * Phase-8i: Cache_WriteDataArray, Cache_ReadDataArray, and
-  * Cache_WriteUpdate retired too -- but these DID use sizeof(T)
-  * for the memcpy byte-count and NE32ASU8_IDX_ADJ byte-offset.
-  * Each splits into three named width variants (uint8_t /
-  * uint16_t / uint32_t).  Callers at template instantiation
-  * sites pick the right one via a `sizeof(T)` if-chain that
-  * gcc -O2 folds when T is known at macro-expansion time. */
- //
+  //
  // End cache stuff
  //
 
@@ -330,21 +296,6 @@ struct SH7095
   uint32_t last_mem_addr;
   uint32_t last_mem_type;
  } BSC;
-
- /* Phase-8l: BSC_BusRead<T> / BSC_BusWrite<T> retired -- each
-  * splits into 3 named width variants.  Body sizeof(T) chain
-  * folds to one arm per variant, eliminating the dead branches
-  * the previous template form had inlined at every call site.
-  * The 8 concrete callers (DMA paths) become direct named calls;
-  * the 2 T-parametric callers (ExtBusRead_INLINE / ExtBusWrite_INLINE
-  * bodies) become a sizeof(T) ladder that folds when those
-  * outer templates instantiate.
-  *
-  * Phase-9 follow-up: the six method-style forward decls that used
-  * to live here (`void INLINE BSC_BusWrite_u8(...)` etc.) declared
-  * class members that nothing ever defined -- the real free
-  * functions are static `SH7095_BSC_BusWrite_u8(SH7095* z, ...)`
-  * in sh7095.inc, called with explicit z at every site.  Deleted. */
 
  uint32_t UCRead_IF_Kludge;
 
@@ -464,7 +415,6 @@ struct SH7095
  uint8_t DMAOR;
  uint8_t DMAORM;
 
-
  //
  //
  // Division unit registers and related state
@@ -499,36 +449,6 @@ struct SH7095
  uint8_t ExtHaltDMA;
 
  uint8_t (*ExIVecFetch)(void);
- /* Phase-8n: DoIDIF_NI<EmulateICache, IntPreventNext> retired
-  * into 4 named NO_INLINE variants (one per bool-pair).
-  * Phase-8p2: DoIDIF_INLINE<EmulateICache, IntPreventNext>
-  * likewise retired into 4 named variants.  Each shadows
-  * `EmulateICache` as a local constexpr bool so the macro
-  * expansions (FetchIF / DoID reference EmulateICache by name)
-  * resolve cleanly without the previous template-parameter
-  * name lookup.
-  *
-  * Phase-9 follow-up: dead member-style decls deleted (real fns
-  * are `SH7095_DoIDIF_NI_C0_I0(SH7095*)` and friends, defined in
-  * sh7095.inc and called with explicit z). */
-
- /* Phase-8p: ExtBus*_INLINE retired into 12+6 named per-(SP, T, BH)
-  * variants.  See sh7095.inc body comments for source-fold
-  * methodology.  ExtBus*_NI wrappers are file-static (in
-  * sh7095.inc) and not declared here. */
- /* Phase-8o: OnChipRegWrite<T> + OnChipRegRead_INLINE<T> retired.
-  * Each splits into 3 named width variants; the underlying
-  * register-handler bodies are duplicated per width with the
-  * `sizeof(T)` chain folded to literal width.  gcc -O2 dead-
-  * branches the inactive arms, producing the same instruction
-  * stream the previous per-T template instantiations did.
-  * The MemReadRT / MemWriteRT macro callsites dispatch by
-  * sizeof(T) at template-instantiation time; the OnChipRegRead_NI
-  * forwarders (phase 8j) hard-code to the matching named variant.
-  *
-  * Phase-9 follow-up: dead OnChipRegWrite_u{8,16,32} member-style
-  * decls deleted (real fns are `SH7095_OnChipRegWrite_u8(SH7095*,
-  * uint32_t, uint32_t)` and friends). */
 
  //
  //
@@ -536,10 +456,8 @@ struct SH7095
  //
  //
  //
- /* Phase-9b: access modifier dropped. */
 
- /* Phase-9b: formerly `private:` -- access modifier dropped. */
- bool CBH_Setting;
+  bool CBH_Setting;
  bool EIC_Setting;
  bool DM_Setting;
  uint32_t PC_IF, PC_ID;	// Debug-related variables.
@@ -566,7 +484,6 @@ void SH7095_DMA_BusTimingKludge        (SH7095* z);
 void SH7095_RunSlaveUntil              (SH7095* z, sscpu_timestamp_t ts);
 void SH7095_StateAction                (SH7095* z, StateMem* sm, unsigned load, bool data_only, const char* sname) MDFN_COLD;
 void SH7095_PostStateLoad              (SH7095* z, unsigned state_version, bool recorded_ni, bool ni) MDFN_COLD;
-
 
 /* Phase-9 step 4 cont.: small inline helpers (SR/MAC/PEX accessors,
  * pending-int probe) moved off the SH7095 struct as free functions.
@@ -607,11 +524,6 @@ static FORCE_INLINE void SH7095_SetExtHaltDMAKludgeFromVDP2(SH7095* z, bool stat
  * sh7095_ops.inc (which is itself included inside sh7095.inc)
  * see the definition through the chain. */
 
-/* Phase-9 step 5: free-function API for the dropped class methods.
- * Only the methods actually called from outside sh7095.inc need a
- * decl here; WDT_Reset/GetRegister/CheckRWBreakpoints are internal
- * and stay file-static.  SetExtHaltDMAKludgeFromVDP2 is the existing
- * static FORCE_INLINE helper above (unchanged). */
 void SH7095_Construct  (SH7095* z, const char* name, unsigned event_id_dma, uint8_t (*exivecfn)(void)) MDFN_COLD;
 void SH7095_Step_w0_C0 (SH7095* z);
 void SH7095_Step_w0_C1 (SH7095* z);

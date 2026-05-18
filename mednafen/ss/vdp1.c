@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* vdp1.cpp - VDP1 Emulation
+/* vdp1.c - VDP1 Emulation
 **  Copyright (C) 2015-2021 Mednafen Team
 **
 ** This program is free software; you can redistribute it and/or
@@ -63,19 +63,18 @@
    reorganisations. */
 #include "ss_c_abi.h"
 
-/* vdp2.h is still C++-only (namespace VDP2 wrap), so the one
+/* vdp2.h is still no longer used (namespace VDP2 wrap), so the one
    remaining VDP2 entry point that vdp1.c needs gets a localised
    forward decl until vdp2.h is itself made C-includable.
-   vdp2.cpp:1474 has the matching `extern "C" VDP2_Update` proxy
+   vdp2.c:1474 has the matching `extern "C" VDP2_Update` proxy
    that forwards into VDP2::Update. */
 extern int32_t VDP2_Update(int32_t timestamp);
 
 /* sign_x_to_s32(n_bits, value) is provided as a macro in math_ops.h,
    which now reaches vdp1.c transitively via ss.h.  The previous
    local static inline function was a verbatim duplicate kept here
-   only because ss.h (and therefore math_ops.h) was C++-only at the
+   only because ss.h (and therefore math_ops.h) was no longer used at the
    original conversion time. */
-
 
 enum { VDP1_UpdateTimingGran = 263 };
 enum { VDP1_IdleTimingGran = 1019 };
@@ -184,7 +183,6 @@ void VDP1_Init(void)
   VDP1_spr_w_shift_tab[i] = (7 - i) / 3;
  }
 
-
  //
  //
  SS_SetPhysMemMap(0x05C00000, 0x05C7FFFF, VDP1_VRAM, sizeof(VDP1_VRAM), true);
@@ -241,7 +239,7 @@ void VDP1_Reset(bool powering_up)
 
   VDP1_SysClipX = 0;
   VDP1_SysClipY = 0;
- 
+
   VDP1_LocalX = 0;
   VDP1_LocalY = 0;
  }
@@ -308,7 +306,7 @@ int32_t CMD_SetLocalCoord(const uint16_t* cmd_data)
 
 /* MDFN_FORCE_INLINE, not INLINE: replaces the C++ TexFetch<ECDSPDMode>
    template. Must inline into each TexFetch_0xNN wrapper so the ColorMode /
-   ECD / SPD switch folds to one arm, as the template instantiation did. */
+   ECD / SPD switch folds to one arm, as the macro-monomorphized form did. */
 static MDFN_FORCE_INLINE uint32_t TexFetch_impl(const unsigned ECDSPDMode, uint32_t x)
 {
  /* Former C++ template parameter -- must reach this body as a compile-time
@@ -420,7 +418,6 @@ static MDFN_FORCE_INLINE uint32_t TexFetch_impl(const unsigned ECDSPDMode, uint3
  } /* VDP1_ASSUME_FOLDED block */
 }
 
-
  static uint32_t MDFN_FASTCALL TexFetch_0x00(uint32_t x) { return TexFetch_impl(0x00, x); }
  static uint32_t MDFN_FASTCALL TexFetch_0x01(uint32_t x) { return TexFetch_impl(0x01, x); }
  static uint32_t MDFN_FASTCALL TexFetch_0x02(uint32_t x) { return TexFetch_impl(0x02, x); }
@@ -457,7 +454,6 @@ static MDFN_FORCE_INLINE uint32_t TexFetch_impl(const unsigned ECDSPDMode, uint3
 uint32_t (MDFN_FASTCALL *const VDP1_TexFetchTab[0x20])(uint32_t x) =
 {
   #define TF(a) (TexFetch_##a)
-
 
  TF(0x00), TF(0x01), TF(0x02), TF(0x03),
  TF(0x04), TF(0x05), TF(0x06), TF(0x07),
@@ -705,11 +701,10 @@ enum { CommandPhaseBias = __COUNTER__ + 1 };
 		 }										\
 		}										\
 
-
 static INLINE void DoDrawing(void)
 {
  if(MDFN_UNLIKELY(ss_horrible_hacks & HORRIBLEHACK_VDP1INSTANT))
-  CycleCounter = InstantDrawSanityLimit; 
+  CycleCounter = InstantDrawSanityLimit;
 
  switch(CommandPhase + CommandPhaseBias)
  {
@@ -827,7 +822,7 @@ sscpu_timestamp_t VDP1_Update(sscpu_timestamp_t timestamp)
   timestamp = lastts;
  }
  //
- // 
+ //
  //
  int32_t cycles = timestamp - lastts;
  lastts = timestamp;

@@ -92,7 +92,6 @@ MDFN_HIDE extern uint8_t VDP1_FBCR;
 MDFN_HIDE extern uint8_t VDP1_spr_w_shift_tab[8];
 MDFN_HIDE extern uint8_t VDP1_gouraud_lut[0x40];
 
-
 typedef struct {
  uint32_t g; uint32_t intinc;
  int32_t ginc[4]; int32_t error[4]; int32_t error_inc[4]; int32_t error_adj[4];
@@ -138,7 +137,6 @@ static INLINE void Gourauder_Step(GourauderTheTerrible *self) {
  self->g += self->intinc + (uint32_t)g_delta;
 }
 
-
 typedef struct { int32_t t, tinc, error, error_inc, error_adj; } VileTex;
 
 static INLINE bool VileTex_Setup(VileTex *self, const unsigned length, const int32_t tstart, const int32_t tend, const int32_t sf, const int32_t tfudge) {
@@ -153,7 +151,6 @@ static INLINE int32_t VileTex_DoPendingInc(VileTex *self) { self->t += self->tin
 static INLINE void VileTex_AddError(VileTex *self) { self->error += self->error_inc; }
 static INLINE int32_t VileTex_PreStep(VileTex *self) { while(self->error >= 0) { self->t += self->tinc; self->error -= self->error_adj; } self->error += self->error_inc; return self->t; }
 static INLINE int32_t VileTex_Current(VileTex *self) { return self->t; }
-
 
 typedef struct { int32_t x, y; uint16_t g; int32_t t; } line_vertex;
 
@@ -207,7 +204,6 @@ static INLINE int32_t VDP1_AdjustDrawTiming(const int32_t cycles) {
 
 bool VDP1_SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool Textured, const uint16_t mode);
 
-
 /* ---------------------------------------------------------------------------
  * VDP1_ASSUME_FOLDED -- compile-time guarantee that a template-engine
  * parameter constant-folds.
@@ -215,7 +211,7 @@ bool VDP1_SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool 
  * VDP1_DrawLine_impl / VDP1_PlotPixel / TexFetch_impl are the C replacements
  * for C++ templates: each is MDFN_FORCE_INLINE and every dispatch wrapper
  * calls it with literal constant args, so the if(param) branches dead-strip
- * exactly as a template instantiation did. VDP1_ASSUME_FOLDED() turns that
+ * exactly as a macro-monomorphized form did. VDP1_ASSUME_FOLDED() turns that
  * from an assumption into a hard requirement -- if a parameter ever stops
  * folding (engine downgraded from MDFN_FORCE_INLINE to plain INLINE, or
  * called with a runtime argument) the build FAILS at that source line
@@ -245,11 +241,10 @@ bool VDP1_SetupDrawLine(int32_t* const cycle_counter, const bool AA, const bool 
  #define VDP1_ASSUME_FOLDED(x) ((void)0)
 #endif
 
-
 /* MDFN_FORCE_INLINE, not INLINE: this is the C replacement for a C++ template.
    Each wrapper calls it with all-constant former-template args; forcing the
    inline is what lets the compiler dead-strip the if(param) branches, exactly
-   as template instantiation did. Plain INLINE is only a hint and the compiler
+   as macro-monomorphized form did. Plain INLINE is only a hint and the compiler
    refuses it here (function too large), leaving one generic out-of-line copy
    with every branch live -- a real per-pixel slowdown vs the C++ original. */
 static MDFN_FORCE_INLINE int32_t VDP1_PlotPixel(const int die, const unsigned bpp8, const int MSBOn,
@@ -304,7 +299,6 @@ static MDFN_FORCE_INLINE int32_t VDP1_PlotPixel(const int die, const unsigned bp
  return ret;
  } /* VDP1_ASSUME_FOLDED block */
 }
-
 
 #define VDP1_PBODY(pxy, dl_die, dl_bpp8, dl_MSBOn, dl_UCE, dl_UCM, dl_ME, dl_GE, dl_HFE, dl_HBE) \
  { const uint32_t px = (uint16_t)(pxy); const uint32_t py = (pxy) >> 16; bool clipped; \
@@ -367,7 +361,6 @@ static MDFN_FORCE_INLINE int32_t VDP1_DrawLine_impl(const int AA, const int Text
  return ret;
  } /* VDP1_ASSUME_FOLDED block */
 }
-
 
 /* Wrapper function name: token-pastes (die,bpp8,b,c) into a unique C identifier. */
 #define VDP1_DL_NAME(die,bpp8,b,c) VDP1_DL_##die##_##bpp8##_##b##_##c
