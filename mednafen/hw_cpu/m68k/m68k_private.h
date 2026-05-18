@@ -1386,11 +1386,11 @@ INLINE void M68K::MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst)
 }
 
 template<typename T, AddressMode SAM>
-INLINE void M68K::MOVEA(HAM<T, SAM> &src, const unsigned ar)
+INLINE void MOVEA(M68K* z, M68K::HAM<T, SAM> &src, const unsigned ar)
 {
  uint32_t const src_data = static_cast<typename std::make_signed<T>::type>(src.read());
 
- A[ar] = src_data;
+ z->A[ar] = src_data;
 }
 
 
@@ -1918,14 +1918,14 @@ INLINE void M68K::DBcc(unsigned cc, const unsigned dr)
 // Scc
 //
 template<typename T, AddressMode DAM>
-INLINE void M68K::Scc(unsigned cc, HAM<T, DAM> &dst)
+INLINE void Scc(M68K* z, unsigned cc, M68K::HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint8_t>::value, "Wrong type");
 
- T const result = TestCond(cc) ? ~(T)0 : 0;
+ T const result = z->TestCond(cc) ? ~(T)0 : 0;
 
  if(DAM == DATA_REG_DIR && result)
-  timestamp += 2;
+  z->timestamp += 2;
 
  dst.write(result);
 }
@@ -1935,9 +1935,9 @@ INLINE void M68K::Scc(unsigned cc, HAM<T, DAM> &dst)
 // JSR
 //
 template<typename T, AddressMode TAM>
-INLINE void M68K::JSR(HAM<T, TAM> &targ)
+INLINE void JSR(M68K* z, M68K::HAM<T, TAM> &targ)
 {
- Push_u32(PC);
+ z->Push_u32(z->PC);
  targ.jump();
 }
 
@@ -1946,8 +1946,9 @@ INLINE void M68K::JSR(HAM<T, TAM> &targ)
 // JMP
 //
 template<typename T, AddressMode TAM>
-INLINE void M68K::JMP(HAM<T, TAM> &targ)
+INLINE void JMP(M68K* z, M68K::HAM<T, TAM> &targ)
 {
+ (void)z; /* No class state read; targ.jump() goes through dst.zptr. */
  targ.jump();
 }
 
@@ -1956,16 +1957,16 @@ INLINE void M68K::JMP(HAM<T, TAM> &targ)
 // MOVE from SR
 //
 template <typename T, AddressMode DAM>
-INLINE void M68K::MOVE_from_SR(HAM<T, DAM> &dst)
+INLINE void MOVE_from_SR(M68K* z, M68K::HAM<T, DAM> &dst)
 {
  static_assert(std::is_same<T, uint16_t>::value, "Wrong type");
 
  dst.read();
 
  if(DAM == DATA_REG_DIR)
-  timestamp += 2;
+  z->timestamp += 2;
 
- dst.write(GetSR());
+ dst.write(z->GetSR());
 }
 
 
@@ -1973,26 +1974,26 @@ INLINE void M68K::MOVE_from_SR(HAM<T, DAM> &dst)
 // MOVE to CCR
 //
 template<typename T, AddressMode SAM>
-INLINE void M68K::MOVE_to_CCR(HAM<T, SAM> &src)
+INLINE void MOVE_to_CCR(M68K* z, M68K::HAM<T, SAM> &src)
 {
  static_assert(std::is_same<T, uint16_t>::value, "Wrong type");
 
- SetCCR(src.read());
+ z->SetCCR(src.read());
 
- timestamp += 8;
+ z->timestamp += 8;
 }
 
 //
 // MOVE to SR
 //
 template<typename T, AddressMode SAM>
-INLINE void M68K::MOVE_to_SR(HAM<T, SAM> &src)
+INLINE void MOVE_to_SR(M68K* z, M68K::HAM<T, SAM> &src)
 {
  static_assert(std::is_same<T, uint16_t>::value, "Wrong type");
 
- SetSR(src.read());
+ z->SetSR(src.read());
 
- timestamp += 8;
+ z->timestamp += 8;
 }
 
 
@@ -2012,11 +2013,11 @@ INLINE void M68K::MOVE_USP(bool direction, const unsigned ar)
 // LEA
 //
 template<typename T, AddressMode SAM>
-INLINE void M68K::LEA(HAM<T, SAM> &src, const unsigned ar)
+INLINE void LEA(M68K* z, M68K::HAM<T, SAM> &src, const unsigned ar)
 {
  const uint32_t ea = src.getea();
 
- A[ar] = ea;
+ z->A[ar] = ea;
 }
 
 
@@ -2024,11 +2025,11 @@ INLINE void M68K::LEA(HAM<T, SAM> &src, const unsigned ar)
 // PEA
 //
 template<typename T, AddressMode SAM>
-INLINE void M68K::PEA(HAM<T, SAM> &src)
+INLINE void PEA(M68K* z, M68K::HAM<T, SAM> &src)
 {
  const uint32_t ea = src.getea();
 
- Push_u32(ea);
+ z->Push_u32(ea);
 }
 
 //

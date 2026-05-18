@@ -461,8 +461,8 @@ struct M68K
  template<typename T, AddressMode SAM, AddressMode DAM>
  void MOVE(HAM<T, SAM> &src, HAM<T, DAM> &dst);
 
- template<typename T, AddressMode SAM>
- void MOVEA(HAM<T, SAM> &src, const unsigned ar);
+ /* Phase-9d-11: MOVEA retired from struct M68K scope; see the
+  * free-template block after struct M68K closes. */
 
  /* Phase-8e: MOVEM_to_MEM's `bool pseudo_predec` moved to runtime. */
  template<typename T, AddressMode DAM>
@@ -538,23 +538,9 @@ struct M68K
  void Bxx(unsigned cc, uint32_t disp);
  void DBcc(unsigned cc, const unsigned dr);
 
- template<typename T, AddressMode DAM>
- void Scc(unsigned cc, HAM<T, DAM> &dst);
-
- template<typename T, AddressMode TAM>
- void JSR(HAM<T, TAM> &targ);
-
- template<typename T, AddressMode TAM>
- void JMP(HAM<T, TAM> &targ);
-
- template <typename T, AddressMode DAM>
- void MOVE_from_SR(HAM<T, DAM> &dst);
-
- template<typename T, AddressMode SAM>
- void MOVE_to_CCR(HAM<T, SAM> &src);
-
- template<typename T, AddressMode SAM>
- void MOVE_to_SR(HAM<T, SAM> &src);
+ /* Phase-9d-11: Scc, JSR, JMP, MOVE_from_SR, MOVE_to_CCR,
+  * MOVE_to_SR retired from struct M68K scope; see the
+  * free-template block after struct M68K closes. */
 
  /* Phase-8d: MOVE_USP bool template parameter -> runtime arg.
   * Just two callers per build (the two MOVE-USP-direction
@@ -563,11 +549,8 @@ struct M68K
   * folding the bool.  Cleaner as a runtime first-arg. */
  void MOVE_USP(bool direction, const unsigned ar);
 
- template<typename T, AddressMode SAM>
- void LEA(HAM<T, SAM> &src, const unsigned ar);
-
- template<typename T, AddressMode SAM>
- void PEA(HAM<T, SAM> &src);
+ /* Phase-9d-11: LEA, PEA retired from struct M68K scope; see
+  * the free-template block after struct M68K closes. */
  void UNLK(const unsigned ar);
  void LINK(const unsigned ar);
  void RTE(void);
@@ -648,6 +631,34 @@ void TST(M68K* z, M68K::HAM<T, DAM> &dst);
 
 template<typename T, AddressMode DAM>
 void TAS(M68K* z, M68K::HAM<T, DAM> &dst);
+
+/* Phase-9d-11: 9-op single-arg-with-extra family. */
+template<typename T, AddressMode SAM>
+void MOVEA(M68K* z, M68K::HAM<T, SAM> &src, const unsigned ar);
+
+template<typename T, AddressMode DAM>
+void Scc(M68K* z, unsigned cc, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode TAM>
+void JSR(M68K* z, M68K::HAM<T, TAM> &targ);
+
+template<typename T, AddressMode TAM>
+void JMP(M68K* z, M68K::HAM<T, TAM> &targ);
+
+template<typename T, AddressMode DAM>
+void MOVE_from_SR(M68K* z, M68K::HAM<T, DAM> &dst);
+
+template<typename T, AddressMode SAM>
+void MOVE_to_CCR(M68K* z, M68K::HAM<T, SAM> &src);
+
+template<typename T, AddressMode SAM>
+void MOVE_to_SR(M68K* z, M68K::HAM<T, SAM> &src);
+
+template<typename T, AddressMode SAM>
+void LEA(M68K* z, M68K::HAM<T, SAM> &src, const unsigned ar);
+
+template<typename T, AddressMode SAM>
+void PEA(M68K* z, M68K::HAM<T, SAM> &src);
 #endif /* __cplusplus */
 
 /* M68K_* free-function API exposed to consumers of m68k.h.
