@@ -1697,6 +1697,51 @@ int input_StateAction( StateMem* sm, const unsigned load, const bool data_only )
 	return success;
 }
 
+int input_StateActionDevices( StateMem* sm, const unsigned load, const bool data_only )
+{
+	uint32_t saved_input_type[ MAX_CONTROLLERS ];
+	int success;
+	SFORMAT StateRegs[] =
+	{
+		SFPTR32N( saved_input_type, MAX_CONTROLLERS, "input-type" ),
+		SFEND
+	};
+
+	/* On save, snapshot the live per-port device type into the
+	 * SFPTR target so MDFNSS_StateAction writes it out.  On load
+	 * this is the buffer MDFNSS_StateAction fills from the state
+	 * stream. */
+	if ( !load )
+		memcpy( saved_input_type, input_type, sizeof( saved_input_type ) );
+
+	/* The section is optional: states written by versions of this
+	 * core that pre-date this fix don't carry the "input-type"
+	 * payload, and we want to keep loading them.  When the section
+	 * is missing on load, MDFNSS_StateAction returns success=0 and
+	 * the per-port restore loop below is skipped. */
+	success = MDFNSS_StateAction( sm, load, data_only, StateRegs,
+		"LIBRETRO-INPUT-DEVICES", true /* optional */ );
+
+	if ( load && success )
+	{
+		unsigned i;
+		for ( i = 0; i < MAX_CONTROLLERS; ++i )
+		{
+			/* If the saved state was written with a different
+			 * IOPort device on this port than the live core has
+			 * currently assigned, swap the IOPort pointer back to
+			 * what the state was written under so the upcoming
+			 * SMPC_StateAction's IODevice_*_StateAction call finds
+			 * its named section in the state buffer rather than
+			 * Power()-cycling the (mismatched) current device. */
+			if ( saved_input_type[ i ] != input_type[ i ] )
+				retro_set_controller_port_device( i, saved_input_type[ i ] );
+		}
+	}
+
+	return success;
+}
+
 //------------------------------------------------------------------------------
 // Libretro Interface
 //------------------------------------------------------------------------------

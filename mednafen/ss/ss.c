@@ -2458,6 +2458,18 @@ int LibRetro_StateAction(StateMem* sm, const unsigned load)
    SH7095_M_StateAction(sm, load, false, "SH2-M");
    SH7095_S_StateAction(sm, load, false, "SH2-S");
    SCU_StateAction(sm, load, false);
+
+   /* Restore the per-port libretro device type *before*
+    * SMPC_StateAction so the upcoming IODevice_*_StateAction
+    * calls find their named sections in the state buffer for the
+    * device the state was actually saved under, rather than the
+    * (possibly different) device the live core currently has on
+    * each port.  This is the residual cross-device piece of
+    * issue #21 that the CORE_VARIABLE_SIZE quirk alone couldn't
+    * address.  Optional section: states written by core versions
+    * pre-dating this fix are loaded unchanged. */
+   input_StateActionDevices( sm, load, false );
+
    SMPC_StateAction(sm, load, false);
 
    CDB_StateAction(sm, load, false);
