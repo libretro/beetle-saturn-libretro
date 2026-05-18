@@ -37,8 +37,6 @@ bool MDFNMP_Init(uint32_t ps, uint32_t numpages);
 void MDFNMP_AddRAM(uint32_t size, uint32_t address, uint8_t *RAM);
 void MDFNMP_Kill(void);
 
-void MDFNMP_InstallReadPatches(void);
-
 void MDFNMP_ApplyPeriodicCheats(void);
 
 void MDFN_LoadGameCheats(void);

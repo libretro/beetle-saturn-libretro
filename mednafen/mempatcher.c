@@ -327,25 +327,6 @@ void MDFNMP_SetCheat(unsigned slot, bool enabled,
  MDFNMP_RecomputeCheatsActive();
 }
 
-void MDFNMP_InstallReadPatches(void)
-{
- if(!CheatsActive) return;
-
-#if 0
- {
-  unsigned int x;
-  size_t ci;
-  for(x = 0; x < 8; x++)
-   for(ci = 0; ci < SubCheats_count[x]; ci++)
-   {
-    SUBCHEAT *chit = &SubCheats[x][ci];
-    if(MDFNGameInfo->InstallReadPatch)
-     MDFNGameInfo->InstallReadPatch(chit->addr);
-   }
- }
-#endif
-}
-
 void MDFN_LoadGameCheats(void)
 {
  RebuildSubCheats();

@@ -721,7 +721,6 @@ static bool MDFNI_LoadGame(const char *name)
                     NULL, NULL, NULL))
                {
                   MDFN_LoadGameCheats();
-                  MDFNMP_InstallReadPatches();
                   return true;
                }
 
@@ -790,7 +789,6 @@ static bool MDFNI_LoadGame(const char *name)
                            region, dir_buf, base, sgi))
             {
                MDFN_LoadGameCheats();
-               MDFNMP_InstallReadPatches();
                return true;
             }
             log_cb(RETRO_LOG_ERROR, "ST-V InitCommon failed.\n");
@@ -818,7 +816,6 @@ static bool MDFNI_LoadGame(const char *name)
       return false;
 
    MDFN_LoadGameCheats();
-   MDFNMP_InstallReadPatches();
 
    return true;
 }
@@ -855,10 +852,9 @@ bool retro_load_game(const struct retro_game_info *info)
    if (MDFNI_LoadGame(retro_cd_path) == false)
       return false;
 
-   // MDFN_LoadGameCheats() and MDFNMP_InstallReadPatches() were called
-   // here previously, but MDFNI_LoadGame already invokes both at the end
-   // of its success path. The duplicate calls were redundant (and
-   // potentially harmful if either of those functions ever becomes
+   // MDFN_LoadGameCheats() was called here previously, but MDFNI_LoadGame
+   // already invokes it at the end of its success path. The duplicate
+   // call was redundant (and potentially harmful if it ever becomes
    // non-idempotent).
 
    alloc_surface();
