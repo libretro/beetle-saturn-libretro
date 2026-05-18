@@ -42,8 +42,7 @@ ifeq ($(SYSTEM_LIBCHDR), 1)
    INCFLAGS += $(shell pkg-config --cflags libchdr)
    LIBS += $(shell pkg-config --libs libchdr)
 else
-   INCFLAGS += -I$(DEPS_DIR)/crypto \
-	       -I$(DEPS_DIR)/lzma/C \
+   INCFLAGS += -I$(DEPS_DIR)/lzma/C \
 	       -I$(DEPS_DIR)/libchdr \
 	       -I$(DEPS_DIR)/libchdr/include \
 	       -I$(DEPS_DIR)/libchdr/include/libchdr \
@@ -128,8 +127,6 @@ LZMA_DIR := $(DEPS_DIR)/lzma/src
 LIBCHDR_DIR := $(DEPS_DIR)/libchdr/src
 INCFLAGS += -I$(DEPS_DIR)/lzma/include
 SOURCES_C += \
-	$(DEPS_DIR)/crypto/md5.c \
-	$(DEPS_DIR)/crypto/sha1.c \
 	$(LZMA_DIR)/Alloc.c \
 	$(LZMA_DIR)/Bra86.c \
 	$(LZMA_DIR)/BraIA64.c \
