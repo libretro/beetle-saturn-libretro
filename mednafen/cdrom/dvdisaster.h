@@ -124,15 +124,10 @@ void FreeReedSolomonTables(ReedSolomonTables*);
 
 void GetPVector(unsigned char*, unsigned char*, int);
 void SetPVector(unsigned char*, unsigned char*, int);
-void FillPVector(unsigned char*, unsigned char, int);
-void AndPVector(unsigned char*, unsigned char, int);
-void OrPVector(unsigned char*, unsigned char, int);
 
 void GetQVector(unsigned char*, unsigned char*, int);
 void SetQVector(unsigned char*, unsigned char*, int);
 void FillQVector(unsigned char*, unsigned char, int);
-void AndQVector(unsigned char*, unsigned char, int);
-void OrQVector(unsigned char*, unsigned char, int);
 
 int DecodePQ(ReedSolomonTables*, unsigned char*, int, int*, int);
 

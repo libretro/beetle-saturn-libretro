@@ -52,30 +52,6 @@ void SetPVector(unsigned char *frame, unsigned char *data, int n)
      frame[w_idx] = data[i];
 }
 
-void FillPVector(unsigned char *frame, unsigned char data, int n)
-{  int i;
-   int w_idx = n+12;
-
-   for(i=0; i<26; i++, w_idx+=86)
-     frame[w_idx] = data;
-}
-
-void OrPVector(unsigned char *frame, unsigned char value, int n)
-{  int i;
-   int w_idx = n+12;
-
-   for(i=0; i<26; i++, w_idx+=86)
-       frame[w_idx] |= value;
-}
-
-void AndPVector(unsigned char *frame, unsigned char value, int n)
-{  int i;
-   int w_idx = n+12;
-
-   for(i=0; i<26; i++, w_idx+=86)
-       frame[w_idx] &= value;
-}
-
 /*
  * There are 52 vectors of Q-parity, yielding a RS(45,43) code.
  */
@@ -114,30 +90,6 @@ void FillQVector(unsigned char *frame, unsigned char data, int n)
 
    frame[2248 + n] = data;
    frame[2300 + n] = data;
-}
-
-void OrQVector(unsigned char *frame, unsigned char data, int n)
-{  int offset = 12 + (n & 1);
-   int w_idx  = (n&~1) * 43;
-   int i;
-
-   for(i=0; i<43; i++, w_idx+=88)
-     frame[(w_idx % 2236) + offset] |= data;
-
-   frame[2248 + n] |= data;
-   frame[2300 + n] |= data;
-}
-
-void AndQVector(unsigned char *frame, unsigned char data, int n)
-{  int offset = 12 + (n & 1);
-   int w_idx  = (n&~1) * 43;
-   int i;
-
-   for(i=0; i<43; i++, w_idx+=88)
-     frame[(w_idx % 2236) + offset] &= data;
-
-   frame[2248 + n] &= data;
-   frame[2300 + n] &= data;
 }
 
 /***
