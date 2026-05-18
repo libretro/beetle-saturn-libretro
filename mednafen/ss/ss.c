@@ -106,27 +106,21 @@ MDFN_COLD void SH7095_ConstructAll(void)
 /* C-linkage proxies bridging the SH7095 class to C consumers.  Used
  * by smpc.c (the converted SMPC TU) to drive slave-CPU enable/disable
  * (SMPC SH2_RESET / SH2_GET / SH2_SET commands) and to assert NMI
- * (SMPC SYSRES / SNDRES / CDON / CDOFF paths).  The cpu index picks
- * between SH-2 master (0) and slave (1); callers in smpc.c pass
- * literal 0/1 to match the historical CPU[0]/CPU[1] indexing.
+ * (SMPC SYSRES / SNDRES / CDON / CDOFF paths).  The proxies hide
+ * `&CPU[0]` / `&CPU[1]` from external TUs so they don't need to know
+ * about the master/slave SH7095 array layout in ss.c.
  *
  * The proxies stay here in ss.c rather than in sh7095.inc because
- * the CPU[2] global lives in this TU.  sh7095.h itself remains
- * no longer used (it exposes the class, and there is no current C TU that
- * needs anything beyond these two methods); when more SH7095
- * operations need C-callable proxies they should be added here. */
-/* Phase-9 follow-up: these C-callable proxies used to shadow the
- * SH7095*-primary `SH7095_SetActive` / `SH7095_SetNMI` decls in
- * sh7095.h via function-name overloading (same name, different signature,
- * different linkage namespace).  Once sh7095.h became C-parseable
- * the overload collapsed to a redefinition: C has no overloading.
- *
- * Both wrappers were always called with hard-coded CPU indices
- * (SetActive only ever with 1 = slave, SetNMI only ever with
- * 0 = master), so the right shape is `SH7095_M_*` / `SH7095_S_*`
- * matching the existing SH7095_M_Init / SH7095_M_Reset naming
- * convention -- drop the int parameter, encode the CPU in the
- * function name. */
+ * the CPU[2] global lives in this TU.  Both were always called with
+ * hard-coded CPU indices (SetActive only ever with 1 = slave,
+ * SetNMI only ever with 0 = master), so the per-side `SH7095_S_*`
+ * / `SH7095_M_*` shape -- drop the int parameter, encode the CPU
+ * in the function name -- is the right one.  An earlier set of
+ * SH7095_{M,S}_* wrappers for ss.c-internal lifecycle (Init,
+ * SetMD5, TruePowerOn, Reset, AdjustTS, StateAction, PostStateLoad)
+ * was retired once SH7095 became a C struct -- those call sites
+ * now invoke sh7095.h's SH7095_* exports directly with &CPU[0] /
+ * &CPU[1].  Only externally-called proxies remain. */
 void SH7095_S_SetActive(bool active)
 {
  SH7095_SetActive(&CPU[1], active);
@@ -1153,46 +1147,18 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
  #pragma GCC pop_options
 #endif
 
-int32_t SS_RunLoop_ICache(EmulateSpecStruct* espec)                                   { return RunLoop_ICache(espec); }
-int32_t SS_RunLoop_NoICache(EmulateSpecStruct* espec)                                 { return RunLoop_NoICache(espec); }
-void    SS_ForceEventUpdates(int32_t timestamp)                                       { ForceEventUpdates(timestamp); }
-void    SH7095_M_AdjustTS(int32_t delta)                                              { SH7095_AdjustTS(&CPU[0], delta); }
-void    SH7095_S_AdjustTS(int32_t delta)                                              { SH7095_AdjustTS(&CPU[1], delta); }
-
-/* SH7095 wrappers used by InitCommon (Init / SetMD5 /
- * TruePowerOn) and SS_Reset (TruePowerOn / Reset).  Retires when
- * SH7095 becomes a C struct. */
-MDFN_COLD void SH7095_M_Init(const bool emumode_full, const bool emumode_cb_only)     { SH7095_Init(&CPU[0], emumode_full, emumode_cb_only); }
-MDFN_COLD void SH7095_S_Init(const bool emumode_full, const bool emumode_cb_only)     { SH7095_Init(&CPU[1], emumode_full, emumode_cb_only); }
-void           SH7095_M_SetMD5(bool level)                                            { SH7095_SetMD5(&CPU[0], level); }
-void           SH7095_S_SetMD5(bool level)                                            { SH7095_SetMD5(&CPU[1], level); }
-MDFN_COLD void SH7095_M_TruePowerOn(void)                                             { SH7095_TruePowerOn(&CPU[0]); }
-MDFN_COLD void SH7095_S_TruePowerOn(void)                                             { SH7095_TruePowerOn(&CPU[1]); }
-MDFN_COLD void SH7095_M_Reset(bool power_on_reset)                                    { SH7095_Reset(&CPU[0], power_on_reset, false); }
+/* SH7095_M_DMA_Update / SH7095_S_DMA_Update are kept as 1-arg
+ * forwarders because the SH_DMA_EVENT_HANDLER_BODY macro at line
+ * ~1335 substitutes them as UPDATE_FN(et) and requires a 1-arg
+ * (sscpu_timestamp_t) signature.  All the other SH7095_{M,S}_*
+ * 1-line wrappers (Init/SetMD5/TruePowerOn/Reset/AdjustTS/State
+ * Action/PostStateLoad) that used to live here were inlined into
+ * their call sites in this TU when the cross-TU SH7095 conversion
+ * to C struct retired the need for C-linkage shims. */
 
 //
 //
 //
-
-void SH7095_M_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
-{
- SH7095_StateAction(&CPU[0], sm, load, data_only, sname);
-}
-
-void SH7095_S_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname)
-{
- SH7095_StateAction(&CPU[1], sm, load, data_only, sname);
-}
-
-void SH7095_M_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache)
-{
- SH7095_PostStateLoad(&CPU[0], load, prev_NeedEmuICache, current_NeedEmuICache);
-}
-
-void SH7095_S_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache)
-{
- SH7095_PostStateLoad(&CPU[1], load, prev_NeedEmuICache, current_NeedEmuICache);
-}
 
 static const MDFNSetting_EnumList RTCLang_List[] =
 {
@@ -1482,14 +1448,6 @@ extern int64_t       UpdateInputLastBigTS;
 extern MDFNGI        EmulatedSS;
 extern uint32_t      IBufferCount;
 
-/* Functions ss.c publishes for our use; these forward into the
- * SH7095 CPU instances and the RunLoop dispatch in this TU. */
-int32_t SS_RunLoop_ICache(struct EmulateSpecStruct* espec);
-int32_t SS_RunLoop_NoICache(struct EmulateSpecStruct* espec);
-void    SS_ForceEventUpdates(int32_t timestamp);
-void    SH7095_M_AdjustTS(int32_t delta);
-void    SH7095_S_AdjustTS(int32_t delta);
-
 /* Frame-scoped state.  espec is the active EmulateSpecStruct
  * pointer Emulate received this frame -- shared with MidSync via
  * file-static visibility. AllowMidSync gates whether MidSync's
@@ -1551,12 +1509,12 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
  espec->MasterCycles = 0;
 
  if (NeedEmuICache)
-  end_ts = SS_RunLoop_ICache(espec);
+  end_ts = RunLoop_ICache(espec);
  else
-  end_ts = SS_RunLoop_NoICache(espec);
+  end_ts = RunLoop_NoICache(espec);
  assert(end_ts >= 0);
 
- SS_ForceEventUpdates(end_ts);
+ ForceEventUpdates(end_ts);
 
  SMPC_EndFrame(espec, end_ts);
 
@@ -1575,8 +1533,8 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
  SH7095_mem_timestamp -= end_ts; /* Update before SH7095 AdjustTS calls. */
 
  /* AdjustTS(-end_ts) for both SH7095 CPU instances. */
- SH7095_M_AdjustTS(-end_ts);
- SH7095_S_AdjustTS(-end_ts);
+ SH7095_AdjustTS(&CPU[0], -end_ts);
+ SH7095_AdjustTS(&CPU[1], -end_ts);
  (void)c;
 
  espec->MasterCycles  = (int64_t)end_ts * cur_clock_div;
@@ -1629,16 +1587,6 @@ extern sha256_digest BIOS_SHA256;
 /* Defined in libretro.c (no header to include for this -- ss.c and
  * settings.c each redeclare it locally; match that pattern). */
 extern char retro_base_directory[4096];
-
-/* SH7095 dispatch wrappers defined later in this file. */
-void SH7095_ConstructAll(void) MDFN_COLD;
-void SH7095_M_Init(const bool emumode_full, const bool emumode_cb_only) MDFN_COLD;
-void SH7095_S_Init(const bool emumode_full, const bool emumode_cb_only) MDFN_COLD;
-void SH7095_M_SetMD5(bool level);
-void SH7095_S_SetMD5(bool level);
-void SH7095_M_TruePowerOn(void) MDFN_COLD;
-void SH7095_S_TruePowerOn(void) MDFN_COLD;
-void SH7095_M_Reset(bool power_on_reset)    MDFN_COLD;
 
 typedef struct
 {
@@ -1726,10 +1674,10 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
 
    NeedEmuICache = (cpucache_emumode == CPUCACHE_EMUMODE_FULL);
       SH7095_ConstructAll();
-   SH7095_M_Init((cpucache_emumode == CPUCACHE_EMUMODE_FULL), (cpucache_emumode == CPUCACHE_EMUMODE_DATA_CB));
-   SH7095_S_Init((cpucache_emumode == CPUCACHE_EMUMODE_FULL), (cpucache_emumode == CPUCACHE_EMUMODE_DATA_CB));
-   SH7095_M_SetMD5(false);
-   SH7095_S_SetMD5(true);
+   SH7095_Init(&CPU[0], (cpucache_emumode == CPUCACHE_EMUMODE_FULL), (cpucache_emumode == CPUCACHE_EMUMODE_DATA_CB));
+   SH7095_Init(&CPU[1], (cpucache_emumode == CPUCACHE_EMUMODE_FULL), (cpucache_emumode == CPUCACHE_EMUMODE_DATA_CB));
+   SH7095_SetMD5(&CPU[0], false);
+   SH7095_SetMD5(&CPU[1], true);
 
    SH7095_mem_timestamp = 0;
    SH7095_DB = 0;
@@ -1951,8 +1899,11 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
 }
 
 /* SS_Reset is the public-ABI reset entry called from libretro.c's
- * retro_reset and from InitCommon's final step.  Reaches into both
- * SH7095 CPU instances via the SH7095_{M,S}_Reset wrappers. */
+ * retro_reset and from InitCommon's final step.  TruePowerOn fires
+ * on both CPUs only when powering_up; the warm-reset path runs
+ * SH7095_Reset on the master only, matching the Saturn hardware
+ * behaviour where SMPC re-enables the slave on demand rather than
+ * the slave being reset alongside the master. */
 void SS_Reset(bool powering_up)
 {
  SH7095_BusLock = 0;
@@ -1965,12 +1916,12 @@ void SS_Reset(bool powering_up)
 
  if(powering_up)
  {
-  SH7095_M_TruePowerOn();
-  SH7095_S_TruePowerOn();
+  SH7095_TruePowerOn(&CPU[0]);
+  SH7095_TruePowerOn(&CPU[1]);
  }
 
  SCU_Reset(powering_up);
- SH7095_M_Reset(powering_up);
+ SH7095_Reset(&CPU[0], powering_up, false);
 
  /* ST-V's I/O board must reset before SMPC -- SMPC's port shim
   * (IODevice_STVSMPC) consults state that STVIO_Reset re-initialises. */
@@ -2313,14 +2264,11 @@ extern uint16_t*     WorkRAMH;
 extern uint32_t      SH7095_DB;
 extern int64_t       UpdateInputLastBigTS;
 /* SH7095_mem_timestamp + SH7095_BusLock come via ss_init.h.  The
- * SH7095 state-action / post-state-load entry points are wrappers
- * defined below in this file. */
+ * SH7095 state-action / post-state-load is invoked directly via
+ * sh7095.h's exports (SH7095_StateAction / SH7095_PostStateLoad)
+ * with the appropriate CPU[] entry. */
 extern int32_t       SH7095_mem_timestamp;
 extern uint32_t      SH7095_BusLock;
-void SH7095_M_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
-void SH7095_S_StateAction(StateMem* sm, const unsigned load, const bool data_only, const char* sname) MDFN_COLD;
-void SH7095_M_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache);
-void SH7095_S_PostStateLoad(const unsigned load, bool prev_NeedEmuICache, bool current_NeedEmuICache);
 
 int LibRetro_StateAction(StateMem* sm, const unsigned load)
 {
@@ -2401,8 +2349,8 @@ int LibRetro_StateAction(StateMem* sm, const unsigned load)
       }
    }
 
-   SH7095_M_StateAction(sm, load, false, "SH2-M");
-   SH7095_S_StateAction(sm, load, false, "SH2-S");
+   SH7095_StateAction(&CPU[0], sm, load, false, "SH2-M");
+   SH7095_StateAction(&CPU[1], sm, load, false, "SH2-S");
    SCU_StateAction(sm, load, false);
 
    /* Restore the per-port libretro device type *before*
@@ -2448,8 +2396,8 @@ int LibRetro_StateAction(StateMem* sm, const unsigned load)
          InitEvents();
       }
 
-      SH7095_M_PostStateLoad(load, RecordedNeedEmuICache, NeedEmuICache);
-      SH7095_S_PostStateLoad(load, RecordedNeedEmuICache, NeedEmuICache);
+      SH7095_PostStateLoad(&CPU[0], load, RecordedNeedEmuICache, NeedEmuICache);
+      SH7095_PostStateLoad(&CPU[1], load, RecordedNeedEmuICache, NeedEmuICache);
    }
 
    return 1;
