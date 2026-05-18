@@ -2,12 +2,10 @@
   * by MSVC C89 mode and by strict ISO C.  enum constants are always
   * `int` in C; the bool / unsigned typed-enum forms in 11 only
   * affect the constant's underlying storage type, never its value --
-  * so the downstream `if(EmulateICache)` / `case which:` /
-  * `if(DebugMode)` macro expansions get the same compile-time fold
-  * either way. */
+  * so the downstream `if(EmulateICache)` / `case which:` macro
+  * expansions get the same compile-time fold either way. */
  enum { which = 1 };
  enum { EmulateICache = 1 /* true */ };
- enum { DebugMode = SH7095_DEBUG_MODE };
  enum { CacheBypassHack = 0 /* false */ };
 
  if(MDFN_UNLIKELY(z->timestamp >= bound_timestamp))
@@ -19,11 +17,7 @@
   z->resume_id = 0;
   switch (id)
   {
-#if SH7095_DEBUG_MODE
-   #include "sh7095s_ctable_dm.inc"
-#else
    #include "sh7095s_ctable.inc"
-#endif
    default: MDFN_UNREACHABLE;
   }
  }

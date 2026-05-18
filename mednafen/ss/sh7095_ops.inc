@@ -2083,7 +2083,7 @@ z->PC += 2;
 SkipPCInc:;
 
 #ifdef SH7095_NEED_RESUME_TABLE_INIT
-MDFN_STATIC_ASSERT(__COUNTER__ == ((DebugMode ? 10000 : 5000) + 393), "Unexpected __COUNTER__");
+MDFN_STATIC_ASSERT(__COUNTER__ == (5000 + 393), "Unexpected __COUNTER__");
 #endif
 
 #undef PART_OP_NORMIDIF

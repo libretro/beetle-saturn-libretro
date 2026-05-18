@@ -132,7 +132,6 @@ static void SH7095_SetCCR(SH7095* z, uint8_t V);
 // SH7095_SetIRL is declared extern in sh7095.h since scu.inc calls it.
 static void SH7095_SetFTCI(SH7095* z, bool state);
 static void SH7095_StateAction_SlaveResume(SH7095* z, StateMem* sm, const unsigned load, const bool data_only, const char* sname);
-static void SH7095_RunSlaveUntil_Debug(SH7095* z, const sscpu_timestamp_t bound_timestamp);
 static void SH7095_SetRegister(SH7095* z, const unsigned id, const uint32_t value);
 static void SH7095_DoIDIF_INLINE_C0_I0(SH7095* z);
 static void SH7095_DoIDIF_INLINE_C0_I1(SH7095* z);
@@ -202,7 +201,6 @@ void SH7095_Construct(SH7095* z, const char* const name_arg, const unsigned even
  z->cpu_name      = name_arg;
  z->CBH_Setting   = false;
  z->EIC_Setting   = false;
- z->DM_Setting    = false;
 
  if(z == &CPU[1])
  {
@@ -242,10 +240,7 @@ static void SH7095_RecalcMRWFP_0(SH7095* z)
  {
   if(z->EIC_Setting)
   {
-   if(z->DM_Setting)
-    MAHL(0, m1, f)
-   else
-    MAHL(0, t, f)
+   MAHL(0, t, f)
   }
   else if(z->CBH_Setting)
   {
@@ -293,14 +288,7 @@ static void SH7095_RecalcMRWFP_1_7(SH7095* z)
 
  if(z->EIC_Setting)
  {
-  if(z->DM_Setting)
-  {
-   MAHL(m1, 1)
-  }
-  else
-  {
-   MAHL(t, 1)
-  }
+  MAHL(t, 1)
   MAHL(f, 2)
   MAHL(f, 3)
   MAHL(f, 4)
@@ -4297,7 +4285,7 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
  }										\
 }
 
-#define CHECK_EXIT_RESUME() { if(NeedSlaveCall > 0) SH7095_RunSlaveUntil(&CPU[1], z->timestamp); if(NeedSlaveCall < 0) SH7095_RunSlaveUntil_Debug(&CPU[1], z->timestamp); }
+#define CHECK_EXIT_RESUME() { if(NeedSlaveCall > 0) SH7095_RunSlaveUntil(&CPU[1], z->timestamp); }
 #define OnChipRegRead(T, A)							\
         ( (sizeof(T) == 1) ? (T)SH7095_OnChipRegRead_INLINE_u8(z, A)		\
         : (sizeof(T) == 2) ? (T)SH7095_OnChipRegRead_INLINE_u16(z, A)		\
@@ -5154,15 +5142,6 @@ NO_CLONE NO_INLINE MDFN_HOT void SH7095_RunSlaveUntil(SH7095* z, const sscpu_tim
 }
 #undef SH7095_DEBUG_MODE
 
-#define SH7095_DEBUG_MODE 1
-#include "sh7095s_cnorm_dm.inc"
-MDFN_STATIC_ASSERT(__COUNTER__ == 10000, "Unexpected __COUNTER__ value.");
-static NO_CLONE NO_INLINE MDFN_COLD void SH7095_RunSlaveUntil_Debug(SH7095* z, const sscpu_timestamp_t bound_timestamp)
-{
- #include "sh7095s_rsu.inc"
-}
-#undef SH7095_DEBUG_MODE
-
 #if defined(__GNUC__) && !defined(__clang__)
  #pragma GCC pop_options
 #endif
@@ -5370,7 +5349,11 @@ static void SH7095_StateAction_SlaveResume(SH7095* z, StateMem* sm, const unsign
   *
   * with -1 / 0 standing in for "no resume pending".  Old saves
   * load to the same instruction-handler resume point as before. */
- const uint16_t top = z->DM_Setting ? 10512 : 5512;
+ /* DM_Setting was always false in this libretro core (the debug-mode
+  * dispatch path was Mednafen-standalone debugger UI legacy and has
+  * been removed); the savestate format only ever used the
+  * non-debug resume-id space (top == 5512). */
+ const uint16_t top = 5512;
 
  if(!load)
  {

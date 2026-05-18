@@ -52,7 +52,13 @@ for line in raw:
         ce_demangled  = args[5]                      # true / false
         isin          = args[6]                      # -1, 0, 1
 
-        nsc_tok = 'm1' if nsc_demangled == '-1' else ('t' if nsc_demangled == '1' else 'f')
+        # NeedSlaveCall == -1 was the debug-mode dispatch path; debug mode
+        # was removed from this libretro core (no debugger UI) and the
+        # `_nm1_` instantiations are no longer needed.
+        if nsc_demangled == '-1':
+            continue
+
+        nsc_tok = 't' if nsc_demangled == '1' else 'f'
         cbh_tok = 't' if cbh_demangled == 'true' else 'f'
         ce_val  = '1' if ce_demangled == 'true' else '0'
         isin_tok = 'm1' if isin == '-1' else isin
@@ -72,7 +78,12 @@ for line in raw:
         T_tok, T_c    = T_MAP[args[2]]
         region        = args[3].rstrip('u')
         ce_demangled  = args[4]
-        nsc_tok = 'm1' if nsc_demangled == '-1' else ('t' if nsc_demangled == '1' else 'f')
+
+        # Same debug-mode skip as for reads.
+        if nsc_demangled == '-1':
+            continue
+
+        nsc_tok = 't' if nsc_demangled == '1' else 'f'
         ce_val  = '1' if ce_demangled == 'true' else '0'
         nsc_val = nsc_demangled
 
@@ -91,7 +102,7 @@ HEADER = """\
  * Naming scheme: each function suffix encodes the original template
  * arguments, all readable in lower-case identifier characters.
  *   w<W>     -- which CPU                 (0 | 1)
- *   n<NSC>   -- NeedSlaveCall token       (m1 | f | t)
+ *   n<NSC>   -- NeedSlaveCall token       (f | t)
  *   c<CBH>   -- CacheBypassHack token     (f | t)        [reads only]
  *   u<BITS>  -- access width              (u8 | u16 | u32)
  *   r<REG>   -- region                    (0..7)

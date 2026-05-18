@@ -459,7 +459,6 @@ struct SH7095
 
   bool CBH_Setting;
  bool EIC_Setting;
- bool DM_Setting;
  uint32_t PC_IF, PC_ID;	// Debug-related variables.
  const char* cpu_name;
 };
