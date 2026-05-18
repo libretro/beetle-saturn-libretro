@@ -1857,6 +1857,26 @@
 
 /* ===== ABCD ===== */
 
+#define OP_NAME M68K_ABCD_u8_ADDR_REG_INDIR_PRE_u8_ADDR_REG_INDIR_PRE
+#define OP_T uint8_t
+#define OP_SAM ADDR_REG_INDIR_PRE
+#define OP_DAM ADDR_REG_INDIR_PRE
+#define OP_TSIZE 1
+#define OP_T_SIGNED int8_t
+#define OP_HAM_SRC M68K_HAM_u8_ADDR_REG_INDIR_PRE
+#define OP_HAM_DST M68K_HAM_u8_ADDR_REG_INDIR_PRE
+#include "m68k_op_ABCD_body.inc.h"
+
+#define OP_NAME M68K_ABCD_u8_DATA_REG_DIR_u8_DATA_REG_DIR
+#define OP_T uint8_t
+#define OP_SAM DATA_REG_DIR
+#define OP_DAM DATA_REG_DIR
+#define OP_TSIZE 1
+#define OP_T_SIGNED int8_t
+#define OP_HAM_SRC M68K_HAM_u8_DATA_REG_DIR
+#define OP_HAM_DST M68K_HAM_u8_DATA_REG_DIR
+#include "m68k_op_ABCD_body.inc.h"
+
 
 /* ===== ADD ===== */
 

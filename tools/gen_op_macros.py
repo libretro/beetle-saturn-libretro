@@ -54,7 +54,7 @@ while i < len(lines):
         next_line = lines[i + 1]
         if next_line.startswith('struct '):
             i += 1; continue
-        m = re.match(r'^INLINE\s+(\S+(?:\s+\S+)*?)\s+(\w+)\(M68K\* z(.*)\)$', next_line)
+        m = re.match(r'^INLINE\s+(\S+(?:\s+\S+)*?)\s+(\w+)\(M68K\* z(.*?)\)\s*(?://.*)?$', next_line)
         if not m:
             i += 1; continue
         ret_type = m.group(1)
