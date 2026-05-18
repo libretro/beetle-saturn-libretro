@@ -51,7 +51,6 @@ typedef struct {
 
 typedef struct OggVorbis_File {
   void            *datasource; /* Pointer to a FILE *, etc. */
-  int              seekable;
   int64_t      offset;
   int64_t      end;
   ogg_sync_state   oy;

@@ -612,13 +612,12 @@ static int _bisect_forward_serialno(OggVorbis_File *vf,
 static int _make_decode_ready(OggVorbis_File *vf){
   if(vf->ready_state>STREAMSET)return 0;
   if(vf->ready_state<STREAMSET)return OV_EFAULT;
-  if(vf->seekable){
-    if(vorbis_synthesis_init(&vf->vd,vf->vi+vf->current_link))
-      return OV_EBADLINK;
-  }else{
-    if(vorbis_synthesis_init(&vf->vd,vf->vi))
-      return OV_EBADLINK;
-  }
+  /* vf->seekable is always 1 in this libretro core (audioreader.c's
+   * iov_seek_func always returns 0 -> _ov_open1's probe always sets
+   * vf->seekable=1); the !seekable arm has been dropped along with
+   * the rest of the unreachable non-seekable paths in this file. */
+  if(vorbis_synthesis_init(&vf->vd,vf->vi+vf->current_link))
+    return OV_EBADLINK;
   vorbis_block_init(&vf->vd,&vf->vb);
   vf->ready_state=INITSET;
   vf->bittrack=0;
@@ -737,7 +736,7 @@ static int _fetch_and_process_packet(OggVorbis_File *vf,
 
             /* update the pcm offset. */
             if(granulepos!=-1 && !op_ptr->e_o_s){
-              int link=(vf->seekable?vf->current_link:0);
+              int link=vf->current_link;
               int i,samples;
 
               /* this packet has a pcm_offset on it (the last packet
@@ -753,7 +752,7 @@ static int _fetch_and_process_packet(OggVorbis_File *vf,
                  to have a reference point.  Thus the !op_ptr->e_o_s clause
                  above */
 
-              if(vf->seekable && link>0)
+              if(link>0)
                 granulepos-=vf->pcmlengths[link*2];
               if(granulepos<0)granulepos=0; /* actually, this
                                                shouldn't be possible
@@ -808,10 +807,6 @@ static int _fetch_and_process_packet(OggVorbis_File *vf,
 
               _decode_clear(vf);
 
-              if(!vf->seekable){
-                vorbis_info_clear(vf->vi);
-                vorbis_comment_clear(vf->vc);
-              }
               break;
 
             }else
@@ -839,36 +834,24 @@ static int _fetch_and_process_packet(OggVorbis_File *vf,
       int link;
 
       if(vf->ready_state<STREAMSET){
-        if(vf->seekable){
-          uint32_t serialno = ogg_page_serialno(&og);
+        uint32_t serialno = ogg_page_serialno(&og);
 
-          /* match the serialno to bitstream section.  We use this rather than
-             offset positions to avoid problems near logical bitstream
-             boundaries */
+        /* match the serialno to bitstream section.  We use this rather than
+           offset positions to avoid problems near logical bitstream
+           boundaries */
 
-          for(link=0;link<vf->links;link++)
-            if(vf->serialnos[link]==serialno)break;
+        for(link=0;link<vf->links;link++)
+          if(vf->serialnos[link]==serialno)break;
 
-          if(link==vf->links) continue; /* not the desired Vorbis
-                                           bitstream section; keep
-                                           trying */
+        if(link==vf->links) continue; /* not the desired Vorbis
+                                         bitstream section; keep
+                                         trying */
 
-          vf->current_serialno=serialno;
-          vf->current_link=link;
+        vf->current_serialno=serialno;
+        vf->current_link=link;
 
-          ogg_stream_reset_serialno(&vf->os,vf->current_serialno);
-          vf->ready_state=STREAMSET;
-
-        }else{
-          /* we're streaming */
-          /* fetch the three header packets, build the info struct */
-
-          int ret=_fetch_headers(vf,vf->vi,vf->vc,NULL,NULL,&og);
-          if(ret)return(ret);
-          vf->current_serialno=vf->os.serialno;
-          vf->current_link++;
-          link=0;
-        }
+        ogg_stream_reset_serialno(&vf->os,vf->current_serialno);
+        vf->ready_state=STREAMSET;
       }
     }
 
@@ -881,7 +864,6 @@ static int _fetch_and_process_packet(OggVorbis_File *vf,
 
 static int _ov_open1(void *f,OggVorbis_File *vf,const char *initial,
                      long ibytes, ov_callbacks callbacks){
-  int offsettest=((f && callbacks.seek_func)?callbacks.seek_func(f,0, VORBIS_SEEK_CUR):-1);
   uint32_t *serialno_list=NULL;
   int serialno_list_size=0;
   int ret;
@@ -903,8 +885,14 @@ static int _ov_open1(void *f,OggVorbis_File *vf,const char *initial,
     ogg_sync_wrote(&vf->oy,ibytes);
   }
 
-  /* can we seek? Stevens suggests the seek test was portable */
-  if(offsettest!=-1)vf->seekable=1;
+  /* In upstream tremor the seekability of the data source was
+   * probed here by `offsettest = callbacks.seek_func(f, 0, SEEK_CUR)`;
+   * a return of -1 left vf->seekable cleared and the rest of the
+   * file took a separate non-seekable path.  In this libretro core
+   * the only caller is audioreader.c, whose iov_seek_func returns 0
+   * unconditionally, so the probe always succeeded and vf->seekable
+   * was always 1.  The probe and all !vf->seekable branches have
+   * been removed; the seekable bit itself is no longer read. */
 
   /* No seeking yet; Set up a 'single' (current) logical bitstream
      entry for partial open */
@@ -986,7 +974,6 @@ int ov_open_callbacks(void *f,OggVorbis_File *vf,
   if(vf->ready_state != PARTOPEN)
     return OV_EINVAL;
   vf->ready_state=OPENED;
-  if(vf->seekable)
   {
     int ret=_open_seekable2(vf);
     if(ret)
@@ -996,10 +983,6 @@ int ov_open_callbacks(void *f,OggVorbis_File *vf,
     }
     return(ret);
   }
-  else
-    vf->ready_state=STREAMSET;
-
-  return 0;
 }
 
 /* returns: total PCM length (samples) of content if i==-1 PCM length
@@ -1009,7 +992,7 @@ int ov_open_callbacks(void *f,OggVorbis_File *vf,
 */
 int64_t ov_pcm_total(OggVorbis_File *vf,int i){
   if(vf->ready_state<OPENED)return(OV_EINVAL);
-  if(!vf->seekable || i>=vf->links)return(OV_EINVAL);
+  if(i>=vf->links)return(OV_EINVAL);
   if(i<0){
     int64_t acc=0;
     int i;
@@ -1039,8 +1022,6 @@ int ov_raw_seek(OggVorbis_File *vf,int64_t pos){
   int ret;
 
   if(vf->ready_state<OPENED)return(OV_EINVAL);
-  if(!vf->seekable)
-    return(OV_ENOSEEK); /* don't dump machine if we can't seek */
 
   if(pos<0 || pos>vf->end)return(OV_EINVAL);
 
@@ -1245,7 +1226,6 @@ int ov_pcm_seek_page(OggVorbis_File *vf,int64_t pos){
   int64_t total=ov_pcm_total(vf,-1);
 
   if(vf->ready_state<OPENED)return(OV_EINVAL);
-  if(!vf->seekable)return(OV_ENOSEEK);
 
   if(pos<0 || pos>total)return(OV_EINVAL);
 
@@ -1525,21 +1505,25 @@ int ov_pcm_seek(OggVorbis_File *vf,int64_t pos){
     current bitstream.  NULL in the case that the machine is not
     initialized */
 
-vorbis_info *ov_info(OggVorbis_File *vf,int link){
-  if(vf->seekable){
-    if(link<0)
-      if(vf->ready_state>=STREAMSET)
-        return vf->vi+vf->current_link;
-      else
-      return vf->vi;
-    else
-      if(link>=vf->links)
-        return NULL;
-      else
-        return vf->vi+link;
-  }else{
-    return vf->vi;
-  }
+/* The upstream ov_info(vf, link) signature lets callers fetch the
+ * vorbis_info for any logical bitstream in a chained Ogg file
+ * (link>=0) or for the current link (link<0).  In this fork the
+ * only consumer is the ov_read implementation a few lines below,
+ * which calls `ov_info(vf, -1)->channels` once per decoded sector
+ * to know how many channels to interleave.  audioreader.c has no
+ * call to ov_info, and the upstream extern decl in ivorbisfile.h
+ * has been dropped, so the function is now file-local.
+ *
+ * Specialized to the link<0 path: drop the unreachable link>=0
+ * arm (vf->links bounds check + vf->vi+link return) and the
+ * pointless second `link` parameter.  Returns the vorbis_info for
+ * the current logical bitstream when seekable+initialised, or the
+ * first vi otherwise -- byte-identical to ov_info(vf, -1) in the
+ * old form. */
+static INLINE vorbis_info *ov_info_current(OggVorbis_File *vf){
+  if(vf->ready_state>=STREAMSET)
+    return vf->vi+vf->current_link;
+  return vf->vi;
 }
 
 /* up to this point, everything could more or less hide the multiple
@@ -1599,7 +1583,7 @@ long ov_read(OggVorbis_File *vf,char *buffer,int bytes_req,int *bitstream)
   {
     /* yay! proceed to pack data into the byte buffer */
 
-    long channels=ov_info(vf,-1)->channels;
+    long channels=ov_info_current(vf)->channels;
 
     if(samples>(bytes_req/(2*channels)))
       samples=bytes_req/(2*channels);
