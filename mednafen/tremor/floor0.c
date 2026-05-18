@@ -171,32 +171,14 @@ void vorbis_lsp_to_curve(int32_t *curve,int *map,int n,int ln,
     int32_t qexp=0,shift;
     int32_t wi=icos[k];
 
-#ifdef _V_LSP_MATH_ASM
-    lsp_loop_asm(&qi,&pi,&qexp,ilsp,wi,m);
-
-    pi=((pi*pi)>>16);
-    qi=((qi*qi)>>16);
-    
-    if(m&1){
-      qexp= qexp*2-28*((m+1)>>1)+m;	     
-      pi*=(1<<14)-((wi*wi)>>14);
-      qi+=pi>>14;     
-    }else{
-      qexp= qexp*2-13*m;
-      
-      pi*=(1<<14)-wi;
-      qi*=(1<<14)+wi;
-      
-      qi=(qi+pi)>>14;
-    }
-    
-    if(qi&0xffff0000){ /* checks for 1.xxxxxxxxxxxxxxxx */
-      qi>>=1; qexp++; 
-    }else
-      lsp_norm_asm(&qi,&qexp);
-
-#else
-
+    /* Upstream tremor had an `#ifdef _V_LSP_MATH_ASM` arm here
+     * dispatching to ARM-asm helpers lsp_loop_asm() / lsp_norm_asm()
+     * defined in asm_arm.h.  The libretro fork never opted into
+     * _ARM_ASSEM_ on any of its 11 platform branches, and asm_arm.h
+     * (along with its #include in misc.h) was removed in a prior
+     * commit.  This file consequently always took the C arm; the
+     * `#ifdef _V_LSP_MATH_ASM` / `#else` / `#endif` scaffolding has
+     * been collapsed to just the C body. */
     j=1;
     if(m>1){
       qi*=labs(ilsp[0]-wi);
@@ -270,8 +252,6 @@ void vorbis_lsp_to_curve(int32_t *curve,int *map,int n,int ln,
       while(qi && !(qi&0x8000)){ /* checks for 0.0xxxxxxxxxxxxxxx or less*/
 	qi<<=1; qexp--; 
       }
-
-#endif
 
     amp=vorbis_fromdBlook_i(ampi*                     /*  n.4         */
 			    vorbis_invsqlook_i(qi,qexp)- 
