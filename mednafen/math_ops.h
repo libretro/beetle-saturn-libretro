@@ -130,26 +130,20 @@ static INLINE unsigned MDFN_log2(uint64_t v) { return 63 ^ MDFN_lzcount64_0UD(v 
 // uint32_t / uint64_t values, which promote without surprise.
 static INLINE uint64_t round_up_pow2(uint64_t v) { uint64_t tmp = (uint64_t)1 << MDFN_log2(v); return tmp << (tmp < v); }
 
-// Some compilers' optimizers and some platforms might fubar the
-// generated code from these macros, so upstream Mednafen ran a
-// dedicated tests TU to validate them.  That tests TU was never
-// part of this libretro fork; the macros are nonetheless considered
-// "load-bearing" and are not to be replaced with the more obvious
-// `int16_t result = (int8_t)value;` form (the explicit-shift idiom
-// works around codegen bugs on a few historical toolchain x target
-// combinations -- see the upstream commit history for details).
-#define sign_8_to_s16(_value) ((int16_t)(int8_t)(_value))
-#define sign_9_to_s16(_value)  (((int16_t)((unsigned int)(_value) << 7)) >> 7)
-#define sign_10_to_s16(_value)  (((int16_t)((uint32_t)(_value) << 6)) >> 6)
-#define sign_11_to_s16(_value)  (((int16_t)((uint32_t)(_value) << 5)) >> 5)
-#define sign_12_to_s16(_value)  (((int16_t)((uint32_t)(_value) << 4)) >> 4)
-#define sign_13_to_s16(_value)  (((int16_t)((uint32_t)(_value) << 3)) >> 3)
-#define sign_14_to_s16(_value)  (((int16_t)((uint32_t)(_value) << 2)) >> 2)
-#define sign_15_to_s16(_value)  (((int16_t)((uint32_t)(_value) << 1)) >> 1)
+// sign_x_to_s32 sign-extends an N-bit value (in the low N bits of a
+// uint32_t) into an int32_t.  Used in ~9 sites across the SH7095 /
+// VDP / SCU paths for instruction-immediate decoding.  Codegen-bug-
+// workaround discipline applies: don't replace with the "natural"
+// `int32_t result = (int8_t)value;` form -- the explicit-shift idiom
+// is the form upstream Mednafen settled on after observing miscompiles
+// on a few historical toolchain x target combinations, and the upstream
+// commit history documents the specific cases.  Used for >= 17 bits;
+// 8-to-16-bit sign extension is faster via a plain typecast.
+//
+// Note: an upstream sign_N_to_s16 family (sign_8_to_s16 ... sign_15_
+// to_s16) used to live here; it was untouched in the libretro fork
+// and a tree-wide grep found no expansions, so the family was dropped.
 
-// This obviously won't convert higher-than-32 bit numbers to signed 32-bit ;)
-// Also, this shouldn't be used for 8-bit and 16-bit signed numbers, since you can
-// convert those faster with typecasts...
 #define sign_x_to_s32(_bits, _value) (((int32_t)((uint32_t)(_value) << (32 - _bits))) >> (32 - _bits))
 
 #endif
