@@ -90,18 +90,6 @@ static uint8_t RDBS_Mode;
 static uint8_t VCPRegs[4][8];
 static const uint16_t DummyTileNT[8 * 8 * 4 / sizeof(uint16_t)] = { 0 };
 
-/* Was a runtime-mutable static updated by VDP2REND_SetLayerEnableMask
- * via the COMMAND_SET_LEM work-queue entry, which let an upstream
- * Mednafen debugger UI mask out individual NBG/RBG/sprite layers.
- * The libretro fork never exposed this as a core option, so neither
- * the public setter nor COMMAND_SET_LEM ever fired; the mask stayed
- * at ~0U for the whole run.  With no writer left, the AND-with-mask
- * checks in DrawLine fold trivially at -O2 (BGON & ~0U & 0x10 ==>
- * BGON & 0x10), so leaving the symbol here as a const keeps the
- * existing check-site source structure -- and the "all layers
- * visible" semantics it documents -- without any runtime cost. */
-static const uint32_t UserLayerEnableMask = ~0U;
-
 /*
  * "Deinterlace = Off" toggle, read by the consumer thread inside
  * DrawLine. When true and the frame is interlaced, each rendered
@@ -672,7 +660,6 @@ static struct
 // memset whole regions so the all-zero invariant always holds at
 // the boundary.
 //
-static bool     LB_clean_spr;     // LB.spr[0 .. LB_cleaned_w) is all zeros
 static bool     LB_clean_rbg0;    // LB.rbg0[0 .. LB_cleaned_w) is all zeros
 static bool     LB_clean_nbg[4];  // LB.nbg[n][8 .. 8 + LB_cleaned_w) is all zeros
 static unsigned LB_cleaned_w;     // width at which the clean flags were established
@@ -4029,11 +4016,10 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
  // Invalidate LB clean flags whenever w changes -- a flag means
  // "buffer is zero in [0, LB_cleaned_w)", and after a width change
  // a flag of true would falsely cover stale memory in
- // [LB_cleaned_w, w). Cheap (one compare + six byte stores in the
+ // [LB_cleaned_w, w). Cheap (one compare + five byte stores in the
  // rare miss case) and runs once per DrawLine.
  if(MDFN_UNLIKELY(w != LB_cleaned_w))
  {
-  LB_clean_spr     = false;
   LB_clean_rbg0    = false;
   LB_clean_nbg[0]  = false;
   LB_clean_nbg[1]  = false;
@@ -4256,17 +4242,13 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
   // Process sprite data before NBG0-3 and RBG0-1, but defer applying the window until after NBG and RBG are handled(so the sprite window
   // bit in the sprite linebuffer data isn't trashed prematurely).
   //
-  if(MDFN_LIKELY(UserLayerEnableMask & (1U << 6)))
-  {
-   MakeSpriteCCLUT();
-   DrawSpriteData[(HRes & 0x2) >> 0x1][(SDCTL >> 8) & 0x1][SPCTL_Low](LIB[vdp2_line].vdp1_line, LIB[vdp2_line].vdp1_hires8, w);
-   LB_clean_spr = false;
-  }
-  else if(!LB_clean_spr)
-  {
-   MDFN_FastArraySet(LB.spr, 0, w);
-   LB_clean_spr = true;
-  }
+  // (Sprite layer was conditional on UserLayerEnableMask & (1U << 6)
+  //  in upstream Mednafen, with the else branch zero-filling LB.spr
+  //  to keep the disabled-layer composite clean.  The libretro fork
+  //  has no user-layer-mask UI; the bit was always set, so the else
+  //  was always dead.  Sprite draw runs unconditionally now.)
+  MakeSpriteCCLUT();
+  DrawSpriteData[(HRes & 0x2) >> 0x1][(SDCTL >> 8) & 0x1][SPCTL_Low](LIB[vdp2_line].vdp1_line, LIB[vdp2_line].vdp1_hires8, w);
 
   if(BGON & 0x30)
   {
@@ -4332,7 +4314,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
     DOUBLEIZE_U8(LB.lc, rbg_w);
 
    // RBG0
-   if(MDFN_LIKELY(BGON & UserLayerEnableMask & 0x10))
+   if(MDFN_LIKELY(BGON & 0x10))
    {
     const bool igntp = (BGON >> 12) & 1;
     const bool bmen = (CHCTLB >> 9) & 1;
@@ -4382,7 +4364,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
    }
 
    // RBG1
-   if(BGON & UserLayerEnableMask & 0x20)
+   if(BGON & 0x20)
    {
     const bool igntp = (BGON >> 8) & 1;
     const unsigned colornum = ((unsigned)(4) < (unsigned)((CHCTLA >> 4) & 0x7) ? (unsigned)(4) : (unsigned)((CHCTLA >> 4) & 0x7));	// TODO: Test 5 ... 7
@@ -4473,7 +4455,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
   {
    for(unsigned n = (bool)(BGON & 0x20); n < 4; n++)
    {
-    if(((BGON >> n) & 1) && MDFN_LIKELY((UserLayerEnableMask >> n) & 1))
+    if(MDFN_LIKELY((BGON >> n) & 1))
     {
      const bool igntp = (BGON >> (n + 8)) & 1;
      bool bmen = false;
