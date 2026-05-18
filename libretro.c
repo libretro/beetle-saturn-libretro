@@ -1337,11 +1337,120 @@ size_t retro_get_memory_size(unsigned type)
    return 0;
 }
 
+/* Pro Action Replay (PAR) -style cheat parser.
+ *
+ *   "AAAAAAAA VVVV"      -- 32-bit SH-2 address, then 16-bit value
+ *
+ * The two fields are hexadecimal; leading zeros may be omitted in
+ * either.  Accepted separators between them are one or more of:
+ * space, tab, colon.  Leading and trailing whitespace are ignored.
+ * Anything else trailing the value (extra fields, comments, codes
+ * concatenated with `+`) is rejected -- a future commit will widen
+ * the format to multi-line codes.
+ *
+ * Saturn cheats are big-endian by convention, so the parsed value
+ * is handed to MDFNMP_SetCheat with bigendian = true.  length is
+ * fixed at 2 bytes for this baseline parser.
+ *
+ * Returns true on success, false on any malformed input. */
+static bool parse_par_cheat(const char *code, uint32_t *addr_out,
+                            uint16_t *val_out)
+{
+   uint64_t addr = 0;
+   uint64_t val  = 0;
+   const char *p = code;
+   int n;
+
+   if (!p)
+      return false;
+
+   /* Skip leading whitespace. */
+   while (*p == ' ' || *p == '\t')
+      p++;
+
+   /* Parse hex address.  Bail if no digits or more than 8 -- the
+    * SH-2 has a 32-bit address space and we'd silently truncate. */
+   n = 0;
+   while (*p)
+   {
+      int d;
+      if      (*p >= '0' && *p <= '9') d = *p - '0';
+      else if (*p >= 'a' && *p <= 'f') d = *p - 'a' + 10;
+      else if (*p >= 'A' && *p <= 'F') d = *p - 'A' + 10;
+      else break;
+      if (++n > 8) return false;
+      addr = (addr << 4) | (uint64_t)d;
+      p++;
+   }
+   if (n == 0)
+      return false;
+
+   /* Separator: at least one of space / tab / colon, then any
+    * number of additional whitespace characters. */
+   if (*p != ' ' && *p != '\t' && *p != ':')
+      return false;
+   while (*p == ' ' || *p == '\t' || *p == ':')
+      p++;
+
+   /* Parse hex value.  Same digit / length policy as the address;
+    * a 16-bit value caps at 4 hex chars. */
+   n = 0;
+   while (*p)
+   {
+      int d;
+      if      (*p >= '0' && *p <= '9') d = *p - '0';
+      else if (*p >= 'a' && *p <= 'f') d = *p - 'a' + 10;
+      else if (*p >= 'A' && *p <= 'F') d = *p - 'A' + 10;
+      else break;
+      if (++n > 4) return false;
+      val = (val << 4) | (uint64_t)d;
+      p++;
+   }
+   if (n == 0)
+      return false;
+
+   /* Tolerate only trailing whitespace. */
+   while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+      p++;
+   if (*p != '\0')
+      return false;
+
+   *addr_out = (uint32_t)addr;
+   *val_out  = (uint16_t)val;
+   return true;
+}
+
 void retro_cheat_reset(void)
-{}
+{
+   /* Flush frees all per-cheat strings and resets cheats_count to 0;
+    * the subsequent RecomputeCheatsActive call inside Flush flips
+    * CheatsActive back to false. */
+   MDFN_FlushGameCheats();
+}
 
 void retro_cheat_set(unsigned index, bool enabled, const char *code)
-{}
+{
+   uint32_t addr;
+   uint16_t val;
+
+   if (!parse_par_cheat(code, &addr, &val))
+   {
+      if (log_cb)
+         log_cb(RETRO_LOG_WARN,
+                "[Cheats] Ignoring malformed code at slot %u: '%s'\n"
+                "[Cheats] Expected PAR format: AAAAAAAA VVVV "
+                "(8-hex address, 4-hex 16-bit value).\n",
+                index, code ? code : "(null)");
+      return;
+   }
+
+   /* length = 2 (16-bit), bigendian = true (Saturn convention).
+    * MDFNMP_SetCheat handles both new-at-index and replace-at-index,
+    * and recomputes CheatsActive so the per-frame apply path picks
+    * up the new state on the next VBlank-In. */
+   MDFNMP_SetCheat(index, enabled, addr, (uint64_t)val,
+                   2 /* length */, true /* bigendian */);
+}
 
 // Use a simpler approach to make sure that things go right for libretro.
 // Caller-allocated buffer rather than a function-static return area.

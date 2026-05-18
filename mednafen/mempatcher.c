@@ -61,7 +61,10 @@ static size_t   cheats_cap   = 0;
 static int savecheats;
 static uint32_t resultsbytelen = 1;
 static bool resultsbigendian = 0;
-static bool CheatsActive = true;
+/* CheatsActive is recomputed by MDFNMP_RecomputeCheatsActive any time
+ * the cheats[] array gains/loses an enabled entry (SetCheat, Flush).
+ * Starts false: at MDFNMP_Init time the cheats[] array is empty. */
+static bool CheatsActive = false;
 
 /* SubCheats[8]: was std::vector<SUBCHEAT>[8]. Eight independent
  * grow-on-append arrays; SUBCHEAT is POD. */
@@ -136,13 +139,15 @@ bool MDFNMP_Init(uint32_t ps, uint32_t numpages)
    * in practice), so failure is unlikely on any realistic
    * target, but the bool return is now meaningful for any
    * future caller-side propagation.  The current caller
-   * (ss.cpp's InitFastMemMap, which is void-returning) does
+   * (ss.c's InitFastMemMap, which is void-returning) does
    * not yet check this; if RAMPtrs is NULL, the subsequent
    * MDFNMP_AddRAM calls will NULL-deref. */
   return false;
  }
 
- CheatsActive = MDFN_GetSettingB("cheats");
+ /* CheatsActive starts false (file-scope default); it flips to true
+  * once the libretro frontend pushes at least one enabled cheat via
+  * retro_cheat_set -> MDFNMP_SetCheat -> MDFNMP_RecomputeCheatsActive. */
  return true;
 }
 
@@ -209,9 +214,94 @@ void MDFNMP_AddRAM(uint32_t size, uint32_t A, uint8_t *RAM)
  }
 }
 
-void MDFNMP_RegSearchable(uint32_t addr, uint32_t size)
+void MDFNMP_RecomputeCheatsActive(void)
 {
- MDFNMP_AddRAM(size, addr, NULL);
+ size_t ci;
+ CheatsActive = false;
+ for(ci = 0; ci < cheats_count; ci++)
+ {
+  if(cheats[ci].status)
+  {
+   CheatsActive = true;
+   break;
+  }
+ }
+ /* RebuildSubCheats early-returns if CheatsActive is false, so it
+  * also serves to clear the per-bucket SubCheats arrays when the
+  * last enabled cheat was just disabled or flushed. */
+ RebuildSubCheats();
+}
+
+/* Set or replace the cheat at slot `index` (the libretro frontend
+ * slot, as passed to retro_cheat_set).  If index < cheats_count the
+ * existing cheat is replaced; if index == cheats_count a new cheat
+ * is appended; if index > cheats_count the array is grown with
+ * disabled placeholder entries to fill the gap.
+ *
+ * All cheats added through this API are type 'R' (periodic-write
+ * replace).  Saturn cheats are conventionally big-endian; the caller
+ * passes `bigendian = true` for Saturn workram.  length is 1, 2, or
+ * 4 bytes; val carries the new value padded out to 64 bits.
+ *
+ * CheatsActive is recomputed after the update. */
+void MDFNMP_SetCheat(unsigned index, bool enabled, uint32_t addr,
+                     uint64_t val, unsigned length, bool bigendian)
+{
+ CHEATF *chit;
+
+ /* Grow array up to and including the target index, padding any
+  * unused slots between cheats_count and index with disabled,
+  * zeroed entries.  realloc-on-grow matches MDFN_AddCheat's
+  * upstream policy.  Cap doubles starting at 16; bumped to at
+  * least index+1 if the doubling isn't enough. */
+ if(index >= cheats_cap)
+ {
+  size_t newcap = cheats_cap ? cheats_cap : 16;
+  CHEATF *np;
+  while(newcap <= index)
+   newcap *= 2;
+  np = (CHEATF *)realloc(cheats, newcap * sizeof(CHEATF));
+  if(!np)
+   return;
+  cheats = np;
+  cheats_cap = newcap;
+ }
+ while(cheats_count <= index)
+ {
+  memset(&cheats[cheats_count], 0, sizeof(CHEATF));
+  cheats[cheats_count].type   = 'R';
+  cheats[cheats_count].status = 0;
+  cheats_count++;
+ }
+
+ chit = &cheats[index];
+
+ /* Free any prior strings owned by this slot (replace path). */
+ if(chit->name)
+ {
+  free(chit->name);
+  chit->name = NULL;
+ }
+ if(chit->conditions)
+ {
+  free(chit->conditions);
+  chit->conditions = NULL;
+ }
+
+ chit->addr      = addr;
+ chit->val       = val;
+ chit->compare   = 0;
+ chit->length    = length;
+ chit->bigendian = bigendian;
+ chit->icount    = 0;
+ chit->type      = 'R';
+ chit->status    = enabled ? 1 : 0;
+ /* Name is purely diagnostic in this fork (the libretro frontend
+  * tracks the user-facing label itself).  strdup failure leaves
+  * name=NULL which Flush / Kill handle via free(NULL)-is-fine. */
+ chit->name      = strdup("retro");
+
+ MDFNMP_RecomputeCheatsActive();
 }
 
 void MDFNMP_InstallReadPatches(void)
@@ -250,7 +340,10 @@ void MDFN_FlushGameCheats(void)
    }
    cheats_count = 0;
 
-   RebuildSubCheats();
+   /* RecomputeCheatsActive walks the (now-empty) cheats[] and sets
+    * CheatsActive = false, then calls RebuildSubCheats to clear the
+    * per-bucket arrays.  Reset path: retro_cheat_reset hits this. */
+   MDFNMP_RecomputeCheatsActive();
 }
 
 /*
@@ -411,18 +504,43 @@ void MDFNMP_ApplyPeriodicCheats(void)
          if(!chit->conditions || TestConditions(chit->conditions))
             for(x = 0; x < chit->length; x++)
             {
-               uint32_t page = ((chit->addr + x) / PageSize) % NumPages;
+               uint32_t page;
+               uint32_t byte_off;
+               uint64_t tmpval = chit->val;
+
+               if(chit->bigendian)
+                  tmpval >>= (chit->length - 1 - x) * 8;
+               else
+                  tmpval >>= x * 8;
+
+               page     = ((chit->addr + x) / PageSize) % NumPages;
+               byte_off = (chit->addr + x) % PageSize;
+
+               /* RAM regions registered via MDFNMP_AddRAM are passed
+                * as `uint8_t*` but the Saturn's WorkRAM is actually
+                * stored as `uint16_t[]` in host byte order so that
+                * the SH-2 fast-map can do native 16-bit loads.  The
+                * SH-2's byte-access macro SH7095_RBO_BE_U8 (see
+                * sh7095.inc) compensates for this on LE hosts by
+                * XOR-ing the byte address with 1 to address the
+                * Saturn-BE byte within each LE-stored uint16_t.
+                *
+                * Cheats target Saturn-conceived byte addresses, so
+                * apply the same swizzle here on LE builds.  On BE
+                * builds the storage matches Saturn order and no
+                * swizzle is needed.
+                *
+                * Caveat for future regions: any RAM passed to
+                * MDFNMP_AddRAM that is genuinely a byte array
+                * (not a uint16_t[]) would need a per-region opt-out
+                * here.  All current Saturn regions are uint16_t[],
+                * so a single global gate suffices for now. */
+#ifndef MSB_FIRST
+               byte_off ^= 1;
+#endif
+
                if(RAMPtrs[page])
-               {
-                  uint64_t tmpval = chit->val;
-
-                  if(chit->bigendian)
-                     tmpval >>= (chit->length - 1 - x) * 8;
-                  else
-                     tmpval >>= x * 8;
-
-                  RAMPtrs[page][(chit->addr + x) % PageSize] = tmpval;
-               }
+                  RAMPtrs[page][byte_off] = (uint8_t)tmpval;
             }
       }
    }

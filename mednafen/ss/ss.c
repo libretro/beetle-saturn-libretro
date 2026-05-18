@@ -1776,8 +1776,20 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    SS_SetPhysMemMap(0x00000000, 0x000FFFFF, BIOSROM, 512 * 1024, false);
    SS_SetPhysMemMap(0x00200000, 0x003FFFFF, WorkRAML, WORKRAM_BANK_SIZE_BYTES, true);
    SS_SetPhysMemMap(0x06000000, 0x07FFFFFF, WorkRAMH, WORKRAM_BANK_SIZE_BYTES, true);
-   MDFNMP_RegSearchable(0x00200000, WORKRAM_BANK_SIZE_BYTES);
-   MDFNMP_RegSearchable(0x06000000, WORKRAM_BANK_SIZE_BYTES);
+
+   /* Wire WorkRAM into the mempatcher's RAMPtrs table so the periodic-
+    * cheat-apply path (MDFNMP_ApplyPeriodicCheats, called from scu.inc
+    * on VBlank-In) can actually write the user's cheats.  We pass the
+    * uint16_t-aliased pointers cast back to uint8_t* -- the cheat code
+    * is aware that WorkRAM is stored in host byte order on LE builds
+    * and applies the matching A^1 byte-address swizzle there.
+    *
+    * Both regions cover BANK_SIZE_BYTES (1MB) at their canonical
+    * addresses; the SH-2 mirroring across 0x00200000-0x003FFFFF and
+    * 0x06000000-0x07FFFFFF is not replicated in the cheat table.
+    * Cheat authors use the canonical addresses by convention. */
+   MDFNMP_AddRAM(WORKRAM_BANK_SIZE_BYTES, 0x00200000, (uint8_t *)WorkRAML);
+   MDFNMP_AddRAM(WORKRAM_BANK_SIZE_BYTES, 0x06000000, (uint8_t *)WorkRAMH);
 
    if(!CART_Init(cart_type, rom_dir, main_fname, sgi))
    {
