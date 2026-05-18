@@ -109,7 +109,7 @@ void     M68K_SignalAddressError (M68K* z, uint32_t addr, uint8_t type)
 void     M68K_Reset              (M68K* z, bool pwr)
 {
  /* Reset() may be called from BusRESET (a callback function-pointer set by
-  * the integrator -- in our case sound_glue.c's SoundGlue_M68K_Reset), which
+  * the integrator -- in our case sound.c's SoundGlue_M68K_Reset), which
   * itself is called from the m68k_private.h:2104/2106 RESET-instruction
   * handler.  The callback path resolves to M68K_Reset(&SoundCPU, ...) again,
   * so this body must continue to work re-entrantly. */

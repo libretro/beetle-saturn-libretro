@@ -1,11 +1,21 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* ss_state.h:  Phase-7b cross-TU declarations between ss.c and ss_state.c.
-**              The 8 file-I/O entry points listed here used to be file-static
-**              in ss.c; promoting them to TU-external linkage lets them
-**              live in their own pure-C TU (ss_state.c) while ss.c's
-**              InitCommon / Emulate / Cleanup paths still call them by name.
+/* ss_state.h:  cross-TU declarations for the save-state and
+**              backup-RAM/cart-NV I/O entry points whose bodies
+**              live in ss.c.  The eight SS_{Save,Load,Backup}*
+**              functions are presently only called from inside
+**              ss.c -- they were promoted to TU-external linkage
+**              during the original C++ -> C migration (when they
+**              lived in a separate ss_state.c TU) and the ss_state.c
+**              TU has since been merged back into ss.c.  The
+**              decls remain because the ninth symbol declared
+**              here -- LibRetro_StateAction -- is consumed cross-
+**              TU by mednafen/state.c and scu.h's state-action
+**              dispatcher; the rest are grouped alongside it for
+**              cohesion.  BRAM_Init_Data is the BackupRAM "fresh
+**              format" prefix that ss.c stamps at boot and
+**              restores on a failed save-file read.
 **
 **  Copyright (C) 2015-2023 Mednafen Team
 **
@@ -34,16 +44,15 @@
 extern "C" {
 #endif
 
-/* BackupRAM "fresh-format" prefix.  Used by InitCommon (ss.c)
- * to stamp the first 0x40 bytes of BackupRAM when the emulator
- * boots, and by LoadBackupRAM (ss_state.c) to restore that
- * stamp after a short/failed save-file read.  Defined in
- * ss_state.c so the I/O path owns it; ss.c pulls it via this
- * extern. */
+/* BackupRAM "fresh-format" prefix.  Stamped by InitCommon at boot
+ * into the first 0x10 bytes of BackupRAM; restored by
+ * SS_LoadBackupRAM after a short or failed save-file read.  Body
+ * lives in ss.c. */
 extern const uint8_t BRAM_Init_Data[0x10];
 
-/* The eight file-I/O functions extracted from ss.c.  Naming
- * is unchanged from the file-static versions they replaced. */
+/* The eight file-I/O entry points called from ss.c's InitCommon /
+ * Emulate / Cleanup paths.  Naming is unchanged from when these
+ * were file-static in the pre-conversion code. */
 void SS_SaveBackupRAM(void)   MDFN_COLD;
 void SS_LoadBackupRAM(void)   MDFN_COLD;
 void SS_SaveCartNV(void)      MDFN_COLD;
@@ -53,14 +62,13 @@ void SS_LoadRTC(void)         MDFN_COLD;
 void SS_BackupBackupRAM(void) MDFN_COLD;
 void SS_BackupCartNV(void)    MDFN_COLD;
 
-/* Phase-7d additions: emulator state save/load orchestration.
- * LibRetro_StateAction reaches into ss.c globals (NeedEmuICache,
- * BIOS_SHA256, ActiveCartType, BackupRAM_StateHelper, WorkRAML/H,
- * UpdateInputLastBigTS, SH7095_DB) and dispatches to SH7095's
- * StateAction / PostStateLoad methods through the extern "C"
- * SH7095_{M,S}_StateAction / SH7095_{M,S}_PostStateLoad wrappers
- * defined in ss.c.  All those state symbols are now TU-external
- * so this header doesn't need to wrap them. */
+/* Emulator state save/load orchestration.  Reaches into ss.c
+ * globals (NeedEmuICache, BIOS_SHA256, ActiveCartType,
+ * BackupRAM_StateHelper, WorkRAML/H, UpdateInputLastBigTS,
+ * SH7095_DB) and dispatches to SH7095's StateAction /
+ * PostStateLoad methods through the SH7095_{M,S}_StateAction /
+ * SH7095_{M,S}_PostStateLoad wrappers defined in ss.c.  Called
+ * from mednafen/state.c and from scu.h's state-action dispatcher. */
 int LibRetro_StateAction(StateMem* sm, const unsigned load) MDFN_COLD;
 
 #ifdef __cplusplus

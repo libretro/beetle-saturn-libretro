@@ -272,7 +272,7 @@ bool CheckPrivilege(M68K* z);
  * definitions:  we lose call-site inlining of the thunk body
  * (each wrapper became a real function call to a 1-2 instruction
  * out-of-line body in m68k.c), but gain a C-callable surface
- * that sound.c -> sound_glue.c needs.  None of these
+ * that sound.c needs.  None of these
  * wrappers are on the M68K Run inner loop -- they're called
  * from external orchestration code (IRQ change, savestate,
  * reset, scheduler step, debugger register read/write) -- so

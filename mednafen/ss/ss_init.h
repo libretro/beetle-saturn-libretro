@@ -1,11 +1,18 @@
 /******************************************************************************/
 /* Mednafen Sega Saturn Emulation Module                                      */
 /******************************************************************************/
-/* ss_init.h:  Phase-7c cross-TU declarations between ss.c and ss_init.c.
-**             Hosts the FastMemMap state (SH-2 page-mapped uintptr_t array
-**             accessed by every memory op in sh7095.inc) and the SH-2 event
-**             system (events[], event_handlers[], next_event_ts) plus their
-**             public-ABI entry points.
+/* ss_init.h:  cross-TU declarations for the SH-2 FastMemMap and
+**             event-scheduling system whose state and helpers live
+**             in ss.c.  Originally split out (along with ss_init.c)
+**             during the C++ -> C migration to keep the InitCommon
+**             / Emulate paths separate from the rest of ss.c; the
+**             ss_init.c TU has since been merged back into ss.c,
+**             but the consumers of these symbols are spread across
+**             several other TUs (sh7095.inc -- SH7095_FastMap and
+**             FMIsWriteable on every memory op; smpc.c, scu.inc,
+**             cart.c, mempatcher.c, libretro.c -- the Running flag,
+**             event helpers, and InitFastMemMap entry point), so
+**             the header has to stay as a public surface.
 **
 **  Copyright (C) 2015-2023 Mednafen Team
 **

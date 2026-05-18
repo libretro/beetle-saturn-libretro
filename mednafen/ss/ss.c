@@ -93,7 +93,7 @@ static uint8_t SCU_MSH2VectorFetch(void);
 static uint8_t SCU_SSH2VectorFetch(void);
 
 /* CheckEventsByMemTS forward decl removed (phase 7c): canonical
- * decl in ss_init.h; definition lives in ss_init.c. */
+ * decl in ss_init.h; definition lives in ss.c. */
 
 SH7095 CPU[2];
 
@@ -146,7 +146,7 @@ void SH7095_SetExtHaltDMAKludge(int cpu, bool state)
  SH7095_SetExtHaltDMAKludgeFromVDP2(&CPU[cpu], state);
 }
 
-/* promoted from file-static -- ss_init.c's InitCommon
+/* promoted from file-static -- ss.c's InitCommon
  * loads it from disk and assigns BIOS_SHA256.  Definition stays
  * here so the rest of ss.c's globals layout is undisturbed. */
 uint16_t BIOSROM[524288 / sizeof(uint16_t)];
@@ -165,13 +165,13 @@ bool BackupRAM_Dirty;
 bool CartNV_Dirty;
 
 /* ss.c's InitCommon zero-initialises this on game load
- * (line ~867); ss_init.c's MidSync helper UpdateSMPCInput / Emulate
+ * (line ~867); ss.c's MidSync helper UpdateSMPCInput / Emulate
  * loop read and update it.  Define lives here, extern declared in
- * ss_init.c for the C-side accessors. */
+ * ss.c for the C-side accessors. */
 int64_t UpdateInputLastBigTS;
 
 int32_t SH7095_mem_timestamp;
-/* SH7095_BusLock is read from ss_init.c's SH_DMA_EventHandler -- promoted
+/* SH7095_BusLock is read from ss.c's SH_DMA_EventHandler -- promoted
  * from file-static to TU-external in phase 7c. */
 uint32_t SH7095_BusLock;
 uint32_t SH7095_DB;
@@ -1070,7 +1070,7 @@ int32_t SH7095_S_DMA_Update(int32_t et) { return SH7095_DMA_Update(&CPU[1], et);
 /* ForceEventUpdates stays in ss.c -- the first loop dispatches into
  * SH7095_ForceInternalEventUpdates(&CPU[c]), which is an SH7095 class method
  * and not yet a C-callable wrapper.  After the SH7095 class -> struct
- * conversion (later phase) this function migrates to ss_init.c too.
+ * conversion the function will move into ss.c proper.
  *
  * Called from RunLoop.  Touches the
  * event ring via the externs declared in ss_init.h. */

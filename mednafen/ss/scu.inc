@@ -393,7 +393,7 @@ int32_t SCU_SetHBVB(int32_t pclocks, bool new_HB_FromVDP2, bool new_VB_FromVDP2)
  return Timer1_Counter ? Timer1_Counter : 0x200;
 }
 
-/* promoted from file-static so ss_init.c’s Emulate can call it. */
+/* promoted from file-static so ss.c's Emulate can call it. */
 void SCU_AdjustTS(const int32_t delta)
 {
  SCU_DMA_TimeCounter += delta;
@@ -4148,7 +4148,7 @@ MDFN_HIDE void (*const DSP_DMAFuncTable[2][8][8])(struct DSPS*) =
 //
 //
 
-/* promoted from file-static so ss_init.c’s InitCommon can call it. */
+/* promoted from file-static so ss.c's InitCommon can call it. */
 MDFN_COLD void SCU_Init(void)
 {
  SCU_DMA_TimeCounter = 0;
@@ -4227,7 +4227,7 @@ void SCU_Reset(bool powering_up)
  SH7095_SetIRL(&CPU[0], ILevel);
 }
 
-/* promoted from file-static -- ss_state.c calls this. */
+/* promoted from file-static -- ss.c's state-save path calls this. */
 MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {
  uint32_t DSP_ProgRAM[256];

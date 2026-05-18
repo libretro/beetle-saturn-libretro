@@ -68,15 +68,15 @@ bool SCU_CheckVDP1HaltKludge(void);
 int32_t SCU_UpdateDMA(int32_t timestamp);
 int32_t SCU_UpdateDSP(int32_t timestamp);
 
-/* promoted from file-static so ss_state.c's
+/* promoted from file-static so ss.c's
  * LibRetro_StateAction can call it across the C / C++ boundary. */
 void SCU_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
-/* promoted from file-static so ss_init.c's Emulate
+/* promoted from file-static so ss.c's Emulate
  * can call it across the C / C++ boundary. */
 void SCU_AdjustTS(const int32_t delta);
 
-/* promoted from file-static so ss_init.c's InitCommon
+/* promoted from file-static so ss.c's InitCommon
  * can call it across the C / C++ boundary. */
 void SCU_Init(void) MDFN_COLD;
 
