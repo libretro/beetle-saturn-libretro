@@ -71,7 +71,7 @@ void CDUtility_Init(void)
    CDUtility_Inited = true;
 }
 
-void encode_mode0_sector(uint32_t aba, uint8_t *sector_data)
+static void encode_mode0_sector(uint32_t aba, uint8_t *sector_data)
 {
    CDUtility_Init();
 

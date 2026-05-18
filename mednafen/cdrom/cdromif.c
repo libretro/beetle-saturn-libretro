@@ -237,7 +237,7 @@ void CDIF_ReadTOC(CDIF *cdif, TOC *out)
    *out = cdif->disc_toc;
 }
 
-bool CDIF_ValidateRawSector(uint8_t *buf)
+static bool CDIF_ValidateRawSector(uint8_t *buf)
 {
    int mode = buf[12 + 3];
 

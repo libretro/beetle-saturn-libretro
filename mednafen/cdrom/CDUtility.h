@@ -177,7 +177,13 @@ extern "C" {
  // Sector data encoding functions(to full 2352 bytes raw sector).
  //
  //  sector_data must be able to contain at least 2352 bytes.
- void encode_mode0_sector(uint32_t aba, uint8_t *sector_data);
+ //
+ //  encode_mode0_sector is called only inside CDUtility.c (from
+ //  synth_udapp_sector_lba / synth_leadout_sector_lba); it stayed
+ //  as a file-static in CDUtility.c rather than crossing the TU
+ //  boundary.  The mode1 / mode2 / mode2-form2 variants are
+ //  consumed by CDAccess_Image.c and CDAccess_CHD.c, so those
+ //  remain public.
  void encode_mode1_sector(uint32_t aba, uint8_t *sector_data);	// 2048 bytes of user data at offset 16
  void encode_mode2_sector(uint32_t aba, uint8_t *sector_data);	// 2336 bytes of user data at offset 16 
  void encode_mode2_form2_sector(uint32_t aba, uint8_t *sector_data);	// 2324+8 bytes of user data at offset 16

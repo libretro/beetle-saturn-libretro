@@ -65,10 +65,6 @@ bool CDIF_ReadRawSector(CDIF *cdif, uint8_t *buf, int32_t lba);
  * additionally nudges the read-ahead thread in MT mode. */
 bool CDIF_ReadRawSectorPWOnly(CDIF *cdif, uint8_t *pwbuf, int32_t lba, bool hint_fullread);
 
-/* Validate a 2352-byte sector via EDC/ECC.  Mode-1 / mode-2-form-1
- * only.  Returns true if intact (or correctable). */
-bool CDIF_ValidateRawSector(uint8_t *buf);
-
 /* Read sector_count mode-1 / mode-2-form-1 user-data sectors
  * (2048 B each) into buf starting at lba.  Returns the mode of the
  * first sector (1 or 2) on success, 0 on error. */
