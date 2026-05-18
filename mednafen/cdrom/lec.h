@@ -26,8 +26,8 @@
 extern "C" {
 #endif
 
-/* Initialize the three internal lookup tables (Q coefficient
- * products, EDC CRC table, scramble table).  In the previous C++
+/* Initialize the two internal lookup tables (Q coefficient
+ * products and the EDC CRC table).  In the previous C++
  * implementation these lived in static-const-class-with-ctor
  * instances that initialized before main; the C version needs an
  * explicit call.  CDUtility_Init() invokes this for the normal
@@ -68,11 +68,6 @@ void lec_encode_mode2_form1_sector(uint32_t adr, uint8_t *sector);
  * offset 16
  */
 void lec_encode_mode2_form2_sector(uint32_t adr, uint8_t *sector);
-
-/* Scrambles and byte swaps an encoded sector.
- * 'sector' must be 2352 byte wide.
- */
-void lec_scramble(uint8_t *sector);
 
 #ifdef __cplusplus
 }

@@ -56,11 +56,9 @@ static gf8_t    GF8_ILOG[256];
  * the same array syntax that operator[] used to provide. */
 static uint16_t CF8_Q_COEFFS_RESULTS_01[43][256];
 static uint32_t CRCTABLE[256];
-static uint8_t  SCRAMBLE_TABLE[2340];
 
 static void gf8_q_coeffs_results_01_init(void);
 static void crctable_init(void);
-static void scramble_table_init(void);
 
 void lec_tables_init(void)
 {
@@ -69,7 +67,6 @@ void lec_tables_init(void)
       return;
    gf8_q_coeffs_results_01_init();
    crctable_init();
-   scramble_table_init();
    inited = true;
 }
 
@@ -256,37 +253,6 @@ static uint32_t calc_edc(uint8_t *data, int len)
   }
 
   return crc;
-}
-
-/* Build the scramble table as defined in the yellow book. The bytes
-   12 to 2351 of a sector will be XORed with the data of this table.
- */
-static void scramble_table_init(void)
-{
-  uint16_t i, j;
-  uint16_t reg = 1;
-  uint8_t d;
-
-  for (i = 0; i < 2340; i++) {
-    d = 0;
-
-    for (j = 0; j < 8; j++) {
-      d >>= 1;
-
-      if ((reg & 0x1) != 0)
-	d |= 0x80;
-
-      if ((reg & 0x1) != ((reg >> 1) & 0x1)) {
-	reg >>= 1;
-	reg |= 0x4000; /* 15-bit register */
-      }
-      else {
-	reg >>= 1;
-      }
-    }
-
-    SCRAMBLE_TABLE[i] = d;
-  }
 }
 
 /* Calc EDC for a MODE 1 sector
@@ -540,31 +506,4 @@ void lec_encode_mode2_form2_sector(uint32_t adr, uint8_t *sector)
   calc_mode2_form2_edc(sector);
 
   set_sector_header(2, adr, sector);
-}
-
-/* Scrambles and byte swaps an encoded sector.
- * 'sector' must be 2352 byte wide.
- */
-void lec_scramble(uint8_t *sector)
-{
-  uint16_t i;
-  const uint8_t *stable = SCRAMBLE_TABLE;
-  uint8_t *p = sector;
-  uint8_t tmp;
-
-
-  for (i = 0; i < 6; i++) {
-      /* just swap bytes of sector sync */
-      tmp = *p;
-      *p = *(p + 1);
-      p++;
-      *p++ = tmp;
-    }
-  for (;i < (2352 / 2); i++) {
-      /* scramble and swap bytes */
-      tmp = *p ^ *stable++;
-      *p = *(p + 1) ^ *stable++;
-      p++;
-      *p++ = tmp;
-    }
 }
