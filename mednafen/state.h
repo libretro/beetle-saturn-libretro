@@ -46,7 +46,7 @@ typedef struct
 extern "C" {
 #endif
 
-int MDFNSS_SaveSM(void *st, uint32_t ver, const void *unused0, const void *unused1, const void *unused2);
+int MDFNSS_SaveSM(void *st, uint32_t ver);
 int MDFNSS_LoadSM(void *st, uint32_t ver);
 
 #ifdef __cplusplus

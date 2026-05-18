@@ -446,12 +446,9 @@ int MDFNSS_StateAction(void *st_p, int load, int data_only, SFORMAT *sf, const c
 
 extern int LibRetro_StateAction( StateMem* sm, const unsigned load);
 
-int MDFNSS_SaveSM(void *st_p, uint32_t ver, const void *unused0, const void *unused1, const void *unused2)
+int MDFNSS_SaveSM(void *st_p, uint32_t ver)
 {
 	int success;
-	(void)unused0;
-	(void)unused1;
-	(void)unused2;
 	uint8_t header[32];
 	StateMem *st = (StateMem*)st_p;
 	static const char *header_magic = "MDFNSVST";

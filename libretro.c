@@ -1278,7 +1278,7 @@ size_t retro_serialize_size(void)
       st.malloced       = 0;
       st.initial_malloc = 0;
 
-      if (MDFNSS_SaveSM(&st, MEDNAFEN_CORE_VERSION_NUMERIC, NULL, NULL, NULL))
+      if (MDFNSS_SaveSM(&st, MEDNAFEN_CORE_VERSION_NUMERIC))
       {
          // Cache and tidy up.
          serialize_size = st.len;
@@ -1305,7 +1305,7 @@ bool retro_serialize(void *data, size_t size)
 
    /* MDFNSS_SaveSM will malloc separate memory for st.data to complete
     * the save if the passed-in size is too small */
-   ret               = MDFNSS_SaveSM(&st, MEDNAFEN_CORE_VERSION_NUMERIC, NULL, NULL, NULL);
+   ret               = MDFNSS_SaveSM(&st, MEDNAFEN_CORE_VERSION_NUMERIC);
 
    if (st.len != size)
    {
