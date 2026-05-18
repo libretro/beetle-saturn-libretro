@@ -89,7 +89,13 @@ void STVIO_SetInput(unsigned port, const char* type, uint8_t* ptr)
 
 void STVIO_SetCrosshairsColor(unsigned port, uint32_t color)
 {
- if(!port)
+ /* Port-0 gating is the cosmetic "gun is on port 0" check; the
+  * `gun` NULL check makes this safe to call before STVIO_Init has
+  * run (or for non-ST-V games where STVIO_Init never runs), so
+  * libretro.c can fire crosshair-colour updates unconditionally
+  * on every variables-changed pass without dispatch logic of its
+  * own.  STVIO_Kill nulls gun back out on cart teardown. */
+ if(!port && gun)
   IODevice_Gun_SetCrosshairsColor(gun, color);
 }
 

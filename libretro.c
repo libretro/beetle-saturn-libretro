@@ -33,6 +33,7 @@
 #include "mednafen/ss/cart.h"
 #include "mednafen/ss/db.h"
 #include "mednafen/ss/smpc.h"
+#include "mednafen/ss/stvio.h"
 #include "mednafen/ss/vdp1.h"
 /* vdp2.h's one entry point used here is forward-declared below
  * to keep this TU's include surface light -- vdp2.h would
@@ -652,6 +653,13 @@ static void check_variables(bool startup)
 
    SMPC_SetCrosshairsColor(0, setting_crosshair_color_p1);
    SMPC_SetCrosshairsColor(1, setting_crosshair_color_p2);
+
+   /* ST-V's hammer/gun-control scheme owns its own IODevice on stvio's
+    * side (separate from SMPC's per-port virtual ports), so the same
+    * p1 colour needs to be forwarded to the stvio gun.  Safe to call
+    * unconditionally -- STVIO_SetCrosshairsColor no-ops when the gun
+    * isn't allocated (non-ST-V games, or before STVIO_Init has run). */
+   STVIO_SetCrosshairsColor(0, setting_crosshair_color_p1);
 }
 
 static bool MDFNI_LoadGame(const char *name)
