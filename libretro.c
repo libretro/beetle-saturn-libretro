@@ -139,9 +139,6 @@ extern MDFNGI EmulatedSS;
  * pulled in directly. */
 extern void VDP2_SetDeinterlaceOff(bool off);
 
-static bool overscan;
-static double last_sound_rate;
-
 #ifdef NEED_DEINTERLACER
 static bool PrevInterlaced;
 static Deinterlacer deint;
