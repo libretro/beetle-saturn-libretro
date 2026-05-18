@@ -61,12 +61,6 @@ void MDFN_FlushGameCheats(void);
 void MDFNMP_SetCheat(unsigned slot, bool enabled,
                      const MDFNCheatOp *ops, size_t op_count);
 
-/* Walk the cheats[] array and set CheatsActive = (>=1 enabled cheat).
- * Then RebuildSubCheats so the per-bucket SubCheats arrays are
- * consistent with the new flag.  Called automatically by SetCheat
- * and by the LoadGameCheats / FlushGameCheats path. */
-void MDFNMP_RecomputeCheatsActive(void);
-
 #ifdef __cplusplus
 }
 #endif

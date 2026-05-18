@@ -222,7 +222,7 @@ void MDFNMP_AddRAM(uint32_t size, uint32_t A, uint8_t *RAM)
  }
 }
 
-void MDFNMP_RecomputeCheatsActive(void)
+static void MDFNMP_RecomputeCheatsActive(void)
 {
  size_t ci;
  CheatsActive = false;
