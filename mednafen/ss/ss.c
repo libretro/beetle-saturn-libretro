@@ -1004,31 +1004,6 @@ static INLINE void BusRW_DB_CS3_u32_W1(const uint32_t A, uint32_t* DB)
 //
 //
 
-static MDFN_COLD void CheatMemWrite(uint32_t A, uint8_t V)
-{
- A &= (1U << 27) - 1;
-
- if(FMIsWriteable_get(A >> SH7095_EXT_MAP_GRAN_BITS))
- {
-  /* ne16_wbo_be<uint8_t>(base, A, V) folded. */
-#ifdef MSB_FIRST
-  ((uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A] = V;
-#else
-  ((uint8_t*)SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS])[A ^ 1] = V;
-#endif
-
-  for(unsigned c = 0; c < 2; c++)
-  {
-   if(CPU[c].CCR & SH7095_CCR_CE)
-   {
-    for(uint32_t Abase = 0x00000000; Abase < 0x20000000; Abase += 0x08000000)
-    {
-     SH7095_Cache_WriteUpdate_u8(&CPU[c], Abase + A, V);
-    }
-   }
-  }
- }
-}
 //
 //
 //
