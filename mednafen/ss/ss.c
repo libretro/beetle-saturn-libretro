@@ -1811,20 +1811,31 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
                if(zip_open(&za, zip_path))
                {
                   const struct zip_entry *ze = zip_find(&za, bios_filename);
-                  if(ze && ze->uncompressed_size == 131072)
+                  /* Accept either size the file-read path accepts:
+                   *   131072 -- bare ST-V BIOS chip dump
+                   *   524288 -- MAME parent-set / Saturn-style dump
+                   * (the MAME stvbios.zip distributed in the wild
+                   * uses the 524288 form; verified against a real
+                   * set with all 13 entries at 524288 bytes).
+                   * The byte-swap loop's `bios_size/2` upper bound
+                   * handles both: ST-V reads 64 KiB of words and
+                   * leaves the high 393216 bytes at 0xFF; Saturn-
+                   * size reads all 262144 words. */
+                  if (ze && (   ze->uncompressed_size == 131072
+                             || ze->uncompressed_size == 524288))
                   {
                      /* memset before extract so high half stays 0xFF
-                      * (ST-V BIOS is 128 KiB; BIOSROM is 512 KiB and
-                      * the SH-2's BIOS window mirrors the same data
-                      * regardless of where the 128 KiB lives). */
+                      * when the source is 131072 (ST-V chip dump).
+                      * For 524288 the extract fills the whole buffer
+                      * and the memset becomes a no-op tail. */
                      memset(BIOSROM, 0xFF, 512 * 1024);
                      if(zip_extract(&za, ze, (uint8_t*)BIOSROM))
                      {
-                        bios_size   = 131072;
+                        bios_size   = ze->uncompressed_size;
                         bios_loaded = true;
                         log_cb(RETRO_LOG_INFO,
-                              "ST-V BIOS loaded from \"%s\" entry \"%s\".\n",
-                              zip_path, bios_filename);
+                              "ST-V BIOS loaded from \"%s\" entry \"%s\" (%u bytes).\n",
+                              zip_path, bios_filename, ze->uncompressed_size);
                      }
                      else
                      {
@@ -1836,7 +1847,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
                   else if(ze)
                   {
                      log_cb(RETRO_LOG_ERROR,
-                           "ST-V BIOS: \"%s\" inside \"%s\" is %u bytes, expected 131072.\n",
+                           "ST-V BIOS: \"%s\" inside \"%s\" is %u bytes, expected 131072 or 524288.\n",
                            bios_filename, zip_path, ze->uncompressed_size);
                   }
                   zip_close(&za);
