@@ -441,8 +441,13 @@ static bool disk_add_image_index(void)
 
 static bool disk_set_initial_image(unsigned index, const char *path)
 {
+	/* Empty path means the frontend has no last-used disc to restore --
+	 * either because the user has never used disc-swap on this content,
+	 * or because the content has no discs at all (ST-V cartridges).  In
+	 * either case the call is a vacuous probe, not a failure; signal
+	 * success and leave the default state (set by disc_init) untouched. */
 	if (string_is_empty(path))
-		return false;
+		return true;
 
 	g_initial_disc      = index;
 	strlcpy(g_initial_disc_path, path, sizeof(g_initial_disc_path));
