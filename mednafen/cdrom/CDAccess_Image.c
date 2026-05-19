@@ -34,6 +34,7 @@
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
+#include <limits.h>
 #include <assert.h>
 #include <boolean.h>
 
@@ -118,9 +119,19 @@ static bool parse_long(const char *s, long *out)
 
 /* Parse "M:S:F" (BCD-ish minutes:seconds:frames triple as text).
  * Replaces sscanf with %u:%u:%u and %d:%d:%d, both unified to
- * unsigned -- MSF values are conceptually non-negative and the
- * downstream (m*60+s)*75+f formula treats negatives as wrap-around
- * anyway. */
+ * unsigned -- MSF values are conceptually non-negative.
+ *
+ * Bounds m <= 99, s <= 59, f <= 74 (standard CD-ROM MSF range; m=99
+ * covers extended-runtime CD-Rs).  Without these, a malformed CUE
+ * or TOC with absurd MSF values (e.g. "999999:0:0") propagates as
+ * an absurd byte offset through ((m*60+s)*75+f)*sector_mult, which
+ * has no real-world meaning and risks integer wrap when added to
+ * 32-bit FileOffset / sectors fields downstream.  Saturn discs are
+ * all standard 74-min CD-ROM Mode 2 Form 1, so legitimate inputs
+ * never exceed m <= 80 or so in practice; the 99 cap is the
+ * standard CD spec limit.  Upstream Mednafen's StringToMSF enforces
+ * the same bounds but only at that single sscanf-replacement site;
+ * we apply it at every MSF parse for defence in depth. */
 static bool parse_msf(const char *str, unsigned *m, unsigned *sec, unsigned *f)
 {
    char *e;
@@ -140,6 +151,8 @@ static bool parse_msf(const char *str, unsigned *m, unsigned *sec, unsigned *f)
    v = strtoul(str, &e, 10);
    if (e == str) return false;
    *f = (unsigned)v;
+
+   if (*m > 99 || *sec > 59 || *f > 74) return false;
    return true;
 }
 
@@ -508,11 +521,10 @@ static size_t UnQuotify(const char *src, size_t src_len, size_t source_offset,
 
 static bool StringToMSF(const char *str, unsigned *m, unsigned *s, unsigned *f)
 {
-   if (!parse_msf(str, m, s, f))
-      return false;
-   if (*m > 99 || *s > 59 || *f > 74)
-      return false;
-   return true;
+   /* parse_msf now does the m<=99 / s<=59 / f<=74 bounds check
+    * itself, so this wrapper is just an alias kept for naming
+    * symmetry with the rest of the parser code. */
+   return parse_msf(str, m, s, f);
 }
 
 /* ---- Forward declarations ---------------------------------------
@@ -533,13 +545,25 @@ static uint32_t CDAccess_Image_GetSectorCount(CDRFILE_TRACK_INFO *track);
 
 static uint32_t CDAccess_Image_GetSectorCount(CDRFILE_TRACK_INFO *track)
 {
+   /* (size - FileOffset) is signed int64 throughout; a malformed
+    * CUE that pushed FileOffset past the actual file size used to
+    * underflow into a huge negative int64, which the (uint32_t)
+    * cast then wrapped into a giant sector count.  Clamp to zero
+    * on FileOffset > content_size so downstream length validation
+    * (`tmp_long > sectors`) trips cleanly rather than passing
+    * through to track->sectors = (int32_t)<garbage>. */
    if (track->DIFormat == DI_FORMAT_AUDIO)
    {
       if (track->AReader)
-         return (uint32_t)(((AR_FrameCount(track->AReader) * 4) - track->FileOffset) / 2352);
+      {
+         const int64_t content = (int64_t)AR_FrameCount(track->AReader) * 4;
+         if (track->FileOffset >= content) return 0;
+         return (uint32_t)((content - track->FileOffset) / 2352);
+      }
       else
       {
          const int64_t size = cdstream_size(track->fp);
+         if (track->FileOffset >= size) return 0;
          if (track->SubchannelMode)
             return (uint32_t)((size - track->FileOffset) / (2352 + 96));
          return (uint32_t)((size - track->FileOffset) / 2352);
@@ -548,6 +572,7 @@ static uint32_t CDAccess_Image_GetSectorCount(CDRFILE_TRACK_INFO *track)
    else
    {
       const int64_t size = cdstream_size(track->fp);
+      if (track->FileOffset >= size) return 0;
       return (uint32_t)((size - track->FileOffset) / DI_Size_Table[track->DIFormat]);
    }
 }
@@ -557,7 +582,13 @@ static bool CDAccess_Image_ParseTOCFileLineInfo(CDAccess_Image *self,
       const char *binoffset, const char *msfoffset, const char *length,
       bool image_memcache, toc_streamcache *cache)
 {
-   long      offset = 0; /* In bytes! */
+   /* Byte-offset accumulator is int64 (rather than the storage
+    * field's `long`, which is 32-bit on MinGW/Windows) so the two
+    * += additions below can't trip signed overflow UB when a
+    * malformed TOC supplies a huge binoffset.  We then validate
+    * the accumulated total fits in `long` before storing it back
+    * to track->FileOffset. */
+   int64_t   offset_acc = 0;
    long      tmp_long;
    unsigned  m, s, f;
    uint32_t  sector_mult;
@@ -601,12 +632,21 @@ static bool CDAccess_Image_ParseTOCFileLineInfo(CDAccess_Image *self,
       sector_mult += 96;
 
    if (parse_long(binoffset, &tmp_long))
-      offset += tmp_long;
+      offset_acc += (int64_t)tmp_long;
 
+   /* MSF post-bounds (m<=99, s<=59, f<=74) is at most 449999 sectors
+    * * 2448 bytes/sector = ~1.1 GB; the int64 accumulator absorbs
+    * any in-range addition without wrap. */
    if (parse_msf(msfoffset, &m, &s, &f))
-      offset += ((m * 60 + s) * 75 + f) * sector_mult;
+      offset_acc += (int64_t)(((m * 60 + s) * 75 + f) * sector_mult);
 
-   track->FileOffset = offset; /* Set this before GetSectorCount! */
+   /* Reject if the accumulated offset is negative or wouldn't fit
+    * into the storage field on this platform (long is 32-bit under
+    * MinGW even for 64-bit Windows builds). */
+   if (offset_acc < 0 || offset_acc > (int64_t)LONG_MAX)
+      return false;
+
+   track->FileOffset = (long)offset_acc; /* Set this before GetSectorCount! */
    sectors = CDAccess_Image_GetSectorCount(track);
 
    if (length)
