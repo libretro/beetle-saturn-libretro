@@ -1660,16 +1660,39 @@ const struct STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s)
  head_crc32 = crc32_zip(0, tmp, dr);
 
  {
-  size_t i;
+  size_t i, j;
   for(i = 0; i < sizeof(STVGI)/sizeof(STVGI[0]); i++)
   {
    const struct STVGameInfo* e = &STVGI[i];
-   const __typeof__(e->rom_layout[0])* rle = &e->rom_layout[0];
 
-   if(!strcasecmp(fname, rle->fname))
+   /* Walk every populated rom_layout[] slot for this game.
+    * Upstream Mednafen only checked rom_layout[0] (the lead
+    * BIOS EPR file), which forced users to feed that specific
+    * file to the libretro frontend.  That's incompatible with
+    * frontends that auto-extract MAME-style ST-V .zip archives
+    * and pass the first file alphabetically -- which on most
+    * ST-V sets is an `mpr...` ROM (mapped at a non-zero offset)
+    * rather than the `epr...` lead file at rom_layout[0].
+    *
+    * Allow any constituent ROM name to identify the game.  The
+    * head_crc32 disambiguator still applies to whichever slot
+    * matched (currently always rom_layout[0] in the DB, but the
+    * mechanism generalises): if the matched slot has a non-zero
+    * head_crc32, the first 128 bytes of the user-supplied file
+    * must match it; if zero, filename match is sufficient.
+    *
+    * Termination: cart/stv.c's loader iterates the same array
+    * using `.size == 0` as the terminator, so we use the same
+    * convention here. */
+   for(j = 0; j < sizeof(e->rom_layout)/sizeof(e->rom_layout[0]) && e->rom_layout[j].size; j++)
    {
-    if(!rle->head_crc32 || head_crc32 == rle->head_crc32)
-     return e;
+    const __typeof__(e->rom_layout[0])* rle = &e->rom_layout[j];
+
+    if(!strcasecmp(fname, rle->fname))
+    {
+     if(!rle->head_crc32 || head_crc32 == rle->head_crc32)
+      return e;
+    }
    }
   }
  }
