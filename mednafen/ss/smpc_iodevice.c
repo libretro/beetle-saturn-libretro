@@ -2027,7 +2027,9 @@ static void IODevice_Multitap_Power(IODevice *self_)
 void IODevice_Multitap_SetSubDevice(IODevice *mt, unsigned sub_index, IODevice *device)
 {
    IODevice_Multitap *self = (IODevice_Multitap *)mt;
+#ifndef NDEBUG
    assert(sub_index < 6);
+#endif
    self->devices[sub_index] = device;
    SUBDEV_UPDATEBUS(self->devices[sub_index], self->devices[sub_index]->LastTS, self->sub_state[sub_index], 0x60);
 }
@@ -2035,7 +2037,9 @@ void IODevice_Multitap_SetSubDevice(IODevice *mt, unsigned sub_index, IODevice *
 IODevice *IODevice_Multitap_GetSubDevice(IODevice *mt, unsigned sub_index)
 {
    IODevice_Multitap *self = (IODevice_Multitap *)mt;
+#ifndef NDEBUG
    assert(sub_index < 6);
+#endif
    return self->devices[sub_index];
 }
 

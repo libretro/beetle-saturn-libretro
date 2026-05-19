@@ -71,7 +71,9 @@ static IODevice *gun = NULL;
 
 void STVIO_SetInput(unsigned port, const char* type, uint8_t* ptr)
 {
+#ifndef NDEBUG
  assert(port < 13);
+#endif
 
  if(port < 12)
  {

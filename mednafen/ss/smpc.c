@@ -304,7 +304,9 @@ static void MapPorts(void)
 
 void SMPC_SetMultitap(unsigned sport, bool enabled)
 {
+#ifndef NDEBUG
  assert(sport < 2);
+#endif
 
  SPorts[sport] = (enabled ? PossibleMultitaps[sport] : NULL);
  MapPorts();
@@ -312,7 +314,9 @@ void SMPC_SetMultitap(unsigned sport, bool enabled)
 
 void SMPC_SetCrosshairsColor(unsigned port, uint32_t color)
 {
+#ifndef NDEBUG
  assert(port < 12);
+#endif
 
  /* Remember the colour unconditionally: this can be called from the
     libretro option path before SMPC_Init has created the gun device.
@@ -325,7 +329,9 @@ void SMPC_SetCrosshairsColor(unsigned port, uint32_t color)
 
 void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr)
 {
+#ifndef NDEBUG
  assert(port < 13);
+#endif
 
  if(port == 12)
  {

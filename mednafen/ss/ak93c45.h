@@ -90,14 +90,18 @@ void AK93C45_StateAction(AK93C45 *self, StateMem *sm, const unsigned load, const
 
 static INLINE uint16_t AK93C45_PeekMem(AK93C45 *self, unsigned a)
 {
+#ifndef NDEBUG
    assert(a < 0x40);
+#endif
 
    return self->mem[a];
 }
 
 static INLINE void AK93C45_PokeMem(AK93C45 *self, unsigned a, uint16_t v)
 {
+#ifndef NDEBUG
    assert(a < 0x40);
+#endif
 
    self->mem[a] = v;
 }
