@@ -804,6 +804,28 @@ int32_t SMPC_StartFrame(void)
  SOUND_SetClockRatio((1ULL << 32) * 11289600 * CurrentClockDivisor / MasterClock);
  CDB_SetClockRatio((1ULL << 32) * 11289600 * CurrentClockDivisor / MasterClock);
 
+ /* Per-frame TS-freq update for every virtual port.  Mirrors upstream
+  * Mednafen's SMPC_StartFrame -- dropped during the C++ -> C source-
+  * fold pass along with its (unused) EmulateSpecStruct* espec param.
+  *
+  * Without this, each VirtualPort's internal timestamp counter stays
+  * pinned to whatever rate it got at SMPC_Init time.  If
+  * CurrentClockDivisor changes mid-game (e.g. region/clock switch),
+  * device-internal time-elapsed bookkeeping (mouse delta sampling,
+  * gun-port crosshair latency, AK93C45 EEPROM bit timings on ST-V)
+  * drifts versus master-clock time.
+  *
+  * No-op for IODevice_None / IODevice_base; meaningful for AK93C45
+  * (via STVSMPC override on ST-V) and any future devices that
+  * propagate ts-freq into substructures. */
+ {
+  const int32_t ts_freq = (2 * (int64_t)MasterClock + CurrentClockDivisor) / (2 * CurrentClockDivisor);
+  unsigned vp;
+  for(vp = 0; vp < 12; vp++)
+   if(VirtualPorts[vp])
+    VirtualPorts[vp]->vt->SetTSFreq(VirtualPorts[vp], ts_freq);
+ }
+
  return CurrentClockDivisor;
 }
 
