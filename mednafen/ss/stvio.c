@@ -101,7 +101,27 @@ void STVIO_SetCrosshairsColor(unsigned port, uint32_t color)
 
 void STVIO_TransformInput(void)
 {
- *DPtr[12] &= ~0x01; // Zero SS reset button bit to SMPC.
+ /* DPtr[12] is the misc-input port (test/service/pause/reset bits in
+  * a single byte) and is supposed to be wired via STVIO_SetInput(12, ...).
+  * The libretro fork doesn't call STVIO_SetInput from anywhere -- the
+  * SMPC-side input setup in input.c uses SMPC_SetInput directly -- so
+  * DPtr[12] stays NULL throughout ST-V game lifetime.  Without a guard
+  * this *DPtr[12] crashes at the start of every emulated frame as soon
+  * as the first ST-V game runs retro_run (the path is Emulate ->
+  * UpdateSMPCInput (ss.c static INLINE) -> STVIO_TransformInput).
+  *
+  * Defensive null-check: when there's no misc-input buffer, there's
+  * nothing to mask, so just return.  The reset-button-bit mask is the
+  * sole purpose of TransformInput; skipping it means a phantom "reset"
+  * frontend press would still go through to SMPC, but the SMPC side
+  * also doesn't wire MiscInputPtr in this fork (verified by grep --
+  * no SMPC_SetInput(12, ...) call exists), so it's a no-op there too.
+  *
+  * Follow-up work: wire STVIO_SetInput per port from input.c when
+  * ActiveCartType == CART_STV, mirroring the SMPC_SetInput calls.
+  * For now, this guard unblocks ST-V boot. */
+ if(DPtr[12])
+  *DPtr[12] &= ~0x01; // Zero SS reset button bit to SMPC.
 }
 
 void STVIO_UpdateInput(int32_t elapsed_time)
@@ -189,11 +209,20 @@ void STVIO_UpdateInput(int32_t elapsed_time)
   }
  }
 
- // Test, Service:
- DataIn[0x2] ^= DPtr[12][0] & 0xC;
+ // Test, Service, Pause: misc-input port (DPtr[12]) is set via
+ // STVIO_SetInput(12, ...) which the libretro fork doesn't call,
+ // so DPtr[12] stays NULL.  Skip the XORs when unset -- DataIn is
+ // pre-filled with 0xFF (inverted-polarity inactive), so leaving
+ // the bits at 0xFF means the game sees test/service/pause as
+ // unpressed, which is the right default behaviour.
+ if(DPtr[12])
+ {
+  // Test, Service:
+  DataIn[0x2] ^= DPtr[12][0] & 0xC;
 
- // Pause
- DataIn[0x2] ^= (DPtr[12][0] & 0x10) << 3;
+  // Pause
+  DataIn[0x2] ^= (DPtr[12][0] & 0x10) << 3;
+ }
 
  CoinActiveCounter = ((int32_t)(-75000) > (int32_t)(CoinActiveCounter - elapsed_time) ? (int32_t)(-75000) : (int32_t)(CoinActiveCounter - elapsed_time));
 
