@@ -76,7 +76,7 @@ void SMPC_Init(const uint8_t area_code, const int32_t master_clock, bool block_s
 void SMPC_Kill(void) MDFN_COLD;
 void SMPC_Reset(bool powering_up) MDFN_COLD;
 void SMPC_LoadNV(cdstream* s) MDFN_COLD;
-void SMPC_SaveNV(cdstream* s) MDFN_COLD;
+bool SMPC_SaveNV(cdstream* s) MDFN_COLD;
 void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
 void SMPC_SetRTC(const struct tm* ht, const uint8_t lang) MDFN_COLD;

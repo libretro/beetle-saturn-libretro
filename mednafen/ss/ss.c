@@ -2067,7 +2067,16 @@ void SS_SaveBackupRAM(void)
  if(!cdstream_open_write(&brs, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr")))
   return;
 
- cdstream_write(&brs, BackupRAM, sizeof(BackupRAM));
+ /* Pre-fix the write was unchecked; a partial 32 KiB write
+  * (disk full, quota exceeded, network share flake) would leave
+  * a truncated .bkr file the user thinks succeeded.  Subsequent
+  * SS_LoadBackupRAM detects this via the size mismatch and
+  * falls back to BRAM_Init_Data (the unformatted-cart pattern),
+  * but at that point the user's saves are already gone -- the
+  * truncated file overwrote the previous good one.  Log so the
+  * user sees there's a problem before they trust the new save. */
+ if(cdstream_write(&brs, BackupRAM, sizeof(BackupRAM)) != sizeof(BackupRAM))
+  log_cb(RETRO_LOG_ERROR, "BackupRAM save (\"%s\"): short write (disk full or I/O error).\n", fpath);
 
  cdstream_close(&brs);
 }
@@ -2239,7 +2248,9 @@ void SS_SaveCartNV(void)
       if(cdstream_open_write(&s,
             MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, "stveep")))
       {
-         STVIO_SaveNV(&s);
+         /* STVIO_SaveNV returns false on short write. */
+         if(!STVIO_SaveNV(&s))
+            log_cb(RETRO_LOG_ERROR, "ST-V EEPROM save (\"%s\"): short write (disk full or I/O error).\n", fpath);
          cdstream_close(&s);
       }
       return;
@@ -2250,6 +2261,7 @@ void SS_SaveCartNV(void)
    if(ext)
    {
       cdstream nvs;
+      bool     ok = true;
       if(!cdstream_open_write(&nvs, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, ext)))
          return;
 
@@ -2258,18 +2270,27 @@ void SS_SaveCartNV(void)
          uint64_t i;
          /* nv_ptr is host-endian uint16s; cdstream_write_be_u16
           * takes host-endian and emits big-endian bytes.  Just a
-          * misalignment-safe 2-byte load. */
+          * misalignment-safe 2-byte load.  Break out on the first
+          * short write -- continuing would just produce more 0s
+          * in the truncated file. */
          for(i = 0; i < nv_size; i += 2)
          {
             uint16_t v;
             memcpy(&v, (uint8_t*)nv_ptr + i, 2);
-            cdstream_write_be_u16(&nvs, v);
+            if(cdstream_write_be_u16(&nvs, v) != 2)
+            {
+               ok = false;
+               break;
+            }
          }
       }
       else
-         cdstream_write(&nvs, nv_ptr, nv_size);
+         ok = (cdstream_write(&nvs, nv_ptr, nv_size) == nv_size);
 
       cdstream_close(&nvs);
+
+      if(!ok)
+         log_cb(RETRO_LOG_ERROR, "Cart NV save (\"%s\"): short write (disk full or I/O error).\n", fpath);
    }
 }
 
@@ -2280,7 +2301,9 @@ void SS_SaveRTC(void)
    if(!cdstream_open_write(&sds, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "smpc")))
       return;
 
-   SMPC_SaveNV(&sds);
+   /* SMPC_SaveNV returns false on short write of RTC.Valid / .raw / SaveMem. */
+   if(!SMPC_SaveNV(&sds))
+      log_cb(RETRO_LOG_ERROR, "SMPC RTC save (\"%s\"): short write (disk full or I/O error).\n", fpath);
 
    cdstream_close(&sds);
 }

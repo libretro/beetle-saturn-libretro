@@ -404,11 +404,24 @@ void SMPC_LoadNV(cdstream* s)
  RTC.Valid = valid_byte;
 }
 
-void SMPC_SaveNV(cdstream* s)
+bool SMPC_SaveNV(cdstream* s)
 {
- cdstream_write_u8(s, RTC.Valid);
- cdstream_write(s, RTC.raw, sizeof(RTC.raw));
- cdstream_write(s, SaveMem, sizeof(SaveMem));
+ /* Three writes, total 12 bytes (1 + 7 + 4).  Tiny, but on a
+  * full disk / quota-exceeded filesystem / write-protected media
+  * any of them can come up short.  Pre-fix that was silently
+  * dropped on the floor and the next SMPC_LoadNV would see a
+  * truncated file (and, post-c05df2e, fall back to factory
+  * defaults -- but only because we hardened the load path).
+  *
+  * Return failure so SS_SaveRTC (the caller in ss.c, which has
+  * log_cb already extern-declared) can surface the error to the
+  * user.  Function was void pre-fix; libretro frontend doesn't
+  * call SMPC_SaveNV directly so this isn't an ABI concern. */
+ bool ok = true;
+ if (cdstream_write_u8(s, RTC.Valid) != 1)                          ok = false;
+ if (cdstream_write(s, RTC.raw, sizeof(RTC.raw)) != sizeof(RTC.raw))  ok = false;
+ if (cdstream_write(s, SaveMem, sizeof(SaveMem)) != sizeof(SaveMem))  ok = false;
+ return ok;
 }
 
 void SMPC_SetRTC(const struct tm* ht, const uint8_t lang)

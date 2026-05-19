@@ -447,7 +447,7 @@ void STVIO_LoadNV(cdstream* s)
  }
 }
 
-void STVIO_SaveNV(cdstream* s)
+bool STVIO_SaveNV(cdstream* s)
 {
  uint8_t tmp[0x80];
 
@@ -459,7 +459,13 @@ void STVIO_SaveNV(cdstream* s)
   bp__[1] = v__;
  }
 
- cdstream_write(s, tmp, sizeof(tmp));
+ /* Pre-fix the write was unchecked; on a short write the
+  * resulting .stveep file would be truncated and the next
+  * STVIO_LoadNV would (post-c05df2e) fall back to a virgin
+  * EEPROM, silently wiping the user's ST-V cabinet config /
+  * progress.  Return failure so SS_SaveCartNV (caller in ss.c)
+  * can surface the error to the user. */
+ return cdstream_write(s, tmp, sizeof(tmp)) == sizeof(tmp);
 }
 
 void STVIO_WriteIOGA(const int32_t timestamp, uint8_t A, uint8_t V)

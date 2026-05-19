@@ -50,7 +50,7 @@ void    STVIO_Reset(bool powering_up) MDFN_COLD;
 void    STVIO_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
 void    STVIO_LoadNV(cdstream* s) MDFN_COLD;
-void    STVIO_SaveNV(cdstream* s) MDFN_COLD;
+bool    STVIO_SaveNV(cdstream* s) MDFN_COLD;
 
 void    STVIO_WriteIOGA(const int32_t timestamp, uint8_t A, uint8_t V) MDFN_HOT;
 uint8_t STVIO_ReadIOGA(const int32_t timestamp, uint8_t A) MDFN_HOT;
