@@ -66,6 +66,59 @@ static const int32_t DI_Size_Table[8] =
   2352  // CD-I RAW
 };
 
+/* ---- CHD metadata key/value parser ------------------------------
+ *
+ * CHD track metadata is a single short text string of the form
+ *   "TRACK:1 TYPE:MODE1_RAW SUBTYPE:NONE FRAMES:69690 PREGAP:150 PGTYPE:V PGSUB:NONE POSTGAP:0"
+ *
+ * Pre-conversion two sscanf calls (one for the V5 format and one
+ * for the V3/V4 short form) parsed the whole line with %d and %s
+ * conversions; their return values were ignored, which left the
+ * %s targets (type, subtype, pgtype, pgsub) holding uninitialised
+ * stack bytes if any field failed to parse.  Subsequent strcmp
+ * against "MODE1" etc. would then walk that garbage.
+ *
+ * Replacement: search the string for "NAME:" preceded by start-of-
+ * string or whitespace, copy the value up to the next whitespace
+ * into the caller's buffer.  out_buf is always NUL-set on entry so
+ * a not-found field reads as an empty string (the strcmp downstream
+ * then fails cleanly instead of comparing garbage).  Returns true
+ * on found, false on not-found / buffer-too-small.  glibc sscanf
+ * overhead is gone, and per-key error checking is now possible. */
+
+static bool chd_meta_find(const char *haystack, const char *name,
+                          char *out_buf, size_t out_buf_sz)
+{
+  size_t name_len = strlen(name);
+  const char *p   = haystack;
+  size_t v_len;
+
+  if (out_buf_sz)
+    out_buf[0] = 0;
+
+  while (*p)
+  {
+    if ((p == haystack || p[-1] == ' ' || p[-1] == '\t')
+          && !strncmp(p, name, name_len)
+          && p[name_len] == ':')
+      break;
+    p++;
+  }
+  if (!*p)
+    return false;
+  p += name_len + 1;  /* past "NAME:" */
+
+  v_len = 0;
+  while (p[v_len] && p[v_len] != ' ' && p[v_len] != '\t')
+    v_len++;
+  if (v_len + 1 > out_buf_sz)
+    return false;
+  memcpy(out_buf, p, v_len);
+  out_buf[v_len] = 0;
+  return true;
+}
+
+
 /* Init helper.  Was the C++ ctor; now an explicit function called
  * from CDAccess_CHD_New.  Zeroes the struct's variable state (the
  * fields that the C++ ctor's member-initializer list used to handle)
@@ -117,32 +170,68 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
   int chd_offset = 0;
   while (1)
   {
-    int tkid = 0, frames = 0, pad = 0, pregap = 0, postgap = 0;
+    int frames = 0, pregap = 0, postgap = 0;
     char type[64], subtype[32], pgtype[32], pgsub[32];
     char tmp[512];
+    char tmp_int[16];
 
+    /* Try V5 metadata tag first, then V3/V4.  The unified
+     * chd_meta_find walks the value out per-key, so the same
+     * parse code handles both formats -- V3/V4 just won't have
+     * PREGAP / PGTYPE / PGSUB / POSTGAP, and those defaults
+     * survive (0 / empty string for pgtype/pgsub from
+     * chd_meta_find's clear-on-entry).  Pre-fix two separate
+     * sscanf calls handled the two formats; the V3/V4 sscanf
+     * left pgtype / pgsub holding stack garbage. */
     err = chd_get_metadata(self->chd, CDROM_TRACK_METADATA2_TAG, self->NumTracks, tmp, sizeof(tmp), NULL, NULL, NULL);
-    if (err == CHDERR_NONE)
+    if (err != CHDERR_NONE)
     {
-      sscanf(tmp, CDROM_TRACK_METADATA2_FORMAT, &tkid, type, subtype, &frames, &pregap, pgtype, pgsub, &postgap);
-    }
-    else
-    {
-      /* try to read the old v3/v4 metadata tag */
       err = chd_get_metadata(self->chd, CDROM_TRACK_METADATA_TAG,
                              self->NumTracks, tmp, sizeof(tmp), NULL, NULL,
                              NULL);
-      if (err == CHDERR_NONE)
-      {
-        sscanf(tmp, CDROM_TRACK_METADATA_FORMAT, &tkid, type, subtype,
-               &frames);
-      }
-      else
+      if (err != CHDERR_NONE)
       {
         /* if there's no valid metadata, this is the end of the TOC */
         break;
       }
     }
+
+    /* TRACK: in both formats is the track number (1-based).  Pre-fix
+     * sscanf parsed it into a local 'tkid' that was never read -- the
+     * track ordering came from chd_get_metadata's index walking up
+     * via self->NumTracks.  Dropped here; chd_meta_find for "TRACK"
+     * is left in only as a presence check. */
+    if (!chd_meta_find(tmp, "TRACK", tmp_int, sizeof(tmp_int)))
+    {
+      log_cb(RETRO_LOG_ERROR, "chd_parse: missing TRACK in metadata\n");
+      return 0;
+    }
+
+    if (!chd_meta_find(tmp, "TYPE", type, sizeof(type)))
+    {
+      log_cb(RETRO_LOG_ERROR, "chd_parse: missing TYPE in metadata\n");
+      return 0;
+    }
+    if (!chd_meta_find(tmp, "SUBTYPE", subtype, sizeof(subtype)))
+    {
+      log_cb(RETRO_LOG_ERROR, "chd_parse: missing SUBTYPE in metadata\n");
+      return 0;
+    }
+    if (!chd_meta_find(tmp, "FRAMES", tmp_int, sizeof(tmp_int)))
+    {
+      log_cb(RETRO_LOG_ERROR, "chd_parse: missing FRAMES in metadata\n");
+      return 0;
+    }
+    frames = (int)strtol(tmp_int, NULL, 10);
+
+    /* Optional V5-only fields.  chd_meta_find leaves out-buf as ""
+     * on miss; pregap/postgap stay at 0 (their loop-init values). */
+    if (chd_meta_find(tmp, "PREGAP", tmp_int, sizeof(tmp_int)))
+      pregap = (int)strtol(tmp_int, NULL, 10);
+    chd_meta_find(tmp, "PGTYPE", pgtype, sizeof(pgtype));
+    chd_meta_find(tmp, "PGSUB", pgsub, sizeof(pgsub));
+    if (chd_meta_find(tmp, "POSTGAP", tmp_int, sizeof(tmp_int)))
+      postgap = (int)strtol(tmp_int, NULL, 10);
 
     if (strcmp(type, "MODE1") && strcmp(type, "MODE1_RAW") && strcmp(type, "MODE2_RAW") &&
         strcmp(type, "AUDIO"))

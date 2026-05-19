@@ -388,8 +388,53 @@ static bool TestConditions(const char *string)
  unsigned int bytelen;
  bool passed = 1;
 
- while(sscanf(string, "%u %c %63s %63s %63s", &bytelen, &endian, address, operation, value) == 5 && passed)
+ /* Inline replacement for trio_sscanf(string, "%u %c %63s %63s %63s", ...).
+  * sscanf is dragged in by libc even for a single call site; doing
+  * the parse by hand drops the dependency on this TU.  Field shape
+  * mirrors the original format string:
+  *     %u    -> bytelen     (leading whitespace skipped)
+  *     %c    -> endian      (single char after whitespace)
+  *     %63s  -> address
+  *     %63s  -> operation
+  *     %63s  -> value
+  * On any field failing to parse, jump to the `done:` label and
+  * return the current `passed` value (mirrors the pre-fix
+  * 'sscanf == 5' loop guard).  The original advancement to the
+  * next condition in a comma-separated conditions list is preserved
+  * at the bottom of the loop body via strchr(string, ','). */
+ while (passed)
  {
+  const char *p = string;
+  char *e;
+  unsigned long ul;
+  int field;
+
+  /* whitespace, then %u */
+  while (*p == ' ' || *p == '\t') p++;
+  ul = strtoul(p, &e, 10);
+  if (e == p) break;
+  bytelen = (unsigned int)ul;
+  p = e;
+
+  /* whitespace, then %c */
+  while (*p == ' ' || *p == '\t') p++;
+  if (!*p) break;
+  endian = *p++;
+
+  /* three %63s fields */
+  for (field = 0; field < 3; field++)
+  {
+   char  *dst    = (field == 0) ? address : (field == 1) ? operation : value;
+   size_t n      = 0;
+   while (*p == ' ' || *p == '\t') p++;
+   while (p[n] && p[n] != ' ' && p[n] != '\t' && n < 63) n++;
+   if (n == 0) goto done;
+   memcpy(dst, p, n);
+   dst[n] = 0;
+   p += n;
+  }
+
+  {
   uint32_t v_address;
   uint64_t v_value;
   uint64_t value_at_address;
@@ -482,6 +527,10 @@ static bool TestConditions(const char *string)
    if(value_at_address | v_value)
     passed = 0;
   }
+  } /* end inner-scope block for v_address / v_value / value_at_address */
+
+  /* Advance past the comma to the next condition (a comma-separated
+   * conditions list; the original code's advancement, preserved). */
   string = strchr(string, ',');
   if(string == NULL)
    break;
@@ -489,6 +538,7 @@ static bool TestConditions(const char *string)
    string++;
  }
 
+done:
  return(passed);
 }
 

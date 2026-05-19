@@ -82,6 +82,67 @@ static const int32_t DI_Size_Table[8] =
    2352  /* CD-I RAW */
 };
 
+/* ---- sscanf-replacement helpers ---------------------------------
+ *
+ * Cold-path TOC/CUE parser sites used to call sscanf with format
+ * strings like "%u:%u:%u" and "%ld".  glibc sscanf re-parses the
+ * format string on every call (and on at least some libc versions
+ * does an internal alloc), which is needless overhead even for
+ * cold paths; replacement strtoul/strtol-based parsers run in a
+ * few cycles and let us thread proper failure returns through
+ * sites that previously discarded sscanf's count.  Defensive
+ * NULL-check on the head pointer is for robustness in the face of
+ * sscanf-style 'maybe-NULL on optional CUE field' call patterns. */
+
+static bool parse_uint(const char *s, unsigned *out)
+{
+   char *e;
+   unsigned long v;
+   if (!s) return false;
+   v = strtoul(s, &e, 10);
+   if (e == s) return false;
+   *out = (unsigned)v;
+   return true;
+}
+
+static bool parse_long(const char *s, long *out)
+{
+   char *e;
+   long v;
+   if (!s) return false;
+   v = strtol(s, &e, 10);
+   if (e == s) return false;
+   *out = v;
+   return true;
+}
+
+/* Parse "M:S:F" (BCD-ish minutes:seconds:frames triple as text).
+ * Replaces sscanf with %u:%u:%u and %d:%d:%d, both unified to
+ * unsigned -- MSF values are conceptually non-negative and the
+ * downstream (m*60+s)*75+f formula treats negatives as wrap-around
+ * anyway. */
+static bool parse_msf(const char *str, unsigned *m, unsigned *sec, unsigned *f)
+{
+   char *e;
+   unsigned long v;
+   if (!str) return false;
+
+   v = strtoul(str, &e, 10);
+   if (e == str || *e != ':') return false;
+   *m = (unsigned)v;
+   str = e + 1;
+
+   v = strtoul(str, &e, 10);
+   if (e == str || *e != ':') return false;
+   *sec = (unsigned)v;
+   str = e + 1;
+
+   v = strtoul(str, &e, 10);
+   if (e == str) return false;
+   *f = (unsigned)v;
+   return true;
+}
+
 /* ---- subq_map operations ----------------------------------------
  * Replaces std::map<uint32_t, stl_array<uint8_t,12>> with a sorted-
  * array binary search.  SBI tables are small (a few dozen entries
@@ -447,7 +508,7 @@ static size_t UnQuotify(const char *src, size_t src_len, size_t source_offset,
 
 static bool StringToMSF(const char *str, unsigned *m, unsigned *s, unsigned *f)
 {
-   if (sscanf(str, "%u:%u:%u", m, s, f) != 3)
+   if (!parse_msf(str, m, s, f))
       return false;
    if (*m > 99 || *s > 59 || *f > 74)
       return false;
@@ -498,7 +559,7 @@ static bool CDAccess_Image_ParseTOCFileLineInfo(CDAccess_Image *self,
 {
    long      offset = 0; /* In bytes! */
    long      tmp_long;
-   int       m, s, f;
+   unsigned  m, s, f;
    uint32_t  sector_mult;
    long      sectors;
    cdstream *cached_fp = toc_streamcache_find(cache, filename);
@@ -539,10 +600,10 @@ static bool CDAccess_Image_ParseTOCFileLineInfo(CDAccess_Image *self,
    if (track->SubchannelMode)
       sector_mult += 96;
 
-   if (binoffset && sscanf(binoffset, "%ld", &tmp_long) == 1)
+   if (parse_long(binoffset, &tmp_long))
       offset += tmp_long;
 
-   if (msfoffset && sscanf(msfoffset, "%d:%d:%d", &m, &s, &f) == 3)
+   if (parse_msf(msfoffset, &m, &s, &f))
       offset += ((m * 60 + s) * 75 + f) * sector_mult;
 
    track->FileOffset = offset; /* Set this before GetSectorCount! */
@@ -552,7 +613,7 @@ static bool CDAccess_Image_ParseTOCFileLineInfo(CDAccess_Image *self,
    {
       tmp_long = sectors;
 
-      if (sscanf(length, "%d:%d:%d", &m, &s, &f) == 3)
+      if (parse_msf(length, &m, &s, &f))
          tmp_long = (m * 60 + s) * 75 + f;
       else if (track->DIFormat == DI_FORMAT_AUDIO)
       {
@@ -980,7 +1041,7 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
                if (!StringToMSF(args[1], &m, &s, &f))
                   goto cleanup_close;
 
-               if (sscanf(args[0], "%u", &wi) == 1 && wi < 100)
+               if (parse_uint(args[0], &wi) && wi < 100)
                   TmpTrack.index[wi] = (m * 60 + s) * 75 + f;
                else
                   goto cleanup_close;
