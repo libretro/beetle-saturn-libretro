@@ -1900,13 +1900,31 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
 
          BIOS_SHA256 = sha256(BIOSROM, 512 * 1024);
 
-         /* swap endian-ness */
-         for(bw = 0; bw < (unsigned)(bios_size / 2); bw++)
+         /* swap endian-ness.
+          *
+          * Two BIOS storage formats:
+          *  - Saturn:  BE-stored 16-bit words      (MDFN_de16msb in upstream)
+          *  - ST-V:    LE-stored 16-bit words      (MDFN_de16lsb in upstream),
+          *             which is equivalent to MAME's ROM_LOAD16_WORD_SWAP --
+          *             bytes within each 16-bit word are in the OPPOSITE
+          *             byte-order from Saturn.
+          *
+          * Therefore on a little-endian host we byte-swap Saturn BIOS but
+          * leave ST-V BIOS as-is; on a big-endian host the polarity flips. */
          {
-            /* MDFN_de16msb folded: BE-on-disk to host-endian. */
-#ifndef MSB_FIRST
-            BIOSROM[bw] = (uint16_t)((BIOSROM[bw] << 8) | (BIOSROM[bw] >> 8));
+            const bool stv = (ActiveCartType == CART_STV);
+            for(bw = 0; bw < (unsigned)(bios_size / 2); bw++)
+            {
+#ifdef MSB_FIRST
+               /* BE host: swap iff ST-V (LE-on-disk -> BE host) */
+               if(stv)
+                  BIOSROM[bw] = (uint16_t)((BIOSROM[bw] << 8) | (BIOSROM[bw] >> 8));
+#else
+               /* LE host: swap iff Saturn (BE-on-disk -> LE host) */
+               if(!stv)
+                  BIOSROM[bw] = (uint16_t)((BIOSROM[bw] << 8) | (BIOSROM[bw] >> 8));
 #endif
+            }
          }
       }
 
