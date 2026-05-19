@@ -527,17 +527,24 @@ static struct retro_disk_control_ext_callback disk_interface_ext =
 };
 
 
-void disc_init( retro_environment_t environ_cb )
+void disc_init(void)
 {
-	unsigned dci_version = 0;
-
-	// start closed
 	g_eject_state = false;
 
 	g_initial_disc = 0;
 	g_initial_disc_path[0] = '\0';
+}
 
-	// register vtable with environment
+void disc_register_environment(retro_environment_t environ_cb)
+{
+	unsigned dci_version = 0;
+
+	/* Register the disc-control vtable.  Split out of disc_init so the
+	 * caller can defer registration until AFTER content type is known
+	 * (cd-image vs ST-V .zip): ST-V cartridge content has no discs and
+	 * RetroArch should not see a disc-control interface for it, lest it
+	 * try to restore a non-existent 'last used disc' and pop a red
+	 * 'Failed to set last used disc' toast on every boot. */
 	if (environ_cb(RETRO_ENVIRONMENT_GET_DISK_CONTROL_INTERFACE_VERSION, &dci_version) && (dci_version >= 1))
 		environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_EXT_INTERFACE, &disk_interface_ext);
 	else

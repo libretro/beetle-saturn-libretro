@@ -245,7 +245,7 @@ void retro_init(void)
    }
 
    CDUtility_Init();
-   disc_init(environ_cb);
+   disc_init();
 
 #ifdef NEED_DEINTERLACER
    // C struct now, not a C++ class with a constructor. Init zeroes
@@ -976,6 +976,13 @@ static bool MDFNI_LoadGame(const char *name)
 
          if (disc_load_content(MDFNGameInfo, name, fd_id, sgid, sgname, sgarea, cdimagecache))
          {
+            /* CD/m3u content successfully loaded.  Register the
+             * disc-control vtable with RetroArch now that we know
+             * we actually have discs to control.  ST-V .zip content
+             * never reaches this branch, so its boot stays free of
+             * the spurious 'Failed to set last used disc' toast. */
+            disc_register_environment(environ_cb);
+
             log_cb(RETRO_LOG_INFO, "Game ID is: %s\n", sgid);
 
             // test discs?

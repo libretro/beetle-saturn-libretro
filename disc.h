@@ -26,7 +26,8 @@ extern void extract_directory(char *buf, const char *path, size_t size);
 
 extern unsigned disk_get_image_index(void);
 
-void disc_init( retro_environment_t environ_cb );
+void disc_init(void);
+void disc_register_environment(retro_environment_t environ_cb);
 
 void disc_cleanup(void);
 
