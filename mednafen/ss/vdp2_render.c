@@ -3961,7 +3961,15 @@ static int32_t ApplyHBlend(uint32_t* const target, int32_t w)
 {
  #define BHALF(m, n) ((((uint64_t)(m) + (n)) - (((m) ^ (n)) & 0x01010101)) >> 1)
 
- assert(w >= 4);
+ /* The blend kernel below indexes target[w-2] (read) and target[(w-1)*2+1]
+  * (write) -- both are out of bounds for w < 4 (the high-res branch
+  * needs target[w-2]; the low-res branch needs both).  Real Saturn
+  * modes have w >= 320, but a game putting the VDP2 into an off-spec
+  * line-width state could push w below 4 and walk us into target[-1]
+  * (a read backwards into the prior scanline's tail or border-fill
+  * memory).  Skip the blend in that case and pass w through. */
+ if(MDFN_UNLIKELY(w < 4))
+  return w;
 
  if(!(HRes & 0x2))
  {
@@ -5076,9 +5084,15 @@ void VDP2REND_EndFrame(void)
 
 struct VDP2Rend_LIB* VDP2REND_GetLIB(unsigned line)
 {
- assert(line < (PAL ? 256 : 240)); // NO: VisibleLines);
-
- return &LIB[line];
+ /* Mask to the on-static LIB[256] array bounds.  Pre-fix the assert
+  * docs `line < (PAL ? 256 : 240)` -- a bug upstream that passed
+  * line >= 256 (VPHASE_ACTIVE failing to gate VCounter, mis-set
+  * VisibleLines, etc.) would have returned &LIB[256+] and the
+  * caller's writes would land in adjacent statics.  AND mask is a
+  * single instruction and cannot lengthen the per-scanline hot
+  * path, so it works as a release-mode runtime guard the assert
+  * couldn't be. */
+ return &LIB[line & 0xFF];
 }
 
 void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool field)
