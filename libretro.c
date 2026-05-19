@@ -1417,7 +1417,7 @@ void retro_run(void)
    // run-ahead simulation passes (current_frame_is_sim was set at the
    // top of this function from RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE
    // bit 0). The 3-second batching delay is preserved via a frame
-   // counter; ~180 frames at NTSC's 59.76 Hz and PAL's 49.92 Hz both
+   // counter; ~180 frames at NTSC's 59.83 Hz and PAL's 49.92 Hz both
    // round to roughly 3 seconds, close enough for save batching.
    //
    {
@@ -1538,34 +1538,46 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
       info->timing.fps            = 49.92012779552716;
    else
    {
-      /* NTSC refresh derived from MAME's saturn.cpp / stv.cpp screen
-       * configuration: set_raw(MASTER_CLOCK_320/8, 427, 0, ..., 263, 0, 224),
-       * where MASTER_CLOCK_320 = 53,693,174 Hz (15x NTSC color subcarrier,
-       * the real-world crystal value Sega used). That gives
-       *   53693174 / 8 / (427 * 263) = 59.764800 Hz (== MAME's reported
-       *   59.764802 Hz at saturnjp and every stv romset).
+      /* NTSC refresh = 59.82650314089141 Hz.
        *
-       * Previously hardcoded as 59.82650314089141, which was derived from
-       * beetle's own internal 352-dot-mode crystal switch (28.636 MHz
-       * CPU clock / 478660 timestamps per frame). That value is strictly
-       * more hardware-accurate for 352-dot mode (real Saturn does switch
-       * to MASTER_CLOCK_352 in 352 mode, MAME does not), but every
-       * cross-reference (MAME, arcadeitalia / mdk.cab, datomatic) lists
-       * 59.764802, and the frontend / display-sync use cases (VRR target,
-       * RetroArch's set_video_refresh, sub-frame audio resampling) all
-       * benefit more from agreement with the established reference than
-       * from the 352-mode internal-crystal precision.
+       * Do NOT change this to MAME's commonly-cited 59.764802 Hz
+       * without also adjusting beetle's internal timing chain
+       * (MasterClock / HTimings / VTimings / cur_clock_div 61|65).
        *
-       * The internal emulation timing (HTimings/VTimings, cur_clock_div
-       * 61/65 selection, ts_freq -> sample-clock ratio) is unchanged.
-       * The 0.10% gap between the reported rate and beetle's actual
-       * 352-mode internal rate means the frontend will believe one frame
-       * is 16.730 ms while the emulator produces 16.7150 ms of game time
-       * worth of audio per frame; the libretro audio_batch_cb path
-       * absorbs this as a constant ~0.1% audio-clock skew, well below
-       * any audible pitch shift threshold and identical to what every
-       * other Saturn emulator that reports MAME's value already has. */
-      info->timing.fps            = 53693174.0 / 8.0 / (427.0 * 263.0);
+       * The 59.8265... value matches beetle's actual emulated frame
+       * rate. It is derived from the timestamp domain:
+       *
+       *   ts_freq         = MasterClock / cur_clock_div
+       *                   = 1746818182 / 61   (352-dot, Clock28M)
+       *                   = 28,636,363.6 Hz
+       *                   = 8x NTSC color subcarrier exactly.
+       *   HCounter unit   = 4 timestamps          (vdp2.c, "clocks = ... >> 2")
+       *   line length     = HTimings[1][2] = 0x1C7 = 455 HCounter units
+       *   frame length    = VTimings[NTSC][0][5] = 0x107 = 263 lines
+       *   frame in ts     = 455 * 4 * 263 = 478,660
+       *   fps             = 28,636,363.6 / 478,660 = 59.826105...
+       *
+       * The 320-dot path uses HTimings[0][2]=427 and cur_clock_div=65,
+       * which gives the SAME 59.826105 Hz: the divisor and line-length
+       * switches cancel exactly, so beetle emulates both dotsel modes
+       * at one rate. The hardcoded 59.82650314089141 sits 0.0007% above
+       * that, the gap being integer-rounding of MasterClock from the
+       * exact 8x subcarrier x 61 = 1,746,818,181.818...
+       *
+       * MAME reports 59.764802 (53,693,174 / 8 / (427 * 263)) for every
+       * saturn/saturnjp/stv romset, but that is MAME's screen device
+       * being pinned to MASTER_CLOCK_320/8 in both 320- and 352-dot
+       * mode (see saturn.cpp / stv.cpp set_raw, both feed
+       * MASTER_CLOCK_320/8 even though dotsel actually switches the
+       * pixel-generating crystal). Real Saturn / ST-V hardware does
+       * switch crystals (see the PLL 315-5746) and beetle's value
+       * follows that. Tracking MAME's number here would re-introduce a
+       * 0.1% report-vs-internal skew (~16.730 ms wallclock per frame
+       * for 16.715 ms of emulated game time) that beetle has never
+       * had. The trade is one decimal of MAME-display agreement
+       * against a constant audio-clock drift the libretro frontend
+       * would absorb silently. Not worth it. */
+      info->timing.fps            = 59.82650314089141;
    }
 }
 
