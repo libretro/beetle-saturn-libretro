@@ -165,6 +165,7 @@ SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
 		$(CORE_DIR)/input.c \
 		$(CORE_DIR)/libretro.c \
 		$(CORE_DIR)/libretro_settings.c \
+		$(CORE_DIR)/zip_reader.c \
 		$(MEDNAFEN_DIR)/video/Deinterlacer.c \
 		$(MEDNAFEN_DIR)/hash/md5.c \
 		$(MEDNAFEN_DIR)/hash/sha256.c
