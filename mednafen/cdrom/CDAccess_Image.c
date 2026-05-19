@@ -758,7 +758,15 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
    char        cmdbuf[UNQ_CMD_LEN];
    char        args[UNQ_MAX_ARGS][UNQ_ARG_LEN];
    int32_t     RunningLBA;
-   long        FileOffset;
+   /* Cross-track byte-offset accumulator: int64 to absorb the
+    * cumulative `sectors * sector_size` additions across all
+    * tracks that share a single backing file.  The per-track
+    * storage field track->FileOffset is `long` (32-bit on MinGW
+    * even for 64-bit builds), so we explicitly bounds-check this
+    * accumulator at every store and fail the load cleanly on
+    * overflow rather than silently wrapping into a negative offset
+    * that the cdstream_seek downstream would reject. */
+   int64_t     FileOffset;
    int         x;
 
    /* Cue / toc file is small; slurp it into RAM up front so the
@@ -1220,13 +1228,29 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
          if (self->Tracks[x].index[0] != -1)
             self->Tracks[x].pregap_dv = self->Tracks[x].index[1] - self->Tracks[x].index[0];
 
-         FileOffset            += self->Tracks[x].pregap_dv * DI_Size_Table[self->Tracks[x].DIFormat];
+         /* Well-formed CUE has INDEX 01 >= INDEX 00 within a track;
+          * pregap_dv >= 0.  A malformed sheet that has them swapped
+          * would propagate negative pregap_dv into FileOffset and
+          * RunningLBA, eventually feeding a negative seek to
+          * cdstream_seek.  Reject the load instead. */
+         if (self->Tracks[x].pregap_dv < 0)
+            goto cleanup_close;
+
+         FileOffset            += (int64_t)self->Tracks[x].pregap_dv * DI_Size_Table[self->Tracks[x].DIFormat];
          RunningLBA            += self->Tracks[x].pregap_dv;
 
          self->Tracks[x].LBA    = RunningLBA;
 
+         /* FileOffset must fit the per-track storage field (long,
+          * 32-bit on MinGW).  If the cumulative byte offset across
+          * tracks-sharing-one-file overflows, the (long) cast below
+          * would wrap to a negative value and cdstream_seek would
+          * reject every subsequent track read. */
+         if (FileOffset < 0 || FileOffset > (int64_t)LONG_MAX)
+            goto cleanup_close;
+
          /* Set FileOffset before GetSectorCount. */
-         self->Tracks[x].FileOffset = FileOffset;
+         self->Tracks[x].FileOffset = (long)FileOffset;
          self->Tracks[x].sectors    = CDAccess_Image_GetSectorCount(&self->Tracks[x]);
 
          if ((x + 1) >= (self->FirstTrack + self->NumTracks)
@@ -1241,12 +1265,19 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
                self->Tracks[x].sectors = self->Tracks[x + 1].index[1] - self->Tracks[x].index[1];
             else
                self->Tracks[x].sectors = self->Tracks[x + 1].index[0] - self->Tracks[x].index[1];
+
+            /* Adjacent-track index subtraction must be non-negative
+             * for well-formed CUE (tracks listed in ascending order).
+             * Negative sectors propagates into RunningLBA and the
+             * cumulative FileOffset arithmetic below; reject. */
+            if (self->Tracks[x].sectors < 0)
+               goto cleanup_close;
          }
 
          RunningLBA += self->Tracks[x].sectors;
          RunningLBA += self->Tracks[x].postgap;
 
-         FileOffset += self->Tracks[x].sectors * DI_Size_Table[self->Tracks[x].DIFormat];
+         FileOffset += (int64_t)self->Tracks[x].sectors * DI_Size_Table[self->Tracks[x].DIFormat];
       }
    }
 
