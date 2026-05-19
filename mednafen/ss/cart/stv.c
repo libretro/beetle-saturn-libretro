@@ -283,24 +283,48 @@ bool CART_STV_Init(struct CartInfo *c, const char *rom_dir, const char *main_fna
          }
 
          /* Re-pack source bytes into native-endian uint16_t slots.
-            Host is LSB_FIRST (the only build configuration this fork ships).
-            For 16LE-packed source: data is already little-endian, native order
-            matches, so this is a no-op. For 16BE-packed source: byteswap each
-            16-bit word to get native LE. */
-         if(rle->map == STV_MAP_16BE)
+          *
+          *   STV_MAP_16LE: on-disk bytes are LE.  On LSB host: native
+          *                 is already LE, no-op.  On MSB host: byteswap
+          *                 to convert LE -> native BE.
+          *
+          *   STV_MAP_16BE: on-disk bytes are BE.  On MSB host: native
+          *                 is already BE, no-op.  On LSB host: byteswap
+          *                 to convert BE -> native LE.
+          *
+          * Matches upstream's Endian_A16_NE_LE / Endian_A16_NE_BE
+          * gating shape (those helpers boil down to the same
+          * #ifdef-driven swap).
+          *
+          * Pre-fix this fork unconditionally byteswapped on
+          * STV_MAP_16BE and unconditionally did nothing on
+          * STV_MAP_16LE -- only correct on LSB host.  The build
+          * matrix's default_BE config would have silently mis-loaded
+          * both formats: 16BE byteswapped when native already matched
+          * disk, 16LE left as-is when it should have been swapped.
+          * No symptoms in practice -- there's no shipping libretro
+          * BE host that actually runs ST-V content -- but the bug
+          * was clearly wrong. */
          {
-            /* Endian_A16_Swap folded: byte-pair swap loop. */
-            uint8_t *p__ = (uint8_t*)dest;
-            uint32_t n__ = rle->size >> 1;
-            uint32_t k__;
-            for(k__ = 0; k__ < n__; k__++)
+#ifdef MSB_FIRST
+            const bool need_swap = (rle->map == STV_MAP_16LE);
+#else
+            const bool need_swap = (rle->map == STV_MAP_16BE);
+#endif
+            if(need_swap)
             {
-               uint8_t t = p__[k__ * 2];
-               p__[k__ * 2]     = p__[k__ * 2 + 1];
-               p__[k__ * 2 + 1] = t;
+               /* Endian_A16_Swap folded: byte-pair swap loop. */
+               uint8_t *p__ = (uint8_t*)dest;
+               uint32_t n__ = rle->size >> 1;
+               uint32_t k__;
+               for(k__ = 0; k__ < n__; k__++)
+               {
+                  uint8_t t = p__[k__ * 2];
+                  p__[k__ * 2]     = p__[k__ * 2 + 1];
+                  p__[k__ * 2 + 1] = t;
+               }
             }
          }
-         /* STV_MAP_16LE: no-op on LSB host. */
       }
       filestream_close(fp);
    }
