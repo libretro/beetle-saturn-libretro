@@ -35,6 +35,14 @@ typedef struct
    uint32_t len;
    uint32_t malloced;
    uint32_t initial_malloc; // A setting!
+   /* Sticky 'a previous smem_write hit OOM' flag.  Latched true by
+    * smem_write on grow-allocation failure; checked by MDFNSS_SaveSM
+    * at the end of a save pass to fail loudly instead of returning
+    * a half-written state buffer.  MDFNSS_SaveSM clears this at
+    * entry; the libretro.c callers (retro_serialize* /
+    * retro_get_memory_*) don't need to initialise it -- their
+    * StateMem instances are stack-locals reused only by SaveSM. */
+   bool write_failed;
 } StateMem;
 
 /* The external functions declared in this header keep C linkage so the

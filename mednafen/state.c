@@ -63,7 +63,10 @@ static int32_t smem_write(StateMem *st, void *buffer, uint32_t len)
       {
          new_data = (uint8_t *)malloc(newsize);
          if (!new_data)
+         {
+            st->write_failed = true;  /* latch for MDFNSS_SaveSM end-check */
             return 0;                /* allocation failure -- nothing written */
+         }
          memcpy(new_data, st->data_frontend, st->malloced);
          st->data = new_data;
       }
@@ -75,7 +78,10 @@ static int32_t smem_write(StateMem *st, void *buffer, uint32_t len)
           * pointer on failure and segfaulted on the memcpy below. */
          new_data = (uint8_t *)realloc(st->data, newsize);
          if (!new_data)
+         {
+            st->write_failed = true;  /* latch for MDFNSS_SaveSM end-check */
             return 0;
+         }
          st->data = new_data;
       }
 
@@ -479,6 +485,21 @@ int MDFNSS_SaveSM(void *st_p, uint32_t ver)
 	int neowidth = 0, neoheight = 0;
 	uint32_t sizy;
 
+	/* Pre-fix every smem_write below ignored its return; on OOM
+	 * (state buffer needs to grow but malloc/realloc fails) the
+	 * write was silently dropped and st->loc stayed put, so the
+	 * subsequent seek+write to back-fill the size field at
+	 * bytes 20-23 ran against a malformed buffer.  Visible result
+	 * was a half-written state file that the frontend might still
+	 * persist to disk -- corrupted state, hard to debug.
+	 *
+	 * Latch via the new StateMem.write_failed flag instead of
+	 * threading a return code through every layer of
+	 * smem_write -> SubWrite -> WriteStateChunk -> MDFNSS_StateAction
+	 * -> LibRetro_StateAction -> per-subsystem StateAction.  Clear
+	 * at entry, check at exit. */
+	st->write_failed = false;
+
 	// Write header.
 	memset( header, 0, sizeof(header) );
 	memcpy( header, header_magic, 8 );
@@ -495,6 +516,10 @@ int MDFNSS_SaveSM(void *st_p, uint32_t ver)
 	sizy = st->loc;
 	smem_seek(st, 16 + 4, SEEK_SET);
 	smem_write32le(st, sizy);
+
+	/* If any smem_write above hit OOM, fail loudly. */
+	if (st->write_failed)
+		return 0;
 
 	// Success!
 	return success;
