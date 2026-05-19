@@ -6,9 +6,22 @@
  * (at your option) any later version.
  */
 
-/* AR_Open and AudioReader do NOT take "ownership" of the cdstream
- * object (will not free it).  They do assume exclusive access for as
- * long as the AudioReader exists. */
+/* AudioReader is a thin shim that wraps a cdstream in Tremor's
+ * ov_callbacks interface so an Ogg Vorbis-encoded CDDA track can
+ * be decoded on-demand by the CDB layer.
+ *
+ * Ownership contract: AR_Open / AR_Close do NOT take ownership of
+ * the cdstream object.  Caller retains ownership and is responsible
+ * for cdstream_destroy() after AR_Close().  This is enforced by
+ * deliberately passing a NULL close_func to ov_open_callbacks --
+ * Tremor's ov_clear() then skips the close hook entirely (see
+ * `if(vf->datasource && vf->callbacks.close_func)` in
+ * tremor/vorbisfile.c).  If you reintroduce a close callback here,
+ * audit every AR_Close call site for double-close: today
+ * CDAccess_Image_Cleanup() calls AR_Close() then cdstream_destroy()
+ * on the same cdstream, and a non-NULL close_func would turn that
+ * into a close-twice (currently saved only by cdstream_close()'s
+ * idempotence). */
 
 #include <stdlib.h>
 #include <string.h>
@@ -42,15 +55,6 @@ static int iov_seek_func(void *user_data, int64_t offset, int whence)
    return 0;
 }
 
-static int iov_close_func(void *user_data)
-{
-   cdstream *fw = (cdstream *)user_data;
-
-   if (fw)
-      cdstream_close(fw);
-   return 0;
-}
-
 static long iov_tell_func(void *user_data)
 {
    cdstream *fw = (cdstream *)user_data;
@@ -58,6 +62,12 @@ static long iov_tell_func(void *user_data)
    if (!fw)
       return -1;
 
+   /* Tremor's tell_func signature returns long (see
+    * tremor/ivorbisfile.h ov_callbacks).  cdstream_tell returns
+    * uint64_t.  On LLP64 (Win64) `long` is 32-bit, so this
+    * truncates above 2 GiB.  Not fixable at our layer without
+    * forking Tremor; in practice Vorbis-encoded CDDA tracks are
+    * orders of magnitude smaller than that. */
    return (long)cdstream_tell(fw);
 }
 
@@ -76,7 +86,7 @@ AudioReader *AR_Open(cdstream *fp)
    memset(&cb, 0, sizeof(cb));
    cb.read_func  = iov_read_func;
    cb.seek_func  = iov_seek_func;
-   cb.close_func = iov_close_func;
+   cb.close_func = NULL;             /* see ownership contract above */
    cb.tell_func  = iov_tell_func;
 
    cdstream_seek(fp, 0, SEEK_SET);
@@ -108,8 +118,8 @@ int64_t AR_Read(AudioReader *r, int64_t frame_offset,
       int16_t *buffer, int64_t frames)
 {
    uint8_t *tw_buf;
-   int      cursection = 0;
    long     toread;
+   int      cursection = 0;
    int64_t  ret;
 
    if (!r)
@@ -132,7 +142,27 @@ int64_t AR_Read(AudioReader *r, int64_t frame_offset,
       long didread = ov_read(&r->ovfile, (char *)tw_buf, toread, &cursection);
 
       if (didread == 0)
+         break;                       /* EOF */
+      if (didread < 0)
+      {
+         /* Tremor signals decode trouble through negative returns:
+          *   OV_HOLE     (-3)   gap in the bitstream; docs say to
+          *                      just keep calling, but a pathological
+          *                      file could spin us indefinitely here
+          *   OV_EBADLINK (-137) inconsistent logical bitstream
+          *   OV_EINVAL   (-131) initial file headers couldn't be read
+          *
+          * The pre-fix code blindly added a negative didread to the
+          * uint8_t* write pointer (pointer arithmetic going backwards
+          * past the start of the buffer -- UB) and subtracted it from
+          * `toread` (negative subtract = grow), so a single decode
+          * error would either corrupt arbitrary memory or loop
+          * forever.  Treat any negative as terminal: CDDA cutting out
+          * a few samples early is vastly preferable to either of
+          * those outcomes, and the caller (CDB) handles short-read
+          * returns from this function gracefully. */
          break;
+      }
 
       tw_buf += didread;
       toread -= didread;
