@@ -7,6 +7,7 @@
 #include <file/file_path.h>
 
 #include "mednafen/ss/db.h"
+#include "zip_reader.h"
 
 #include <ctype.h>
 #include <time.h>
@@ -662,6 +663,227 @@ static void check_variables(bool startup)
    STVIO_SetCrosshairsColor(0, setting_crosshair_color_p1);
 }
 
+/* =====================================================================
+ * ST-V .zip content support
+ * =====================================================================
+ *
+ * MAME-style multi-file ROM archives are the universal distribution
+ * format for ST-V games.  The frontend (RetroArch) may auto-extract
+ * the archive, but its extractor matches files inside the zip against
+ * the core's valid_extensions -- ST-V ROM filenames (`epr20825.13`,
+ * `mpr20826.1`, ...) match nothing in our list, so the frontend errors
+ * out with "Failed to extract content from compressed file" before the
+ * core sees anything.
+ *
+ * Handle .zip content paths in-core via zip_reader:
+ *
+ *   1. Detect `.zip` extension on the supplied path.
+ *   2. Open the archive, enumerate its entries.
+ *   3. Use DB_LookupSTV_ByPredicate to find which ST-V game these
+ *      ROMs belong to -- the predicate consults zip_find() per
+ *      candidate rom_layout filename.
+ *   4. Extract the matched game's rom_layout files to a per-archive
+ *      cache directory under retro_save_directory.
+ *   5. Re-enter the bare-file ST-V load path with that cache dir as
+ *      rom_dir, so cart/stv.c's existing JoinPath / filestream_open
+ *      loop sees the extracted files as if the user had unpacked
+ *      them by hand.
+ *
+ * Caching: extracted files persist in retro_save_directory/stv_extract/
+ * <archive-basename>/ across launches.  A cache hit is detected by
+ * checking the on-disk file size against the zip's central directory
+ * uncompressed size; mismatch -> re-extract.  CRC validation is left
+ * to zip_extract on the extract path (we don't checksum the cache
+ * file every launch -- file-size match is the cheap discriminator). */
+
+/* Predicate context for DB_LookupSTV_ByPredicate -- pass a zip_archive
+ * and zip_find() per candidate filename. */
+struct stv_zip_lookup_ctx
+{
+   const zip_archive *za;
+};
+
+static bool stv_zip_has_file(void *ctx, const char *fname)
+{
+   const struct stv_zip_lookup_ctx *c = (const struct stv_zip_lookup_ctx*)ctx;
+   return zip_find(c->za, fname) != NULL;
+}
+
+/* Strip ".zip" (case-insensitive) from `basename` in place.  Used to
+ * derive the per-archive cache subdir name. */
+static void strip_zip_ext(char *basename)
+{
+   size_t len = strlen(basename);
+   if (len >= 4)
+   {
+      char *suffix = basename + len - 4;
+      if (   (suffix[0] == '.')
+          && (suffix[1] == 'z' || suffix[1] == 'Z')
+          && (suffix[2] == 'i' || suffix[2] == 'I')
+          && (suffix[3] == 'p' || suffix[3] == 'P'))
+         *suffix = '\0';
+   }
+}
+
+/* Check whether `path` exists with size exactly `expected`.  Used by
+ * the cache-hit detector to skip extraction when the file is already
+ * unpacked. */
+static bool file_size_matches(const char *path, uint32_t expected)
+{
+   RFILE  *fp = filestream_open(path,
+         RETRO_VFS_FILE_ACCESS_READ,
+         RETRO_VFS_FILE_ACCESS_HINT_NONE);
+   int64_t sz;
+   if (!fp)
+      return false;
+   sz = filestream_get_size(fp);
+   filestream_close(fp);
+   return sz == (int64_t)expected;
+}
+
+/* Open `zip_path`, identify the ST-V game inside via the predicate
+ * lookup, and extract its rom_layout files to a per-archive cache dir
+ * under retro_save_directory.  On success: writes the cache dir into
+ * `out_dir` and returns the matched STVGameInfo.  On failure: returns
+ * NULL and leaves out_dir undefined. */
+static const struct STVGameInfo* prepare_stv_zip_content(
+      const char *zip_path, char *out_dir, size_t out_dir_size)
+{
+   zip_archive                  za;
+   struct stv_zip_lookup_ctx    pred_ctx;
+   const struct STVGameInfo    *sgi;
+   char                         arch_base[256];
+   size_t                       i;
+
+   if (!zip_open(&za, zip_path))
+   {
+      log_cb(RETRO_LOG_ERROR, "ST-V zip: failed to open archive \"%s\".\n", zip_path);
+      return NULL;
+   }
+
+   pred_ctx.za = &za;
+   sgi         = DB_LookupSTV_ByPredicate(stv_zip_has_file, &pred_ctx);
+   if (!sgi)
+   {
+      log_cb(RETRO_LOG_ERROR,
+            "ST-V zip: no ST-V game in DB matches the contents of \"%s\".\n",
+            zip_path);
+      zip_close(&za);
+      return NULL;
+   }
+
+   log_cb(RETRO_LOG_INFO, "ST-V zip: identified as \"%s\".\n", sgi->name);
+
+   /* Build the cache subdir path: <save>/stv_extract/<archive_base>/  */
+   {
+      const char *base = path_basename(zip_path);
+      if (!base)
+         base = zip_path;
+      strncpy(arch_base, base, sizeof(arch_base) - 1);
+      arch_base[sizeof(arch_base) - 1] = '\0';
+      strip_zip_ext(arch_base);
+   }
+   snprintf(out_dir, out_dir_size,
+         "%s" RETRO_SLASH "stv_extract" RETRO_SLASH "%s",
+         retro_save_directory, arch_base);
+
+   /* path_mkdir creates the leaf and any missing parents (libretro-
+    * common's implementation does mkdir -p semantics). */
+   if (!path_mkdir(out_dir))
+   {
+      log_cb(RETRO_LOG_ERROR,
+            "ST-V zip: cannot create cache dir \"%s\".\n", out_dir);
+      zip_close(&za);
+      return NULL;
+   }
+
+   /* Extract every rom_layout file for this game (skipping mirrored
+    * slots that point to the same source file, which cart/stv.c's
+    * loader detects via the prev_match test). */
+   for (i = 0;
+        i < sizeof(sgi->rom_layout) / sizeof(sgi->rom_layout[0])
+              && sgi->rom_layout[i].size;
+        i++)
+   {
+      const struct STVROMLayout *rle = &sgi->rom_layout[i];
+      const struct zip_entry    *ze;
+      char                       out_path[4096];
+      RFILE                     *out_fp;
+      uint8_t                   *buf;
+
+      /* Mirror-slot dedup: same fname as the previous slot means the
+       * loader will copy from the in-memory previous mapping without
+       * re-opening the file, so we don't need to write it twice. */
+      if (i > 0 && !strcmp(rle->fname, sgi->rom_layout[i - 1].fname))
+         continue;
+
+      ze = zip_find(&za, rle->fname);
+      if (!ze)
+      {
+         log_cb(RETRO_LOG_ERROR,
+               "ST-V zip: archive missing required ROM \"%s\".\n",
+               rle->fname);
+         zip_close(&za);
+         return NULL;
+      }
+
+      snprintf(out_path, sizeof(out_path),
+            "%s" RETRO_SLASH "%s", out_dir, rle->fname);
+
+      /* Cache hit: skip if the on-disk file already has the right
+       * uncompressed size.  We trust the size as a fingerprint --
+       * a torn write or partial copy would mismatch; a deliberate
+       * corruption is the user's problem. */
+      if (file_size_matches(out_path, ze->uncompressed_size))
+         continue;
+
+      buf = (uint8_t*)malloc(ze->uncompressed_size);
+      if (!buf)
+      {
+         log_cb(RETRO_LOG_ERROR,
+               "ST-V zip: out of memory extracting \"%s\".\n", rle->fname);
+         zip_close(&za);
+         return NULL;
+      }
+      if (!zip_extract(&za, ze, buf))
+      {
+         log_cb(RETRO_LOG_ERROR,
+               "ST-V zip: extract failed for \"%s\" (CRC mismatch?).\n",
+               rle->fname);
+         free(buf);
+         zip_close(&za);
+         return NULL;
+      }
+
+      out_fp = filestream_open(out_path,
+            RETRO_VFS_FILE_ACCESS_WRITE,
+            RETRO_VFS_FILE_ACCESS_HINT_NONE);
+      if (!out_fp)
+      {
+         log_cb(RETRO_LOG_ERROR,
+               "ST-V zip: cannot write to cache file \"%s\".\n", out_path);
+         free(buf);
+         zip_close(&za);
+         return NULL;
+      }
+      if (filestream_write(out_fp, buf, ze->uncompressed_size)
+            != (int64_t)ze->uncompressed_size)
+      {
+         log_cb(RETRO_LOG_ERROR,
+               "ST-V zip: short write to cache file \"%s\".\n", out_path);
+         filestream_close(out_fp);
+         free(buf);
+         zip_close(&za);
+         return NULL;
+      }
+      filestream_close(out_fp);
+      free(buf);
+   }
+
+   zip_close(&za);
+   return sgi;
+}
+
 static bool MDFNI_LoadGame(const char *name)
 {
    unsigned horrible_hacks   = 0;
@@ -748,52 +970,103 @@ static bool MDFNI_LoadGame(const char *name)
    // CRC32 disambiguation internally -- much simpler than maintaining
    // a separate filename-list check here.
    //
+   // .zip content takes a different sub-path: prepare_stv_zip_content
+   // identifies the game via DB_LookupSTV_ByPredicate (zip_find as the
+   // resolver) and extracts the rom_layout files to a cache dir under
+   // retro_save_directory.  After successful extraction we synthesise
+   // a (rom_dir, base_filename) pair pointing into that cache dir and
+   // hand it to InitCommon exactly as the bare-file path does.
+   //
    if (name && name[0])
    {
-      cdstream stvfs;
-      if (cdstream_open(&stvfs, name))
+      /* zip path: detect ".zip" suffix, extract, and InitCommon
+       * with the cache dir.  No fall-through to the cdstream-based
+       * bare-file detection -- if the archive opens but isn't ST-V,
+       * we want a clear "no game matched" error rather than a
+       * second pass that tries to interpret the zip-as-binary. */
+      size_t nlen = strlen(name);
+      if (nlen >= 4 && !strcasecmp(name + nlen - 4, ".zip"))
       {
-         // Extract directory + basename. path_basedir mutates its
-         // argument so work on a scratch copy.
-         char dir_buf[4096];
-         strncpy(dir_buf, name, sizeof(dir_buf) - 1);
-         dir_buf[sizeof(dir_buf) - 1] = '\0';
-         fill_pathname_basedir(dir_buf, name, sizeof(dir_buf));
-         // path_basedir leaves a trailing slash; trim it so cart/stv.c's
-         // JoinPath doesn't double up.
-         size_t dirlen = strlen(dir_buf);
-         while (dirlen && (dir_buf[dirlen - 1] == '/' || dir_buf[dirlen - 1] == '\\'))
-            dir_buf[--dirlen] = '\0';
-
-         const char* base = path_basename(name);
-
-         const struct STVGameInfo* sgi = DB_LookupSTV(base ? base : "", &stvfs);
-
-         cdstream_close(&stvfs);
+         char                       cache_dir[4096];
+         const struct STVGameInfo  *sgi =
+            prepare_stv_zip_content(name, cache_dir, sizeof(cache_dir));
 
          if (sgi)
          {
-            // ST-V game recognised. Region comes from the game DB
-            // (cabinet region; affects BIOS selection); cart_type is
-            // forced to CART_STV. cpucache_emumode and horrible_hacks
-            // are pinned to FULL / VDP1RWDRAWSLOWDOWN since upstream
-            // hardcodes these for ST-V (the per-game CemuDB / HHDB
-            // tables don't cover ST-V).
             log_cb(RETRO_LOG_INFO, "ST-V game: %s\n", sgi->name);
 
             region            = sgi->area;
             cart_type         = CART_STV;
             cpucache_emumode  = CPUCACHE_EMUMODE_FULL;
-            horrible_hacks    = 0; // HORRIBLEHACK_VDP1RWDRAWSLOWDOWN if exposed
+            horrible_hacks    = 0;
 
+            /* base_filename for the InitCommon contract -- the loader
+             * uses it for log/error context only (cart/stv.c walks
+             * rom_layout independently); pass rom_layout[0].fname
+             * as the natural "lead" file the cache dir contains. */
             if (InitCommon(cpucache_emumode, horrible_hacks, cart_type,
-                           region, dir_buf, base, sgi))
+                           region, cache_dir, sgi->rom_layout[0].fname, sgi))
             {
                MDFN_LoadGameCheats();
                return true;
             }
             log_cb(RETRO_LOG_ERROR, "ST-V InitCommon failed.\n");
             return false;
+         }
+         /* zip opened but no ST-V game matched, OR open failed: fall
+          * through to BIOS drop.  prepare_stv_zip_content has already
+          * logged the specific reason. */
+      }
+      else
+      {
+         /* Bare-file path: the historic detection.  cdstream_open
+          * the file, DB_LookupSTV with the first 128 bytes for
+          * head_crc32 disambiguation. */
+         cdstream stvfs;
+         if (cdstream_open(&stvfs, name))
+         {
+            // Extract directory + basename. path_basedir mutates its
+            // argument so work on a scratch copy.
+            char dir_buf[4096];
+            strncpy(dir_buf, name, sizeof(dir_buf) - 1);
+            dir_buf[sizeof(dir_buf) - 1] = '\0';
+            fill_pathname_basedir(dir_buf, name, sizeof(dir_buf));
+            // path_basedir leaves a trailing slash; trim it so cart/stv.c's
+            // JoinPath doesn't double up.
+            size_t dirlen = strlen(dir_buf);
+            while (dirlen && (dir_buf[dirlen - 1] == '/' || dir_buf[dirlen - 1] == '\\'))
+               dir_buf[--dirlen] = '\0';
+
+            const char* base = path_basename(name);
+
+            const struct STVGameInfo* sgi = DB_LookupSTV(base ? base : "", &stvfs);
+
+            cdstream_close(&stvfs);
+
+            if (sgi)
+            {
+               // ST-V game recognised. Region comes from the game DB
+               // (cabinet region; affects BIOS selection); cart_type is
+               // forced to CART_STV. cpucache_emumode and horrible_hacks
+               // are pinned to FULL / VDP1RWDRAWSLOWDOWN since upstream
+               // hardcodes these for ST-V (the per-game CemuDB / HHDB
+               // tables don't cover ST-V).
+               log_cb(RETRO_LOG_INFO, "ST-V game: %s\n", sgi->name);
+
+               region            = sgi->area;
+               cart_type         = CART_STV;
+               cpucache_emumode  = CPUCACHE_EMUMODE_FULL;
+               horrible_hacks    = 0; // HORRIBLEHACK_VDP1RWDRAWSLOWDOWN if exposed
+
+               if (InitCommon(cpucache_emumode, horrible_hacks, cart_type,
+                              region, dir_buf, base, sgi))
+               {
+                  MDFN_LoadGameCheats();
+                  return true;
+               }
+               log_cb(RETRO_LOG_ERROR, "ST-V InitCommon failed.\n");
+               return false;
+            }
          }
       }
       // Open or lookup failed; fall through to BIOS drop below.

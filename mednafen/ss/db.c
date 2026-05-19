@@ -1700,6 +1700,33 @@ const struct STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s)
  return NULL;
 }
 
+const struct STVGameInfo* DB_LookupSTV_ByPredicate(DB_STV_HasFile has_file, void* ctx)
+{
+ size_t i, j;
+
+ if(!has_file)
+  return NULL;
+
+ /* Same iteration shape as DB_LookupSTV's body, but the inner match
+  * delegates to the caller's has_file().  No CRC32 check -- the
+  * cdstream-based variant is the only one that does head_crc32
+  * validation, since this predicate-driven variant has no stream
+  * to read from.  Filename-only matching is consistent with the
+  * cdstream variant's behaviour when head_crc32 is 0 (the current
+  * 100% case in STVGI[]). */
+ for(i = 0; i < sizeof(STVGI)/sizeof(STVGI[0]); i++)
+ {
+  const struct STVGameInfo* e = &STVGI[i];
+  for(j = 0; j < sizeof(e->rom_layout)/sizeof(e->rom_layout[0]) && e->rom_layout[j].size; j++)
+  {
+   if(has_file(ctx, e->rom_layout[j].fname))
+    return e;
+  }
+ }
+
+ return NULL;
+}
+
 void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8_t* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode)
 {
  size_t i;
