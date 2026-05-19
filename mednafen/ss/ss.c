@@ -45,6 +45,7 @@
 #include "ss.h"
 
 #include "../../disc.h"
+#include "../../zip_reader.h"
 
 #include <retro_miscellaneous.h>
 
@@ -1775,6 +1776,12 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          RFILE *BIOSFile;
          int64_t bios_size;
          unsigned bw;
+         /* bios_loaded gates the file-read path below: when set by the
+          * stvbios.zip fallback, BIOSROM has already been populated and
+          * the filestream_read / filestream_close block must be
+          * skipped.  Both paths converge on the same SHA256 +
+          * byte-swap finalisation at the bottom. */
+         bool bios_loaded = false;
 
          snprintf(bios_path, sizeof(bios_path), "%s" RETRO_SLASH "%s", retro_base_directory, bios_filename);
 
@@ -1784,44 +1791,102 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
 
          if(!BIOSFile)
          {
-            log_cb(RETRO_LOG_ERROR, "Cannot open BIOS file \"%s\".\n", bios_path);
-            Cleanup();
-            return false;
+            /* ST-V parent-set fallback: when the bare BIOS file isn't
+             * present, try retro_base_directory/stvbios.zip and extract
+             * the region-specific entry directly into BIOSROM[].  This
+             * matches the MAME-style distribution convention -- ST-V
+             * BIOS dumps ship as a parent set (stvbios.zip) containing
+             * all region variants, and users typically drop the zip
+             * into their system dir as-is.
+             *
+             * Restricted to is_stv -- consumer Saturn BIOSes don't have
+             * an equivalent parent-set convention; the user expects
+             * sega_101.bin / mpr-17933.bin as bare files. */
+            if(is_stv)
+            {
+               char zip_path[4096];
+               zip_archive za;
+               snprintf(zip_path, sizeof(zip_path),
+                     "%s" RETRO_SLASH "stvbios.zip", retro_base_directory);
+               if(zip_open(&za, zip_path))
+               {
+                  const struct zip_entry *ze = zip_find(&za, bios_filename);
+                  if(ze && ze->uncompressed_size == 131072)
+                  {
+                     /* memset before extract so high half stays 0xFF
+                      * (ST-V BIOS is 128 KiB; BIOSROM is 512 KiB and
+                      * the SH-2's BIOS window mirrors the same data
+                      * regardless of where the 128 KiB lives). */
+                     memset(BIOSROM, 0xFF, 512 * 1024);
+                     if(zip_extract(&za, ze, (uint8_t*)BIOSROM))
+                     {
+                        bios_size   = 131072;
+                        bios_loaded = true;
+                        log_cb(RETRO_LOG_INFO,
+                              "ST-V BIOS loaded from \"%s\" entry \"%s\".\n",
+                              zip_path, bios_filename);
+                     }
+                     else
+                     {
+                        log_cb(RETRO_LOG_ERROR,
+                              "ST-V BIOS: extract of \"%s\" from \"%s\" failed (CRC mismatch?).\n",
+                              bios_filename, zip_path);
+                     }
+                  }
+                  else if(ze)
+                  {
+                     log_cb(RETRO_LOG_ERROR,
+                           "ST-V BIOS: \"%s\" inside \"%s\" is %u bytes, expected 131072.\n",
+                           bios_filename, zip_path, ze->uncompressed_size);
+                  }
+                  zip_close(&za);
+               }
+            }
+            if(!bios_loaded)
+            {
+               log_cb(RETRO_LOG_ERROR, "Cannot open BIOS file \"%s\".\n", bios_path);
+               Cleanup();
+               return false;
+            }
          }
 
-         /* Saturn BIOSes are 512 KiB; ST-V BIOSes are 128 KiB
-          * (mapped into the upper half of the 512 KiB BIOSROM[] array
-          * and read by the SH-2 from the same 0x00000000-0x000FFFFF
-          * window). Accept either size.
-          *
-          * filestream_get_size must come AFTER the BIOSFile NULL check
-          * -- on filestream_open failure BIOSFile is NULL and passing
-          * it to get_size would be undefined. */
-         bios_size = filestream_get_size(BIOSFile);
-         if(bios_size != 524288 && !(is_stv && bios_size == 131072))
+         if(!bios_loaded)
          {
-            log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" is of an incorrect size.\n", bios_path);
+            /* Saturn BIOSes are 512 KiB; ST-V BIOSes are 128 KiB
+             * (mapped into the upper half of the 512 KiB BIOSROM[] array
+             * and read by the SH-2 from the same 0x00000000-0x000FFFFF
+             * window). Accept either size.
+             *
+             * filestream_get_size must come AFTER the BIOSFile NULL check
+             * -- on filestream_open failure BIOSFile is NULL and passing
+             * it to get_size would be undefined. */
+            bios_size = filestream_get_size(BIOSFile);
+            if(bios_size != 524288 && !(is_stv && bios_size == 131072))
+            {
+               log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" is of an incorrect size.\n", bios_path);
+               filestream_close(BIOSFile);
+               Cleanup();
+               return false;
+            }
+
+            memset(BIOSROM, 0xFF, 512 * 1024);
+            /* Short read between get_size and the actual read would
+             * leave BIOSROM half-loaded (head: partial BIOS bytes,
+             * tail: 0xFF from the memset above), BIOS_SHA256 would
+             * hash the corrupted data, and the byte-swap loop below
+             * would scramble it further.  Fail init with a clear
+             * error rather than silently emulating with a corrupted
+             * BIOS image. */
+            if(filestream_read(BIOSFile, BIOSROM, bios_size) != bios_size)
+            {
+               log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" could not be fully read (short or failed read).\n", bios_path);
+               filestream_close(BIOSFile);
+               Cleanup();
+               return false;
+            }
             filestream_close(BIOSFile);
-            Cleanup();
-            return false;
          }
 
-         memset(BIOSROM, 0xFF, 512 * 1024);
-         /* Short read between get_size and the actual read would
-          * leave BIOSROM half-loaded (head: partial BIOS bytes,
-          * tail: 0xFF from the memset above), BIOS_SHA256 would
-          * hash the corrupted data, and the byte-swap loop below
-          * would scramble it further.  Fail init with a clear
-          * error rather than silently emulating with a corrupted
-          * BIOS image. */
-         if(filestream_read(BIOSFile, BIOSROM, bios_size) != bios_size)
-         {
-            log_cb(RETRO_LOG_ERROR, "BIOS file \"%s\" could not be fully read (short or failed read).\n", bios_path);
-            filestream_close(BIOSFile);
-            Cleanup();
-            return false;
-         }
-         filestream_close(BIOSFile);
          BIOS_SHA256 = sha256(BIOSROM, 512 * 1024);
 
          /* swap endian-ness */
