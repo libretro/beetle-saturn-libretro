@@ -145,11 +145,12 @@ bool MDFNMP_Init(uint32_t ps, uint32_t numpages)
    * std::bad_alloc on OOM; the conversion to calloc dropped
    * the check.  The allocation is small (~tens of pointers
    * in practice), so failure is unlikely on any realistic
-   * target, but the bool return is now meaningful for any
-   * future caller-side propagation.  The current caller
-   * (ss.c's InitFastMemMap, which is void-returning) does
-   * not yet check this; if RAMPtrs is NULL, the subsequent
-   * MDFNMP_AddRAM calls will NULL-deref. */
+   * target, but the bool return is meaningful: ss.c's
+   * InitFastMemMap propagates it (see the `if(!MDFNMP_Init(...))
+   * return false;` at ss.c:1241), and the downstream
+   * MDFNMP_AddRAM / MDFNMP_ApplyPeriodicCheats paths -- which
+   * dereference RAMPtrs unconditionally -- are therefore
+   * unreachable on the failure path. */
   return false;
  }
 
