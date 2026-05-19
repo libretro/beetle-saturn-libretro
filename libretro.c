@@ -5,6 +5,7 @@
 #include <string/stdstring.h>
 #include <streams/file_stream.h>
 #include <file/file_path.h>
+#include <vfs/vfs_implementation.h>
 
 #include "mednafen/ss/db.h"
 #include "zip_reader.h"
@@ -709,6 +710,63 @@ static bool stv_zip_has_file(void *ctx, const char *fname)
    return zip_find(c->za, fname) != NULL;
 }
 
+/* mkdir-p: create `dir` and any missing parents.  libretro-common's
+ * file_path.h declares path_mkdir() with recursive-parent semantics
+ * but its file_path.c never defines the function -- both the in-tree
+ * subset and current upstream master are missing the body.  Roll our
+ * own on top of retro_vfs_mkdir_impl (which does a single mkdir):
+ * try the leaf first; on parent-missing failure, peel the last path
+ * component off and recurse on the parent before retrying the leaf.
+ *
+ * retro_vfs_mkdir_impl return codes:
+ *   0   created
+ *  -1   error (could be parent-missing, permissions, etc.)
+ *  -2   already exists (path_mkdir_error macro family)
+ *
+ * "Already exists" is success for our purposes -- the leaf or one of
+ * the parents being there is fine.  Failure to distinguish "parent
+ * missing" from "permissions" / "disk full" / etc. is acceptable
+ * since we recurse on -1 anyway; if the parent is also unmakeable
+ * we eventually return false. */
+static bool make_dir_recursive(const char *path)
+{
+   int ret;
+   char parent[4096];
+   char *last_sep;
+   char *last_bsep;
+   size_t plen;
+
+   if (!path || !*path)
+      return false;
+
+   ret = retro_vfs_mkdir_impl(path);
+   if (ret == 0 || ret == -2)
+      return true;
+
+   /* Peel last component to recurse on parent.  Handle both forward
+    * and back slashes since the path may be a mix on Windows. */
+   plen = strlen(path);
+   if (plen >= sizeof(parent))
+      return false;
+   memcpy(parent, path, plen + 1);
+
+   last_sep  = strrchr(parent, '/');
+   last_bsep = strrchr(parent, '\\');
+   if (last_bsep && (!last_sep || last_bsep > last_sep))
+      last_sep = last_bsep;
+   if (!last_sep || last_sep == parent)
+      return false;  /* no parent to peel, or already at root */
+
+   *last_sep = '\0';
+
+   if (!make_dir_recursive(parent))
+      return false;
+
+   /* Parent created (or pre-existed); retry the leaf. */
+   ret = retro_vfs_mkdir_impl(path);
+   return (ret == 0 || ret == -2);
+}
+
 /* Strip ".zip" (case-insensitive) from `basename` in place.  Used to
  * derive the per-archive cache subdir name. */
 static void strip_zip_ext(char *basename)
@@ -787,9 +845,11 @@ static const struct STVGameInfo* prepare_stv_zip_content(
          "%s" RETRO_SLASH "stv_extract" RETRO_SLASH "%s",
          retro_save_directory, arch_base);
 
-   /* path_mkdir creates the leaf and any missing parents (libretro-
-    * common's implementation does mkdir -p semantics). */
-   if (!path_mkdir(out_dir))
+   /* mkdir -p semantics: create the leaf plus any missing parents.
+    * libretro-common's path_mkdir declaration has no matching body
+    * in this fork's subset; make_dir_recursive wraps retro_vfs_mkdir_impl
+    * with a peel-and-recurse parent walk. */
+   if (!make_dir_recursive(out_dir))
    {
       log_cb(RETRO_LOG_ERROR,
             "ST-V zip: cannot create cache dir \"%s\".\n", out_dir);
