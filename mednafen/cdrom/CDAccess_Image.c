@@ -1219,6 +1219,9 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
       }
       else /* CUE sheet */
       {
+         int idx;
+         int32_t prev_idx;
+
          if (self->Tracks[x].FirstFileInstance)
             FileOffset = 0;
 
@@ -1235,6 +1238,24 @@ static bool CDAccess_Image_ImageOpen(CDAccess_Image *self, const char *path, boo
           * cdstream_seek.  Reject the load instead. */
          if (self->Tracks[x].pregap_dv < 0)
             goto cleanup_close;
+
+         /* Within-track INDEX 02..99 must be ascending and >= INDEX 01.
+          * parse_msf bounded each INDEX value's MSF range, but never
+          * checked the relationship between indices.  An out-of-order
+          * INDEX produces wrong SubQ-index reporting in MakeSubPQ
+          * (which scans `if (lba >= track.index[i])`); for malformed
+          * input where index[i] is negative-after-rebasing at line
+          * 1297, the comparison's signed semantics flip the index
+          * detection entirely. */
+         prev_idx = self->Tracks[x].index[1];
+         for (idx = 2; idx < 100; idx++)
+         {
+            if (self->Tracks[x].index[idx] == -1)
+               continue;
+            if (self->Tracks[x].index[idx] < prev_idx)
+               goto cleanup_close;
+            prev_idx = self->Tracks[x].index[idx];
+         }
 
          FileOffset            += (int64_t)self->Tracks[x].pregap_dv * DI_Size_Table[self->Tracks[x].DIFormat];
          RunningLBA            += self->Tracks[x].pregap_dv;

@@ -175,6 +175,18 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
     char tmp[512];
     char tmp_int[16];
 
+    /* Cap track count against the on-struct Tracks[CD_MAX_TRACKS+1]
+     * (= [100]) array.  Pre-fix the loop trusted chd_get_metadata to
+     * stop returning entries before NumTracks rolled past 99; a CHD
+     * with a malformed metadata blob declaring 100+ tracks would
+     * have written past the array.  CD_MAX_TRACKS is the CD-DA spec
+     * limit; no valid disc exceeds it. */
+    if (self->NumTracks >= CD_MAX_TRACKS)
+    {
+      log_cb(RETRO_LOG_ERROR, "chd_parse: too many tracks (limit %d)\n", CD_MAX_TRACKS);
+      return 0;
+    }
+
     /* Try V5 metadata tag first, then V3/V4.  The unified
      * chd_meta_find walks the value out per-key, so the same
      * parse code handles both formats -- V3/V4 just won't have
@@ -246,6 +258,24 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
       return 0;
     }
 
+    /* Validate parsed integer ranges.  Pre-fix all four fields
+     * (frames, pregap, postgap, and the now-dropped tkid) were
+     * fed verbatim into the accumulation arithmetic with no bound
+     * check, so a malformed CHD with frames = INT_MIN could push
+     * plba/numsectors/chd_offset into UB-overflow territory.
+     * Cap each to the 100-min CD-DA range with comfortable slop:
+     * 99:59:74 + 150 + a few hundred is the realistic upper bound
+     * for any single track, and the cumulative numsectors check
+     * at the bottom of the loop tightens the disc-total bound. */
+    if (frames < 0 || frames > 600000
+        || pregap < 0 || pregap > 600000
+        || postgap < 0 || postgap > 600000)
+    {
+      log_cb(RETRO_LOG_ERROR, "chd_parse: frames/pregap/postgap out of range (%d/%d/%d)\n",
+             frames, pregap, postgap);
+      return 0;
+    }
+
     /* add track */
     self->NumTracks++;
     self->toc.tracks[self->NumTracks].adr = 1;
@@ -255,6 +285,19 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
     self->Tracks[self->NumTracks].pregap = (self->NumTracks == 1) ? 150 : 0;
     self->Tracks[self->NumTracks].pregap_dv = pregap;
     plba += self->Tracks[self->NumTracks].pregap + self->Tracks[self->NumTracks].pregap_dv;
+
+    /* plba is supposed to track the running LBA across tracks --
+     * negative is only legitimate at the very start (the standard
+     * -150 sector pre-area).  A bogus per-track pregap that walks
+     * us back below -150, or a numeric overflow forward into
+     * negative on a 32-bit accumulator, would produce invalid
+     * track[].LBA values downstream. */
+    if (plba < -150 || plba > 0x7FFFFFFF - 600000)
+    {
+      log_cb(RETRO_LOG_ERROR, "chd_parse: cumulative LBA out of range (%d)\n", plba);
+      return 0;
+    }
+
     self->Tracks[self->NumTracks].LBA = self->toc.tracks[self->NumTracks].lba = plba;
     self->Tracks[self->NumTracks].postgap = postgap;
     self->Tracks[self->NumTracks].chd_offset = chd_offset;

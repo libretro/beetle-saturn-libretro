@@ -558,6 +558,15 @@ static bool CDAccess_CCD_Load(CDAccess_CCD *self, const char *path, bool image_m
       if (session != 1)
          return false;
 
+      /* Defensive bounds before narrowing-to-uint8_t casts.  adr
+       * and control are 4-bit fields per ECMA-394; pmin / psec are
+       * BCD-or-track-number bytes whose meaning depends on point.
+       * Pre-fix unbounded `unsigned long`-to-`uint8_t` casts let a
+       * malformed [ENTRY n] silently truncate, e.g. adr=0x100 -> 0
+       * read by the renderer as 'no track at this point'. */
+      if (adr > 0xF || control > 0xF)
+         return false;
+
       /* Reference: ECMA-394, page 5-14. */
       if (point >= 1 && point <= 99)
       {
@@ -571,10 +580,16 @@ static bool CDAccess_CCD_Load(CDAccess_CCD *self, const char *path, bool image_m
       default:
          return false;
       case 0xA0:
+         /* pmin = first track number (1..99), psec = disc type. */
+         if (pmin < 1 || pmin > 99 || psec > 0xFF)
+            return false;
          self->tocd.first_track = (uint8_t)pmin;
          self->tocd.disc_type   = (uint8_t)psec;
          break;
       case 0xA1:
+         /* pmin = last track number (1..99). */
+         if (pmin < 1 || pmin > 99)
+            return false;
          self->tocd.last_track  = (uint8_t)pmin;
          break;
       case 0xA2:
