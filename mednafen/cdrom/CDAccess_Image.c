@@ -1375,6 +1375,7 @@ static bool CDAccess_Image_Read_Raw_Sector(CDAccess_Image *self, uint8_t *buf, i
       {
          long SeekPos   = ct->FileOffset;
          long LBARelPos = lba - ct->LBA;
+         bool ok        = true;
 
          SeekPos += LBARelPos * DI_Size_Table[ct->DIFormat];
 
@@ -1383,11 +1384,27 @@ static bool CDAccess_Image_Read_Raw_Sector(CDAccess_Image *self, uint8_t *buf, i
 
          cdstream_seek(ct->fp, SeekPos, SEEK_SET);
 
+         /* Pre-fix: every cdstream_read in this switch was unchecked,
+          * the optional sub-channel read after it was unchecked, and
+          * the function returned true unconditionally even when a
+          * read truncated.  The MT read thread in cdromif.c was
+          * already plumbed to surface a per-sector error flag
+          * (SectorBuffers[].error) up through CDIF_MT_ReadRawSector's
+          * `return !error_condition;`, but with this layer always
+          * reporting success the flag was always false and any short
+          * read just got served as garbage to the Saturn CDB.
+          *
+          * Catch each read's result individually so the per-format
+          * post-processing (audio byte-swap, mode1/2 sector encoding)
+          * only runs on a successful read -- encoding over garbage
+          * could produce a sector that *looks* like a valid mode-1
+          * sector with random user-data, harder to debug than an
+          * obviously-zeroed one. */
          switch (ct->DIFormat)
          {
          case DI_FORMAT_AUDIO:
-            cdstream_read(ct->fp, buf, 2352);
-            if (ct->RawAudioMSBFirst)
+            ok = (cdstream_read(ct->fp, buf, 2352) == 2352);
+            if (ok && ct->RawAudioMSBFirst)
             {
                /* Endian_A16_Swap folded: byte-pair swap, unconditional
                 * (RawAudioMSBFirst means the on-disk samples are stored
@@ -1402,30 +1419,41 @@ static bool CDAccess_Image_Read_Raw_Sector(CDAccess_Image *self, uint8_t *buf, i
             }
             break;
          case DI_FORMAT_MODE1:
-            cdstream_read(ct->fp, buf + 12 + 3 + 1, 2048);
-            encode_mode1_sector(lba + 150, buf);
+            ok = (cdstream_read(ct->fp, buf + 12 + 3 + 1, 2048) == 2048);
+            if (ok)
+               encode_mode1_sector(lba + 150, buf);
             break;
          case DI_FORMAT_MODE1_RAW:
          case DI_FORMAT_MODE2_RAW:
          case DI_FORMAT_CDI_RAW:
-            cdstream_read(ct->fp, buf, 2352);
+            ok = (cdstream_read(ct->fp, buf, 2352) == 2352);
             break;
          case DI_FORMAT_MODE2:
-            cdstream_read(ct->fp, buf + 16, 2336);
-            encode_mode2_sector(lba + 150, buf);
+            ok = (cdstream_read(ct->fp, buf + 16, 2336) == 2336);
+            if (ok)
+               encode_mode2_sector(lba + 150, buf);
             break;
          /* FIXME: M2F1, M2F2 - does sub-header come before or after
           * user data? Standards say before. */
          case DI_FORMAT_MODE2_FORM1:
-            cdstream_read(ct->fp, buf + 24, 2048);
+            ok = (cdstream_read(ct->fp, buf + 24, 2048) == 2048);
             break;
          case DI_FORMAT_MODE2_FORM2:
-            cdstream_read(ct->fp, buf + 24, 2324);
+            ok = (cdstream_read(ct->fp, buf + 24, 2324) == 2324);
             break;
          }
 
-         if (ct->SubchannelMode)
-            cdstream_read(ct->fp, buf + 2352, 96);
+         if (ok && ct->SubchannelMode)
+            ok = (cdstream_read(ct->fp, buf + 2352, 96) == 96);
+
+         if (!ok)
+         {
+            log_cb(RETRO_LOG_ERROR,
+                  "CDAccess_Image: short read at lba=%d, fmt=%d\n",
+                  lba, (int)ct->DIFormat);
+            memset(buf, 0, 2352 + 96);
+            return false;
+         }
       }
    }
 

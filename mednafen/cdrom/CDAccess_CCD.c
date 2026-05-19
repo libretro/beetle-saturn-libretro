@@ -667,7 +667,17 @@ static bool CDAccess_CCD_Read_Raw_Sector(CDAccess_CCD *self, uint8_t *buf, int32
    }
 
    cdstream_seek(self->img_stream, lba * 2352, SEEK_SET);
-   cdstream_read(self->img_stream, buf, 2352);
+   if (cdstream_read(self->img_stream, buf, 2352) != 2352)
+   {
+      /* Same rationale as CDAccess_Image's binary path: pre-fix this
+       * was unchecked, downstream got garbage on a short read, and
+       * the cdromif error-flag plumbing was effectively a no-op
+       * because this layer always reported success. */
+      log_cb(RETRO_LOG_ERROR,
+            "CDAccess_CCD: short read at lba=%d\n", lba);
+      memset(buf, 0, 2352 + 96);
+      return false;
+   }
 
    subpw_interleave(&self->sub_data[lba * 96], buf + 2352);
 

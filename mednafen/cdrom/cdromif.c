@@ -383,17 +383,23 @@ static void CDIF_MT_ReadThreadBody(CDIF *self)
           * pattern.  Same shape as beetle-psx-libretro's
           * cdromif.c read thread. */
          const unsigned slot = self->SBWritePos;
+         bool ok;
 
          slock_lock(self->SBMutex);
          self->SectorBuffers[slot].valid = false;
          slock_unlock(self->SBMutex);
 
-         self->disc_cdaccess->Read_Raw_Sector(self->disc_cdaccess,
+         ok = self->disc_cdaccess->Read_Raw_Sector(self->disc_cdaccess,
                self->SectorBuffers[slot].data, self->ra_lba);
 
          slock_lock(self->SBMutex);
          self->SectorBuffers[slot].lba   = self->ra_lba;
-         self->SectorBuffers[slot].error = false;
+         /* Pre-fix: hardcoded false here, so the error_condition
+          * snapshot in CDIF_MT_ReadRawSector was always false and
+          * the whole error_condition -> CDIF_*_ReadRawSector return
+          * propagation was a no-op.  Capture the real outcome now
+          * that the CDAccess_* layer reports it. */
+         self->SectorBuffers[slot].error = !ok;
          self->SectorBuffers[slot].valid = true;
          self->SBWritePos = (slot + 1) % CDIF_SBSIZE;
          scond_signal(self->SBCond);
@@ -484,8 +490,11 @@ static bool CDIF_ST_ReadRawSector(CDIF *self, uint8_t *buf, int32_t lba)
       return false;
    }
 
-   self->disc_cdaccess->Read_Raw_Sector(self->disc_cdaccess, buf, lba);
-   return true;
+   /* Pre-fix: ignored Read_Raw_Sector's return and unconditionally
+    * returned true.  The MT counterpart routes failure through
+    * SectorBuffers[].error; the ST path has no sector buffer to
+    * stash it in, so just propagate the bool directly. */
+   return self->disc_cdaccess->Read_Raw_Sector(self->disc_cdaccess, buf, lba);
 }
 
 static bool CDIF_ST_ReadRawSectorPWOnly(CDIF *self, uint8_t *pwbuf, int32_t lba, bool hint_fullread)

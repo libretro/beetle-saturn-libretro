@@ -346,6 +346,22 @@ static bool CDAccess_CHD_Read_Raw_Sector(CDAccess_CHD *self, uint8_t *buf, int32
       err = chd_read(self->chd, hunkid, self->hunkmem);
       if (err == CHDERR_NONE)
         self->oldhunk = hunkid;
+      else
+      {
+        /* Pre-fix: chd_read failure was detected (oldhunk wasn't
+         * updated) but the memcpy below still ran -- caller got
+         * the *previous* hunk's bytes served up as if they belonged
+         * to this LBA.  Worse than a clean error: a Mode-1 / Mode-2
+         * encode would then run over those stale bytes and produce
+         * a sector that looked structurally valid but carried the
+         * wrong user-data.  Surface the failure to the caller
+         * instead. */
+        log_cb(RETRO_LOG_ERROR,
+              "CDAccess_CHD: chd_read failed for hunk %d at lba=%d (err=%d)\n",
+              hunkid, lba, err);
+        memset(buf, 0, 2352 + 96);
+        return false;
+      }
     }
 
     if (ct->DIFormat == DI_FORMAT_MODE1 || ct->DIFormat == DI_FORMAT_MODE2) {
