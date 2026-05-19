@@ -154,18 +154,25 @@ static void Kill(void)
    }
 }
 
-static void JoinPath(char *out, size_t out_size, const char *dir, const char *fname)
+static bool JoinPath(char *out, size_t out_size, const char *dir, const char *fname)
 {
    /* Simple path concatenation. We expect rom_dir already does NOT have a
       trailing slash; if the caller fed us one we tolerate it. Doesn't try to
       handle Windows backslashes -- libretro frontends normalize to forward
-      slashes by the time this layer sees a path. */
+      slashes by the time this layer sees a path.
+      Pre-fix strncat chain silently truncated on overflow; the caller then
+      saw a misleading "ROM image file not found" instead of a path-too-long
+      error.  snprintf with return-check surfaces the failure here. */
    size_t dl = strlen(dir);
-   out[0] = '\0';
-   strncat(out, dir, out_size - 1);
-   if(dl && dir[dl - 1] != '/' && dir[dl - 1] != '\\')
-      strncat(out, "/", out_size - 1 - strlen(out));
-   strncat(out, fname, out_size - 1 - strlen(out));
+   bool   has_sep = (dl > 0 && (dir[dl - 1] == '/' || dir[dl - 1] == '\\'));
+   int    n;
+
+   if (has_sep)
+      n = snprintf(out, out_size, "%s%s", dir, fname);
+   else
+      n = snprintf(out, out_size, "%s/%s", dir, fname);
+
+   return !(n < 0 || (size_t)n >= out_size);
 }
 
 bool CART_STV_Init(struct CartInfo *c, const char *rom_dir, const char *main_fname, const struct STVGameInfo *sgi)
@@ -233,7 +240,11 @@ bool CART_STV_Init(struct CartInfo *c, const char *rom_dir, const char *main_fna
          continue;
       }
 
-      JoinPath(fpath, sizeof(fpath), rom_dir, rle->fname);
+      if(!JoinPath(fpath, sizeof(fpath), rom_dir, rle->fname))
+      {
+         log_cb(RETRO_LOG_ERROR, "ST-V: ROM image path too long (rom_dir + \"%s\")\n", rle->fname);
+         goto fail;
+      }
       fp = filestream_open(fpath,
                            RETRO_VFS_FILE_ACCESS_READ,
                            RETRO_VFS_FILE_ACCESS_HINT_NONE);

@@ -261,10 +261,14 @@ static void split_path(const char *path, char *dir_out, size_t dir_sz,
 }
 
 /* Build dir + sep + name into out_buf.  Equivalent to MDFN_EvalFIP
- * with skip_safety_check=true (the only mode CDAccess_CCD ever used). */
-static void join_path(const char *dir, const char *name, char *out_buf, size_t out_sz)
+ * with skip_safety_check=true (the only mode CDAccess_CCD ever used).
+ * Returns false on truncation; callers must check or risk
+ * filestream_open() reporting a misleading "file not found" on a
+ * silently-truncated path. */
+static bool join_path(const char *dir, const char *name, char *out_buf, size_t out_sz)
 {
-   snprintf(out_buf, out_sz, "%s%c%s", dir, PATH_SEP, name);
+   int n = snprintf(out_buf, out_sz, "%s%c%s", dir, PATH_SEP, name);
+   return !(n < 0 || (size_t)n >= out_sz);
 }
 
 /* ----------------------------------------------------------------
@@ -588,7 +592,11 @@ static bool CDAccess_CCD_Load(CDAccess_CCD *self, const char *path, bool image_m
 
    /* Open image stream (raw 2352-byte sectors). */
    snprintf(tmp_name, sizeof(tmp_name), "%s.%s", file_base, img_ext);
-   join_path(dir_path, tmp_name, tmp_path, sizeof(tmp_path));
+   if (!join_path(dir_path, tmp_name, tmp_path, sizeof(tmp_path)))
+   {
+      log_cb(RETRO_LOG_ERROR, "CCD: companion image path too long\n");
+      return false;
+   }
 
    if (image_memcache)
       self->img_stream = cdstream_new_memcached(tmp_path);
@@ -608,7 +616,11 @@ static bool CDAccess_CCD_Load(CDAccess_CCD *self, const char *path, bool image_m
 
    /* Open subchannel stream (96 raw bytes per sector). */
    snprintf(tmp_name, sizeof(tmp_name), "%s.%s", file_base, sub_ext);
-   join_path(dir_path, tmp_name, tmp_path, sizeof(tmp_path));
+   if (!join_path(dir_path, tmp_name, tmp_path, sizeof(tmp_path)))
+   {
+      log_cb(RETRO_LOG_ERROR, "CCD: companion subchannel path too long\n");
+      return false;
+   }
 
    sub_stream = filestream_open(tmp_path,
          RETRO_VFS_FILE_ACCESS_READ,
