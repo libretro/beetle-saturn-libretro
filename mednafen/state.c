@@ -302,7 +302,17 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 
 		toa[1 + toa[0]] = 0;
 
-		smem_read32le(st, &recorded_size);
+		/* Short read here would leave recorded_size at stack garbage
+		 * (first iteration) or stale value from the prior iteration.
+		 * The size check at line below would then either trip the
+		 * wrong branch (seek by a bogus delta) or wave a corrupt
+		 * load through to the per-var smem_read.  Treat as a
+		 * truncated state -> clean abort. */
+		if (smem_read32le(st, &recorded_size) != 4)
+		{
+			free(sfmap.entries);
+			return(0);
+		}
 
 		tmp = SFMap_Find(&sfmap, (char *)toa + 1);
 
@@ -326,7 +336,21 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 
 				do
 				{
-					smem_read(st, (void*)p, expected_size);
+					/* Pre-fix this was unchecked, so a truncated
+					 * state buffer would leave the destination
+					 * holding a mix of save-state bytes (head) and
+					 * its pre-load value (tail).  For repeating
+					 * SFORMAT entries (repcount > 0) the smem_read
+					 * advances the buffer cursor regardless of how
+					 * much it actually read, so a single short read
+					 * here would also shift every following chunk
+					 * out of phase -- frankenstein state across
+					 * multiple subsystems. */
+					if (smem_read(st, (void*)p, expected_size) != (int32_t)expected_size)
+					{
+						free(sfmap.entries);
+						return(0);
+					}
 
 					if(!type)
 					{
@@ -482,18 +506,36 @@ int MDFNSS_LoadSM(void *st_p, uint32_t ver)
 	uint32_t stateversion;
 	StateMem *st = (StateMem*)st_p;
 
-	smem_read( st, header, 32 );
+	/* Truncated save-state buffer would leave header[] holding stack
+	 * garbage; the memcmp below would then 'happen to' fail the
+	 * magic check because random stack bytes are very unlikely to
+	 * spell "MDFNSVST", but correctness via undefined behaviour is
+	 * a bad bet -- a clever optimizer that decided smem_read
+	 * couldn't fail (or pre-filled the buffer speculatively) could
+	 * silently start passing.  Same hazard / same fix as the SBI
+	 * header read in CDAccess_Image_LoadSBI. */
+	if (smem_read( st, header, 32 ) != 32)
+		return(0);
 
-	// Invalid header?
+	/* Invalid header? */
 	if ( memcmp( header, "MDFNSVST", 8 ) )
 		return(0);
 
-	// Unsupported state version?
-	/* MDFN_de32lsb folded inline: build host-endian uint32_t from 4 LE bytes. */
+	/* Unsupported state version?
+	 * MDFN_de32lsb folded inline: build host-endian uint32_t from 4 LE bytes.
+	 *
+	 * Signed cast matches upstream Mednafen state.cpp: a malformed
+	 * state with the high bit set (e.g. 0xFFFFFFFF) reads as a
+	 * negative int and falls below 0x900, getting rejected.  The
+	 * pre-fix unsigned compare would have accepted such junk and
+	 * passed it down to LibRetro_StateAction as the 'load' arg --
+	 * harmless today (the version isn't actually consumed inside,
+	 * just used as a boolean) but the upstream guard is the
+	 * safer pattern. */
 	stateversion = (uint32_t)header[16] | ((uint32_t)header[17] << 8) | ((uint32_t)header[18] << 16) | ((uint32_t)header[19] << 24);
-	if ( stateversion < 0x900 )
+	if ( (int32_t)stateversion < 0x900 )
 		return(0);
 
-	// Call out to main save state function.
+	/* Call out to main save state function. */
 	return LibRetro_StateAction( st, stateversion /*LOAD*/);
 }
