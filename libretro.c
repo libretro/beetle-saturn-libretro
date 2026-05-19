@@ -1479,7 +1479,25 @@ void retro_get_system_info(struct retro_system_info *info)
    info->library_version  = MEDNAFEN_CORE_VERSION GIT_VERSION;
    info->need_fullpath    = true;
    info->valid_extensions = MEDNAFEN_CORE_EXTENSIONS;
-   info->block_extract    = false;
+   /* block_extract: tell the frontend NOT to auto-extract .zip
+    * content -- our libretro.c handles ST-V .zip directly via the
+    * in-tree zip_reader (see prepare_stv_zip_content above).
+    *
+    * With block_extract = false, RetroArch's content layer sees the
+    * .zip, decides "core requires uncompressed content", and tries
+    * to extract by matching files inside against valid_extensions.
+    * MAME-style ST-V ROM names (fpr18914.13, mpr18915.1, ...) don't
+    * match any of the cue/ccd/chd/toc/m3u extensions, so RetroArch
+    * fails with "Failed to extract content from compressed file"
+    * before retro_load_game is called.  block_extract = true bypasses
+    * that probe entirely: the .zip path arrives at retro_load_game
+    * intact, our zip handler identifies the game via STVGI[], and
+    * extracts to the per-archive cache dir under retro_save_directory.
+    *
+    * Bare-file content (.cue/.chd/etc. -- non-zip) is unaffected:
+    * block_extract only governs archive handling, and non-archives
+    * are passed through to retro_load_game with both flag settings. */
+   info->block_extract    = true;
 }
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
