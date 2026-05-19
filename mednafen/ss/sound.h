@@ -37,7 +37,7 @@ extern "C" {
 
 extern int16_t IBuffer[1024][2];
 
-void SOUND_Init(void) MDFN_COLD;
+void SOUND_Init(bool stv_mapping) MDFN_COLD;
 void SOUND_Reset(bool powering_up) MDFN_COLD;
 void SOUND_Kill(void) MDFN_COLD;
 

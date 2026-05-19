@@ -72,6 +72,20 @@ static uint32_t clock_ratio;
 int16_t IBuffer[1024][2];
 uint32_t IBufferCount;
 
+/* ST-V vs Saturn sound CPU bus-mapping flag.  Set by SOUND_Init from
+ * cart_type==CART_STV.  When true, the SoundCPU bus callbacks treat
+ * the 0x000000-0x7FFFFF address range (everything below the
+ * 0x800000-0xFFFFFF SCSP region) as unmapped: reads return -1, instr
+ * fetches return 0xFFFF, writes are dropped, RMW operates on 0xFF.
+ * When false (Saturn), the same region triggers M68K
+ * SignalDTACKHalted and longjmps out of the SoundCPU run loop --
+ * which on real Saturn HW is correct, but on ST-V would kill the
+ * sound CPU before it can do anything.
+ *
+ * Restores upstream Mednafen's `template<bool TA_STV>` specialisation
+ * dropped by the C++ -> C source-fold pass. */
+static bool sound_stv_mapping;
+
 /* SCSP IRQ-line and main-CPU-int callbacks.  Pulled in by scsp.inc
  * and called from the SCSP state machine; touch the M68K IPL line
  * and the SCU interrupt latch respectively. */
@@ -108,6 +122,8 @@ static void RunSCSP(void);
                                                                                                    \
   if(A & (SIZEMASK))                                                                               \
    M68K_SignalAddressError(&SoundCPU, A, 0x3);                                                     \
+  else if(sound_stv_mapping && !(A & 0x800000))                                                    \
+   return (T_t)-1;                                                                                 \
   else                                                                                             \
    M68K_SignalDTACKHalted(&SoundCPU, A);                                                           \
                                                                                                    \
@@ -141,6 +157,8 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
 
   if(A & 1)
    M68K_SignalAddressError(&SoundCPU, A, 0x2);
+  else if(sound_stv_mapping && !(A & 0x800000))
+   return 0xFFFF;
   else
    M68K_SignalDTACKHalted(&SoundCPU, A);
 
@@ -177,6 +195,8 @@ static MDFN_FASTCALL uint16_t SoundCPU_BusReadInstr(uint32_t A)
                                                                                                    \
   if(A & (SIZEMASK))                                                                               \
    M68K_SignalAddressError(&SoundCPU, A, 0x1);                                                     \
+  else if(sound_stv_mapping && !(A & 0x800000))                                                    \
+   return;                                                                                         \
   else                                                                                             \
    M68K_SignalDTACKHalted(&SoundCPU, A);                                                           \
                                                                                                    \
@@ -203,6 +223,17 @@ static MDFN_FASTCALL void SoundCPU_BusRMW(uint32_t A, uint8_t (MDFN_FASTCALL *cb
 {
  if(MDFN_UNLIKELY(A & 0xE00000))
  {
+  if(sound_stv_mapping && !(A & 0x800000))
+  {
+   uint8_t tmp;
+   SoundCPU.timestamp += 2;
+   tmp = 0xFF;
+   tmp = cb(&SoundCPU, tmp);
+   SoundCPU.timestamp += 4;
+   SoundCPU.timestamp += 2;
+   return;
+  }
+
   SoundCPU.timestamp += 4;
   M68K_SignalDTACKHalted(&SoundCPU, A);
   MDFN_longjmp(SOUND_jbuf);
@@ -275,8 +306,10 @@ static void RunSCSP(void)
  * Public SOUND_* ABI
  * =================================================================== */
 
-void SOUND_Init(void)
+void SOUND_Init(bool stv_mapping)
 {
+ sound_stv_mapping = stv_mapping;
+
  memset(IBuffer, 0, sizeof(IBuffer));
  IBufferCount = 0;
 

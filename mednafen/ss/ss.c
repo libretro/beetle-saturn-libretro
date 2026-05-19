@@ -1918,7 +1918,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       VDP2_Init(PAL, vdp2_affinity);
       VDP2_SetGetVideoParams(&EmulatedSS, true, sls, sle, true, DoHBlend);
       CDB_Init();
-      SOUND_Init();
+      SOUND_Init(is_stv);
 
       InitEvents();
       UpdateInputLastBigTS = 0;
