@@ -1417,7 +1417,7 @@ void retro_run(void)
    // run-ahead simulation passes (current_frame_is_sim was set at the
    // top of this function from RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE
    // bit 0). The 3-second batching delay is preserved via a frame
-   // counter; ~180 frames at NTSC's 59.83 Hz and PAL's 49.92 Hz both
+   // counter; ~180 frames at NTSC's 59.76 Hz and PAL's 49.92 Hz both
    // round to roughly 3 seconds, close enough for save batching.
    //
    {
@@ -1537,7 +1537,36 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    if (pal_region)
       info->timing.fps            = 49.92012779552716;
    else
-      info->timing.fps            = 59.82650314089141;
+   {
+      /* NTSC refresh derived from MAME's saturn.cpp / stv.cpp screen
+       * configuration: set_raw(MASTER_CLOCK_320/8, 427, 0, ..., 263, 0, 224),
+       * where MASTER_CLOCK_320 = 53,693,174 Hz (15x NTSC color subcarrier,
+       * the real-world crystal value Sega used). That gives
+       *   53693174 / 8 / (427 * 263) = 59.764800 Hz (== MAME's reported
+       *   59.764802 Hz at saturnjp and every stv romset).
+       *
+       * Previously hardcoded as 59.82650314089141, which was derived from
+       * beetle's own internal 352-dot-mode crystal switch (28.636 MHz
+       * CPU clock / 478660 timestamps per frame). That value is strictly
+       * more hardware-accurate for 352-dot mode (real Saturn does switch
+       * to MASTER_CLOCK_352 in 352 mode, MAME does not), but every
+       * cross-reference (MAME, arcadeitalia / mdk.cab, datomatic) lists
+       * 59.764802, and the frontend / display-sync use cases (VRR target,
+       * RetroArch's set_video_refresh, sub-frame audio resampling) all
+       * benefit more from agreement with the established reference than
+       * from the 352-mode internal-crystal precision.
+       *
+       * The internal emulation timing (HTimings/VTimings, cur_clock_div
+       * 61/65 selection, ts_freq -> sample-clock ratio) is unchanged.
+       * The 0.10% gap between the reported rate and beetle's actual
+       * 352-mode internal rate means the frontend will believe one frame
+       * is 16.730 ms while the emulator produces 16.7150 ms of game time
+       * worth of audio per frame; the libretro audio_batch_cb path
+       * absorbs this as a constant ~0.1% audio-clock skew, well below
+       * any audible pitch shift threshold and identical to what every
+       * other Saturn emulator that reports MAME's value already has. */
+      info->timing.fps            = 53693174.0 / 8.0 / (427.0 * 263.0);
+   }
 }
 
 void retro_deinit(void)
