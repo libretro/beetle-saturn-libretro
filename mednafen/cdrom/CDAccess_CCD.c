@@ -628,8 +628,23 @@ static bool CDAccess_CCD_Load(CDAccess_CCD *self, const char *path, bool image_m
       filestream_close(sub_stream);
       return false;
    }
-   filestream_read(sub_stream, self->sub_data, (uint64_t)self->img_numsectors * 96);
-   filestream_close(sub_stream);
+   {
+      /* Size pre-check above already verified the file is exactly
+       * `expected_bytes` long, so a short read here would mean an
+       * I/O error mid-read rather than a truncated file.  Either
+       * way, processing the partial buffer would leave us doing
+       * SubQ sanity checks against malloc-garbage in the unread
+       * tail. */
+      const int64_t expected_bytes = (int64_t)((uint64_t)self->img_numsectors * 96);
+      const int64_t got_bytes      = filestream_read(sub_stream, self->sub_data, expected_bytes);
+      filestream_close(sub_stream);
+      if (got_bytes != expected_bytes)
+      {
+         free(self->sub_data);
+         self->sub_data = NULL;
+         return false;
+      }
+   }
 
    if (!CDAccess_CCD_CheckSubQSanity(self))
       return false;

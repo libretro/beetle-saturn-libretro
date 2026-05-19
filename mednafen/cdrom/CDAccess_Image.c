@@ -591,9 +591,12 @@ static bool CDAccess_Image_LoadSBI(CDAccess_Image *self, const char *sbi_path)
    if (!sbis)
       return true;
 
-   filestream_read(sbis, header, 4);
-
-   if (memcmp(header, "SBI\0", 4))
+   /* Short or failed read leaves header[] with stack garbage; the
+    * pre-fix code then ran memcmp against that garbage, which only
+    * happened to fail the magic check by luck of the stack bytes.
+    * Fold the read-success check into the magic check. */
+   if (filestream_read(sbis, header, 4) != 4
+         || memcmp(header, "SBI\0", 4))
       goto error;
 
    while (filestream_read(sbis, ed, sizeof(ed)) == sizeof(ed))

@@ -114,8 +114,25 @@ bool CART_BootROM_Init(struct CartInfo *c, RFILE *str)
             (unsigned)ROM_Size);
       return false;
    }
-   memset(ROM, 0x00, ROM_Size);
-   filestream_read(str, ROM, ss);
+   /* No memset here: calloc above already zeroed the entire ROM_Size
+    * buffer.  The byte-swap loop below sweeps the full ROM_Size and
+    * relies on the [ss .. ROM_Size) tail being zero so swapping it
+    * stays a no-op (zero-byte-swapped is still zero). */
+
+   if (filestream_read(str, ROM, ss) != (int64_t)ss)
+   {
+      /* Pre-trim the read was unchecked and a short read silently
+       * left the head of ROM[] holding partial bytes followed by
+       * the calloc zeros.  The Saturn would then execute garbage
+       * from the cart-ROM entry point and either hang quietly or
+       * exhibit a memorable visual crash.  Detect it instead. */
+      log_cb(RETRO_LOG_ERROR,
+            "Bootable Saturn cart ROM: short read (expected %llu bytes).\n",
+            (unsigned long long)ss);
+      free(ROM);
+      ROM = NULL;
+      return false;
+   }
 
    /* Pre-trim there was a sha256_hasher_process + sha256_hasher_digest
     * chain here that wrote the digest's first 16 bytes into
