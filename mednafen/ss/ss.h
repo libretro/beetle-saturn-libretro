@@ -211,6 +211,15 @@ extern "C" {
  void Emulate(struct EmulateSpecStruct* espec_arg);
  void CloseGame(void) MDFN_COLD;
 
+ /* Frontend-facing input-routing wrapper.  Callers should use this
+  * instead of SMPC_SetInput directly so that ST-V games get their
+  * STVIO_SetInput path hit and the SMPC port shim (installed by
+  * InitCommon) isn't overwritten.  Mirrors the upstream Mednafen
+  * SetInput() in ss.cpp.  For non-ST-V games this is a thin pass-
+  * through to SMPC_SetInput, so existing call sites are bit-for-bit
+  * identical post-swap on consumer Saturn content. */
+ void SS_SetInput(unsigned port, const char* type, uint8_t* ptr) MDFN_COLD;
+
 #ifdef __cplusplus
 }
 #endif

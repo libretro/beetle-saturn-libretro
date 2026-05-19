@@ -2063,6 +2063,46 @@ void SS_SaveBackupRAM(void)
  cdstream_close(&brs);
 }
 
+/* Input-routing wrapper -- mirrors upstream Mednafen's TU-static
+ * SetInput() in ss.cpp (the one the frontend calls instead of
+ * SMPC_SetInput directly).  Required because for ST-V games the
+ * input flow is fundamentally different:
+ *
+ *   - SMPC ports 0/1 are owned by the STVIO SMPC-port shim (installed
+ *     by InitCommon via SMPC_SetInput(sp, "extern", STVIO_GetSMPCDevice(sp))).
+ *     The shim handles AK93C45 EEPROM access and 68K sound-CPU control
+ *     forwarding.  Overwriting them with SMPC_SetInput(sp, "gamepad",
+ *     ...) -- as the libretro fork's input.c does in input_init --
+ *     breaks both: EEPROM reads return garbage (game can't load its
+ *     settings and may loop at boot), and the sound CPU stays held in
+ *     reset (no audio output at all).
+ *
+ *   - Player input bytes for ST-V games must flow into STVIO via DPtr[]
+ *     (set by STVIO_SetInput), not into SMPC's gamepad IODevice via
+ *     VirtualPortsDPtr.  STVIO_UpdateInput reads DPtr to build the
+ *     ST-V IOGA register state; the gamepad IODevice's "buttons"
+ *     field is never read by ST-V games (SMPC's gamepad output goes
+ *     to the (non-existent) Saturn-side SMPC ports, not the ST-V cab).
+ *
+ *   - Misc-input (port 12, the reset/test/service/pause byte) must
+ *     be wired in BOTH places: STVIO reads test/service/pause via
+ *     DPtr[12]; SMPC reads reset-button via MiscInputPtr.
+ *
+ * Upstream's wrapper encodes all of this; copy it verbatim with the
+ * extern int ActiveCartType picked up from this TU.  Callers replace
+ * direct SMPC_SetInput() calls with SS_SetInput() to get the right
+ * routing automatically. */
+void SS_SetInput(unsigned port, const char* type, uint8_t* ptr)
+{
+ if(ActiveCartType == CART_STV)
+ {
+  STVIO_SetInput(port, type, ptr);
+  if(port < 12)
+   return;
+ }
+ SMPC_SetInput(port, type, ptr);
+}
+
 void SS_LoadBackupRAM(void)
 {
  char fpath[4096];
