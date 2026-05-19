@@ -12,6 +12,8 @@ extern retro_log_printf_t log_cb;
 
 #include "mednafen/ss/ss.h"
 #include "mednafen/ss/smpc.h"
+#include "mednafen/ss/cart.h"   /* CART_STV (ActiveCartType compare for ST-V coin wireup) */
+#include "mednafen/ss/stvio.h"  /* STVIO_InsertCoin */
 #include "mednafen/state.h"
 #include <math.h>
 #include <stdio.h>
@@ -75,6 +77,23 @@ static uint32_t input_type[ MAX_CONTROLLERS ]	= {0};
 // Mode switch for 3D Control Pad (per player)
 static uint16_t input_mode[ MAX_CONTROLLERS ] 		= {0};
 static int16_t input_throttle_latch[ MAX_CONTROLLERS ]	= {0};
+
+/* ST-V coin-insert edge-detect state.  RETRO_DEVICE_ID_JOYPAD_SELECT
+ * doubles as the 3D Pad mode switch on consumer Saturn games (cf.
+ * input_map_3d_pad_mode_switch below) and as the coin button on ST-V
+ * games -- the two uses can't conflict since ST-V games don't use
+ * the 3D Pad.  prev_coin[port] tracks last frame's SELECT bit per
+ * port; check_stv_coin_inserts edge-triggers on rising 0 -> 1 to
+ * dispatch one STVIO_InsertCoin() per press, gated on ActiveCartType
+ * == CART_STV.  Both player 1 and player 2 SELECTs feed the same
+ * single CoinPending counter in stvio.c -- the ST-V coin slot is
+ * one-per-cabinet, so cumulating presses is the right model. */
+static bool prev_coin[ MAX_CONTROLLERS ] = {0};
+
+/* ActiveCartType lives in mednafen/ss/ss.c.  No header exposes it
+ * (it's a TU-local global with extern decls inline at the usage
+ * sites in ss.c itself), so input.c picks it up the same way. */
+extern int ActiveCartType;
 
 //------------------------------------------------------------------------------
 // Supported Devices
@@ -449,7 +468,7 @@ void input_init_env( retro_environment_t _environ_cb )
 		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2,    "L Button" },								\
 		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,    "R Button" },								\
 		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START, "Start Button" },							\
-		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Mode Switch" },							\
+		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Mode Switch / Coin (ST-V)" },							\
 		{ _user, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X, "Analog X" },		\
 		{ _user, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y, "Analog Y" },		\
 		{ _user, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X, "Analog X (Right)" },	\
@@ -536,6 +555,39 @@ void input_set_mouse_sensitivity( int percent )
 {
 	if ( percent > 0 && percent <= 200 )
 		mouse_sensitivity = (float)percent / 100.0f;
+}
+
+/* Rising-edge detect SELECT on each port; on press, queue one ST-V
+ * coin via STVIO_InsertCoin.  Called from the tail of both the
+ * bitmask and per-key polling paths.  No-op outside ST-V mode so
+ * the prev_coin[] state stays valid across cart transitions without
+ * resetting -- if a user swaps ST-V game while pressing SELECT, the
+ * next press on the new game still edge-triggers (the held-through
+ * state stays true, the next 0 -> 1 transition is the next press).
+ *
+ * The MASK fast path reads all buttons in one input_state_cb call;
+ * the non-bitmask path is a per-button query.  Both share this
+ * helper, which queries SELECT once per port directly -- one extra
+ * per-port input_state_cb call vs. piggy-backing on the existing
+ * per-player input_type dispatch, but cheaper than threading the
+ * coin-bit through every input-type branch and easier to reason
+ * about (input_type-specific transforms don't bleed into the ST-V
+ * coin path). */
+static void check_stv_coin_inserts( retro_input_state_t input_state_cb )
+{
+	unsigned port;
+
+	if ( ActiveCartType != CART_STV )
+		return;
+
+	for ( port = 0; port < MAX_CONTROLLERS && port < 2; ++port )
+	{
+		const bool now = !!input_state_cb( port, RETRO_DEVICE_JOYPAD, 0,
+		                                   RETRO_DEVICE_ID_JOYPAD_SELECT );
+		if ( now && !prev_coin[ port ] )
+			STVIO_InsertCoin();
+		prev_coin[ port ] = now;
+	}
 }
 
 void input_update_with_bitmasks( retro_input_state_t input_state_cb )
@@ -1107,6 +1159,8 @@ void input_update_with_bitmasks( retro_input_state_t input_state_cb )
 		} // switch ( input_type[ iplayer ] )
 
 	} // for each player
+
+	check_stv_coin_inserts( input_state_cb );
 }
 
 void input_update( retro_input_state_t input_state_cb )
@@ -1677,6 +1731,8 @@ void input_update( retro_input_state_t input_state_cb )
 		} // switch ( input_type[ iplayer ] )
 
 	} // for each player
+
+	check_stv_coin_inserts( input_state_cb );
 }
 
 // save state function for input
