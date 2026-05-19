@@ -4935,39 +4935,31 @@ void VDP2REND_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int
  LineVisFirst = sls;
  LineVisLast = sle;
  //
+ // Geometry hints written into MDFNGI for downstream consumers.
+ // Only the four fields actually read by SMPC's gun-coordinate
+ // math (smpc_iodevice.c) are populated here -- the previous list
+ // also wrote lcm_width / lcm_height / fb_width / fb_height /
+ // nominal_height / mouse_scale_y, but none of those are read
+ // anywhere in this fork.  See the MDFNGI definition in
+ // mdfn_gameinfo.h for the trimmed set.
  //
- //
- gi->fb_width = 704;
-
  if(PAL)
- {
   gi->nominal_width = (ShowHOverscan ? 365 : 354);
-  gi->fb_height = 576;
- }
  else
- {
   gi->nominal_width = (ShowHOverscan ? 302 : 292);
-  gi->fb_height = 480;
- }
- gi->nominal_height = LineVisLast + 1 - LineVisFirst;
-
- gi->lcm_width = (ShowHOverscan? 10560 : 10240);
- gi->lcm_height = (LineVisLast + 1 - LineVisFirst) * 2;
 
  gi->mouse_scale_x = (float)(ShowHOverscan? 21472 : 20821);
- gi->mouse_offs_x = (float)(ShowHOverscan? 0 : 651) / 2;
- gi->mouse_scale_y = gi->nominal_height;
- gi->mouse_offs_y = LineVisFirst;
+ gi->mouse_offs_x  = (float)(ShowHOverscan? 0 : 651) / 2;
+ gi->mouse_offs_y  = LineVisFirst;
  //
  //
  //
  if(!CorrectAspect)
  {
   gi->nominal_width = (ShowHOverscan ? 352 : 341);
-  gi->lcm_width = gi->nominal_width * 2;
 
   gi->mouse_scale_x = (float)(ShowHOverscan? 21472 : 20821);
-  gi->mouse_offs_x = (float)(ShowHOverscan? 0 : 651) / 2;
+  gi->mouse_offs_x  = (float)(ShowHOverscan? 0 : 651) / 2;
  }
 }
 

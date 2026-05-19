@@ -26,8 +26,10 @@
   #endif
 
   #define MDFN_ALIGN(n)	__attribute__ ((aligned (n)))
-  #define MDFN_FORMATSTR(a,b,c) __attribute__ ((format (a, b, c)));
-  #define MDFN_WARN_UNUSED_RESULT __attribute__ ((warn_unused_result))
+  /* MDFN_FORMATSTR (function-call format-string checks) and
+   * MDFN_WARN_UNUSED_RESULT used to live here.  Zero call sites
+   * in this fork; dropped.  Reintroduce per call site rather
+   * than as a tree-wide macro if a future user wants either. */
   #define MDFN_NOWARN_UNUSED __attribute__((unused))
 
 #elif defined(_MSC_VER)
@@ -42,9 +44,6 @@
   //#define MDFN_ALIGN(n) __declspec(align(n))
 #define MDFN_ALIGN(n)
 
-  #define MDFN_FORMATSTR(a,b,c)
-
-  #define MDFN_WARN_UNUSED_RESULT
   #define MDFN_NOWARN_UNUSED
 
 #else
@@ -55,10 +54,6 @@
   #define MDFN_FASTCALL
 
   #define MDFN_ALIGN(n)
-
-  #define MDFN_FORMATSTR(a,b,c)
-
-  #define MDFN_WARN_UNUSED_RESULT
 
 #endif
 

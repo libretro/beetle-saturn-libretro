@@ -572,13 +572,32 @@ static void MDFN_zapctrlchars(char* s)
  }
 }
 
-static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, char* sgname, char* sgarea )
+static void CalcGameID( uint8_t* fd_id_out16, char* sgid, char* sgname, char* sgarea )
 {
 	md5_context mctx;
 	uint8_t buf[2048];
 	size_t x;
 
 	log_cb(RETRO_LOG_INFO, "Calculating game ID (%d discs)\n", num_discs );
+
+	/* Pre-trim this function also computed a 16-byte MD5 over EVERY
+	 * disc's TOC + IPL-region sectors and returned it in an id_out16
+	 * out-parameter.  The only consumer was MDFNGameInfo->MD5 in
+	 * the upstream Mednafen frontend; our libretro fork never read
+	 * the field, so the field is gone and the all-discs MD5 with
+	 * it.  fd_id_out16 stays -- it's the first-disc-only IPL
+	 * fingerprint that DB_Lookup downstream uses (paired with
+	 * sgid / sgname / sgarea) for region and cart-type detection.
+	 *
+	 * Restructured to do hash work only for disc 0 (the only disc
+	 * whose state ever fed fd_id) and to do the sgid / sgname /
+	 * sgarea parse for every disc (the last successful parse wins,
+	 * which matches the pre-trim behaviour -- multi-disc games
+	 * typically have identical IPL metadata across discs but it's
+	 * possible for a corrupt disc 0 to be rescued by a clean
+	 * disc 1).  Reads sector 0 only on discs 1..N-1 instead of the
+	 * old all-512-sectors-per-disc, since the dead hash was the
+	 * only consumer of the rest. */
 
 	mdfn_md5_starts(&mctx);
 
@@ -587,24 +606,28 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 		CDIF *c = disc_cdif[x];
 		TOC toc;
 		unsigned i;
+		const unsigned i_max = (x == 0) ? 512 : 1;
 
 		CDIF_ReadTOC(c, &toc);
 
-		mdfn_md5_update_u32_as_lsb(&mctx, toc.first_track);
-		mdfn_md5_update_u32_as_lsb(&mctx, toc.last_track);
-		mdfn_md5_update_u32_as_lsb(&mctx, toc.disc_type);
-
-		for(i = 1; i <= 100; i++)
+		if(x == 0)
 		{
-			const TOC_Track* t = &toc.tracks[i];
+			mdfn_md5_update_u32_as_lsb(&mctx, toc.first_track);
+			mdfn_md5_update_u32_as_lsb(&mctx, toc.last_track);
+			mdfn_md5_update_u32_as_lsb(&mctx, toc.disc_type);
 
-			mdfn_md5_update_u32_as_lsb(&mctx, t->adr);
-			mdfn_md5_update_u32_as_lsb(&mctx, t->control);
-			mdfn_md5_update_u32_as_lsb(&mctx, t->lba);
-			mdfn_md5_update_u32_as_lsb(&mctx, t->valid);
+			for(i = 1; i <= 100; i++)
+			{
+				const TOC_Track* t = &toc.tracks[i];
+
+				mdfn_md5_update_u32_as_lsb(&mctx, t->adr);
+				mdfn_md5_update_u32_as_lsb(&mctx, t->control);
+				mdfn_md5_update_u32_as_lsb(&mctx, t->lba);
+				mdfn_md5_update_u32_as_lsb(&mctx, t->valid);
+			}
 		}
 
-		for(i = 0; i < 512; i++)
+		for(i = 0; i < i_max; i++)
 		{
 			if(CDIF_ReadSector(c, (uint8_t*)&buf[0], i, 1) >= 0x1)
 			{
@@ -631,18 +654,13 @@ static void CalcGameID( uint8_t* id_out16, uint8_t* fd_id_out16, char* sgid, cha
 					}
 				}
 
-				mdfn_md5_update(&mctx, &buf[0], 2048);
+				if(x == 0)
+					mdfn_md5_update(&mctx, &buf[0], 2048);
 			}
-		}
-
-		if(x == 0)
-		{
-			md5_context fd_mctx = mctx;
-			mdfn_md5_finish(&fd_mctx, fd_id_out16);
 		}
 	}
 
-	mdfn_md5_finish(&mctx, id_out16);
+	mdfn_md5_finish(&mctx, fd_id_out16);
 }
 
 void disc_cleanup(void)
@@ -813,9 +831,8 @@ void disc_select( unsigned disc_num )
 	}
 }
 
-bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_t* fd_id, char* sgid, char* sgname, char* sgarea, bool image_memcache )
+bool disc_load_content( const char* content_name, uint8_t* fd_id, char* sgid, char* sgname, char* sgarea, bool image_memcache )
 {
-	uint8_t LayoutMD5[ 16 ];
 	size_t content_name_len;
 
 	disc_cleanup();
@@ -921,40 +938,16 @@ bool disc_load_content( MDFNGI* game_interface, const char* content_name, uint8_
 		}
 	}
 
-	log_cb(RETRO_LOG_DEBUG, "Calculating layout MD5.\n");
-	// Calculate layout MD5.  The system emulation LoadCD() code is free to ignore this value and calculate
-	// its own, or to use it to look up a game in its database.
-	{
-		md5_context layout_md5;
-		unsigned i;
-		mdfn_md5_starts(&layout_md5);
-
-		for( i = 0; i < num_discs; i++ )
-		{
-			TOC toc;
-			uint32_t track;
-
-			CDIF_ReadTOC(disc_cdif[i], &toc);
-
-			mdfn_md5_update_u32_as_lsb(&layout_md5, toc.first_track);
-			mdfn_md5_update_u32_as_lsb(&layout_md5, toc.last_track);
-			mdfn_md5_update_u32_as_lsb(&layout_md5, toc.tracks[100].lba);
-
-			for(track = toc.first_track; track <= toc.last_track; track++)
-			{
-				mdfn_md5_update_u32_as_lsb(&layout_md5, toc.tracks[track].lba);
-				mdfn_md5_update_u32_as_lsb(&layout_md5, toc.tracks[track].control & 0x4);
-			}
-		}
-
-		mdfn_md5_finish(&layout_md5, LayoutMD5);
-	}
-	log_cb(RETRO_LOG_DEBUG, "Done calculating layout MD5.\n");
-	// TODO: include module name in hash
-
-	memcpy( game_interface->MD5, LayoutMD5, 16 );
-
-	CalcGameID( game_interface->MD5, fd_id, sgid, sgname, sgarea );
+	/* Pre-trim there was a layout-MD5 block here that hashed every
+	 * disc's TOC track list and stuffed the result into
+	 * game_interface->MD5.  Both the field and the only downstream
+	 * consumer (the upstream Mednafen frontend's game-DB lookup
+	 * which this libretro fork doesn't use) are gone, so the whole
+	 * computation -- plus the LayoutMD5 stack buffer at the top of
+	 * this function -- has been dropped.  fd_id below is what
+	 * DB_Lookup actually uses for game identification, paired with
+	 * sgid / sgname / sgarea. */
+	CalcGameID( fd_id, sgid, sgname, sgarea );
 
 	return true;
 }

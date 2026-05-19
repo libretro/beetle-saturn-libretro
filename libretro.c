@@ -974,7 +974,7 @@ static bool MDFNI_LoadGame(const char *name)
          char sgname[0x70 + 1] = { 0 };
          char sgarea[0x10 + 1] = { 0 };
 
-         if (disc_load_content(MDFNGameInfo, name, fd_id, sgid, sgname, sgarea, cdimagecache))
+         if (disc_load_content(name, fd_id, sgid, sgname, sgarea, cdimagecache))
          {
             /* CD/m3u content successfully loaded.  Register the
              * disc-control vtable with RetroArch now that we know

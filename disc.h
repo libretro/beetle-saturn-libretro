@@ -2,12 +2,6 @@
 #define __DISC_H__
 
 #include <libretro.h>
-/* disc.h's only need from git.h is MDFNGI (for disc_load_content's
- * signature).  MDFNGI is POD and factored out into mdfn_gameinfo.h,
- * which is what we include here; pulling in the rest of git.h would
- * drag in the state-action / EmulateSpecStruct surface this header
- * doesn't need. */
-#include "mednafen/mdfn_gameinfo.h"
 #include "mednafen/mednafen-types.h"
 
 /* disc.c's entry points are C functions; the surrounding extern "C"
@@ -37,7 +31,7 @@ bool DiscSanityChecks(void);
 
 void disc_select( unsigned disc_num );
 
-bool disc_load_content( MDFNGI* game_inteface, const char *name, uint8_t* fd_id, char* sgid, char *sgname, char *sgarea, bool image_memcache );
+bool disc_load_content( const char *name, uint8_t* fd_id, char* sgid, char *sgname, char *sgarea, bool image_memcache );
 
 #ifdef __cplusplus
 }

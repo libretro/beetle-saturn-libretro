@@ -35,8 +35,6 @@
 
 #include "../../mednafen-types.h"   /* MDFN_HOT, MDFN_COLD */
 #include "../../math_ops.h"         /* round_up_pow2 */
-#include "../../mdfn_gameinfo.h"    /* MDFNGameInfo */
-#include "../../hash/sha256.h"
 #include "../cart.h"
 #include "bootrom.h"
 #include "backup.h"
@@ -82,11 +80,7 @@ bool CART_BootROM_Init(struct CartInfo *c, RFILE *str)
    const uint64_t min_size = 1;
    const uint64_t max_size = 0x3000000;
    uint32_t ROM_Size;
-   sha256_hasher h;
-   sha256_digest dig;
    unsigned i;
-
-   sha256_hasher_init(&h);
 
    if(ss < min_size)
    {
@@ -122,9 +116,14 @@ bool CART_BootROM_Init(struct CartInfo *c, RFILE *str)
    }
    memset(ROM, 0x00, ROM_Size);
    filestream_read(str, ROM, ss);
-   sha256_hasher_process(&h, ROM, ss);
-   dig = sha256_hasher_digest(&h);
-   memcpy(MDFNGameInfo->MD5, dig.b, 16);
+
+   /* Pre-trim there was a sha256_hasher_process + sha256_hasher_digest
+    * chain here that wrote the digest's first 16 bytes into
+    * MDFNGameInfo->MD5 (legacy field name kept from when it really
+    * was an MD5).  That MD5 field is gone now -- nothing in this
+    * fork ever read it -- so the hashing is dead computation.  Note
+    * sha256_hasher is still used elsewhere (ss.c's BIOS_SHA256 for
+    * save-state sanity), only this call site is dropped. */
 
    for(i = 0; i < ROM_Size / sizeof(uint16_t); i++)
    {

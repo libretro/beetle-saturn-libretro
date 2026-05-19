@@ -1181,20 +1181,11 @@ static const MDFNSetting_EnumList RTCLang_List[] =
 
 MDFNGI EmulatedSS =
 {
-   0,	// MasterClock
-
-   //
-   // Note: Following video settings will be overwritten during game load.
-   //
-   320,  // lcm_width
-   240,  // lcm_height
-   NULL,  // Dummy
-
-   320,   // Nominal width
-   240,   // Nominal height
-
-   0,   // Framebuffer width
-   0,   // Framebuffer height
+   0,    /* MasterClock     -- set by InitCommon when region is known */
+   320,  /* nominal_width   -- overwritten by VDP2REND_Init on first geometry update */
+   0.0f, /* mouse_scale_x   -- ditto */
+   0.0f, /* mouse_offs_x    -- ditto */
+   0.0f, /* mouse_offs_y    -- ditto */
 };
 
 extern retro_log_printf_t log_cb;

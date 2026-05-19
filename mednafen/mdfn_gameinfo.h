@@ -24,29 +24,31 @@ typedef struct MDFNGI
       of the fractional component may be ignored in some timekeeping
       operations to prevent integer overflow, so it is unwise to have
       a fractional component when the integral component is very
-      small (less than say, 10000). */
+      small (less than say, 10000).
+
+      Read by the input-update timing math in ss.c (Emulate's elapsed
+      time conversion and CART_SetCPUClock); written once by
+      InitCommon when the master clock for the selected region is
+      known. */
    #define MDFN_MASTERCLOCK_FIXED(n)	((int64_t)((double)(n) * (1LL << 32)))
    int64_t MasterClock;
 
-   int lcm_width;
-   int lcm_height;
-
-   void *dummy_separator;
-
+   /* Logical display width in nominal-coordinates units.  Used by
+      smpc_iodevice.c's gun crosshair / hit-point calculation to
+      convert nominal coordinates into visible-pixel coordinates.
+      Set by VDP2REND_Init when display geometry is known; init
+      value is the conservative 320 used before the first geometry
+      update. */
    int nominal_width;
-   int nominal_height;
 
-   int fb_width;	/* Width of the framebuffer (not necessarily width of the image). MDFN_Surface width should be >= this. */
-   int fb_height;	/* Height of the framebuffer passed to the Emulate() function (not necessarily height of the image). */
+   /* Mouse / gun coordinate transform.  In smpc_iodevice.c the gun
+      device combines these as:
 
-   uint8_t MD5[16];
+        cx = (input_x - mouse_offs_x) * (visible_pixels / mouse_scale_x)
+        cy = (input_y - mouse_offs_y) + visible_top
 
-   /* For mouse relative motion. */
-   double mouse_sensitivity;
-
-   /* For absolute coordinates (IDIT_X_AXIS and IDIT_Y_AXIS), usually
-      mapped to a mouse (hence the naming). */
-   float mouse_scale_x, mouse_scale_y;
+      Set by VDP2REND_Init when display geometry is known. */
+   float mouse_scale_x;
    float mouse_offs_x, mouse_offs_y;
 } MDFNGI;
 
