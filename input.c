@@ -90,6 +90,29 @@ static int16_t input_throttle_latch[ MAX_CONTROLLERS ]	= {0};
  * one-per-cabinet, so cumulating presses is the right model. */
 static bool prev_coin[ MAX_CONTROLLERS ] = {0};
 
+/* ST-V "misc input" port (port index 12 in SMPC's port-number space).
+ *
+ * One byte, bit layout (matches mednafen/ss/stvio.c consumers):
+ *   bit 0 - SS reset button (stvio's TransformInput clears this every
+ *           frame after read, so we only ever set it transiently)
+ *   bit 2 - Test    (operator-panel test button)
+ *   bit 3 - Service (operator-panel service button -- free credit)
+ *   bit 4 - Pause   (operator-panel pause button -- not all games)
+ *
+ * Polarity is "1 = pressed" on our side; stvio XORs into DataIn[]
+ * which starts at 0xFF (active-low to the game) so the game sees
+ * 1=unpressed / 0=pressed as expected.
+ *
+ * Mednafen's standalone wires this up via STVIO_SetInput(12, ...).
+ * Our fork's input.c only iterated 0..MAX_CONTROLLERS-1 (= 0..11),
+ * never port 12, so DPtr[12] stayed NULL throughout ST-V game
+ * lifetime -- Test/Service/Pause were unreachable, and stvio.c
+ * needed defensive NULL guards to avoid crashing.  Now we bind
+ * this byte at input_init time when ActiveCartType == CART_STV.
+ * update_stv_misc_inputs() populates the bits from per-frame poll
+ * state; the NULL guards in stvio.c become belt-and-suspenders. */
+static uint8_t input_stv_misc_byte = 0;
+
 /* ActiveCartType lives in mednafen/ss/ss.c.  No header exposes it
  * (it's a TU-local global with extern decls inline at the usage
  * sites in ss.c itself), so input.c picks it up the same way. */
@@ -469,6 +492,8 @@ void input_init_env( retro_environment_t _environ_cb )
 		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,    "R Button" },								\
 		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START, "Start Button" },							\
 		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Mode Switch / Coin (ST-V)" },							\
+		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3,    "Test (ST-V)" },								\
+		{ _user, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3,    "Service (ST-V) -- chord with Test for Pause" },								\
 		{ _user, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X, "Analog X" },		\
 		{ _user, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y, "Analog Y" },		\
 		{ _user, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X, "Analog X (Right)" },	\
@@ -531,6 +556,19 @@ void input_init(void)
 
 		SS_SetInput( i, "gamepad", (uint8_t*)&input_data[ i ] );
 	}
+
+	/* Bind the ST-V misc-input port (test/service/pause/reset bits).
+	 * SS_SetInput routes port 12 to BOTH STVIO_SetInput (which sets
+	 * DPtr[12] = ptr) and SMPC_SetInput (which sets MiscInputPtr).
+	 * Gated on ActiveCartType so consumer Saturn games don't get a
+	 * stray misc-input pointer registered with SMPC -- it'd be
+	 * harmless there (the byte is always 0), but skipping the call
+	 * keeps the SMPC state matching Saturn-only expectations. */
+	if ( ActiveCartType == CART_STV )
+	{
+		input_stv_misc_byte = 0;
+		SS_SetInput( 12, "misc", &input_stv_misc_byte );
+	}
 }
 
 void input_set_geometry(unsigned width, unsigned height)
@@ -588,6 +626,50 @@ static void check_stv_coin_inserts( retro_input_state_t input_state_cb )
 			STVIO_InsertCoin();
 		prev_coin[ port ] = now;
 	}
+}
+
+/* Per-frame populate of the ST-V misc-input byte (test/service/pause).
+ * Bound by input_init via SS_SetInput(12, "misc", &input_stv_misc_byte)
+ * when ActiveCartType == CART_STV; stvio.c reads the byte through
+ * DPtr[12].
+ *
+ * Inputs are level-triggered (not edge-triggered like the coin button)
+ * because the underlying ST-V misc-input register samples continuously
+ * -- holding "test" should keep the test menu navigation responsive,
+ * not pulse it once.
+ *
+ * Source bindings (P1 controller, retropad):
+ *   L3 -> Test
+ *   R3 -> Service
+ *   L3 + R3 chord -> Pause
+ *
+ * The chord for Pause keeps the binding count down (no fourth button
+ * needed) and avoids accidentally bumping Pause when the user just
+ * means to hold Test or Service.  Only port 0 (P1's pad) drives these
+ * -- the physical ST-V cabinet has a single operator panel, so taking
+ * exactly one controller's chord as the source is the closest analogue.
+ *
+ * Bit 0 (reset button) is left zeroed here -- stvio's TransformInput
+ * clears it after each read anyway, and there's no obvious mapping
+ * for a "soft-reset the Saturn from the front panel" button at this
+ * layer (RetroArch's reset hotkey calls our retro_reset() instead). */
+static void update_stv_misc_inputs( retro_input_state_t input_state_cb )
+{
+	bool l3;
+	bool r3;
+	uint8_t misc = 0;
+
+	if ( ActiveCartType != CART_STV )
+		return;
+
+	l3 = !!input_state_cb( 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3 );
+	r3 = !!input_state_cb( 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3 );
+
+	if ( l3 && !r3 ) misc |= 0x04;  /* Test    (bit 2) */
+	if ( r3 && !l3 ) misc |= 0x08;  /* Service (bit 3) */
+	if ( l3 &&  r3 ) misc |= 0x10;  /* Pause   (bit 4) */
+
+	input_stv_misc_byte = misc;
 }
 
 void input_update_with_bitmasks( retro_input_state_t input_state_cb )
@@ -1161,6 +1243,7 @@ void input_update_with_bitmasks( retro_input_state_t input_state_cb )
 	} // for each player
 
 	check_stv_coin_inserts( input_state_cb );
+	update_stv_misc_inputs( input_state_cb );
 }
 
 void input_update( retro_input_state_t input_state_cb )
@@ -1733,6 +1816,7 @@ void input_update( retro_input_state_t input_state_cb )
 	} // for each player
 
 	check_stv_coin_inserts( input_state_cb );
+	update_stv_misc_inputs( input_state_cb );
 }
 
 // save state function for input
