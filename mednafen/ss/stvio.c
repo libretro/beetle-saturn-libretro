@@ -427,7 +427,18 @@ void STVIO_LoadNV(cdstream* s)
 {
  uint8_t tmp[0x80];
 
- cdstream_read(s, tmp, sizeof(tmp));
+ /* Short read leaves tmp[]'s tail holding stack garbage; the
+  * AK93C45_PokeMem loop below would then write that garbage as
+  * EEPROM contents.  An ST-V cabinet that booted yesterday with
+  * a fresh-and-clean EEPROM would suddenly see seemingly-valid
+  * but unrelated bytes -- game-config corruption, possible bogus
+  * dipswitch readback.  Treat short as 'no NV present' and
+  * leave the EEPROM at whatever state STVIO_Init left it in (the
+  * AK93C45_New() / Power() path initialises to all-FF, matching
+  * a virgin EEPROM, so subsequent first-boot logic in the game
+  * runs correctly). */
+ if (cdstream_read(s, tmp, sizeof(tmp)) != sizeof(tmp))
+  return;
 
  for(unsigned addr = 0; addr < 0x40; addr++)
  {

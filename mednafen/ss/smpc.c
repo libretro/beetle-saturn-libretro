@@ -377,9 +377,31 @@ void SMPC_SetInput(unsigned port, const char* type, uint8_t* ptr)
 
 void SMPC_LoadNV(cdstream* s)
 {
- RTC.Valid = cdstream_read_u8(s);
- cdstream_read(s, RTC.raw, sizeof(RTC.raw));
- cdstream_read(s, SaveMem, sizeof(SaveMem));
+ /* File layout: 1 byte Valid, then 7 bytes RTC.raw, then 4 bytes
+  * SaveMem.  On a short or failed read the pre-fix code silently
+  * loaded partial data plus whatever stack bytes happened to sit
+  * behind the uninitialised tail -- the BIOS would then see a
+  * frankenstein RTC + SaveMem on cold boot and the SMPC clock
+  * could drift, the language byte in SaveMem[3] could read as
+  * a stale value, etc.
+  *
+  * Fall back to factory defaults: RTC.Valid = false (SMPC will
+  * resynthesise from host time at the next read), RTC.raw zeroed
+  * (paranoia in case Valid=false isn't honoured everywhere), and
+  * SaveMem zeroed so the BIOS sees a fresh power-on state. */
+ const uint8_t  valid_byte = cdstream_read_u8(s);
+ const uint64_t r1         = cdstream_read(s, RTC.raw, sizeof(RTC.raw));
+ const uint64_t r2         = cdstream_read(s, SaveMem, sizeof(SaveMem));
+
+ if (r1 != sizeof(RTC.raw) || r2 != sizeof(SaveMem))
+ {
+  RTC.Valid = false;
+  memset(RTC.raw, 0, sizeof(RTC.raw));
+  memset(SaveMem, 0, sizeof(SaveMem));
+  return;
+ }
+
+ RTC.Valid = valid_byte;
 }
 
 void SMPC_SaveNV(cdstream* s)
