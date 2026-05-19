@@ -50,7 +50,7 @@
 #define MEDNAFEN_CORE_NAME                   "Beetle Saturn"
 #define MEDNAFEN_CORE_VERSION                "v1.32.1"
 #define MEDNAFEN_CORE_VERSION_NUMERIC        0x00103201
-#define MEDNAFEN_CORE_EXTENSIONS             "cue|ccd|chd|toc|m3u"
+#define MEDNAFEN_CORE_EXTENSIONS             "cue|ccd|chd|toc|m3u|zip"
 /* MAX_W / MAX_H are the framebuffer ceiling reported to the
  * frontend at retro_get_system_av_info / SET_GEOMETRY time.
  * The matching BASE_W / BASE_H / ASPECT_RATIO constants that
