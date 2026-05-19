@@ -131,8 +131,16 @@ extern int ActiveCartType;
 #define RETRO_DEVICE_SS_MOUSE     RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_MOUSE, 0)
 #define RETRO_DEVICE_SS_GUN_JP    RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_LIGHTGUN, 0)
 #define RETRO_DEVICE_SS_GUN_US    RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_LIGHTGUN, 1)
+/* Sega Saturn Keyboard (US 101-key PS/2 adapter).  The SMPC-side
+ * IODevice already exists in mednafen/ss/smpc_iodevice.c
+ * (IODevice_Keyboard_Create).  We expose it to RetroArch as a
+ * KEYBOARD subclass so users can select it from the controller
+ * type list, and we pump scan-code state into the 18-byte phys[]
+ * bitmap that UpdateInput consumes.  Subclass 1 is reserved for
+ * the JP keyboard (separate IDII layout) if/when it's exposed. */
+#define RETRO_DEVICE_SS_KEYBOARD  RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_KEYBOARD, 0)
 
-enum { INPUT_DEVICE_TYPES_COUNT = 1 /*none*/ + 9 }; /* <-- update me! */
+enum { INPUT_DEVICE_TYPES_COUNT = 1 /*none*/ + 10 }; /* <-- update me! */
 
 static const struct retro_controller_description input_device_types[ INPUT_DEVICE_TYPES_COUNT ] =
 {
@@ -145,6 +153,7 @@ static const struct retro_controller_description input_device_types[ INPUT_DEVIC
 	{ "Mission Stick", RETRO_DEVICE_SS_MISSION },
 	{ "Dual Mission Sticks", RETRO_DEVICE_SS_MISSION2 }, /*"Panzer Dragoon Zwei" only!*/
 	{ "Twin-Stick", RETRO_DEVICE_SS_TWINSTICK },
+	{ "Keyboard", RETRO_DEVICE_SS_KEYBOARD },
 	{ NULL, 0 },
 };
 
@@ -316,6 +325,128 @@ static const unsigned input_map_twinstick_left_trigger  = RETRO_DEVICE_ID_JOYPAD
 static const unsigned input_map_twinstick_left_button   = RETRO_DEVICE_ID_JOYPAD_L;
 static const unsigned input_map_twinstick_right_trigger = RETRO_DEVICE_ID_JOYPAD_R2;
 static const unsigned input_map_twinstick_right_button  = RETRO_DEVICE_ID_JOYPAD_R;
+
+/* Sega Saturn US 101-key keyboard scan-code map.
+ *
+ * Each entry maps a libretro RETROK_ keysym to the Saturn keyboard's
+ * 8-bit scan-code value as documented in the IDII table in upstream
+ * mednafen/ss/input/keyboard.cpp.  Scan codes 0x00-0x8F are valid
+ * (144 slots, of which ~89 are real keys; the rest are IDII Padding
+ * slots that don't correspond to any physical key).
+ *
+ * poll_ss_keyboard() walks this table, queries each RETROK_ via
+ * input_state_cb(port, RETRO_DEVICE_KEYBOARD, 0, key), and ORs the
+ * corresponding scan-code bit into the 18-byte phys-bitmap buffer
+ * that IODevice_Keyboard_UpdateInput consumes (see smpc_iodevice.c).
+ *
+ * Keys deliberately omitted: Windows / Meta / Super keys, since the
+ * PS/2-adapter-emulated keyboard didn't expose them reliably (cf.
+ * upstream comment in keyboard.cpp).  Print Screen has no RETROK_
+ * equivalent that's commonly mapped, so it's also dropped. */
+struct ss_keyboard_map_entry { uint16_t retro_key; uint8_t saturn_sc; };
+static const struct ss_keyboard_map_entry ss_keyboard_map[] = {
+	{ RETROK_F9,           0x01 },
+	{ RETROK_F5,           0x03 },
+	{ RETROK_F3,           0x04 },
+	{ RETROK_F1,           0x05 },
+	{ RETROK_F2,           0x06 },
+	{ RETROK_F12,          0x07 },
+	{ RETROK_F10,          0x09 },
+	{ RETROK_F8,           0x0A },
+	{ RETROK_F6,           0x0B },
+	{ RETROK_F4,           0x0C },
+	{ RETROK_TAB,          0x0D },
+	{ RETROK_BACKQUOTE,    0x0E },
+	{ RETROK_LALT,         0x11 },
+	{ RETROK_LSHIFT,       0x12 },
+	{ RETROK_LCTRL,        0x14 },
+	{ RETROK_q,            0x15 },
+	{ RETROK_1,            0x16 },
+	{ RETROK_RALT,         0x17 },
+	{ RETROK_RCTRL,        0x18 },
+	{ RETROK_KP_ENTER,     0x19 },
+	{ RETROK_z,            0x1A },
+	{ RETROK_s,            0x1B },
+	{ RETROK_a,            0x1C },
+	{ RETROK_w,            0x1D },
+	{ RETROK_2,            0x1E },
+	{ RETROK_c,            0x21 },
+	{ RETROK_x,            0x22 },
+	{ RETROK_d,            0x23 },
+	{ RETROK_e,            0x24 },
+	{ RETROK_4,            0x25 },
+	{ RETROK_3,            0x26 },
+	{ RETROK_SPACE,        0x29 },
+	{ RETROK_v,            0x2A },
+	{ RETROK_f,            0x2B },
+	{ RETROK_t,            0x2C },
+	{ RETROK_r,            0x2D },
+	{ RETROK_5,            0x2E },
+	{ RETROK_n,            0x31 },
+	{ RETROK_b,            0x32 },
+	{ RETROK_h,            0x33 },
+	{ RETROK_g,            0x34 },
+	{ RETROK_y,            0x35 },
+	{ RETROK_6,            0x36 },
+	{ RETROK_m,            0x3A },
+	{ RETROK_j,            0x3B },
+	{ RETROK_u,            0x3C },
+	{ RETROK_7,            0x3D },
+	{ RETROK_8,            0x3E },
+	{ RETROK_COMMA,        0x41 },
+	{ RETROK_k,            0x42 },
+	{ RETROK_i,            0x43 },
+	{ RETROK_o,            0x44 },
+	{ RETROK_0,            0x45 },
+	{ RETROK_9,            0x46 },
+	{ RETROK_PERIOD,       0x49 },
+	{ RETROK_SLASH,        0x4A },
+	{ RETROK_l,            0x4B },
+	{ RETROK_SEMICOLON,    0x4C },
+	{ RETROK_p,            0x4D },
+	{ RETROK_MINUS,        0x4E },
+	{ RETROK_QUOTE,        0x52 },
+	{ RETROK_LEFTBRACKET,  0x54 },
+	{ RETROK_EQUALS,       0x55 },
+	{ RETROK_CAPSLOCK,     0x58 },
+	{ RETROK_RSHIFT,       0x59 },
+	{ RETROK_RETURN,       0x5A },
+	{ RETROK_RIGHTBRACKET, 0x5B },
+	{ RETROK_BACKSLASH,    0x5D },
+	{ RETROK_BACKSPACE,    0x66 },
+	{ RETROK_KP1,          0x69 },
+	{ RETROK_KP4,          0x6B },
+	{ RETROK_KP7,          0x6C },
+	{ RETROK_KP0,          0x70 },
+	{ RETROK_KP_PERIOD,    0x71 },
+	{ RETROK_KP2,          0x72 },
+	{ RETROK_KP5,          0x73 },
+	{ RETROK_KP6,          0x74 },
+	{ RETROK_KP8,          0x75 },
+	{ RETROK_ESCAPE,       0x76 },
+	{ RETROK_NUMLOCK,      0x77 },
+	{ RETROK_F11,          0x78 },
+	{ RETROK_KP_PLUS,      0x79 },
+	{ RETROK_KP3,          0x7A },
+	{ RETROK_KP_MINUS,     0x7B },
+	{ RETROK_KP_MULTIPLY,  0x7C },
+	{ RETROK_KP9,          0x7D },
+	{ RETROK_SCROLLOCK,    0x7E },
+	{ RETROK_KP_DIVIDE,    0x80 },
+	{ RETROK_INSERT,       0x81 },
+	{ RETROK_PAUSE,        0x82 },
+	{ RETROK_F7,           0x83 },
+	{ RETROK_DELETE,       0x85 },
+	{ RETROK_LEFT,         0x86 },
+	{ RETROK_HOME,         0x87 },
+	{ RETROK_END,          0x88 },
+	{ RETROK_UP,           0x89 },
+	{ RETROK_DOWN,         0x8A },
+	{ RETROK_PAGEUP,       0x8B },
+	{ RETROK_PAGEDOWN,     0x8C },
+	{ RETROK_RIGHT,        0x8D },
+};
+#define SS_KEYBOARD_MAP_SIZE ( sizeof(ss_keyboard_map) / sizeof(ss_keyboard_map[0]) )
 
 //------------------------------------------------------------------------------
 // Local Functions
@@ -670,6 +801,35 @@ static void update_stv_misc_inputs( retro_input_state_t input_state_cb )
 	if ( l3 &&  r3 ) misc |= 0x10;  /* Pause   (bit 4) */
 
 	input_stv_misc_byte = misc;
+}
+
+/* Per-frame Saturn keyboard poll.  Translates RETROK_ keysyms (the
+ * libretro keyboard event stream surfaced through input_state_cb's
+ * RETRO_DEVICE_KEYBOARD path) into the 18-byte Saturn scan-code
+ * bitmap that IODevice_Keyboard_UpdateInput consumes via DPtr[port].
+ *
+ * Bit layout: scan code sc lives at byte (sc >> 3) bit (sc & 7), LSB
+ * first within the byte.  Buffer is fully zeroed at the head of each
+ * frame because the consumer XORs against its own previous-frame
+ * `processed[]` to detect make/break edges -- it relies on the input
+ * bitmap being a complete present-state snapshot, not a delta.
+ *
+ * Called only from the RETRO_DEVICE_SS_KEYBOARD case in the poll-path
+ * switch (input_update / input_update_with_bitmasks), so the function
+ * itself doesn't have to gate on input_type. */
+static void poll_ss_keyboard( retro_input_state_t input_state_cb, unsigned iplayer, uint8_t *buf )
+{
+	unsigned i;
+
+	memset( buf, 0, 18 );
+
+	for ( i = 0; i < SS_KEYBOARD_MAP_SIZE; ++i )
+	{
+		const uint8_t sc = ss_keyboard_map[ i ].saturn_sc;
+		if ( input_state_cb( iplayer, RETRO_DEVICE_KEYBOARD, 0,
+		                     ss_keyboard_map[ i ].retro_key ) )
+			buf[ sc >> 3 ] |= (uint8_t)(1u << (sc & 7));
+	}
 }
 
 void input_update_with_bitmasks( retro_input_state_t input_state_cb )
@@ -1236,6 +1396,11 @@ void input_update_with_bitmasks( retro_input_state_t input_state_cb )
 
 			}
 
+			break;
+
+		case RETRO_DEVICE_KEYBOARD:
+		case RETRO_DEVICE_SS_KEYBOARD:
+			poll_ss_keyboard( input_state_cb, iplayer, p_input->u8 );
 			break;
 
 		} // switch ( input_type[ iplayer ] )
@@ -1811,6 +1976,11 @@ void input_update( retro_input_state_t input_state_cb )
 
 			break;
 
+		case RETRO_DEVICE_KEYBOARD:
+		case RETRO_DEVICE_SS_KEYBOARD:
+			poll_ss_keyboard( input_state_cb, iplayer, p_input->u8 );
+			break;
+
 		} // switch ( input_type[ iplayer ] )
 
 	} // for each player
@@ -1947,6 +2117,17 @@ void retro_set_controller_port_device( unsigned in_port, unsigned device )
 		case RETRO_DEVICE_SS_TWINSTICK:
 			log_cb( RETRO_LOG_INFO, "Controller %u: Twin-Stick\n", (in_port+1) );
 			SS_SetInput( in_port, "gamepad", (uint8_t*)&input_data[ in_port ] );
+			break;
+
+		case RETRO_DEVICE_KEYBOARD:
+		case RETRO_DEVICE_SS_KEYBOARD:
+			log_cb( RETRO_LOG_INFO, "Controller %u: Keyboard\n", (in_port+1) );
+			/* Buffer is the 32-byte INPUT_DATA.u8 union member; the
+			 * Saturn keyboard IODevice reads bytes 0x00..0x11 (18
+			 * bytes) as a scan-code bitmap.  poll_ss_keyboard() writes
+			 * that bitmap each frame from the per-port poll-path
+			 * RETRO_DEVICE_SS_KEYBOARD case. */
+			SS_SetInput( in_port, "keyboard", (uint8_t*)&input_data[ in_port ] );
 			break;
 
 		default:
