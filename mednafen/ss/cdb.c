@@ -133,6 +133,8 @@
 
 #include <stdlib.h>		/* abs() in Drive_Run seek timing */
 
+#include <libretro.h>		/* log_cb for sector-read warnings */
+
 #include "ss.h"
 #include "scu.h"
 #include "sound.h"
@@ -140,6 +142,8 @@
 
 #include "../cdrom/CDUtility.h"
 #include "../cdrom/cdromif.h"
+
+extern retro_log_printf_t log_cb;
 
 static void CheckBufPauseResume(void);
 static void StartSeek(const uint32_t cmd_target, const uint32_t cur_play_end, const uint32_t cur_play_repeat, const uint32_t play_end_irq_type, const bool no_pickup_change);
@@ -2136,7 +2140,24 @@ static void Drive_Run(int64_t clocks)
 	if(SecPreBuf_In) { }
 	else
 	{
-	 CDIF_ReadRawSector(Cur_CDIF, SecPreBuf, CurSector - 150);
+	 /* Consume the read return.  After the cdrom I/O-failure
+	  * propagation refactor the sector-buffer .data may hold
+	  * partial or stale bytes on a read failure (CDAccess_*_
+	  * Read_Raw_Sector returns false but doesn't itself zero
+	  * the buffer; the MT-thread snapshot in SectorBuffers[].
+	  * data is whatever the access driver wrote).  Zero the
+	  * buf locally so the game sees deterministic zeros for
+	  * this sector, DecodeSubQ then cleanly rejects the all-
+	  * zero subchannel (it requires (tmp_q[0] & 0xF) == 1 +
+	  * checksum), and CurPosInfo.rel_fad/tno/idx stay at
+	  * their last-valid values.  SecPreBuf_In is still set so
+	  * the state machine advances rather than spinning on a
+	  * persistent read error. */
+	 if(!CDIF_ReadRawSector(Cur_CDIF, SecPreBuf, CurSector - 150))
+	 {
+	  log_cb(RETRO_LOG_WARN, "CDB: sector read failed @ FAD %d\n", CurSector);
+	  memset(SecPreBuf, 0, 2352 + 96);
+	 }
 	 SecPreBuf_In = true;
 
 	 // TODO:(maybe pointless...)
