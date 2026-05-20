@@ -1779,7 +1779,9 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
           * byte-swap finalisation at the bottom. */
          bool bios_loaded = false;
 
-         snprintf(bios_path, sizeof(bios_path), "%s" RETRO_SLASH "%s", retro_base_directory, bios_filename);
+         snprintf(bios_path, sizeof(bios_path), "%.*s" RETRO_SLASH "%s",
+               (int)(sizeof(bios_path) - strlen(bios_filename) - sizeof(RETRO_SLASH)),
+               retro_base_directory, bios_filename);
 
          BIOSFile = filestream_open(bios_path,
                RETRO_VFS_FILE_ACCESS_READ,
@@ -1805,7 +1807,9 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
                char zip_path[4096 + 32];
                zip_archive za;
                snprintf(zip_path, sizeof(zip_path),
-                     "%s" RETRO_SLASH "stvbios.zip", retro_base_directory);
+                     "%.*s" RETRO_SLASH "stvbios.zip",
+                     (int)(sizeof(zip_path) - sizeof(RETRO_SLASH "stvbios.zip")),
+                     retro_base_directory);
                if(zip_open(&za, zip_path))
                {
                   const struct zip_entry *ze = zip_find(&za, bios_filename);
