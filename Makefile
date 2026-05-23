@@ -390,10 +390,7 @@ WARNINGS := -Wall \
    -Wno-unused-variable \
    -Wno-unused-function \
    -Wno-uninitialized \
-   $(NEW_GCC_WARNING_FLAGS) \
    -Wno-strict-aliasing
-
-#EXTRA_GCC_FLAGS := -funroll-loops
 
 ifeq ($(NO_GCC),1)
    WARNINGS :=
@@ -416,7 +413,7 @@ ifeq ($(DEBUG),0)
    # alone (asserts in the inner render loops compiled to substantial
    # dead code under -O2), -2.7 KiB on cdb.c (17 CDB state-machine
    # invariants), -2.9 KiB on ss.c, and small wins across the rest.
-   FLAGS += -O2 -DNDEBUG $(EXTRA_GCC_FLAGS)
+   FLAGS += -O2 -DNDEBUG
 else
    FLAGS += -O0 -g
 endif
@@ -441,10 +438,8 @@ ifneq ($(LTO),)
 endif
 
 LDFLAGS += $(fpic) $(SHARED)
-FLAGS += $(fpic) $(NEW_GCC_FLAGS)
-FLAGS += $(INCFLAGS)
 
-FLAGS += $(ENDIANNESS_DEFINES) $(WARNINGS) $(CORE_DEFINE) -DSTDC_HEADERS -D__STDC_LIMIT_MACROS -D__LIBRETRO__ -D_LOW_ACCURACY_ $(EXTRA_INCLUDES) $(SOUND_DEFINE) -D__STDC_CONSTANT_MACROS
+FLAGS += $(fpic) $(INCFLAGS) $(ENDIANNESS_DEFINES) $(WARNINGS) $(CORE_DEFINE) -DSTDC_HEADERS -D__STDC_LIMIT_MACROS -D__LIBRETRO__ -D_LOW_ACCURACY_ $(EXTRA_INCLUDES) $(SOUND_DEFINE) -D__STDC_CONSTANT_MACROS
 
 # The codebase type-puns hardware memory through a handful of raw
 # (uint16_t*) casts (SH-2 instruction prefetch, cart ROM read paths).
