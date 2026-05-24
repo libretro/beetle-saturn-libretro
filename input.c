@@ -2021,14 +2021,18 @@ int input_StateActionDevices( StateMem* sm, const unsigned load, const bool data
 	 * SFPTR target so MDFNSS_StateAction writes it out.  On load
 	 * this is the buffer MDFNSS_StateAction fills from the state
 	 * stream. */
-	if ( !load )
-		memcpy( saved_input_type, input_type, sizeof( saved_input_type ) );
+	/* Seed from live unconditionally.  On save this is the
+	 * snapshot MDFNSS_StateAction writes out.  On load it makes
+	 * the absent-optional-section path a no-op: the call below
+	 * returns success=1 without touching the buffer when the
+	 * chunk isn't present (states written by pre-fix builds),
+	 * the loop then sees saved == live and skips every port.
+	 * Without this seed the LOAD path read stack-uninitialised
+	 * bytes and called retro_set_controller_port_device with
+	 * garbage -- visible in hashlog as 4 run-to-run-varying
+	 * bytes inside the "LIBRETRO-INPUT-DEVICES" chunk. */
+	memcpy( saved_input_type, input_type, sizeof( saved_input_type ) );
 
-	/* The section is optional: states written by versions of this
-	 * core that pre-date this fix don't carry the "input-type"
-	 * payload, and we want to keep loading them.  When the section
-	 * is missing on load, MDFNSS_StateAction returns success=0 and
-	 * the per-port restore loop below is skipped. */
 	success = MDFNSS_StateAction( sm, load, data_only, StateRegs,
 		"LIBRETRO-INPUT-DEVICES", true /* optional */ );
 
