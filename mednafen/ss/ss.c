@@ -2064,6 +2064,14 @@ void SS_SaveBackupRAM(void)
 {
  char fpath[4096];
  cdstream brs;
+
+ /* Libretro save mode: the frontend persists BackupRAM as .srm, so the
+  * core must not also write .bkr. This single guard covers every writer
+  * -- the periodic flush (via SS_FlushBackupRAM) and the CloseGame
+  * save-on-exit -- keeping .srm the sole source of truth in this mode. */
+ if (!use_mednafen_save_method)
+  return;
+
  if(!cdstream_open_write(&brs, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr")))
   return;
 
@@ -2124,7 +2132,20 @@ void SS_SetInput(unsigned port, const char* type, uint8_t* ptr)
 void SS_LoadBackupRAM(void)
 {
  char fpath[4096];
- RFILE *brs = filestream_open(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr"),
+ RFILE *brs;
+
+ /* Libretro save mode: the frontend owns the save file (.srm) and
+  * fills BackupRAM via RETRO_MEMORY_SAVE_RAM *after* retro_load_game
+  * returns. Reading .bkr here is pointless when an .srm exists (the
+  * frontend's copy lands on top of it) and actively wrong when no
+  * .srm exists (the stale .bkr would silently win, making the two
+  * modes inconsistent). Skip the read and leave the freshly-formatted
+  * BRAM_Init_Data pattern InitCommon already stamped. Migrating a
+  * legacy save is a one-time manual rename of .bkr -> .srm. */
+ if (!use_mednafen_save_method)
+    return;
+
+ brs = filestream_open(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr"),
        RETRO_VFS_FILE_ACCESS_READ,
        RETRO_VFS_FILE_ACCESS_HINT_NONE);
 

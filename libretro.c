@@ -113,6 +113,11 @@ bool shared_intmemory_toggle = false;
 bool shared_backup = false;
 bool shared_backup_toggle = false;
 
+// Save Method: true = core-managed .bkr (default, matches pre-1.32
+// behaviour), false = frontend-managed .srm via RETRO_MEMORY_SAVE_RAM.
+// Latched at startup; see check_variables and retro_get_memory_*.
+bool use_mednafen_save_method = true;
+
 char retro_save_directory[4096];
 char retro_base_directory[4096];
 static char retro_cd_base_directory[4096];
@@ -347,6 +352,19 @@ static void check_variables(bool startup)
             shared_backup_toggle = true;
          else if (!strcmp(var.value, "disabled"))
             shared_backup_toggle = false;
+      }
+
+      // Latch at startup only: retro_get_memory_size is queried by the
+      // frontend once after retro_load_game, so toggling mid-game has no
+      // effect until reload (hence "Restart required" in the option info).
+      var.key = "beetle_saturn_save_method";
+      var.value = NULL;
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      {
+         if (!strcmp(var.value, "libretro"))
+            use_mednafen_save_method = false;
+         else if (!strcmp(var.value, "mednafen"))
+            use_mednafen_save_method = true;
       }
    }
 
@@ -1737,15 +1755,15 @@ void *retro_get_memory_data(unsigned type)
    {
       case RETRO_MEMORY_SYSTEM_RAM:
          return WorkRAM;
-      // Exposing internal Backup RAM via RETRO_MEMORY_SAVE_RAM lets the
-      // frontend manage save persistence (.srm) instead of (or in
-      // addition to) the core's own .bkr file. Critically, this allows
-      // libretro features like cloud saves, achievement-save-protect,
-      // and run-ahead to work correctly: the periodic flush in
-      // retro_run still writes the .bkr for backward compatibility,
-      // but the frontend now has its own view of the same memory.
+      // Backup RAM is exposed to the frontend (.srm) only in Libretro
+      // save mode. In Mednafen mode the core owns the .bkr file and must
+      // NOT expose a parallel buffer -- otherwise the frontend's post-load
+      // .srm copy clobbers the .bkr the core just read. The two modes are
+      // mutually exclusive; see use_mednafen_save_method.
       case RETRO_MEMORY_SAVE_RAM:
-         return BackupRAM;
+         if (!use_mednafen_save_method)
+            return BackupRAM;
+         break;
    }
 
    // not supported
@@ -1759,7 +1777,9 @@ size_t retro_get_memory_size(unsigned type)
       case RETRO_MEMORY_SYSTEM_RAM:
          return sizeof(WorkRAM);
       case RETRO_MEMORY_SAVE_RAM:
-         return sizeof(BackupRAM);
+         if (!use_mednafen_save_method)
+            return sizeof(BackupRAM);
+         break;
    }
 
    // not supported

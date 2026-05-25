@@ -65,6 +65,14 @@
  extern bool BackupRAM_Dirty;
  extern bool CartNV_Dirty;
 
+ // Save Method (defined in libretro.c). When true (default), the core
+ // owns BackupRAM persistence via its own .bkr file (the historical
+ // behaviour). When false, the frontend owns it via RETRO_MEMORY_SAVE_RAM
+ // / .srm, and the core does no .bkr I/O for BackupRAM. The two are
+ // mutually exclusive on purpose -- running both in parallel lets the
+ // frontend's post-load .srm copy clobber the .bkr the core just read.
+ extern bool use_mednafen_save_method;
+
  // Persist BackupRAM / cart NV to disk. Safe to call from any thread
  // (including outside Emulate()). Return false if the write failed so
  // the caller can schedule a retry.

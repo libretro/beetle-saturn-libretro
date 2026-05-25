@@ -734,6 +734,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled"
    },
+   {
+      "beetle_saturn_save_method",
+      "Save Method",
+      NULL,
+      "Format used to persist internal Backup RAM. 'Mednafen' (.bkr) is the core's own format and matches saves written by previous versions. 'Libretro' (.srm) hands save management to the frontend (enabling cloud sync, save-protect and similar) but does not read existing .bkr files - rename <game>.bkr to <game>.srm once to migrate a legacy save. The two formats are mutually exclusive. Restart required.",
+      NULL,
+      "memcards",
+      {
+         { "mednafen", "Mednafen" },
+         { "libretro", "Libretro" },
+         { NULL, NULL },
+      },
+      "mednafen"
+   },
 
    { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
 };
