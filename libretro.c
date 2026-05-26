@@ -113,10 +113,10 @@ bool shared_intmemory_toggle = false;
 bool shared_backup = false;
 bool shared_backup_toggle = false;
 
-// Save Method: true = core-managed .bkr (default, matches pre-1.32
-// behaviour), false = frontend-managed .srm via RETRO_MEMORY_SAVE_RAM.
-// Latched at startup; see check_variables and retro_get_memory_*.
-bool use_mednafen_save_method = true;
+// Save Method: true = core-managed .bkr, false = frontend-managed .srm
+// via RETRO_MEMORY_SAVE_RAM. Default is Libretro (.srm). Latched at
+// startup; see check_variables and retro_get_memory_*.
+bool use_mednafen_save_method = false;
 
 char retro_save_directory[4096];
 char retro_base_directory[4096];
