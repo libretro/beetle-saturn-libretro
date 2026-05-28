@@ -99,6 +99,11 @@ struct STVGameInfo
  unsigned romtwiddle;
  bool rotate;
  struct STVROMLayout rom_layout[16];
+ /* Per-game key for the Sega 315-5881 encryption chip (ec_chip ==
+    STV_EC_CHIP_315_5881). Placed last so existing positional initializers
+    that omit it are zero-initialized. Matches MAME's ROM_PARAMETER
+    ":315_5881:key". */
+ uint32_t crypt_key;
 };
 
 #ifdef __cplusplus

@@ -759,7 +759,8 @@ static const struct STVGameInfo STVGI[] =
    { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr21876.5" },
    { 0x1400000, 0x0400000, STV_MAP_16LE, "mpr21877.6" },
    { 0x1800000, 0x0200000, STV_MAP_16LE, "opr21878.1" },
-  }
+  },
+  0x0524AC01    /* 315-5881 key (MAME ":315_5881:key" = 0524ac01) */
  },
 
  {
