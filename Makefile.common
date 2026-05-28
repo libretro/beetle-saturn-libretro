@@ -90,6 +90,7 @@ SOURCES_C += \
 	     $(CORE_EMU_DIR)/cart/extram.c \
 	     $(CORE_EMU_DIR)/cart/rom.c \
 	     $(CORE_EMU_DIR)/cart/stv.c \
+	     $(CORE_EMU_DIR)/cart/stv_5881.c \
 	     $(CORE_EMU_DIR)/cart/ar4mp.c
 
 # CRC helpers used by the ST-V port (game DB fingerprinting + EEPROM seed).
