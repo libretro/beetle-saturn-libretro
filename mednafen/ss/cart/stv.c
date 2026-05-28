@@ -49,6 +49,7 @@
 #include "../db_stv.h"
 #include "../stvio.h"               /* STVIO_StateAction -- chained from this driver's StateAction */
 #include "stv.h"
+#include "stv_5881.h"             /* Sega 315-5881 encryption/compression chip */
 
 /* SS_SetPhysMemMap: defined in ss.c, declared in ss.h.
    Mirror the prototype (trailing is_writeable default arg dropped). */
@@ -62,9 +63,68 @@ static uint16_t *ROM;
 static uint8_t rsg_thingy;
 static uint8_t rsg_counter;
 
+/* --- Sega 315-5881 A-bus protection protocol state (ST-V) ---
+   MAME maps four 32-bit registers at 0x4FFFFF0..0x4FFFFFF (offsets 0..3).
+   a_bus[] latches written values; abus_protenable bit 0x00010000 gates the
+   decryption read path; abus_protkey feeds set_subkey. See common_prot_r/w
+   in MAME's stv.cpp. */
+static uint32_t a_bus[4];
+static uint32_t abus_protenable;
+static uint32_t abus_protkey;
+
+/* Endianness verify-knob for the source-data fetch. MAME's crypt_read_callback
+   does read_word(0x02000000 + 2*addr) then byteswaps. beetle stores FFR's data
+   ROMs as STV_MAP_16LE whereas MAME uses ROM_LOAD16_WORD_SWAP into a BE region;
+   if decrypted graphics come out byte-swapped on real hardware, flip this to 0.
+   This is the single most likely thing to need adjusting (see patch notes). */
+#ifndef STV5881_RAW_READ_BYTESWAP
+#define STV5881_RAW_READ_BYTESWAP 1
+#endif
+
+static uint16_t stv5881_source_read(uint32_t addr)
+{
+   uint32_t off = (2u * addr) & 0x3FFFFFE;
+   uint16_t dat = *(uint16_t*)((uint8_t*)ROM + off);
+#if STV5881_RAW_READ_BYTESWAP
+   return (uint16_t)(((dat & 0xff00) >> 8) | ((dat & 0x00ff) << 8));
+#else
+   return dat;
+#endif
+}
+
 static MDFN_HOT void ROM_Read(uint32_t A, uint16_t *DB)
 {
    *DB = *(uint16_t*)((uint8_t*)ROM + ((A - 0x2000000) & 0x3FFFFFE));
+
+   if(ECChip == STV_EC_CHIP_315_5881 && A >= 0x04FFFFF0)
+   {
+      unsigned off = (A - 0x04FFFFF0) >> 2;   /* register index 0..3        */
+      int      low = (A & 2) != 0;            /* low 16-bit half of the reg */
+
+      if(abus_protenable & 0x00010000)        /* decryption active          */
+      {
+         if(off == 3)
+         {
+            /* MAME common_prot_r offset 3 reads do_decrypt() twice, byteswaps
+               each, and returns res2 | (res << 16). On this 16-bit bus a SH-2
+               longword read is split into two 16-bit reads issued high-word
+               (lower address, A&2==0) first, so one decrypt per 16-bit read
+               preserves MAME's ordering: 0x4FFFFFC -> res, 0x4FFFFFE -> res2. */
+            uint16_t w = STV5881_DoDecrypt();
+            *DB = (uint16_t)(((w & 0xff00) >> 8) | ((w & 0x00ff) << 8));
+         }
+         else
+            *DB = low ? (uint16_t)a_bus[off] : (uint16_t)(a_bus[off] >> 16);
+      }
+      else if(a_bus[off] != 0)
+      {
+         /* protection off: MAME returns the latch if nonzero, else the ROM
+            mirror (already in *DB from the load above, which aliases MAME's
+            ROM[(0x02fffff0/4)+offset]). */
+         *DB = low ? (uint16_t)a_bus[off] : (uint16_t)(a_bus[off] >> 16);
+      }
+      return;
+   }
 
    if(A >= 0x04FFFFFC && rsg_thingy)
    {
@@ -87,6 +147,15 @@ uint8_t CART_STV_PeekROM(uint32_t A)
 /* Was Write<uint8_t>: 8-bit access, the (A & 1) path. */
 static MDFN_HOT void Write8(uint32_t A, uint16_t *DB)
 {
+   if(ECChip == STV_EC_CHIP_315_5881 && A >= 0x04FFFFF0)
+   {
+      /* The 315-5881 protection ports (0x4FFFFF0..0x4FFFFFF) are driven by
+         the game with 32-bit writes, which the A-bus splits into 16-bit
+         cycles handled by Write16 -- never 8-bit. A byte write here is not a
+         real access pattern, so ignore it rather than guess a byte lane. */
+      return;
+   }
+
    if(A >= 0x04FFFFF0 && ECChip == STV_EC_CHIP_RSG)
    {
       if(A & 1)
@@ -103,6 +172,36 @@ static MDFN_HOT void Write8(uint32_t A, uint16_t *DB)
 /* Was Write<uint16_t>: 16-bit access, the sizeof(T) == 2 path. */
 static MDFN_HOT void Write16(uint32_t A, uint16_t *DB)
 {
+   if(ECChip == STV_EC_CHIP_315_5881 && A >= 0x04FFFFF0)
+   {
+      unsigned off = (A - 0x04FFFFF0) >> 2;
+      int      low = (A & 2) != 0;
+
+      /* COMBINE_DATA into the addressed 16-bit half of the 32-bit latch */
+      if(low)
+         a_bus[off] = (a_bus[off] & 0xFFFF0000u) | *DB;
+      else
+         a_bus[off] = (a_bus[off] & 0x0000FFFFu) | ((uint32_t)*DB << 16);
+
+      if(off == 0)
+         abus_protenable = a_bus[0];
+      else if(off == 2)
+      {
+         /* MAME: hi word -> set_addr_low(data>>16); lo word -> set_addr_high(data&0xffff) */
+         if(!low)
+            STV5881_SetAddrLow(*DB);
+         else
+            STV5881_SetAddrHigh(*DB);
+      }
+      else if(off == 3)
+      {
+         abus_protkey = a_bus[3];
+         if(!low)
+            STV5881_SetSubkey(*DB);           /* MAME: set_subkey(protkey>>16) */
+      }
+      return;
+   }
+
    if(A >= 0x04FFFFF0 && ECChip == STV_EC_CHIP_RSG)
    {
       if((A & ~1) == 0x04FFFFF0)
@@ -118,6 +217,12 @@ static void Reset(bool powering_up)
    (void)powering_up;
    rsg_thingy  = 0;
    rsg_counter = 0;
+
+   a_bus[0] = a_bus[1] = a_bus[2] = a_bus[3] = 0;
+   abus_protenable = 0;
+   abus_protkey    = 0;
+   if(ECChip == STV_EC_CHIP_315_5881)
+      STV5881_Reset();
 }
 
 static void StateAction(StateMem *sm, const unsigned load, const bool data_only)
@@ -127,10 +232,20 @@ static void StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(rsg_thingy),
       SFVAR(rsg_counter),
 
+      SFVAR(a_bus[0]),
+      SFVAR(a_bus[1]),
+      SFVAR(a_bus[2]),
+      SFVAR(a_bus[3]),
+      SFVAR(abus_protenable),
+      SFVAR(abus_protkey),
+
       SFEND
    };
 
    MDFNSS_StateAction(sm, load, data_only, StateRegs, "STV_CART", false);
+
+   if(ECChip == STV_EC_CHIP_315_5881)
+      STV5881_StateAction(sm, load, data_only);
 
    /* ST-V's runtime state is split between this cart driver
     * (rsg_thingy / rsg_counter -- the security-chip handshake
@@ -366,6 +481,9 @@ bool CART_STV_Init(struct CartInfo *c, const char *rom_dir, const char *main_fna
 
    SS_SetPhysMemMap(0x02000000, 0x04FFFFFF, ROM, 0x3000000, false);
    CartInfo_CS01_SetRW8W16(c, 0x02000000, 0x04FFFFFF, ROM_Read, Write8, Write16);
+
+   if(ECChip == STV_EC_CHIP_315_5881)
+      STV5881_Init(sgi->crypt_key, stv5881_source_read);
 
    c->StateAction = StateAction;
    c->Reset       = Reset;
