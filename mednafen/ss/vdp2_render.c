@@ -90,29 +90,36 @@ static uint8_t RDBS_Mode;
 static uint8_t VCPRegs[4][8];
 static const uint16_t DummyTileNT[8 * 8 * 4 / sizeof(uint16_t)] = { 0 };
 
-/*
- * "Deinterlace = Off" toggle, read by the consumer thread inside
- * DrawLine. When true and the frame is interlaced, each rendered
- * scanline is also memcpy'd to the opposite-field row of the surface
- * so every emulated frame produces a stable progressive image
- * (current-frame content at full vertical resolution) instead of
- * one field's worth interleaved with the previous frame.
+/* Renderer-side deinterlace output mode.
  *
- * Backport of beetle-psx-libretro's psx_gpu_rasterize_both_fields
- * mechanism. PSX does this by bypassing LineSkipTest in the GPU
- * rasteriser and deferring the per-line VRAM-to-surface conversion
- * to a single end-of-frame flush; Saturn has no equivalent
- * rasterise-vs-scanout split (VDP2 writes RGB directly into the
- * libretro surface as it goes, end-of-frame drain via the WWQ
- * render thread already defers presentation to libretro until all
- * lines are committed). The duplicate-to-mirror-row in DrawLine
- * gives the same user-visible effect: full-resolution, no comb on
- * motion, deinterlacer becomes a no-op.
- *
- * Set via COMMAND_SET_DEINT_OFF on the render-thread command queue
- * (single-producer / single-consumer, no per-line lock).
- */
-static bool DeinterlaceOff;
+ * OFF keeps the older mirror behaviour: draw the current field and copy
+ * it to the opposite row.  PROGRESSIVE renders both fields into one full-height output frame:
+ * for each interlaced source line, draw field 0 to the even output row
+ * and field 1 to the odd output row.  The small line-state snapshots below
+ * are Beetle-specific bookkeeping so the existing DrawLine() logic can
+ * be reused without porting Ymir/Kronos renderer code. */
+static unsigned ProducerDeinterlaceMode = VDP2_DEINT_NORMAL;
+static unsigned ConsumerDeinterlaceMode = VDP2_DEINT_NORMAL;
+
+typedef struct
+{
+ uint32_t VCLast[2];
+ uint32_t YCoordAccum[2];
+ uint32_t CurXScrollIF[2];
+ uint32_t CurYScrollIF[2];
+ uint32_t CurLSA[2];
+ uint32_t CurBackTabAddr;
+ uint32_t CurLCTabAddr;
+ uint16_t CurXCoordInc[2];
+ uint16_t NBG23_YCounter[2];
+ uint16_t CurBackColor;
+ uint16_t CurLCColor;
+ uint32_t WindowCurLineWinAddr[2];
+ uint8_t MosaicVCount;
+} VDP2LineState;
+
+static VDP2LineState ProgressiveLineState[2];
+static bool ProgressiveLineStateValid[2];
 
 static uint16_t BGON;
 static uint16_t MZCTL;
@@ -4011,6 +4018,46 @@ static int32_t ApplyHBlend(uint32_t* const target, int32_t w)
  #undef BHALF
 }
 
+static INLINE void SaveLineState(VDP2LineState* st)
+{
+ for(unsigned n = 0; n < 2; n++)
+ {
+  st->VCLast[n] = VCLast[n];
+  st->YCoordAccum[n] = YCoordAccum[n];
+  st->CurXScrollIF[n] = CurXScrollIF[n];
+  st->CurYScrollIF[n] = CurYScrollIF[n];
+  st->CurLSA[n] = CurLSA[n];
+  st->CurXCoordInc[n] = CurXCoordInc[n];
+  st->NBG23_YCounter[n] = NBG23_YCounter[n];
+  st->WindowCurLineWinAddr[n] = Window[n].CurLineWinAddr;
+ }
+ st->CurBackTabAddr = CurBackTabAddr;
+ st->CurLCTabAddr = CurLCTabAddr;
+ st->CurBackColor = CurBackColor;
+ st->CurLCColor = CurLCColor;
+ st->MosaicVCount = MosaicVCount;
+}
+
+static INLINE void LoadLineState(const VDP2LineState* st)
+{
+ for(unsigned n = 0; n < 2; n++)
+ {
+  VCLast[n] = st->VCLast[n];
+  YCoordAccum[n] = st->YCoordAccum[n];
+  CurXScrollIF[n] = st->CurXScrollIF[n];
+  CurYScrollIF[n] = st->CurYScrollIF[n];
+  CurLSA[n] = st->CurLSA[n];
+  CurXCoordInc[n] = st->CurXCoordInc[n];
+  NBG23_YCounter[n] = st->NBG23_YCounter[n];
+  Window[n].CurLineWinAddr = st->WindowCurLineWinAddr[n];
+ }
+ CurBackTabAddr = st->CurBackTabAddr;
+ CurLCTabAddr = st->CurLCTabAddr;
+ CurBackColor = st->CurBackColor;
+ CurLCColor = st->CurLCColor;
+ MosaicVCount = st->MosaicVCount;
+}
+
 static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line, const bool field)
 {
  const int32_t tvdw = ((!CorrectAspect || Clock28M) ? 352 : 330) << ((HRes & 0x2) >> 1);
@@ -4256,7 +4303,10 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
   //  has no user-layer-mask UI; the bit was always set, so the else
   //  was always dead.  Sprite draw runs unconditionally now.)
   MakeSpriteCCLUT();
-  DrawSpriteData[(HRes & 0x2) >> 0x1][(SDCTL >> 8) & 0x1][SPCTL_Low](LIB[vdp2_line].vdp1_line, LIB[vdp2_line].vdp1_hires8, w);
+  {
+   const bool use_vdp1_alt = (ConsumerDeinterlaceMode == VDP2_DEINT_PROGRESSIVE) && espec->InterlaceOn && (InterlaceMode == IM_DOUBLE) && field && LIB[vdp2_line].vdp1_alt_valid;
+   DrawSpriteData[(HRes & 0x2) >> 0x1][(SDCTL >> 8) & 0x1][SPCTL_Low](use_vdp1_alt ? LIB[vdp2_line].vdp1_line_alt : LIB[vdp2_line].vdp1_line, use_vdp1_alt ? LIB[vdp2_line].vdp1_alt_hires8 : LIB[vdp2_line].vdp1_hires8, w);
+  }
 
   if(BGON & 0x30)
   {
@@ -4592,7 +4642,10 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
    // zeroed unconditionally by VBErase, so flipping the option on
    // mid-session can't bleed stale data through.
    if(VDP1_MeshImproved)
-    ApplyMeshOverlay(target + tvxo, LIB[vdp2_line].vdp1_mesh_line, LIB[vdp2_line].vdp1_winprio, w, (HRes & 0x2) >> 1);
+   {
+    const bool use_vdp1_alt = (ConsumerDeinterlaceMode == VDP2_DEINT_PROGRESSIVE) && espec->InterlaceOn && (InterlaceMode == IM_DOUBLE) && field && LIB[vdp2_line].vdp1_alt_valid;
+    ApplyMeshOverlay(target + tvxo, use_vdp1_alt ? LIB[vdp2_line].vdp1_mesh_line_alt : LIB[vdp2_line].vdp1_mesh_line, LIB[vdp2_line].vdp1_winprio, w, (HRes & 0x2) >> 1);
+   }
   }
   //
   //
@@ -4647,7 +4700,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
  // DisplayRect.x + LineWidths <= 704 (asserted in DrawLine just
  // above).
  //
- if(MDFN_UNLIKELY(DeinterlaceOff) && espec->InterlaceOn)
+ if(MDFN_UNLIKELY(ConsumerDeinterlaceMode == VDP2_DEINT_OFF) && espec->InterlaceOn)
  {
   const int32_t mirror_line = (int32_t)out_line ^ 1;
   const int32_t rect_end = espec->DisplayRect.y + espec->DisplayRect.h;
@@ -4668,6 +4721,24 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
 //
 //
 //
+static INLINE void DrawLineCommand(const uint16_t out_line, const uint16_t vdp2_line, const bool field)
+{
+ if(MDFN_UNLIKELY(ConsumerDeinterlaceMode == VDP2_DEINT_PROGRESSIVE && espec && espec->InterlaceOn))
+ {
+  const unsigned f = (unsigned)field & 1U;
+
+  if(ProgressiveLineStateValid[f])
+   LoadLineState(&ProgressiveLineState[f]);
+
+  DrawLine(out_line, vdp2_line, field);
+
+  SaveLineState(&ProgressiveLineState[f]);
+  ProgressiveLineStateValid[f] = true;
+ }
+ else
+  DrawLine(out_line, vdp2_line, field);
+}
+
 static sthread_t *RThread = NULL;
 
 enum
@@ -4678,7 +4749,7 @@ enum
 
  COMMAND_DRAW_LINE,
 
- COMMAND_SET_DEINT_OFF,
+ COMMAND_SET_DEINT_MODE,
 
  COMMAND_SET_BUSYWAIT,
 
@@ -4850,7 +4921,7 @@ static void/*int*/ RThreadEntry(void* data)
 
    case COMMAND_DRAW_LINE:
 	//for(unsigned i = 0; i < 2; i++)
-	DrawLine((uint16_t)wqe->Arg32, wqe->Arg32 >> 16, wqe->Arg16);
+	DrawLineCommand((uint16_t)wqe->Arg32, wqe->Arg32 >> 16, wqe->Arg16);
 	//
 	// Publish completion: DrawFinishCount is consumer-written, read by
 	// the producer (EndFrame's drain wait, and the wdcq wakeup
@@ -4873,8 +4944,8 @@ static void/*int*/ RThreadEntry(void* data)
 	Reset(wqe->Arg32);
 	break;
 
-   case COMMAND_SET_DEINT_OFF:
-	DeinterlaceOff = (bool)wqe->Arg32;
+   case COMMAND_SET_DEINT_MODE:
+	ConsumerDeinterlaceMode = wqe->Arg32;
 	break;
 
    case COMMAND_SET_BUSYWAIT:
@@ -5018,6 +5089,8 @@ void VDP2REND_StartFrame(struct EmulateSpecStruct* espec_arg, const bool clock28
 {
  NextOutLine = 0;
  Clock28M = clock28m;
+ ProgressiveLineStateValid[0] = false;
+ ProgressiveLineStateValid[1] = false;
 
  espec = espec_arg;
 
@@ -5065,17 +5138,33 @@ void VDP2REND_EndFrame(void)
 
  if(NextOutLine < VisibleLines)
  {
+  const bool progressive = (ProducerDeinterlaceMode == VDP2_DEINT_PROGRESSIVE && espec->InterlaceOn);
+
   do
   {
-   uint16_t out_line = NextOutLine;
-   uint32_t* target;
+   if(progressive)
+   {
+    for(unsigned f = 0; f < 2; f++)
+    {
+     const uint16_t out_line = (NextOutLine << 1) | f;
+     uint32_t* target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
 
-   if(espec->InterlaceOn)
-    out_line = (out_line << 1) | espec->InterlaceField;
+     target[0] = target[1] = target[2] = target[3] = MAKECOLOR(0, 0, 0, 0);
+     espec->LineWidths[out_line] = 4;
+    }
+   }
+   else
+   {
+    uint16_t out_line = NextOutLine;
+    uint32_t* target;
 
-   target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
-   target[0] = target[1] = target[2] = target[3] = MAKECOLOR(0, 0, 0, 0);
-   espec->LineWidths[out_line] = 4;
+    if(espec->InterlaceOn)
+     out_line = (out_line << 1) | espec->InterlaceField;
+
+    target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
+    target[0] = target[1] = target[2] = target[3] = MAKECOLOR(0, 0, 0, 0);
+    espec->LineWidths[out_line] = 4;
+   }
   } while(++NextOutLine < VisibleLines);
  }
 
@@ -5101,15 +5190,29 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool 
 
  if(MDFN_LIKELY(crt_line < VisibleLines))
  {
-  uint16_t out_line = crt_line;
-
-  if(espec->InterlaceOn)
-   out_line = (out_line << 1) | espec->InterlaceField;
-
+  const bool progressive = (ProducerDeinterlaceMode == VDP2_DEINT_PROGRESSIVE && espec->InterlaceOn);
+  const unsigned queued_lines = progressive ? 2U : 1U;
   const uint32_t wdcq = Prod.DrawPushLocal - VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount);
-  ++Prod.DrawPushLocal;
+
+  Prod.DrawPushLocal += queued_lines;
   VDP2_ATOMIC_STORE_REL(DrawPushCount, Prod.DrawPushLocal);
-  WWQ(COMMAND_DRAW_LINE, ((uint16_t)vdp2_line << 16) | out_line, field);
+
+  if(progressive)
+  {
+   const uint16_t base_out_line = crt_line << 1;
+
+   WWQ(COMMAND_DRAW_LINE, ((uint16_t)vdp2_line << 16) | (base_out_line | 0), false);
+   WWQ(COMMAND_DRAW_LINE, ((uint16_t)vdp2_line << 16) | (base_out_line | 1), true);
+  }
+  else
+  {
+   uint16_t out_line = crt_line;
+
+   if(espec->InterlaceOn)
+    out_line = (out_line << 1) | espec->InterlaceField;
+
+   WWQ(COMMAND_DRAW_LINE, ((uint16_t)vdp2_line << 16) | out_line, field);
+  }
   //
   //
   if(crt_line == bwthresh)
@@ -5121,9 +5224,9 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool 
   {
    if(wdcq == 0)
     DoWakeupIfNecessary = true;
-   else if((wdcq + 1) >= 64 && DoWakeupIfNecessary)
+   else if((wdcq + queued_lines) >= 64 && DoWakeupIfNecessary)
    {
-    //printf("Post Wakeup: %3d --- crt_line=%3d\n", wdcq + 1, crt_line);
+    //printf("Post Wakeup: %3d --- crt_line=%3d\n", wdcq + queued_lines, crt_line);
     ssem_signal(WakeupSem);
     DoWakeupIfNecessary = false;
    }
@@ -5138,40 +5241,21 @@ void VDP2REND_Reset(bool powering_up)
  WWQ(COMMAND_RESET, powering_up, 0);
 }
 
-void VDP2REND_SetDeinterlaceOff(bool off)
+void VDP2REND_SetDeinterlaceMode(unsigned mode)
 {
- // Normally routed through the consumer command queue (not a direct
- // atomic store) so the flag flips exactly between scanlines, never
- // mid-line.
- //
- // Pre-Init path (RThread NULL): libretro's check_variables(true)
- // fires from retro_load_game *before* MDFNI_LoadGame brings up
- // VDP2REND_Init, so a WWQ here would land in a ring that
- // VDP2REND_Init then zeroes out (Prod/Cons reset, WQ_PushCount
- // store=0) before the consumer thread is ever created and starts
- // pulling. The COMMAND_SET_DEINT_OFF entry stays in WQ[0] memory
- // but is unreachable: the consumer sees PushCount==PopLocal==0 on
- // startup and waits.
- //
- // Without this guard, the very first frames after boot run with
- // DeinterlaceOff = false even when the user has the option set
- // to "off". On interlaced content (VF Kids, anything that flips
- // TVMD into IM_DOUBLE) the mirror at DrawLine never fires and
- // VDP2 just writes one field per frame on top of the previous
- // field's lines -- weave-style combing, visible on VDP1 polygon
- // output. Toggling the option mid-run re-fires SetDeinterlaceOff
- // from check_variables(false) when the WQ is alive, which is why
- // cycling the option through any other mode and back to "off"
- // appears to "fix" the combing (it actually engages the mirror
- // for the first time since boot).
- //
- // The pre-Init write is unsynchronized but safe: no consumer
- // thread exists yet, and the only writer is the emulator main
- // thread (the same one that will create RThread shortly).
- if (RThread == NULL)
-  DeinterlaceOff = off;
+ if(mode > VDP2_DEINT_PROGRESSIVE)
+  mode = VDP2_DEINT_NORMAL;
+
+ ProducerDeinterlaceMode = mode;
+
+ /* Route the consumer copy through the queue when the render thread is
+  * alive, so option changes are observed between draw commands.  Before
+  * Init creates the thread, write directly; an early queued command would
+  * be lost when Init resets the ring counters. */
+ if(RThread == NULL)
+  ConsumerDeinterlaceMode = mode;
  else
-  WWQ(COMMAND_SET_DEINT_OFF, (uint32_t)off, 0);
+  WWQ(COMMAND_SET_DEINT_MODE, mode, 0);
 }
 
 void VDP2REND_Write8_DB(uint32_t A, uint16_t DB)

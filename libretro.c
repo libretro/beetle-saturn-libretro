@@ -37,6 +37,7 @@
 #include "mednafen/ss/smpc.h"
 #include "mednafen/ss/stvio.h"
 #include "mednafen/ss/vdp1.h"
+#include "mednafen/ss/vdp2_deinterlace.h"
 /* vdp2.h's one entry point used here is forward-declared below
  * to keep this TU's include surface light -- vdp2.h would
  * transitively pull in ss.h's full event-system surface for a
@@ -141,7 +142,7 @@ extern MDFNGI EmulatedSS;
 /* Local forward decl for the single VDP2 entry point this TU
  * reaches into.  See the include block above for why vdp2.h isn't
  * pulled in directly. */
-extern void VDP2_SetDeinterlaceOff(bool off);
+extern void VDP2_SetDeinterlaceMode(unsigned mode);
 
 #ifdef NEED_DEINTERLACER
 static bool PrevInterlaced;
@@ -532,23 +533,18 @@ static void check_variables(bool startup)
    var.key = "beetle_saturn_deinterlacer";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
-      // The "off" mode pairs DEINT_OFF on the deinterlacer (which then
-      // does nothing) with VDP2_SetDeinterlaceOff(true) on the VDP2
-      // renderer side, which causes each rendered scanline to also be
-      // memcpy'd to the opposite-field row of the libretro surface.
-      // Every emulated frame thus produces a stable, full-resolution
-      // progressive image. All other modes leave the renderer in its
-      // default single-field-per-frame behaviour and let the
-      // deinterlacer combine fields after the fact.
       const bool off = (strcmp(var.value, "off") == 0);
-      VDP2_SetDeinterlaceOff(off);
+      const bool progressive = (strcmp(var.value, "progressive") == 0);
+
+      VDP2_SetDeinterlaceMode(progressive ? VDP2_DEINT_PROGRESSIVE :
+            (off ? VDP2_DEINT_OFF : VDP2_DEINT_NORMAL));
 
 #ifdef NEED_DEINTERLACER
       /* The 'deint' instance is itself #ifdef NEED_DEINTERLACER (declared
        * at file scope above), as are every other Deinterlacer_* call in
        * this TU (Init, ClearState, Process, GetType, Cleanup).  This
        * setting-handler chain was the lone exception, breaking the
-       * NEED_DEINTERLACER=0 build.  VDP2_SetDeinterlaceOff stays
+       * NEED_DEINTERLACER=0 build.  VDP2_SetDeinterlaceMode stays
        * outside the gate -- VDP2 is the GPU subsystem and independent
        * of the SW deinterlacer. */
       if (strcmp(var.value, "bob") == 0)
@@ -557,7 +553,7 @@ static void check_variables(bool startup)
          Deinterlacer_SetType(&deint, DEINT_BOB_OFFSET);
       else if (strcmp(var.value, "fastmad") == 0)
          Deinterlacer_SetType(&deint, DEINT_FASTMAD);
-      else if (off)
+      else if (off || progressive)
          Deinterlacer_SetType(&deint, DEINT_OFF);
       else
          Deinterlacer_SetType(&deint, DEINT_WEAVE);

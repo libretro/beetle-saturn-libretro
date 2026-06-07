@@ -124,6 +124,13 @@ static uint32_t InstantDrawSanityLimit; // ss_horrible_hacks
 uint16_t VDP1_VRAM[0x40000];
 uint16_t VDP1_FB[2][0x20000];
 
+/* Alternate framebuffer for the complementary VDP1 double-interlace field.
+ * Progressive output uses it so VDP2 can composite each output line with
+ * the matching VDP1 field: even source rows stay in FB, odd rows go here. */
+uint16_t VDP1_AltFB[2][0x20000];
+uint16_t* VDP1_AltFBDrawWhichPtr;
+bool VDP1_AltFieldCapture = false;
+
 // Side-buffer for "improved mesh transparency" mode. When VDP1_MeshImproved
 // is true, VDP1 mesh-bit primitives write their colour here (with MSB
 // set as the "mesh pixel present" marker) instead of the main FB.
@@ -138,6 +145,8 @@ uint16_t VDP1_FB[2][0x20000];
 // per-frame clear matches the game's intent for the main framebuffer.
 uint16_t VDP1_MeshFB[2][0x20000];
 uint16_t* VDP1_MeshFBDrawWhichPtr;
+uint16_t VDP1_AltMeshFB[2][0x20000];
+uint16_t* VDP1_AltMeshFBDrawWhichPtr;
 
 // Module-level toggle for the "improved mesh transparency" mode.
 // Read by PlotPixel in vdp1_common.h when its MeshEn template
@@ -147,6 +156,11 @@ bool VDP1_MeshImproved = false;
 void VDP1_SetMeshImproved(bool improved)
 {
  VDP1_MeshImproved = improved;
+}
+
+void VDP1_SetAltFieldCapture(bool enabled)
+{
+ VDP1_AltFieldCapture = enabled;
 }
 
 void VDP1_Init(void)
@@ -199,7 +213,10 @@ void VDP1_Reset(bool powering_up)
 
   for(unsigned fb = 0; fb < 2; fb++)
    for(unsigned i = 0; i < 0x20000; i++)
+   {
     VDP1_FB[fb][i] = 0xFFFF;
+    VDP1_AltFB[fb][i] = 0xFFFF;
+   }
 
   memset(&VDP1_LineData, 0, sizeof(VDP1_LineData));
   memset(&VDP1_LineInnerData, 0, sizeof(VDP1_LineInnerData));
@@ -226,8 +243,11 @@ void VDP1_Reset(bool powering_up)
 
  FBDrawWhich = 0;
  VDP1_FBDrawWhichPtr = VDP1_FB[FBDrawWhich];
+ VDP1_AltFBDrawWhichPtr = VDP1_AltFB[FBDrawWhich];
  VDP1_MeshFBDrawWhichPtr = VDP1_MeshFB[FBDrawWhich];
+ VDP1_AltMeshFBDrawWhichPtr = VDP1_AltMeshFB[FBDrawWhich];
  memset(VDP1_MeshFB, 0, sizeof(VDP1_MeshFB));
+ memset(VDP1_AltMeshFB, 0, sizeof(VDP1_AltMeshFB));
  //SS_SetPhysMemMap(0x05C80000, 0x05CFFFFF, VDP1_FB[FBDrawWhich], sizeof(VDP1_FB[0]), true);
 
  FBManualPending = false;
@@ -876,15 +896,21 @@ void VDP1_SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_sta
     do
     {
      uint16_t* fbyptr;
+     uint16_t* afbyptr;
      uint16_t* mfbyptr;
+     uint16_t* amfbyptr;
      uint32_t x = EraseParams.x_start;
 
      fbyptr = &VDP1_FB[!FBDrawWhich][(y & 0xFF) << 9];
+     afbyptr = &VDP1_AltFB[!FBDrawWhich][(y & 0xFF) << 9];
      mfbyptr = &VDP1_MeshFB[!FBDrawWhich][(y & 0xFF) << 9];
+     amfbyptr = &VDP1_AltMeshFB[!FBDrawWhich][(y & 0xFF) << 9];
      if(EraseParams.rot8)
      {
       fbyptr += (y & 0x100);
+      afbyptr += (y & 0x100);
       mfbyptr += (y & 0x100);
+      amfbyptr += (y & 0x100);
      }
 
      count -= 8;
@@ -893,12 +919,14 @@ void VDP1_SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_sta
       for(unsigned sub = 0; sub < 8; sub++)
       {
        fbyptr[x & EraseParams.fb_x_mask] = EraseParams.fill_data;
+       afbyptr[x & EraseParams.fb_x_mask] = EraseParams.fill_data;
        // Clear the side-buffer in lockstep with the main FB so the
        // new draw side starts with no stale mesh pixels from the
        // previous frame. Mesh side-buffer always erases to 0
        // regardless of the game's chosen FB fill colour, since 0
        // is the "no mesh pixel here" marker.
        mfbyptr[x & EraseParams.fb_x_mask] = 0;
+       amfbyptr[x & EraseParams.fb_x_mask] = 0;
        x++;
       }
       count -= 8;
@@ -925,7 +953,9 @@ void VDP1_SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_sta
 
     FBDrawWhich = !FBDrawWhich;
     VDP1_FBDrawWhichPtr = VDP1_FB[FBDrawWhich];
+    VDP1_AltFBDrawWhichPtr = VDP1_AltFB[FBDrawWhich];
     VDP1_MeshFBDrawWhichPtr = VDP1_MeshFB[FBDrawWhich];
+    VDP1_AltMeshFBDrawWhichPtr = VDP1_AltMeshFB[FBDrawWhich];
 
     // Unconditionally clear the new draw side of VDP1_MeshFB. Game-driven erase
     // (VBErase, per-scanline GetLine erase) is gated on the game's VDP1_FBCR/
@@ -933,7 +963,10 @@ void VDP1_SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_sta
     // management. Mesh data is transient by nature - we always want a fresh
     // slate per frame, regardless of the game's main-FB persistence choices.
     if(VDP1_MeshImproved)
+    {
      memset(VDP1_MeshFBDrawWhichPtr, 0, sizeof(VDP1_MeshFB[0]));
+     memset(VDP1_AltMeshFBDrawWhichPtr, 0, sizeof(VDP1_AltMeshFB[0]));
+    }
 
     // On fb swap, copy CEF to BEF, clear CEF, and copy COPR to LOPR.
     EDSR = EDSR >> 1;
@@ -974,16 +1007,21 @@ void VDP1_SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_sta
  vbcdpending |= old_vb_status ^ vb_status;
 }
 
-bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w, uint32_t rot_x, uint32_t rot_y, uint32_t rot_xinc, uint32_t rot_yinc)
+bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, uint16_t* alt_buf, uint16_t* alt_mesh_buf, bool* alt_valid, unsigned w, uint32_t rot_x, uint32_t rot_y, uint32_t rot_xinc, uint32_t rot_yinc)
 {
  bool ret = false;
+ const bool read_alt = VDP1_AltFieldCapture && (VDP1_FBCR & VDP1_FBCR_DIE) && alt_buf && alt_mesh_buf;
+ if(alt_valid)
+  *alt_valid = read_alt;
  //
  //
  //
  if(VDP1_TVMR & VDP1_TVMR_ROTATE)
  {
   const uint16_t* fbptr = VDP1_FB[!FBDrawWhich];
+  const uint16_t* afbptr = VDP1_AltFB[!FBDrawWhich];
   const uint16_t* mfbptr = VDP1_MeshFB[!FBDrawWhich];
+  const uint16_t* amfbptr = VDP1_AltMeshFB[!FBDrawWhich];
 
   if(VDP1_TVMR & VDP1_TVMR_8BPP)
   {
@@ -996,6 +1034,11 @@ bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w,
     {
      buf[i] = 0;	// Not 0xFF00
      mesh_buf[i] = 0;
+     if(read_alt)
+     {
+      alt_buf[i] = 0;
+      alt_mesh_buf[i] = 0;
+     }
     }
     else
     {
@@ -1021,6 +1064,21 @@ bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w,
      uint8_t mtmp = ((const uint8_t*)mfbyptr)[boff_ ^ 1];
 #endif
      mesh_buf[i] = mtmp;
+
+     if(read_alt)
+     {
+      const uint16_t* afbyptr = afbptr + ((fb_y & 0xFF) << 9);
+      const uint16_t* amfbyptr = amfbptr + ((fb_y & 0xFF) << 9);
+#ifdef MSB_FIRST
+      uint8_t atmp = ((const uint8_t*)afbyptr)[boff_];
+      uint8_t amtmp = ((const uint8_t*)amfbyptr)[boff_];
+#else
+      uint8_t atmp = ((const uint8_t*)afbyptr)[boff_ ^ 1];
+      uint8_t amtmp = ((const uint8_t*)amfbyptr)[boff_ ^ 1];
+#endif
+      alt_buf[i] = 0xFF00 | atmp;
+      alt_mesh_buf[i] = amtmp;
+     }
     }
 
     rot_x += rot_xinc;
@@ -1038,11 +1096,22 @@ bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w,
     {
      buf[i] = 0;
      mesh_buf[i] = 0;
+     if(read_alt)
+     {
+      alt_buf[i] = 0;
+      alt_mesh_buf[i] = 0;
+     }
     }
     else
     {
-     buf[i] = fbptr[(fb_y << 9) + fb_x];
-     mesh_buf[i] = mfbptr[(fb_y << 9) + fb_x];
+     const uint32_t offs = (fb_y << 9) + fb_x;
+     buf[i] = fbptr[offs];
+     mesh_buf[i] = mfbptr[offs];
+     if(read_alt)
+     {
+      alt_buf[i] = afbptr[offs];
+      alt_mesh_buf[i] = amfbptr[offs];
+     }
     }
 
     rot_x += rot_xinc;
@@ -1053,7 +1122,9 @@ bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w,
  else
  {
   const uint16_t* fbyptr = &VDP1_FB[!FBDrawWhich][(line & 0xFF) << 9];
+  const uint16_t* afbyptr = &VDP1_AltFB[!FBDrawWhich][(line & 0xFF) << 9];
   const uint16_t* mfbyptr = &VDP1_MeshFB[!FBDrawWhich][(line & 0xFF) << 9];
+  const uint16_t* amfbyptr = &VDP1_AltMeshFB[!FBDrawWhich][(line & 0xFF) << 9];
 
   if(VDP1_TVMR & VDP1_TVMR_8BPP)
    ret = true;
@@ -1066,13 +1137,21 @@ bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w,
   // the previous scalar for-loop with MDFN_LIKELY was at the mercy
   // of the compiler's autovectorisation heuristics.
   memcpy(buf, fbyptr, (size_t)w * sizeof(uint16_t));
+  if(read_alt)
+   memcpy(alt_buf, afbyptr, (size_t)w * sizeof(uint16_t));
   /* MeshFB row is only ever read by ApplyMeshOverlay (vdp2_render),
    * which is itself gated on VDP1_MeshImproved.  When the option is
    * off this memcpy lands in a buffer nothing reads -- skip it.  At
    * 352-wide x 224 lines x 60Hz that saves ~9.5 MB/s of dead copy
    * traffic in the default state. */
   if(VDP1_MeshImproved)
+  {
    memcpy(mesh_buf, mfbyptr, (size_t)w * sizeof(uint16_t));
+   if(read_alt)
+    memcpy(alt_mesh_buf, amfbyptr, (size_t)w * sizeof(uint16_t));
+  }
+  else if(read_alt)
+   memset(alt_mesh_buf, 0, (size_t)w * sizeof(uint16_t));
  }
 
  //
@@ -1081,15 +1160,21 @@ bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w,
  if(EraseYCounter <= EraseParams.y_end)
  {
   uint16_t* fbyptr;
+  uint16_t* afbyptr;
   uint16_t* mfbyptr;
+  uint16_t* amfbyptr;
   uint32_t x = EraseParams.x_start;
 
   fbyptr = &VDP1_FB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
+  afbyptr = &VDP1_AltFB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
   mfbyptr = &VDP1_MeshFB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
+  amfbyptr = &VDP1_AltMeshFB[!FBDrawWhich][(EraseYCounter & 0xFF) << 9];
   if(EraseParams.rot8)
   {
    fbyptr += (EraseYCounter & 0x100);
+   afbyptr += (EraseYCounter & 0x100);
    mfbyptr += (EraseYCounter & 0x100);
+   amfbyptr += (EraseYCounter & 0x100);
   }
 
   do
@@ -1097,7 +1182,9 @@ bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w,
    for(unsigned sub = 0; sub < 2; sub++)
    {
     fbyptr[x & EraseParams.fb_x_mask] = EraseParams.fill_data;
+    afbyptr[x & EraseParams.fb_x_mask] = EraseParams.fill_data;
     mfbyptr[x & EraseParams.fb_x_mask] = 0;
+    amfbyptr[x & EraseParams.fb_x_mask] = 0;
     x++;
    }
   } while(x < EraseParams.x_bound);
@@ -1408,7 +1495,9 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
  {
   SFPTR16N(&(VRAM)[0], (sizeof(VRAM) / sizeof(uint16_t)), "VRAM"),
   SFPTR16N(&(FB)[0][0], (sizeof(FB) / sizeof(uint16_t)), "&FB[0][0]"),
+  SFPTR16N(&(AltFB)[0][0], (sizeof(AltFB) / sizeof(uint16_t)), "&AltFB[0][0]"),
   SFPTR16N(&(MeshFB)[0][0], (sizeof(MeshFB) / sizeof(uint16_t)), "&MeshFB[0][0]"),
+  SFPTR16N(&(AltMeshFB)[0][0], (sizeof(AltMeshFB) / sizeof(uint16_t)), "&AltMeshFB[0][0]"),
   SFVAR(FBDrawWhich),
 
   SFVAR(FBManualPending),
@@ -1504,7 +1593,9 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   EraseParams.x_bound &= 0x7F << 3;
   //
   VDP1_FBDrawWhichPtr = VDP1_FB[FBDrawWhich];
+  VDP1_AltFBDrawWhichPtr = VDP1_AltFB[FBDrawWhich];
   VDP1_MeshFBDrawWhichPtr = VDP1_MeshFB[FBDrawWhich];
+  VDP1_AltMeshFBDrawWhichPtr = VDP1_AltMeshFB[FBDrawWhich];
 
   if(load < 0x00102500)
   {

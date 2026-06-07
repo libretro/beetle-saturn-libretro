@@ -24,9 +24,13 @@
    Only visible within the vdp1*.c files that include this header. */
 #define VRAM VDP1_VRAM
 #define FB VDP1_FB
+#define AltFB VDP1_AltFB
 #define FBDrawWhichPtr VDP1_FBDrawWhichPtr
+#define AltFBDrawWhichPtr VDP1_AltFBDrawWhichPtr
 #define MeshFB VDP1_MeshFB
+#define AltMeshFB VDP1_AltMeshFB
 #define MeshFBDrawWhichPtr VDP1_MeshFBDrawWhichPtr
+#define AltMeshFBDrawWhichPtr VDP1_AltMeshFBDrawWhichPtr
 #define SysClipX VDP1_SysClipX
 #define SysClipY VDP1_SysClipY
 #define UserClipX0 VDP1_UserClipX0
@@ -68,8 +72,11 @@ int32_t VDP1_CMD_Line(const uint16_t*);
 int32_t VDP1_RESUME_Line(const uint16_t*);
 
 MDFN_HIDE extern uint16_t* VDP1_FBDrawWhichPtr;
+MDFN_HIDE extern uint16_t* VDP1_AltFBDrawWhichPtr;
 MDFN_HIDE extern uint16_t VDP1_MeshFB[2][0x20000];
 MDFN_HIDE extern uint16_t* VDP1_MeshFBDrawWhichPtr;
+MDFN_HIDE extern uint16_t* VDP1_AltMeshFBDrawWhichPtr;
+MDFN_HIDE extern bool VDP1_AltFieldCapture;
 MDFN_HIDE extern int32_t VDP1_SysClipX, VDP1_SysClipY;
 MDFN_HIDE extern int32_t VDP1_UserClipX0, VDP1_UserClipY0, VDP1_UserClipX1, VDP1_UserClipY1;
 MDFN_HIDE extern int32_t VDP1_LocalX, VDP1_LocalY;
@@ -260,8 +267,24 @@ static MDFN_FORCE_INLINE int32_t VDP1_PlotPixel(const int die, const unsigned bp
  {
  int32_t ret = 0;
  uint16_t* fbyptr;
- if(die) { fbyptr = &VDP1_FBDrawWhichPtr[((y >> 1) & 0xFF) << 9]; transparent |= ((y & 1) != (bool)(VDP1_FBCR & VDP1_FBCR_DIL)); }
- else fbyptr = &VDP1_FBDrawWhichPtr[(y & 0xFF) << 9];
+ uint16_t* mfbbase;
+ uint32_t fbrow;
+ if(die)
+ {
+  const bool odd_field = y & 1;
+  const bool use_alt = VDP1_AltFieldCapture && odd_field;
+  fbrow = (y >> 1) & 0xFF;
+  fbyptr = &(use_alt ? VDP1_AltFBDrawWhichPtr : VDP1_FBDrawWhichPtr)[fbrow << 9];
+  mfbbase = use_alt ? VDP1_AltMeshFBDrawWhichPtr : VDP1_MeshFBDrawWhichPtr;
+  if(!VDP1_AltFieldCapture)
+   transparent |= (odd_field != (bool)(VDP1_FBCR & VDP1_FBCR_DIL));
+ }
+ else
+ {
+  fbrow = y & 0xFF;
+  fbyptr = &VDP1_FBDrawWhichPtr[fbrow << 9];
+  mfbbase = VDP1_MeshFBDrawWhichPtr;
+ }
  if(MeshEn) { if(bpp8 || !VDP1_MeshImproved) transparent |= (x ^ y) & 1; }
  if(bpp8) {
   if(MSBOn) { pix = (fbyptr[((x >> 1) & 0x1FF)] | 0x8000) >> (((x & 1) ^ 1) << 3); ret += 5; }
@@ -288,10 +311,10 @@ static MDFN_FORCE_INLINE int32_t VDP1_PlotPixel(const int die, const unsigned bp
    } else { if(GouraudEn) pix = Gourauder_Apply(g, pix); if(HalfFGEn) pix = ((pix & 0x7BDE) >> 1) | (pix & 0x8000); }
   }
   if(MeshEn && !MSBOn && !HalfBGEn && !HalfFGEn && VDP1_MeshImproved) {
-   if(!transparent) { const uint32_t row = die ? ((y >> 1) & 0xFF) : (y & 0xFF); VDP1_MeshFBDrawWhichPtr[(row << 9) + (x & 0x1FF)] = pix; }
+   if(!transparent) mfbbase[(fbrow << 9) + (x & 0x1FF)] = pix;
   } else {
    if(!transparent) *p = pix;
-   if(!MeshEn && VDP1_MeshImproved && !transparent) { const uint32_t row = die ? ((y >> 1) & 0xFF) : (y & 0xFF); VDP1_MeshFBDrawWhichPtr[(row << 9) + (x & 0x1FF)] = 0; }
+   if(!MeshEn && VDP1_MeshImproved && !transparent) mfbbase[(fbrow << 9) + (x & 0x1FF)] = 0;
   }
   ret++;
  }
