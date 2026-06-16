@@ -10,6 +10,12 @@
     JNI_PATH: .
     CORENAME: mednafen_saturn
 
+# Windows MinGW builds currently hit a GCC LTO rendering regression.
+# Keep the shared libretro templates unchanged and only pass LTO= to make.
+.windows-no-lto:
+  variables:
+    MAKEFLAGS: "LTO="
+
 # Inclusion templates, required for the build to work
 include:
   ################################## DESKTOPS ################################
@@ -76,12 +82,14 @@ libretro-build-windows-x64:
   extends:
     - .libretro-windows-x64-mingw-make-default
     - .core-defs
+    - .windows-no-lto
     
 # Windows 32-bit
 libretro-build-windows-i686:
   extends:
     - .libretro-windows-i686-mingw-make-default
     - .core-defs
+    - .windows-no-lto
 
 # Linux 64-bit
 libretro-build-linux-x64:
