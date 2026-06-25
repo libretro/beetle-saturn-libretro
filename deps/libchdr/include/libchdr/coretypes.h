@@ -2,11 +2,8 @@
 #define __CORETYPES_H__
 
 #include <stdint.h>
-#include <stdio.h>
 #include <retro_inline.h>
-#ifdef USE_LIBRETRO_VFS
-#include <streams/file_stream_transforms.h>
-#endif
+#include <streams/file_stream.h>
 
 #ifndef ARRAY_LENGTH
 #define ARRAY_LENGTH(x) (sizeof(x)/sizeof(x[0]))
@@ -19,6 +16,7 @@
 typedef struct chd_core_file {
 	/*
 	 * arbitrary pointer to data the implementation uses to implement the below functions
+	 * (libretro VFS backing: an RFILE*)
 	 */
 	void *argp;
 
