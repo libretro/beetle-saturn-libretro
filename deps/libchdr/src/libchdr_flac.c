@@ -14,7 +14,6 @@
 #undef INLINE
 #include <retro_inline.h>
 #define DR_FLAC_IMPLEMENTATION
-#define DR_FLAC_NO_STDIO
 #define DRFLAC_API static INLINE
 #include <dr_libs/dr_flac.h>
 
