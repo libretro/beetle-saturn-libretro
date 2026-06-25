@@ -1948,7 +1948,7 @@ static void Drive_Run(int64_t clocks)
 	{
          CurPosInfo.status = STATUS_BUSY;
 	 DrivePhase = DRIVEPHASE_STARTUP;
-	 DriveCounter = (int64_t)(1 * 44100 * 256) << 32;
+	 DriveCounter = (int64_t)(2 * 44100 * 256) << 32;
 	}
 	else
 	 DriveCounter = (int64_t)1000 << 32;
