@@ -2035,10 +2035,6 @@ void SS_Reset(bool powering_up)
 
 void MDFN_COLD CloseGame(void)
 {
-#ifdef SH7095_OP_PAIR_PROFILE
- SS_DumpOpPairProfile();
-#endif
-
  SS_SaveBackupRAM();
  SS_SaveCartNV();
  SS_SaveRTC();

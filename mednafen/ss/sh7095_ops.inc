@@ -23,7 +23,7 @@ switch(z->Pipe_ID >> 24)
  // unfused path (one fetch in z op's DoIDIF, one in the inlined branch's).
  // Skipped in the slave resume path (SH7095_RunSlaveUntil_TBD_) because DoIDIF can yield
  // via CHECK_EXIT_RESUME and br_instr is a stack local that won't survive.
- #if !defined(SH7095_OP_PAIR_PROFILE) && !defined(SH7095_NEED_RESUME_TABLE_INIT) && defined(_LOW_ACCURACY_)
+ #if !defined(SH7095_NEED_RESUME_TABLE_INIT) && defined(_LOW_ACCURACY_)
  #define FUSE_COND_BRANCH(next_op_id, cond_expr)				\
   if(MDFN_LIKELY((z->Pipe_ID >> 24) == (next_op_id)))			\
   {									\

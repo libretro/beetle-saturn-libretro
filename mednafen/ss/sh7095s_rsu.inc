@@ -39,7 +39,6 @@
   }
 
   instr = (uint16_t)z->Pipe_ID;
-  OP_PAIR_TICK(1);
   //
   #include "sh7095_ops.inc"
   //
