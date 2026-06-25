@@ -60,7 +60,7 @@ MDFN_FASTCALL uint16_t VDP1_Read16_DB(uint32_t A) MDFN_HOT;
 
 void VDP1_SetHBVB(const sscpu_timestamp_t event_timestamp, const bool new_hb_status, const bool new_vb_status);
 
-bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w, uint32_t rot_x, uint32_t rot_y, uint32_t rot_xinc, uint32_t rot_yinc);
+bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, uint16_t* alt_buf, uint16_t* alt_mesh_buf, bool* alt_valid, unsigned w, uint32_t rot_x, uint32_t rot_y, uint32_t rot_xinc, uint32_t rot_yinc);
 
 /* Toggle the "improved mesh transparency" mode for VDP1 mesh-bit
    primitives (mode bit 8 / MSH). When false (default), mesh
@@ -77,6 +77,11 @@ bool VDP1_GetLine(const int line, uint16_t* buf, uint16_t* mesh_buf, unsigned w,
    rasterisation, so no synchronisation is needed. */
 void VDP1_SetMeshImproved(bool improved) MDFN_COLD;
 
+/* Enable capture of the complementary VDP1 double-interlace field for
+   progressive output.  This follows VDP2's current output mode and TVMD
+   interlace setting, so it can change while emulation is running. */
+void VDP1_SetAltFieldCapture(bool enabled);
+
 /* "Improved mesh transparency" toggle storage (libretro core
    option). Defined in vdp1.c; read directly by vdp2_render. */
 MDFN_HIDE extern bool VDP1_MeshImproved;
@@ -88,6 +93,7 @@ MDFN_HIDE extern bool VDP1_MeshImproved;
 
 MDFN_HIDE extern uint16_t VDP1_VRAM[0x40000];
 MDFN_HIDE extern uint16_t VDP1_FB[2][0x20000];
+MDFN_HIDE extern uint16_t VDP1_AltFB[2][0x20000];
 
 #ifdef __cplusplus
 }

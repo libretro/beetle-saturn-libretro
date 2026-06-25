@@ -23,6 +23,7 @@
 #define __MDFN_SS_VDP2_RENDER_H
 
 #include "../state.h"
+#include "vdp2_deinterlace.h"
 /* git.h is no longer used (CheatFormatStruct's std::exception,
  * GameDB_Entry's std::vector, etc.).  This header now needs to
  * parse as C because vdp2.c (formerly vdp2.c) includes it.
@@ -42,7 +43,7 @@ void VDP2REND_GetGunXTranslation(const bool clock28m, float* scale, float* offs)
 void VDP2REND_StartFrame(struct EmulateSpecStruct* espec, const bool clock28m, const int SurfInterlaceField);
 void VDP2REND_EndFrame(void);
 void VDP2REND_Reset(bool powering_up) MDFN_COLD;
-void VDP2REND_SetDeinterlaceOff(bool off) MDFN_COLD;
+void VDP2REND_SetDeinterlaceMode(unsigned mode) MDFN_COLD;
 
 /* Array reference parameters (uint16_t (&rr)[0x100] etc.) replaced
  * with plain pointers: the body indexes rr[i] (works with the
@@ -75,8 +76,11 @@ struct VDP2Rend_LIB
 {
  struct VDP2Rend_RotVars rv[2];
  bool vdp1_hires8;
+ bool vdp1_alt_hires8;
+ bool vdp1_alt_valid;
  bool win_ymet[2];
  uint16_t vdp1_line[352];
+ uint16_t vdp1_line_alt[352];
  // Mesh side-buffer scanline staged here by VDP1_GetLine when the
  // improved-mesh-transparency option is on. Per-pixel: raw VDP1 texel
  // (CRAM offset / colour-bank-OR / priority-CC bits for paletted types
@@ -85,6 +89,7 @@ struct VDP2Rend_LIB
  // T_DrawSpriteData would and 50%-blends the result onto the surface.
  // All zeros when the option is off.
  uint16_t vdp1_mesh_line[352];
+ uint16_t vdp1_mesh_line_alt[352];
  // Winning-layer priority per output pixel, captured at T_MixIt's
  // terminal store. ApplyMeshOverlay reads this to gate the mesh blend:
  // a mesh pixel is suppressed where a higher-priority VDP2 layer

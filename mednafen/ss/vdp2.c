@@ -53,6 +53,7 @@ extern void SH7095_SetExtHaltDMAKludge(int cpu, bool state);
 
 static bool PAL;
 static sscpu_timestamp_t lastts;
+static unsigned DeinterlaceMode = VDP2_DEINT_NORMAL;
 //
 //
 //
@@ -346,6 +347,16 @@ static INLINE unsigned GetNLVCounter(void)
  return ret;
 }
 
+static INLINE bool ProgressiveOutputActive(void)
+{
+ return DeinterlaceMode == VDP2_DEINT_PROGRESSIVE && InterlaceMode == IM_DOUBLE;
+}
+
+static INLINE void UpdateVDP1AltFieldCapture(void)
+{
+ VDP1_SetAltFieldCapture(ProgressiveOutputActive());
+}
+
 static void LatchHV(void)
 {
  Latched_VCNT = GetNLVCounter();
@@ -558,7 +569,8 @@ static INLINE int32_t AddHCounter(const sscpu_timestamp_t event_timestamp, int32
       }
      }
     }
-    lib->vdp1_hires8 = VDP1_GetLine(VCounter, lib->vdp1_line, lib->vdp1_mesh_line, (HRes & 1) ? 352 : 320, (int32_t)RotParams[0].XstAccum >> 1, (int32_t)RotParams[0].YstAccum >> 1, (int32_t)RotParams[0].DX >> 1, (int32_t)RotParams[0].DY >> 1); // Always call, has side effects.
+    lib->vdp1_hires8 = VDP1_GetLine(VCounter, lib->vdp1_line, lib->vdp1_mesh_line, lib->vdp1_line_alt, lib->vdp1_mesh_line_alt, &lib->vdp1_alt_valid, (HRes & 1) ? 352 : 320, (int32_t)RotParams[0].XstAccum >> 1, (int32_t)RotParams[0].YstAccum >> 1, (int32_t)RotParams[0].DX >> 1, (int32_t)RotParams[0].DY >> 1); // Always call, has side effects.
+    lib->vdp1_alt_hires8 = lib->vdp1_hires8;
     VDP2REND_DrawLine(InternalVB ? -1 : VCounter, CRTLineCounter, !Odd);
     CRTLineCounter++;
    }
@@ -629,6 +641,7 @@ static INLINE void RegsWrite(uint32_t A, uint16_t V)
 	DisplayOn = (V >> 15) & 0x1;
 	BorderMode = (V >> 8) & 0x1;
 	InterlaceMode = (V >> 6) & 0x3;
+	UpdateVDP1AltFieldCapture();
 	VRes = (V >> 4) & 0x3;
 	HRes = (V >> 0) & 0x7;
 	//
@@ -1016,6 +1029,7 @@ void VDP2_Reset(bool powering_up)
  HRes = 0;
  VRes = 0;
  InterlaceMode = 0;
+ UpdateVDP1AltFieldCapture();
 
  VRAMSize = 0;
 
@@ -1082,9 +1096,14 @@ void VDP2_Reset(bool powering_up)
 //
 //
 
-void VDP2_SetDeinterlaceOff(bool off)
+void VDP2_SetDeinterlaceMode(unsigned mode)
 {
- VDP2REND_SetDeinterlaceOff(off);
+ if(mode > VDP2_DEINT_PROGRESSIVE)
+  mode = VDP2_DEINT_NORMAL;
+
+ DeinterlaceMode = mode;
+ UpdateVDP1AltFieldCapture();
+ VDP2REND_SetDeinterlaceMode(mode);
 }
 
 void VDP2_StateAction(StateMem* sm, const unsigned load, const bool data_only)
@@ -1201,6 +1220,7 @@ void VDP2_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
   CRAM_Mode &= 0x3;
   InterlaceMode &= 0x3;
+  UpdateVDP1AltFieldCapture();
 
   HCounter &= 0x1FF;
   VCounter &= 0x1FF;

@@ -65,12 +65,11 @@ enum
  *                 adaptive blending against a two-frame history.
  *                 Surface height presented to libretro is full
  *                 interlaced height.
- *   - OFF:        no-op in the deinterlacer itself; pairs with
- *                 VDP2REND_SetDeinterlaceOff(true) on the renderer
- *                 side, which mirrors each rendered scanline to the
- *                 opposite-field row of the surface so both row-block
- *                 stripes hold current-frame content.  Surface height
- *                 presented to libretro is full interlaced height.
+ *   - OFF:        no-op in the deinterlacer itself; used by renderer-side
+ *                 modes that already fill the full interlaced-height
+ *                 surface, such as the mirror/off path and the progressive
+ *                 renderer path.  Surface height presented to libretro is
+ *                 full interlaced height.
  *
  * WEAVE, BOB_OFFSET, FASTMAD and OFF all produce a full-height
  * surface; the libretro bridge must set PrevInterlaced=true for all

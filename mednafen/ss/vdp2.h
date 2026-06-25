@@ -24,6 +24,7 @@
 
 #include "../state.h"
 #include "ss.h"				/* sscpu_timestamp_t, events[], SS_SetEventNT, SS_EVENT_VDP2 */
+#include "vdp2_deinterlace.h"
 
 /* MDFNGI / EmulateSpecStruct: forward-declared rather than pulling
  * in git.h.  This header is C-compat -- the VDP2 subsystem exposes
@@ -51,7 +52,7 @@ void VDP2_Kill(void) MDFN_COLD;
 void VDP2_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;
 
 void VDP2_Reset(bool powering_up) MDFN_COLD;
-void VDP2_SetDeinterlaceOff(bool off) MDFN_COLD;
+void VDP2_SetDeinterlaceMode(unsigned mode) MDFN_COLD;
 
 sscpu_timestamp_t VDP2_Update(sscpu_timestamp_t timestamp);
 void VDP2_AdjustTS(const int32_t delta);
