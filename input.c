@@ -15,7 +15,6 @@ extern retro_log_printf_t log_cb;
 #include "mednafen/ss/cart.h"   /* CART_STV (ActiveCartType compare for ST-V coin wireup) */
 #include "mednafen/ss/stvio.h"  /* STVIO_InsertCoin */
 #include "mednafen/state.h"
-#include <math.h>
 #include <stdio.h>
 
 //------------------------------------------------------------------------------
@@ -31,7 +30,7 @@ static unsigned players				= 2;
 static int astick_deadzone			= 0;
 static int trigger_deadzone			= 0;
 static const int TRIGGER_MAX			= 0xFFFF;
-static float mouse_sensitivity			= 1.0f;
+static int32_t mouse_sensitivity_q16		= (1 << 16); /* 1.0 in Q16 */
 
 static unsigned geometry_width			= 0;
 static unsigned geometry_height			= 0;
@@ -452,6 +451,56 @@ static const struct ss_keyboard_map_entry ss_keyboard_map[] = {
 // Local Functions
 //------------------------------------------------------------------------------
 
+/* ----------------------------------------------------------------------
+ *  Deterministic fixed-point analog conditioning
+ *
+ *  The analog deadzone rescaling fed the emulated 3D Control Pad's axis
+ *  state through float (and a polar sqrt/atan2/sin/cos round-trip).
+ *  float sqrt/atan2/trig is not bit-reproducible across architectures
+ *  or libm implementations, so two netplay peers could derive different
+ *  axis bytes from identical stick input and desync.  Everything below
+ *  is integer Q16 fixed point.  The polar deadzone in particular reduces
+ *  to a plain radial scale: since cos(atan2(y,x)) == x / hypot(x,y) and
+ *  sin(atan2(y,x)) == y / hypot(x,y), the new cartesian values are just
+ *  (x,y) * (new_radius / radius) - no trig is needed at all, only one
+ *  integer square root.
+ * -------------------------------------------------------------------- */
+
+#define ANALOG_Q16_SHIFT 16
+#define ANALOG_Q16_ONE   (1 << ANALOG_Q16_SHIFT)
+
+/*  64-bit integer square root (binary, no FPU); returns floor(sqrt(x)). */
+static uint32_t analog_isqrt64(uint64_t x)
+{
+	uint64_t res = 0;
+	uint64_t bit = (uint64_t)1 << 62;
+
+	while (bit > x)
+		bit >>= 2;
+
+	while (bit != 0)
+	{
+		if (x >= res + bit)
+		{
+			x   -= res + bit;
+			res  = (res >> 1) + bit;
+		}
+		else
+			res >>= 1;
+		bit >>= 2;
+	}
+	return (uint32_t)res;
+}
+
+/*  Q16/Q32 product -> int, rounded half away from zero (matches round). */
+static INLINE int32_t analog_q16_round(int64_t q16_product)
+{
+	int64_t half = ANALOG_Q16_ONE / 2;
+	if (q16_product >= 0)
+		return  (int32_t)(( q16_product + half) >> ANALOG_Q16_SHIFT);
+	return    -(int32_t)((-q16_product + half) >> ANALOG_Q16_SHIFT);
+}
+
 static void get_analog_axis( retro_input_state_t input_state_cb,
 		int player_index,
 		int stick,
@@ -464,21 +513,21 @@ static void get_analog_axis( retro_input_state_t input_state_cb,
 	if ( astick_deadzone > 0 )
 	{
 		static const int ASTICK_MAX = 0x8000;
-		const float scale           = ((float)ASTICK_MAX/(float)(ASTICK_MAX - astick_deadzone));
+		// scale = ASTICK_MAX / (ASTICK_MAX - deadzone), in Q16
+		const int32_t scale_q16 = (int32_t)(((int64_t)ASTICK_MAX << ANALOG_Q16_SHIFT)
+		                                     / (ASTICK_MAX - astick_deadzone));
 
 		if ( analog < -astick_deadzone )
 		{
 			// Re-scale analog stick range
-			float scaled = (-analog - astick_deadzone)*scale;
-			analog       = (int)round(-scaled);
+			analog = -analog_q16_round( (int64_t)(-analog - astick_deadzone) * scale_q16 );
 			if (analog < -32767)
 				analog = -32767;
 		}
 		else if ( analog > astick_deadzone )
 		{
 			// Re-scale analog stick range
-			float scaled = (analog - astick_deadzone)*scale;
-			analog       = (int)round(scaled);
+			analog = analog_q16_round( (int64_t)(analog - astick_deadzone) * scale_q16 );
 			if (analog > +32767)
 				analog = +32767;
 		}
@@ -504,18 +553,25 @@ static void get_analog_stick( retro_input_state_t input_state_cb,
 	{
 		static const int ASTICK_MAX = 0x8000;
 
-		// Convert cartesian coordinate analog stick to polar coordinates
-		double radius = sqrt(analog_x * analog_x + analog_y * analog_y);
-		double angle  = atan2(analog_y, analog_x);
+		// Radius in integer units.  The original code converted to polar
+		// (sqrt + atan2), rescaled the radius, then converted back with
+		// cos/sin.  Because cos(atan2(y,x)) == x/radius and
+		// sin(atan2(y,x)) == y/radius, the round-trip is just a radial
+		// scale of (x,y) - no trig, one integer sqrt, fully deterministic.
+		uint32_t radius = analog_isqrt64( (uint64_t)((int64_t)analog_x * analog_x)
+		                                + (uint64_t)((int64_t)analog_y * analog_y) );
 
-		if (radius > astick_deadzone)
+		if ( (int)radius > astick_deadzone )
 		{
-			// Re-scale analog stick range to negate deadzone (makes slow movements possible)
-			radius = (radius - astick_deadzone)*((float)ASTICK_MAX/(ASTICK_MAX - astick_deadzone));
+			// Re-scale radius to negate deadzone (makes slow movements possible):
+			//   new_radius = (radius - deadzone) * ASTICK_MAX/(ASTICK_MAX-deadzone)
+			// then (x,y) *= new_radius / radius, with round-half-away-from-zero.
+			int32_t scale_q16   = (int32_t)(((int64_t)ASTICK_MAX << ANALOG_Q16_SHIFT)
+			                                 / (ASTICK_MAX - astick_deadzone));
+			int64_t new_radius_q16 = (int64_t)((int)radius - astick_deadzone) * scale_q16;
 
-			// Convert back to cartesian coordinates
-			analog_x = (int)round(radius * cos(angle));
-			analog_y = (int)round(radius * sin(angle));
+			analog_x = analog_q16_round( (int64_t)analog_x * new_radius_q16 / radius );
+			analog_y = analog_q16_round( (int64_t)analog_y * new_radius_q16 / radius );
 
 			// Clamp to correct range
 			if (analog_x > +32767) analog_x = +32767;
@@ -548,13 +604,14 @@ static uint32_t apply_trigger_deadzone( uint32_t input )
 		// as unsigned for the comparison/subtraction against the uint32_t
 		// input. The alias also silences a sign-compare warning.
 		const uint32_t deadzone = (uint32_t)trigger_deadzone;
-		const float scale = ((float)TRIGGER_MAX/(float)(TRIGGER_MAX - trigger_deadzone));
+		// scale = TRIGGER_MAX / (TRIGGER_MAX - deadzone), in Q16
+		const int32_t  scale_q16 = (int32_t)(((int64_t)TRIGGER_MAX << ANALOG_Q16_SHIFT)
+		                                      / (TRIGGER_MAX - trigger_deadzone));
 
 		if ( input > deadzone )
 		{
 			// Re-scale analog range
-			float scaled = (input - deadzone)*scale;
-			input        = (int)round(scaled);
+			input = (uint32_t)analog_q16_round( (int64_t)(input - deadzone) * scale_q16 );
 		}
 		else
 			input        = 0;
@@ -711,19 +768,19 @@ void input_set_geometry(unsigned width, unsigned height)
 void input_set_deadzone_stick( int percent )
 {
 	if ( percent >= 0 && percent <= 100 )
-		astick_deadzone = (int)( percent * 0.01f * 0x8000);
+		astick_deadzone = ( percent * 0x8000 ) / 100;
 }
 
 void input_set_deadzone_trigger( int percent )
 {
 	if ( percent >= 0 && percent <= 100 )
-		trigger_deadzone = (int)( percent * 0.01f * TRIGGER_MAX);
+		trigger_deadzone = ( percent * TRIGGER_MAX ) / 100;
 }
 
 void input_set_mouse_sensitivity( int percent )
 {
 	if ( percent > 0 && percent <= 200 )
-		mouse_sensitivity = (float)percent / 100.0f;
+		mouse_sensitivity_q16 = (int32_t)(((int64_t)percent << 16) / 100);
 }
 
 /* Rising-edge detect SELECT on each port; on press, queue one ST-V
@@ -1090,8 +1147,8 @@ void input_update_with_bitmasks( retro_input_state_t input_state_cb )
 				dy_raw = input_state_cb( iplayer, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_Y );
 
 				delta = (int16_t*)p_input;
-				delta[ 0 ] = (int16_t)roundf( dx_raw * mouse_sensitivity );
-				delta[ 1 ] = (int16_t)roundf( dy_raw * mouse_sensitivity );
+				delta[ 0 ] = (int16_t)analog_q16_round( (int64_t)dx_raw * mouse_sensitivity_q16 );
+				delta[ 1 ] = (int16_t)analog_q16_round( (int64_t)dy_raw * mouse_sensitivity_q16 );
 			}
 
 			break;
@@ -1664,8 +1721,8 @@ void input_update( retro_input_state_t input_state_cb )
 				dy_raw = input_state_cb( iplayer, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_Y );
 
 				delta = (int16_t*)p_input;
-				delta[ 0 ] = (int16_t)roundf( dx_raw * mouse_sensitivity );
-				delta[ 1 ] = (int16_t)roundf( dy_raw * mouse_sensitivity );
+				delta[ 0 ] = (int16_t)analog_q16_round( (int64_t)dx_raw * mouse_sensitivity_q16 );
+				delta[ 1 ] = (int16_t)analog_q16_round( (int64_t)dy_raw * mouse_sensitivity_q16 );
 			}
 
 			break;
