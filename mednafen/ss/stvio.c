@@ -571,19 +571,19 @@ static void IODevice_STVSMPC_ResetTS(IODevice *self_)
       AK93C45_ResetTS(&eep);
 }
 
-static void IODevice_STVSMPC_TransformInput(IODevice *self_, uint8_t *data, float gun_x_scale, float gun_x_offs)
+static void IODevice_STVSMPC_TransformInput(IODevice *self_, uint8_t *data, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d)
 {
    IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
    (void)data;
    if((ControlScheme == STV_CONTROL_HAMMER) && !self->sport && DPtr[0])
-      gun->vt->TransformInput(gun, DPtr[0], gun_x_scale, gun_x_offs);
+      gun->vt->TransformInput(gun, DPtr[0], gun_x_sn, gun_x_on, gun_x_d);
 }
 
-static void IODevice_STVSMPC_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, float gun_x_scale, float gun_x_offs)
+static void IODevice_STVSMPC_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d)
 {
    IODevice_STVSMPC *self = (IODevice_STVSMPC *)self_;
    if((ControlScheme == STV_CONTROL_HAMMER) && !self->sport && DPtr[0])
-      gun->vt->Draw(gun, surface, drect, lw, ifield, gun_x_scale, gun_x_offs);
+      gun->vt->Draw(gun, surface, drect, lw, ifield, gun_x_sn, gun_x_on, gun_x_d);
 }
 
 static uint8_t IODevice_STVSMPC_UpdateBus(IODevice *self_, const int32_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)

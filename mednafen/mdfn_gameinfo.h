@@ -43,15 +43,19 @@ typedef struct MDFNGI
       update. */
    int nominal_width;
 
-   /* Mouse / gun coordinate transform.  In smpc_iodevice.c the gun
-      device combines these as:
+   /* Mouse / gun coordinate transform, integer-valued (no host float in
+      the input path).  In smpc_iodevice.c the gun device combines these
+      as, conceptually:
 
         cx = (input_x - mouse_offs_x) * (visible_pixels / mouse_scale_x)
         cy = (input_y - mouse_offs_y) + visible_top
 
-      Set by VDP2REND_Init when display geometry is known. */
-   float mouse_scale_x;
-   float mouse_offs_x, mouse_offs_y;
+      mouse_offs_x is a half-integer (0 or 325.5), so it is stored
+      doubled as mouse_offs_x2 (0 or 651) with the /2 folded into the
+      fixed-point crosshair math.  Set by VDP2REND_Init when display
+      geometry is known. */
+   int32_t mouse_scale_x;
+   int32_t mouse_offs_x2, mouse_offs_y;
 } MDFNGI;
 
 extern MDFNGI *MDFNGameInfo;

@@ -806,12 +806,12 @@ void SMPC_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 
 void SMPC_TransformInput(void)
 {
- float gun_x_scale, gun_x_offs;
+ int32_t gun_x_sn, gun_x_on, gun_x_d;
 
- VDP2_GetGunXTranslation(((PendingClockDivisor > 0) ? PendingClockDivisor : CurrentClockDivisor) == CLOCK_DIVISOR_28M, &gun_x_scale, &gun_x_offs);
+ VDP2_GetGunXTranslation(((PendingClockDivisor > 0) ? PendingClockDivisor : CurrentClockDivisor) == CLOCK_DIVISOR_28M, &gun_x_sn, &gun_x_on, &gun_x_d);
 
  for(unsigned vp = 0; vp < 12; vp++)
-  VirtualPorts[vp]->vt->TransformInput(VirtualPorts[vp], VirtualPortsDPtr[vp], gun_x_scale, gun_x_offs);
+  VirtualPorts[vp]->vt->TransformInput(VirtualPorts[vp], VirtualPortsDPtr[vp], gun_x_sn, gun_x_on, gun_x_d);
 }
 
 void SMPC_ProcessSlaveOffOn(void)
@@ -880,13 +880,13 @@ void SMPC_EndFrame(EmulateSpecStruct* espec, const sscpu_timestamp_t timestamp)
 
  if(!espec->skip)
  {
-  float gun_x_scale, gun_x_offs;
+  int32_t gun_x_sn, gun_x_on, gun_x_d;
 
-  VDP2_GetGunXTranslation(CurrentClockDivisor == CLOCK_DIVISOR_28M, &gun_x_scale, &gun_x_offs);
+  VDP2_GetGunXTranslation(CurrentClockDivisor == CLOCK_DIVISOR_28M, &gun_x_sn, &gun_x_on, &gun_x_d);
 
   for(unsigned i = 0; i < 2; i++)
   {
-   IOPorts[i]->vt->Draw(IOPorts[i], espec->surface, &espec->DisplayRect, espec->LineWidths, espec->InterlaceOn ? espec->InterlaceField : -1, gun_x_scale, gun_x_offs);
+   IOPorts[i]->vt->Draw(IOPorts[i], espec->surface, &espec->DisplayRect, espec->LineWidths, espec->InterlaceOn ? espec->InterlaceField : -1, gun_x_sn, gun_x_on, gun_x_d);
   }
  }
 }

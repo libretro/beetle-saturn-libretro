@@ -53,7 +53,7 @@ struct IODevice_VTable
 {
    void    (*Power)(IODevice *self_);
    void    (*TransformInput)(IODevice *self_, uint8_t *data,
-                             float gun_x_scale, float gun_x_offs);
+                             int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d);
    void    (*UpdateInput)(IODevice *self_, const uint8_t *data,
                           int32_t time_elapsed);
    void    (*UpdateOutput)(IODevice *self_, uint8_t *data);
@@ -62,7 +62,7 @@ struct IODevice_VTable
                           const char *sname_prefix);
    void    (*Draw)(IODevice *self_, MDFN_Surface *surface,
                    const MDFN_Rect *drect, const int32_t *lw,
-                   int ifield, float gun_x_scale, float gun_x_offs);
+                   int ifield, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d);
    uint8_t (*UpdateBus)(IODevice *self_, const int32_t timestamp,
                         const uint8_t smpc_out,
                         const uint8_t smpc_out_asserted);

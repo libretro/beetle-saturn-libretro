@@ -4994,15 +4994,24 @@ void VDP2REND_Init(const bool IsPAL, const uint64_t affinity)
 }
 
 // Needed for ss.correct_aspect == 0
-void VDP2REND_GetGunXTranslation(const bool clock28m, float* scale, float* offs)
+void VDP2REND_GetGunXTranslation(const bool clock28m, int32_t* sn, int32_t* on, int32_t* d)
 {
- *scale = 1.0;
- *offs = 0.0;
+ /* Gun X transform: out = round((in*sn + on) / d).  Identity by default.
+  * When the picture is not aspect-corrected and not in the 28MHz/hi-res
+  * mode, apply scale 65/61 with offset -42944/65
+  * ( = -(21472 - 21472*61/65) / 2 ), both over the common denominator
+  * 61*65 = 3965: 65/61 = 4225/3965, -42944/65 = -2619584/3965.  Integer
+  * coefficients keep the transform (which feeds emulated gun state via
+  * TransformInput -> nom_coord) free of host floating point. */
+ *sn = 1;
+ *on = 0;
+ *d  = 1;
 
  if(!CorrectAspect && !clock28m)
  {
-  *scale = 65.0 / 61.0;
-  *offs = -(21472 - (21472.0 / 65 * 61)) * 0.5;
+  *sn = 4225;
+  *on = -2619584;
+  *d  = 3965;
  }
 }
 
@@ -5027,8 +5036,8 @@ void VDP2REND_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int
  else
   gi->nominal_width = (ShowHOverscan ? 302 : 292);
 
- gi->mouse_scale_x = (float)(ShowHOverscan? 21472 : 20821);
- gi->mouse_offs_x  = (float)(ShowHOverscan? 0 : 651) / 2;
+ gi->mouse_scale_x = (ShowHOverscan? 21472 : 20821);
+ gi->mouse_offs_x2 = (ShowHOverscan? 0 : 651); /* 2 * mouse_offs_x */
  gi->mouse_offs_y  = LineVisFirst;
  //
  //
@@ -5037,8 +5046,8 @@ void VDP2REND_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int
  {
   gi->nominal_width = (ShowHOverscan ? 352 : 341);
 
-  gi->mouse_scale_x = (float)(ShowHOverscan? 21472 : 20821);
-  gi->mouse_offs_x  = (float)(ShowHOverscan? 0 : 651) / 2;
+  gi->mouse_scale_x = (ShowHOverscan? 21472 : 20821);
+  gi->mouse_offs_x2 = (ShowHOverscan? 0 : 651); /* 2 * mouse_offs_x */
  }
 }
 

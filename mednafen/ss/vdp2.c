@@ -369,9 +369,9 @@ static void LatchHV(void)
 
 //
 //
-void VDP2_GetGunXTranslation(const bool clock28m, float* scale, float* offs)
+void VDP2_GetGunXTranslation(const bool clock28m, int32_t* sn, int32_t* on, int32_t* d)
 {
- VDP2REND_GetGunXTranslation(clock28m, scale, offs);
+ VDP2REND_GetGunXTranslation(clock28m, sn, on, d);
 }
 
 void VDP2_StartFrame(struct EmulateSpecStruct* espec, const bool clock28m)

@@ -39,7 +39,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
-#include <math.h>
 #include <boolean.h>
 
 #include <retro_inline.h>
@@ -64,11 +63,11 @@
 
 /* base */
 static void    IODevice_base_Power(IODevice *self_);
-static void    IODevice_base_TransformInput(IODevice *self_, uint8_t *data, float gun_x_scale, float gun_x_offs);
+static void    IODevice_base_TransformInput(IODevice *self_, uint8_t *data, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d);
 static void    IODevice_base_UpdateInput(IODevice *self_, const uint8_t *data, int32_t time_elapsed);
 static void    IODevice_base_UpdateOutput(IODevice *self_, uint8_t *data);
 static void    IODevice_base_StateAction(IODevice *self_, StateMem *sm, const unsigned load, const bool data_only, const char *sname_prefix);
-static void    IODevice_base_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, float gun_x_scale, float gun_x_offs);
+static void    IODevice_base_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d);
 static uint8_t IODevice_base_UpdateBus(IODevice *self_, const int32_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted);
 static void    IODevice_base_LineHook(IODevice *self_, const int32_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj);
 static void    IODevice_base_ResetTS(IODevice *self_);
@@ -85,9 +84,9 @@ static void    IODevice_base_SetTSFreq(IODevice *self_, const int32_t rate);
 
 static void IODevice_base_Power(IODevice *self_) { (void)self_; }
 
-static void IODevice_base_TransformInput(IODevice *self_, uint8_t *data, float gun_x_scale, float gun_x_offs)
+static void IODevice_base_TransformInput(IODevice *self_, uint8_t *data, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d)
 {
-   (void)self_; (void)data; (void)gun_x_scale; (void)gun_x_offs;
+   (void)self_; (void)data; (void)gun_x_sn; (void)gun_x_on; (void)gun_x_d;
 }
 
 static void IODevice_base_UpdateInput(IODevice *self_, const uint8_t *data, int32_t time_elapsed)
@@ -105,9 +104,9 @@ static void IODevice_base_StateAction(IODevice *self_, StateMem *sm, const unsig
    (void)self_; (void)sm; (void)load; (void)data_only; (void)sname_prefix;
 }
 
-static void IODevice_base_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, float gun_x_scale, float gun_x_offs)
+static void IODevice_base_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d)
 {
-   (void)self_; (void)surface; (void)drect; (void)lw; (void)ifield; (void)gun_x_scale; (void)gun_x_offs;
+   (void)self_; (void)surface; (void)drect; (void)lw; (void)ifield; (void)gun_x_sn; (void)gun_x_on; (void)gun_x_d;
 }
 
 static uint8_t IODevice_base_UpdateBus(IODevice *self_, const int32_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted)
@@ -1014,10 +1013,10 @@ typedef struct
 } IODevice_Gun;
 
 static void    IODevice_Gun_Power(IODevice *self_);
-static void    IODevice_Gun_TransformInput(IODevice *self_, uint8_t *data, float gun_x_scale, float gun_x_offs);
+static void    IODevice_Gun_TransformInput(IODevice *self_, uint8_t *data, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d);
 static void    IODevice_Gun_UpdateInput(IODevice *self_, const uint8_t *data, int32_t time_elapsed);
 static void    IODevice_Gun_StateAction(IODevice *self_, StateMem *sm, const unsigned load, const bool data_only, const char *sname_prefix);
-static void    IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, float gun_x_scale, float gun_x_offs);
+static void    IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d);
 static uint8_t IODevice_Gun_UpdateBus(IODevice *self_, const int32_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted);
 static void    IODevice_Gun_LineHook(IODevice *self_, const int32_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj);
 static void    IODevice_Gun_UpdateLight(IODevice_Gun *self, const int32_t timestamp);
@@ -1078,12 +1077,31 @@ static void IODevice_Gun_Power(IODevice *self_)
    self->state         |= 0x40;
 }
 
-static void IODevice_Gun_TransformInput(IODevice *self_, uint8_t *data, float gun_x_scale, float gun_x_offs)
+/* Floor division (round toward -infinity); denominator is always > 0 at
+ * every call site here.  Used so the gun coordinate transform stays in
+ * integer arithmetic: TransformInput's result feeds the emulated
+ * light-phase timing via nom_coord, so it must be bit-identical across
+ * architectures/FPUs for netplay determinism (the Saturn has no host
+ * FPU involvement in its input path). */
+static INLINE int64_t gun_coord_floordiv(int64_t n, int64_t d)
+{
+   int64_t q = n / d;
+   if((n % d) != 0 && ((n < 0) != (d < 0)))
+      q -= 1;
+   return q;
+}
+
+static void IODevice_Gun_TransformInput(IODevice *self_, uint8_t *data, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d)
 {
    int32_t tmp = (int16_t)(uint16_t)(data[0] | (data[1] << 8));
    (void)self_;
 
-   tmp = floorf(0.5 + tmp * gun_x_scale + gun_x_offs);
+   /* Exact rational transform out = round((in*sn + on) / d), replacing
+    * the former floorf(0.5 + in*scale + offs).  The producer
+    * (VDP2_GetGunXTranslation) supplies (sn,on,d): identity (1,0,1) or
+    * the aspect-correct 65/61 scale with a -42944/65 offset expressed
+    * over the common denominator 3965 as (4225,-2619584,3965). */
+   tmp = (int32_t)gun_coord_floordiv(2 * ((int64_t)tmp * gun_x_sn + gun_x_on) + gun_x_d, 2 * (int64_t)gun_x_d);
    tmp = ((int32_t)(-32768) > (int32_t)(((int32_t)(32767) < (int32_t)(tmp) ? (int32_t)(32767) : (int32_t)(tmp))) ? (int32_t)(-32768) : (int32_t)(((int32_t)(32767) < (int32_t)(tmp) ? (int32_t)(32767) : (int32_t)(tmp))));
 
    /* MDFN_en16lsb folded: write host int into 2 LE bytes. */
@@ -1158,7 +1176,7 @@ static void IODevice_Gun_StateAction(IODevice *self_, StateMem *sm, const unsign
    }
 }
 
-static void IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, float gun_x_scale, float gun_x_offs)
+static void IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d)
 {
    IODevice_Gun *self = (IODevice_Gun *)self_;
 
@@ -1180,7 +1198,7 @@ static void IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN
                continue;
 
             lpix = surface->pixels + y * surface->pitchinpix;
-            cx   = floorf(0.5 + (((self->nom_coord[0] - gun_x_offs) / gun_x_scale) - MDFNGameInfo->mouse_offs_x) * lw[y] / MDFNGameInfo->mouse_scale_x);
+            cx   = (int32_t)gun_coord_floordiv((2 * ((int64_t)self->nom_coord[0] * gun_x_d - gun_x_on) - (int64_t)MDFNGameInfo->mouse_offs_x2 * gun_x_sn) * lw[y] + (int64_t)gun_x_sn * MDFNGameInfo->mouse_scale_x, 2 * (int64_t)gun_x_sn * MDFNGameInfo->mouse_scale_x);
 
             xmin = drect->x + cx;
             xmax = xmin + ((lw[y] * 2 + MDFNGameInfo->nominal_width) / (MDFNGameInfo->nominal_width * 2)) - 1;
@@ -1215,7 +1233,7 @@ static void IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN
                continue;
 
             lpix = surface->pixels + y * surface->pitchinpix;
-            cx   = floorf(0.5 + (((self->nom_coord[0] - gun_x_offs) / gun_x_scale) - MDFNGameInfo->mouse_offs_x) * lw[y] / MDFNGameInfo->mouse_scale_x);
+            cx   = (int32_t)gun_coord_floordiv((2 * ((int64_t)self->nom_coord[0] * gun_x_d - gun_x_on) - (int64_t)MDFNGameInfo->mouse_offs_x2 * gun_x_sn) * lw[y] + (int64_t)gun_x_sn * MDFNGameInfo->mouse_scale_x, 2 * (int64_t)gun_x_sn * MDFNGameInfo->mouse_scale_x);
 
             xmin = drect->x + cx;
             xmax = xmin + ((lw[y] * 2 + MDFNGameInfo->nominal_width) / (MDFNGameInfo->nominal_width * 2)) - 1;
@@ -1957,7 +1975,7 @@ typedef struct
 
 static void    IODevice_Multitap_Power(IODevice *self_);
 static void    IODevice_Multitap_StateAction(IODevice *self_, StateMem *sm, const unsigned load, const bool data_only, const char *sname_prefix);
-static void    IODevice_Multitap_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, float gun_x_scale, float gun_x_offs);
+static void    IODevice_Multitap_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d);
 static uint8_t IODevice_Multitap_UpdateBus(IODevice *self_, const int32_t timestamp, const uint8_t smpc_out, const uint8_t smpc_out_asserted);
 static void    IODevice_Multitap_LineHook(IODevice *self_, const int32_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj);
 static void    IODevice_Multitap_ResetTS(IODevice *self_);
@@ -1965,7 +1983,7 @@ static void    IODevice_Multitap_ResetTS(IODevice *self_);
 /* Dispatch helper: invoke a sub-device's UpdateBus through its vtable. */
 #define SUBDEV_UPDATEBUS(d, ts, so, soa) ((d)->vt->UpdateBus((d), (ts), (so), (soa)))
 
-static void IODevice_Multitap_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, float gun_x_scale, float gun_x_offs)
+static void IODevice_Multitap_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN_Rect *drect, const int32_t *lw, int ifield, int32_t gun_x_sn, int32_t gun_x_on, int32_t gun_x_d)
 {
    IODevice_Multitap *self = (IODevice_Multitap *)self_;
    unsigned i;
@@ -1973,7 +1991,7 @@ static void IODevice_Multitap_Draw(IODevice *self_, MDFN_Surface *surface, const
       IODevice_Multitap_SetSubDevice; guard like Power() already does. */
    for(i = 0; i < 6; i++)
       if(self->devices[i])
-         self->devices[i]->vt->Draw(self->devices[i], surface, drect, lw, ifield, gun_x_scale, gun_x_offs);
+         self->devices[i]->vt->Draw(self->devices[i], surface, drect, lw, ifield, gun_x_sn, gun_x_on, gun_x_d);
 }
 
 static void IODevice_Multitap_LineHook(IODevice *self_, const int32_t timestamp, int32_t out_line, int32_t div, int32_t coord_adj)

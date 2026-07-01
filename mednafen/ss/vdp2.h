@@ -57,7 +57,7 @@ void VDP2_SetDeinterlaceMode(unsigned mode) MDFN_COLD;
 sscpu_timestamp_t VDP2_Update(sscpu_timestamp_t timestamp);
 void VDP2_AdjustTS(const int32_t delta);
 
-void VDP2_GetGunXTranslation(const bool clock28m, float* scale, float* offs);
+void VDP2_GetGunXTranslation(const bool clock28m, int32_t* sn, int32_t* on, int32_t* d);
 void VDP2_StartFrame(struct EmulateSpecStruct* espec, const bool clock28m);
 
 /* MDFN_HIDE extern globals defined in vdp2.c, accessed via the

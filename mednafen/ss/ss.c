@@ -1183,9 +1183,9 @@ MDFNGI EmulatedSS =
 {
    0,    /* MasterClock     -- set by InitCommon when region is known */
    320,  /* nominal_width   -- overwritten by VDP2REND_Init on first geometry update */
-   0.0f, /* mouse_scale_x   -- ditto */
-   0.0f, /* mouse_offs_x    -- ditto */
-   0.0f, /* mouse_offs_y    -- ditto */
+   0,    /* mouse_scale_x   -- ditto */
+   0,    /* mouse_offs_x2   -- ditto */
+   0,    /* mouse_offs_y    -- ditto */
 };
 
 extern retro_log_printf_t log_cb;
