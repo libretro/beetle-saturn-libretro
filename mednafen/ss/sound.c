@@ -445,10 +445,6 @@ sscpu_timestamp_t SOUND_Update(sscpu_timestamp_t timestamp)
  return timestamp + 128;	/* FIXME */
 }
 
-void SOUND_StartFrame(double rate, uint32_t quality)
-{
-}
-
 void SOUND_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {
  int32_t ts;
