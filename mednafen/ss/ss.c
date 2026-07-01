@@ -1465,9 +1465,9 @@ static INLINE void UpdateSMPCInput(const sscpu_timestamp_t timestamp)
 
  SMPC_TransformInput();
 
- elapsed_time = (((int64_t)timestamp * cur_clock_div * 1000 * 1000) - UpdateInputLastBigTS) / (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
+ elapsed_time = (((int64_t)timestamp * cur_clock_div * 1000 * 1000) - UpdateInputLastBigTS) / (EmulatedSS.MasterClock / ((int64_t)1 << 32));
 
- UpdateInputLastBigTS += (int64_t)elapsed_time * (EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1));
+ UpdateInputLastBigTS += (int64_t)elapsed_time * (EmulatedSS.MasterClock / ((int64_t)1 << 32));
 
  /* ST-V samples gamepad/gun/coin state into its own DataIn buffer on
   * the same cadence SMPC samples virtual ports. */
@@ -1504,7 +1504,7 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
  cur_clock_div = SMPC_StartFrame();
  UpdateSMPCInput(0);
  VDP2_StartFrame(espec, cur_clock_div == 61);
- CART_SetCPUClock(EmulatedSS.MasterClock / MDFN_MASTERCLOCK_FIXED(1), cur_clock_div);
+ CART_SetCPUClock(EmulatedSS.MasterClock / ((int64_t)1 << 32), cur_clock_div);
  espec->SoundBufSize = 0;
  espec->MasterCycles = 0;
 
@@ -1919,7 +1919,12 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          }
       }
 
-      EmulatedSS.MasterClock = MDFN_MASTERCLOCK_FIXED(MasterClock);
+      /* Q32.32 master clock.  MDFN_MASTERCLOCK_FIXED() routes through a
+       * host double ((double)n * 2^32); for the Saturn's integer MasterClock
+       * (n < 2^31) that product is exact -- scaling by a power of two costs
+       * no mantissa bits -- so this integer shift is bit-identical while
+       * keeping the emulation timing path free of host floating point. */
+      EmulatedSS.MasterClock = (int64_t)MasterClock << 32;
 
       SCU_Init();
       SMPC_Init(smpc_area, MasterClock, is_stv);
