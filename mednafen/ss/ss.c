@@ -1919,11 +1919,10 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          }
       }
 
-      /* Q32.32 master clock.  MDFN_MASTERCLOCK_FIXED() routes through a
-       * host double ((double)n * 2^32); for the Saturn's integer MasterClock
-       * (n < 2^31) that product is exact -- scaling by a power of two costs
-       * no mantissa bits -- so this integer shift is bit-identical while
-       * keeping the emulation timing path free of host floating point. */
+      /* MasterClock is stored as Q32.32 fixed-point Hz.  For the
+       * Saturn's integer MasterClock (< 2^31), scaling by 2^32 is exact
+       * in integer arithmetic (a power-of-two shift spends no bits), so
+       * shift directly instead of routing through host floating point. */
       EmulatedSS.MasterClock = (int64_t)MasterClock << 32;
 
       SCU_Init();

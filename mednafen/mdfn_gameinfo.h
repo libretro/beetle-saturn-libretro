@@ -19,18 +19,20 @@ extern "C" {
 
 typedef struct MDFNGI
 {
-   /* Time base for EmulateSpecStruct::MasterCycles.
-      MasterClock must be >= MDFN_MASTERCLOCK_FIXED(1.0). All or part
-      of the fractional component may be ignored in some timekeeping
-      operations to prevent integer overflow, so it is unwise to have
-      a fractional component when the integral component is very
-      small (less than say, 10000).
+   /* Time base for EmulateSpecStruct::MasterCycles, as a Q32.32
+      fixed-point Hz value: integral Hz in the high 32 bits, fractional
+      Hz in the low 32.  Must be >= (1 << 32) (i.e. >= 1.0 Hz).  All or
+      part of the fractional component may be ignored in some
+      timekeeping operations to prevent integer overflow, so it is
+      unwise to have a fractional component when the integral component
+      is very small (less than say, 10000).
 
       Read by the input-update timing math in ss.c (Emulate's elapsed
-      time conversion and CART_SetCPUClock); written once by
-      InitCommon when the master clock for the selected region is
-      known. */
-   #define MDFN_MASTERCLOCK_FIXED(n)	((int64_t)((double)(n) * (1LL << 32)))
+      time conversion and CART_SetCPUClock); written once by InitCommon
+      when the master clock for the selected region is known, as
+      (int64_t)hz << 32 -- an exact integer scale (a power-of-two shift
+      spends no mantissa bits), keeping the timing path free of host
+      floating point. */
    int64_t MasterClock;
 
    /* Logical display width in nominal-coordinates units.  Used by
