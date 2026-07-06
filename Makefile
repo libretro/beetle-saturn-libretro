@@ -1,9 +1,9 @@
 SILENT := 0
-DEBUG = 0
+DEBUG := 0
+LTO := 1
 HAVE_OPENGL = 0
 HAVE_CHD = 1
 HAVE_CDROM = 0
-LTO = 1
 
 CORE_DIR := .
 
@@ -379,8 +379,8 @@ else
    ifeq ($(HAVE_OPENGL),1)
       GL_LIB := -lopengl32
    endif
-	HAVE_CDROM = 1
-
+   HAVE_CDROM = 1
+   LTO = 0
 endif
 
 include Makefile.common
@@ -418,7 +418,7 @@ else
    FLAGS += -O0 -g
 endif
 
-ifneq ($(LTO),)
+ifeq ($(LTO),1)
    # -flto=auto and -fipa-pta are GCC-only spellings. clang (used on all
    # Apple targets, and on some Linux/BSD setups) rejects -fipa-pta as
    # an unknown argument, and older clangs (including Apple clang from
