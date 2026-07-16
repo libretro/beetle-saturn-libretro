@@ -1103,7 +1103,12 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 	 {
 	  if(DSP.State == 0)
 	  {
-	   ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
+#ifdef WANT_JIT
+	   if(MDFN_LIKELY(setting_jit_scu && SCU_DSP_JIT_Entry != NULL))
+	    SCU_DSP_JIT_Entry(&DSP);
+	   else
+#endif
+	    ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
 	   if(DSP.CycleCounter < -(DSP_EndCCSubVal / 2))	// Ugh
 	    DSP.CycleCounter += DSP_EndCCSubVal;
 	  }
@@ -1454,7 +1459,12 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
 	 {
 	  if(DSP.State == 0)
 	  {
-	   ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
+#ifdef WANT_JIT
+	   if(MDFN_LIKELY(setting_jit_scu && SCU_DSP_JIT_Entry != NULL))
+	    SCU_DSP_JIT_Entry(&DSP);
+	   else
+#endif
+	    ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
 	   if(DSP.CycleCounter < -(DSP_EndCCSubVal / 2))	// Ugh
 	    DSP.CycleCounter += DSP_EndCCSubVal;
 	  }

@@ -31,9 +31,16 @@
  * Memory-coherence contract: slot bodies do not flush NI/PC/flags/CC/
  * LOP per slot.  emit_flush_pins() writes them back wherever C code can
  * observe DSPS: the exit stub, the top of emit_call_helper_addr, and the
- * DMA fallback's hot path.  CT32/AC.T/P.T (and TOP, which has no pin)
+ * hot paths of the DMA fallback and the fallback thunks before their BR
+ * to C.  CT32/AC.T/P.T (and TOP, which has no pin)
  * keep their store-on-change emitters; NextInstrLooped is set only by
  * lps_helper and cleared in place by the looped refetch path.
+ *
+ * Dispatch-offset invariant: tail dispatch enters its target at
+ * +SCU_JIT_SLOT_PRELUDE_BYTES, so every NextInstr/ProgRAM[].low32 value
+ * reaching it must point into the JIT segment, never at a raw C handler.
+ * While the JIT is active, DSP_DecodeInstruction returns
+ * SCU_DSP_JIT_FallbackNI's thunk for every C-handler decode.
  *
  * Entry-stub frame: 96 bytes, preserving x19/x20, x21/x22, x25/x26,
  * x23/x24 and x27/x28.  Slot bodies push no frame; their tail dispatch
@@ -222,6 +229,17 @@ static void emit_add_x_imm_safe(unsigned xd, unsigned xn, uint32_t imm)
 static const void* g_exit_stub_addr = NULL;
 static size_t      g_post_stub_byte_offset = 0;
 
+/* Permanent fallback thunks (indexed by `looped`), emitted once below
+ * g_post_stub_byte_offset so no rewind ever invalidates them.  See
+ * SCU_DSP_JIT_FallbackNI. */
+static const void* g_fallback_thunk[2] = { NULL, NULL };
+
+/* Chain-live flag + deferred-rewind latch; see jit_entry() and the
+ * segment-full check in SCU_DSP_JIT_CompileSlot. */
+static bool g_chain_live     = false;
+static bool g_rewind_pending = false;
+static void (*g_entry_stub)(struct DSPS*) = NULL;
+
 /*
  * Looped-slot JIT cache.  LPS dispatches the same instruction up to 4096
  * times.  Keyed by pc, validated by the cached instr, so a PRAM write
@@ -289,10 +307,27 @@ static void (*pick_c_handler(bool looped, uint32_t instr))(struct DSPS*)
  }
 }
 
+/*
+ * C re-dispatch targets of the fallback thunks: pick the templated C
+ * handler for the instr sitting in NextInstr.high32 and tail-call it.
+ * The looped flavor is baked per thunk so the handler choice mirrors
+ * DSP_DecodeInstruction's decode-time `looped` argument exactly.
+ */
+static void fallback_shim_normal(struct DSPS* dsp)
+{
+ pick_c_handler(false, (uint32_t)(dsp->NextInstr >> 32))(dsp);
+}
+
+static void fallback_shim_looped(struct DSPS* dsp)
+{
+ pick_c_handler(true, (uint32_t)(dsp->NextInstr >> 32))(dsp);
+}
+
 static void rewind_locked(void)
 {
  unsigned i;
  if(!g_cg) return;
+ g_rewind_pending = false;
  a64_codegen_set_wptr(g_cg, (char*)g_seg_start + g_post_stub_byte_offset);
  labels_reset();
  for(i = 0; i < 256; ++i) g_looped_cache[i].entry = NULL;
@@ -311,8 +346,8 @@ static void rewind_locked(void)
   const uint32_t instr = (uint32_t)(DSP.NextInstr >> 32);
   const bool looped = DSP.NextInstrLooped;
   /* The looped JIT cache was cleared above, so this dispatch goes to the
-   * C looped handler; the next lps_helper or InstrPre re-establishes
-   * JIT. */
+   * C looped handler via the fallback thunk; the next lps_helper or
+   * InstrPre re-establishes JIT. */
   DSP.NextInstr = looped
    ? DSP_DecodeInstruction(instr, true)
    : DSP_DecodeSlotInstruction(0, instr, false);
@@ -850,20 +885,12 @@ static void lps_helper(struct DSPS* dsp)
 
  if(MDFN_UNLIKELY(!cached->entry || cached->instr != instr))
  {
-  void (*entry)(struct DSPS*);
-
-  /* Called from a live JIT slot: LR points into the segment the compile
-   * path may rewind, so when it is too tight for a fresh slot fall back
-   * to the C handler for this LPS instance.  A later PRAM write triggers
-   * a safe rewind and the next LPS dispatch can JIT again. */
-  if(a64_codegen_offset(g_cg) + SCU_JIT_SLOT_MAX_BYTES > SCU_JIT_CODE_SEGMENT_SIZE)
-  {
-   dsp->NextInstr = DSP_DecodeInstruction(instr, true);
-   dsp->NextInstrLooped = true;
-   return;
-  }
-
-  entry = SCU_DSP_JIT_CompileSlot(pc, true, instr);
+  /* Called from a live JIT slot, so the chain-live flag is set and
+   * CompileSlot returns NULL rather than rewinding over this return
+   * address.  DSP_DecodeInstruction then resolves to the fallback thunk,
+   * and this LPS instance loops through the C handler until the latched
+   * rewind re-enables JIT. */
+  void (*entry)(struct DSPS*) = SCU_DSP_JIT_CompileSlot(pc, true, instr);
   if(MDFN_UNLIKELY(!entry))
   {
    dsp->NextInstr = DSP_DecodeInstruction(instr, true);
@@ -1119,7 +1146,7 @@ static void emit_misc(bool looped, uint32_t instr)
 /* --- Entry / exit stubs ------------------------------------------ */
 
 /*
- * Entry stub: called from SCU_UpdateDSP with x0 = DSPS*.  Sets up an
+ * Entry stub: called from jit_entry with x0 = DSPS*.  Sets up an
  * AAPCS-conformant frame, loads pinned State/AC.T/P.T/NI (full 64-bit),
  * then BLR's to the first handler.
  */
@@ -1158,6 +1185,45 @@ static void emit_exit_stub(void)
  a64_ret(g_cg);
 }
 
+/*
+ * Fallback thunk: same shape as the DMA fallback in CompileSlot -- a
+ * skip-safe prelude-sized pad whose first word branches around the
+ * flush, so cold entries (offset 0, from C, memory already current)
+ * and hot entries (tail dispatch at +SCU_JIT_SLOT_PRELUDE_BYTES, live
+ * pins) both end up at the BR to the C shim with DSPS current.
+ */
+static void emit_fallback_thunk(void (*shim)(struct DSPS*))
+{
+ a64_label* cold = label_new();
+ unsigned pad;
+ a64_b(g_cg, cold);
+ for(pad = 1; pad < SCU_JIT_SLOT_PRELUDE_BYTES / 4u; ++pad)
+  a64_nop(g_cg);
+ emit_flush_pins();
+ label_bind(cold);
+ a64_movp2r_pool(g_cg, X16, (const void*)shim);
+ a64_br(g_cg, X16);
+}
+
+/*
+ * Installed as SCU_DSP_JIT_Entry.  Brackets the JIT chain with a
+ * chain-live flag: helpers BLR'd from slot code (lps_helper,
+ * misc_end_helper, DSP_FinishPRAMDMA) can reach CompileSlot while the
+ * stack still holds return addresses into live slot bytes
+ * (emit_call_helper_addr's saved LR), so a segment rewind there would
+ * recompile over code the chain returns into.  CompileSlot refuses and
+ * latches the rewind instead; it runs here on the next entry, before
+ * any slot code is live.
+ */
+static void jit_entry(struct DSPS* dsp)
+{
+ if(MDFN_UNLIKELY(g_rewind_pending))
+  rewind_locked();
+ g_chain_live = true;
+ g_entry_stub(dsp);
+ g_chain_live = false;
+}
+
 /* --- Public API --------------------------------------------------- */
 
 void SCU_DSP_JIT_Init(void)
@@ -1165,6 +1231,8 @@ void SCU_DSP_JIT_Init(void)
  void* stubs_start;
  void* entry_addr;
  void* exit_addr;
+ void* thunk_n_addr;
+ void* thunk_l_addr;
  void* post_stub_ptr;
 
  if(!g_cg)
@@ -1177,16 +1245,25 @@ void SCU_DSP_JIT_Init(void)
 
   entry_addr = a64_codegen_wptr(g_cg);
   emit_entry_stub();
-  SCU_DSP_JIT_Entry = (void (*)(struct DSPS*))entry_addr;
+  g_entry_stub = (void (*)(struct DSPS*))entry_addr;
+  SCU_DSP_JIT_Entry = &jit_entry;
 
   exit_addr = a64_codegen_wptr(g_cg);
   emit_exit_stub();
   g_exit_stub_addr = exit_addr;
 
-  /* Resolve the entry stub's pooled DSP_Init pointer (and any other
-   * stub-time pool refs).  The pool data lives past the exit stub's
-   * RET, so it's unreachable -- but it sits below g_post_stub_byte_offset
-   * so rewind_locked() won't trample it. */
+  thunk_n_addr = a64_codegen_wptr(g_cg);
+  emit_fallback_thunk(&fallback_shim_normal);
+  thunk_l_addr = a64_codegen_wptr(g_cg);
+  emit_fallback_thunk(&fallback_shim_looped);
+  g_fallback_thunk[0] = thunk_n_addr;
+  g_fallback_thunk[1] = thunk_l_addr;
+
+  /* Resolve the entry stub's pooled DSP_Init pointer, the thunks'
+   * shim pointers and any other stub-time pool refs.  The pool data
+   * lives past unconditional terminators, so it's unreachable -- but
+   * it sits below g_post_stub_byte_offset so rewind_locked() won't
+   * trample it. */
   a64_pool_flush(g_cg);
 
   post_stub_ptr = a64_codegen_wptr(g_cg);
@@ -1198,7 +1275,11 @@ void SCU_DSP_JIT_Init(void)
   SS_JitDump_Emit("dsp_entry_stub", entry_addr,
                   (size_t)((uintptr_t)exit_addr - (uintptr_t)entry_addr));
   SS_JitDump_Emit("dsp_exit_stub", exit_addr,
-                  (size_t)((uintptr_t)post_stub_ptr - (uintptr_t)exit_addr));
+                  (size_t)((uintptr_t)thunk_n_addr - (uintptr_t)exit_addr));
+  SS_JitDump_Emit("dsp_fallback_thunk_n", thunk_n_addr,
+                  (size_t)((uintptr_t)thunk_l_addr - (uintptr_t)thunk_n_addr));
+  SS_JitDump_Emit("dsp_fallback_thunk_l", thunk_l_addr,
+                  (size_t)((uintptr_t)post_stub_ptr - (uintptr_t)thunk_l_addr));
  }
  rewind_locked();
 }
@@ -1209,6 +1290,14 @@ void SCU_DSP_JIT_Reset(void)
   SCU_DSP_JIT_Init();
  else
   rewind_locked();
+}
+
+uint64_t SCU_DSP_JIT_FallbackNI(uint32_t instr, bool looped)
+{
+ const void* thunk = g_fallback_thunk[looped];
+ if(!thunk)
+  return 0;
+ return ((uint64_t)instr << 32) | (uint32_t)((uintptr_t)thunk - DSP_INSTR_BASE_UIPT);
 }
 
 void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct DSPS*)
@@ -1228,7 +1317,20 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
   return NULL;
 
  if(a64_codegen_offset(g_cg) + SCU_JIT_SLOT_MAX_BYTES > SCU_JIT_CODE_SEGMENT_SIZE)
+ {
+  /* A rewind recompiles every slot in place, so while a chain is live
+   * (see jit_entry) it would overwrite bytes the chain still returns
+   * into.  Refuse instead: DSP_DecodeSlotInstruction then falls back
+   * to DSP_DecodeInstruction, whose WANT_JIT redirect yields the
+   * fallback thunk -- correct, just C-speed until the latched rewind
+   * runs at the next chain entry. */
+  if(MDFN_UNLIKELY(g_chain_live))
+  {
+   g_rewind_pending = true;
+   return NULL;
+  }
   rewind_locked();
+ }
 
  start = a64_codegen_wptr(g_cg);
 
@@ -1297,6 +1399,12 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
 {
  (void)pc; (void)looped; (void)instr;
  return NULL;
+}
+
+uint64_t SCU_DSP_JIT_FallbackNI(uint32_t instr, bool looped)
+{
+ (void)instr; (void)looped;
+ return 0;
 }
 
 #endif

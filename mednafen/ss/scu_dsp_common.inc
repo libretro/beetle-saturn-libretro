@@ -193,6 +193,20 @@ static FORCE_INLINE uint64_t DSP_DecodeInstruction(const uint32_t instr, const b
 {
  void (*aal)(struct DSPS*);
 
+#ifdef WANT_JIT
+ /* JIT slot code dispatches NextInstr.low32 at a bias past the slot
+  * cold prelude, so a raw C-handler offset reaching that path would be
+  * entered mid-function.  Route every C-handler decode through the
+  * permanent fallback thunk, which is entry-compatible with both
+  * dispatch flavors and re-dispatches on NextInstr.high32. */
+ if(setting_jit_scu)
+ {
+  const uint64_t ni = SCU_DSP_JIT_FallbackNI(instr, looped);
+  if(ni)
+   return ni;
+ }
+#endif
+
  switch((instr >> 28) & 0xF)
  {
   default:
