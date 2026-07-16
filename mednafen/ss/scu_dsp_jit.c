@@ -14,6 +14,9 @@
  *   x3   = ALU.T scratch inside emit_gen.
  *   x4-x9, x12 = generic per-emitter scratches.
  *   x16, x17 = MOVP2R staging and BR/BLR targets.
+ *   x19  = pinned dispatch anchor: &DSP_Init + SCU_JIT_SLOT_PRELUDE_BYTES.
+ *          Re-established by every slot's cold prelude, so tail dispatch
+ *          is one ADD (extended register) of the signed NI.low32 offset.
  *   w20  = pinned dsp->LOP (12-bit loop counter).
  *   w21  = pinned dsp->CycleCounter.
  *   w22  = pinned dsp->State (read-only cache).
@@ -58,6 +61,12 @@ void (*SCU_DSP_JIT_Entry)(struct DSPS*) = NULL;
  */
 #define SCU_JIT_CODE_SEGMENT_SIZE  ((size_t)0x100000)
 #define SCU_JIT_SLOT_MAX_BYTES     ((size_t)1024)
+
+/* Cold-prelude size of every slot, in bytes (8 instructions).  Tail
+ * dispatch skips it via the X19 anchor, which is pre-biased by this
+ * amount; the DMA fallback pads with this many NOP bytes to stay
+ * skip-safe. */
+#define SCU_JIT_SLOT_PRELUDE_BYTES 32u
 
 /* AArch64 register-index conventions.  WZR/XZR/SP all encode as 31.
  * Numeric in source so a64emit accepts them as plain `unsigned`s. */
@@ -753,15 +762,11 @@ static void emit_tail_dispatch(void)
  a64_cmp_w_imm(g_cg, W22, 0u);
  a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
 
- /* W25 = pinned NI.low32; SXTW to recover the signed offset. */
- a64_sxtw(g_cg, X16, W25);
- a64_movp2r_pool(g_cg, X17, (const void*)&DSP_Init);
- a64_add_x_reg(g_cg, X16, X17, X16);
- /* Skip the next slot's 7-LDR prelude (28 bytes).  AC.T/P.T are pinned
-  * in X26/X28 across the JIT-to-JIT chain; only cold entries (entry stub
-  * BLR, DSP_TailDispatch tail-call from a C handler) land at offset 0
-  * and execute the AC/P reloads. */
- a64_add_x_imm(g_cg, X16, X16, 28u);
+ /* W25 = pinned NI.low32, a signed offset from &DSP_Init; X19 holds
+  * &DSP_Init pre-biased by SCU_JIT_SLOT_PRELUDE_BYTES, so one extended
+  * ADD both rebases the offset and skips the next slot's cold prelude.
+  * Only cold entries land at offset 0 and run the reloads. */
+ a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
  a64_br(g_cg, X16);
 
  label_bind(exit_lbl);
@@ -774,12 +779,14 @@ static void emit_load_ct32_pin (void) { a64_ldr_w_imm (g_cg, W23, X0, O_CT32); }
 static void emit_load_flags_pin(void) { a64_ldur_w    (g_cg, W24, X0, (int)O_FZ); }
 static void emit_load_pc_pin   (void) { a64_ldrb_w_imm(g_cg, W27, X0, O_PC); }
 static void emit_load_lop_pin  (void) { a64_ldrh_w_imm(g_cg, W20, X0, O_LOP); }
-/* AC.T (X26) and P.T (X28) are pinned across blocks: tail-dispatched
- * entries skip these loads (emit_tail_dispatch's +28 byte skip), while
- * cold entries via SCU_DSP_JIT_Entry's BLR or DSP_TailDispatch's
- * tail-call from a C handler land at offset 0 and need the reload. */
+/* AC.T (X26), P.T (X28) and the X19 anchor are pinned across blocks:
+ * tail-dispatched entries skip these loads (the X19 bias skips
+ * SCU_JIT_SLOT_PRELUDE_BYTES), while cold entries land at offset 0 with
+ * arbitrary X19 and need the reloads. */
 static void emit_load_ac_pin   (void) { a64_ldr_x_imm (g_cg, X26, X0, O_AC); }
 static void emit_load_p_pin    (void) { a64_ldr_x_imm (g_cg, X28, X0, O_P); }
+static void emit_load_anchor_pin(void)
+{ a64_movp2r_pool(g_cg, X19, (const void*)(DSP_INSTR_BASE_UIPT + SCU_JIT_SLOT_PRELUDE_BYTES)); }
 
 static void emit_gen(bool looped, uint32_t instr)
 {
@@ -796,6 +803,7 @@ static void emit_gen(bool looped, uint32_t instr)
  emit_load_lop_pin();
  emit_load_ac_pin();
  emit_load_p_pin();
+ emit_load_anchor_pin();
  emit_instr_pre(looped);
 
  /* X3 = ALU.T (mutated in place by alu_op). */
@@ -936,6 +944,7 @@ static void emit_mvi(bool looped, uint32_t instr)
  emit_load_lop_pin();
  emit_load_ac_pin();
  emit_load_p_pin();
+ emit_load_anchor_pin();
  emit_instr_pre(looped);
 
  skip = label_new();
@@ -1046,6 +1055,7 @@ static void emit_jmp(bool looped, uint32_t instr)
  emit_load_lop_pin();
  emit_load_ac_pin();
  emit_load_p_pin();
+ emit_load_anchor_pin();
  emit_instr_pre(looped);
 
  skip = label_new();
@@ -1070,6 +1080,7 @@ static void emit_misc(bool looped, uint32_t instr)
  emit_load_lop_pin();
  emit_load_ac_pin();
  emit_load_p_pin();
+ emit_load_anchor_pin();
  emit_instr_pre(looped);
 
  if(op == 2 || op == 3)        /* END / ENDI */
@@ -1222,17 +1233,13 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
  }
  else
  {
-  /* DMA: tail-jump straight to the templated C handler.  7 leading
-   * NOPs are the skip-safe prelude (matches the 7-LDR slot prelude;
-   * JIT tail_dispatch BR's to target+28). */
+  /* DMA: tail-jump straight to the templated C handler.  The leading
+   * NOPs are the skip-safe prelude (SCU_JIT_SLOT_PRELUDE_BYTES, same
+   * size as the pin-load prelude; JIT tail_dispatch BR's past it). */
   void (* const c_handler)(struct DSPS*) = pick_c_handler(looped, instr);
-  a64_nop(g_cg);
-  a64_nop(g_cg);
-  a64_nop(g_cg);
-  a64_nop(g_cg);
-  a64_nop(g_cg);
-  a64_nop(g_cg);
-  a64_nop(g_cg);
+  unsigned pad;
+  for(pad = 0; pad < SCU_JIT_SLOT_PRELUDE_BYTES / 4u; ++pad)
+   a64_nop(g_cg);
   a64_movp2r_pool(g_cg, X16, (const void*)c_handler);
   a64_br(g_cg, X16);
  }

@@ -147,6 +147,10 @@ void a64_add_w_reg(a64_codegen*, unsigned wd, unsigned wn, unsigned wm);
 void a64_sub_w_reg(a64_codegen*, unsigned wd, unsigned wn, unsigned wm);
 void a64_add_x_reg(a64_codegen*, unsigned xd, unsigned xn, unsigned xm);
 void a64_sub_x_reg(a64_codegen*, unsigned xd, unsigned xn, unsigned xm);
+/* ADD (extended register): Xd_sp = Xn_sp + SXTW(Wm).  Base + signed
+ * 32-bit offset in one instruction; Rd/Rn are SP-capable in this form,
+ * Rm index 31 = WZR. */
+void a64_add_x_reg_sxtw(a64_codegen*, unsigned xd_sp, unsigned xn_sp, unsigned wm);
 
 /* Flag-setting; pair with a64_cset_w to materialise the flag. */
 void a64_adds_w_imm(a64_codegen*, unsigned wd, unsigned wn_sp, uint32_t imm);

@@ -85,6 +85,7 @@ A64_STUB3(a64_add_w_reg, unsigned wd, unsigned wn, unsigned wm)
 A64_STUB3(a64_sub_w_reg, unsigned wd, unsigned wn, unsigned wm)
 A64_STUB3(a64_add_x_reg, unsigned xd, unsigned xn, unsigned xm)
 A64_STUB3(a64_sub_x_reg, unsigned xd, unsigned xn, unsigned xm)
+A64_STUB3(a64_add_x_reg_sxtw, unsigned xd, unsigned xn, unsigned wm)
 A64_STUB3(a64_adds_w_imm,unsigned wd, unsigned wn, uint32_t imm)
 A64_STUB3(a64_subs_w_imm,unsigned wd, unsigned wn, uint32_t imm)
 A64_STUB3(a64_adds_w_reg,unsigned wd, unsigned wn, unsigned wm)
@@ -707,6 +708,9 @@ void a64_sub_w_reg(a64_codegen* cg, unsigned wd, unsigned wn, unsigned wm)
 { emit_w(cg, 0x4B000000u | (A64_REG(wm) << 16) | (A64_REG(wn) << 5) | A64_REG(wd)); }
 void a64_add_x_reg(a64_codegen* cg, unsigned xd, unsigned xn, unsigned xm)
 { emit_w(cg, 0x8B000000u | (A64_REG(xm) << 16) | (A64_REG(xn) << 5) | A64_REG(xd)); }
+void a64_add_x_reg_sxtw(a64_codegen* cg, unsigned xd_sp, unsigned xn_sp, unsigned wm)
+{ /* ADD (extended register), 64-bit, option=SXTW (0b110), shift 0. */
+ emit_w(cg, 0x8B20C000u | (A64_REG(wm) << 16) | (A64_REG(xn_sp) << 5) | A64_REG(xd_sp)); }
 void a64_sub_x_reg(a64_codegen* cg, unsigned xd, unsigned xn, unsigned xm)
 { emit_w(cg, 0xCB000000u | (A64_REG(xm) << 16) | (A64_REG(xn) << 5) | A64_REG(xd)); }
 
