@@ -22,14 +22,23 @@
  *   w22  = pinned dsp->State (read-only cache).
  *   w23  = pinned dsp->CT32 (4 packed 6-bit CT counters).
  *   w24  = pinned packed flag bytes (FlagZ/S/V/C at byte 0..3).
- *   w25  = pinned dsp->NextInstr.low32 (threaded-dispatch offset).
+ *   x25  = pinned dsp->NextInstr, full 64 bits (high32 = raw instr,
+ *          low32 = threaded-dispatch offset; tail dispatch reads W25).
  *   x26  = pinned dsp->AC.T.
  *   w27  = pinned dsp->PC.
  *   x28  = pinned dsp->P.T.
  *
+ * Memory-coherence contract: slot bodies do not flush NI/PC/flags/CC/
+ * LOP per slot.  emit_flush_pins() writes them back wherever C code can
+ * observe DSPS: the exit stub, the top of emit_call_helper_addr, and the
+ * DMA fallback's hot path.  CT32/AC.T/P.T (and TOP, which has no pin)
+ * keep their store-on-change emitters; NextInstrLooped is set only by
+ * lps_helper and cleared in place by the looped refetch path.
+ *
  * Entry-stub frame: 96 bytes, preserving x19/x20, x21/x22, x25/x26,
  * x23/x24 and x27/x28.  Slot bodies push no frame; their tail dispatch
- * B's to the exit stub, which RETs through the entry stub's after-BLR.
+ * B's to the exit stub, which flushes the pins and RETs through the
+ * entry stub's after-BLR.
  */
 
 #include <stddef.h>
@@ -379,32 +388,29 @@ static void emit_instr_pre(bool looped)
 {
  if(!looped)
  {
-  /* W27 pin = dsp->PC byte (zero-extended). */
+  /* W27 pin = dsp->PC byte (zero-extended).  Fetch straight into the
+   * X25 NI pin; NI/PC reach memory via emit_flush_pins() only.  No
+   * NextInstrLooped clear: a normal slot only executes with the memory
+   * byte already 0. */
   emit_add_x_imm_safe(X4, X0, O_PRAM);
-  a64_ldr_x_idx_lsl(g_cg, X5, X4, X27, 3u);
-  a64_str_x_imm(g_cg, X5, X0, O_NI);
-  a64_strb_w_imm(g_cg, WZR, X0, O_NILooped);
-  a64_mov_w_reg(g_cg, W25, W5);
+  a64_ldr_x_idx_lsl(g_cg, X25, X4, X27, 3u);
   a64_add_w_imm(g_cg, W27, W27, 1u);
   a64_and_w_imm(g_cg, W27, W27, 0xFFu);
-  a64_strb_w_imm(g_cg, W27, X0, O_PC);
  }
  else
  {
   a64_label* skip_load = label_new();
   a64_cbnz_w(g_cg, W20, skip_load);
   emit_add_x_imm_safe(X5, X0, O_PRAM);
-  a64_ldr_x_idx_lsl(g_cg, X6, X5, X27, 3u);
-  a64_str_x_imm(g_cg, X6, X0, O_NI);
+  a64_ldr_x_idx_lsl(g_cg, X25, X5, X27, 3u);
+  /* The one 1->0 NextInstrLooped transition: leaving the loop.  Kept
+   * as an in-place store so the memory byte never needs a flush. */
   a64_strb_w_imm(g_cg, WZR, X0, O_NILooped);
-  a64_mov_w_reg(g_cg, W25, W6);
   a64_add_w_imm(g_cg, W27, W27, 1u);
   a64_and_w_imm(g_cg, W27, W27, 0xFFu);
-  a64_strb_w_imm(g_cg, W27, X0, O_PC);
   label_bind(skip_load);
   a64_sub_w_imm(g_cg, W20, W20, 1u);
   a64_and_w_imm(g_cg, W20, W20, 0xFFFu);
-  a64_strh_w_imm(g_cg, W20, X0, O_LOP);
  }
 }
 
@@ -701,7 +707,6 @@ static void emit_d1_op(bool looped, unsigned d1_op, uint32_t instr, const GenMet
    a64_and_w_imm(g_cg, W7, W12, 0xFFFu);
    if(!looped)
    {
-    a64_strh_w_imm(g_cg, W7, X0, O_LOP);
     a64_mov_w_reg(g_cg, W20, W7);
    }
    else
@@ -709,7 +714,6 @@ static void emit_d1_op(bool looped, unsigned d1_op, uint32_t instr, const GenMet
     a64_label* skip = label_new();
     a64_cmp_w_imm(g_cg, W20, 0xFFFu);
     a64_b_cond(g_cg, A64_COND_NE, skip);
-    a64_strh_w_imm(g_cg, W7, X0, O_LOP);
     a64_mov_w_reg(g_cg, W20, W7);
     label_bind(skip);
    }
@@ -746,16 +750,23 @@ static void emit_ct32_update(unsigned x_op, unsigned y_op, unsigned d1_op, uint3
  a64_str_w_imm(g_cg, W23, X0, O_CT32);
 }
 
+/* Write every sunk pin back to DSPS; see the coherence contract at the
+ * top of the file for where this is emitted. */
+static void emit_flush_pins(void)
+{
+ a64_str_x_imm (g_cg, X25, X0, O_NI);
+ a64_strb_w_imm(g_cg, W27, X0, O_PC);
+ a64_stur_w    (g_cg, W24, X0, (int)O_FZ);   /* O_FZ is byte-aligned */
+ a64_str_w_imm (g_cg, W21, X0, O_CC);
+ a64_strh_w_imm(g_cg, W20, X0, O_LOP);
+}
+
 static void emit_tail_dispatch(void)
 {
  a64_label* exit_lbl = label_new();
 
- /* Flush packed-flags pin to memory.  O_FZ is byte-aligned. */
- a64_stur_w(g_cg, W24, X0, (int)O_FZ);
-
- /* Decrement pinned CC (2 cycles per slot), flush, branch on <= 0. */
+ /* Decrement pinned CC (2 cycles per slot), branch on <= 0. */
  a64_subs_w_imm(g_cg, W21, W21, 2u);
- a64_str_w_imm(g_cg, W21, X0, O_CC);
  a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
 
  /* DSPS_IsRunning() = State > 0 (signed). */
@@ -912,19 +923,23 @@ static void emit_test_cond(unsigned cond, a64_label* skip_label)
 
 /*
  * BLR to a C helper, preserving x0 and the link register across the call
- * via the stack.  The caller sets up the arg registers.
+ * via the stack.  The caller sets up the arg registers; the sunk pins are
+ * flushed first so the helper sees a current DSPS, and a caller wanting an
+ * adjusted value (mvi dest 6/7's PC-1) adjusts the pin beforehand.
  */
 static void emit_call_helper_addr(const void* helper_addr)
 {
+ emit_flush_pins();
  a64_stp_x_pre(g_cg, X0, X30, -16);
  a64_movp2r_pool(g_cg, X16, helper_addr);
  a64_blr(g_cg, X16);
  a64_ldp_x_post(g_cg, X0, X30, 16);
- /* Re-sync pinned regs that helpers may have mutated in memory. */
+ /* Re-sync pinned regs that helpers may have mutated in memory.
+  * NI is the full 64-bit pin (lps_helper / rewind rewrite it). */
  a64_ldr_w_imm(g_cg, W22, X0, O_State);
  a64_ldr_w_imm(g_cg, W21, X0, O_CC);
  a64_ldr_w_imm(g_cg, W23, X0, O_CT32);
- a64_ldr_w_imm(g_cg, W25, X0, O_NI);
+ a64_ldr_x_imm(g_cg, X25, X0, O_NI);
  a64_ldrb_w_imm(g_cg, W27, X0, O_PC);
 }
 
@@ -955,8 +970,10 @@ static void emit_mvi(bool looped, uint32_t instr)
   a64_label* nodma = label_new();
   a64_ldr_w_imm(g_cg, W8, X0, O_PRAMDMACt);
   a64_cbz_w(g_cg, W8, nodma);
-  a64_sub_w_imm(g_cg, W9, W27, 1u);
-  a64_strb_w_imm(g_cg, W9, X0, O_PC);
+  /* Helper must see PC-1: adjust the pin, the helper's flush stores it
+   * (STRB truncates the un-masked wrap), and the post-BLR reload keeps
+   * W27 = PC-1 -- same end state as the interpreter. */
+  a64_sub_w_imm(g_cg, W27, W27, 1u);
   emit_call_helper_addr((const void*)&DSP_FinishPRAMDMA);
   label_bind(nodma);
  }
@@ -1002,7 +1019,6 @@ static void emit_mvi(bool looped, uint32_t instr)
    if(!looped)
    {
     a64_mov_w_imm(g_cg, W12, lop_val);
-    a64_strh_w_imm(g_cg, W12, X0, O_LOP);
     a64_mov_w_reg(g_cg, W20, W12);
    }
    else
@@ -1011,7 +1027,6 @@ static void emit_mvi(bool looped, uint32_t instr)
     a64_cmp_w_imm(g_cg, W20, 0xFFFu);
     a64_b_cond(g_cg, A64_COND_NE, sk);
     a64_mov_w_imm(g_cg, W12, lop_val);
-    a64_strh_w_imm(g_cg, W12, X0, O_LOP);
     a64_mov_w_reg(g_cg, W20, W12);
     label_bind(sk);
    }
@@ -1023,9 +1038,7 @@ static void emit_mvi(bool looped, uint32_t instr)
    a64_label* nodma2 = label_new();
    a64_sub_w_imm(g_cg, W8, W27, 1u);
    a64_strb_w_imm(g_cg, W8, X0, O_TOP);
-   a64_mov_w_imm(g_cg, W9, (uint32_t)imm & 0xFFu);
-   a64_strb_w_imm(g_cg, W9, X0, O_PC);
-   a64_mov_w_reg(g_cg, W27, W9);
+   a64_mov_w_imm(g_cg, W27, (uint32_t)imm & 0xFFu);
    a64_ldr_w_imm(g_cg, W10, X0, O_PRAMDMACt);
    a64_cbz_w(g_cg, W10, nodma2);
    emit_call_helper_addr((const void*)&DSP_FinishPRAMDMA);
@@ -1061,9 +1074,7 @@ static void emit_jmp(bool looped, uint32_t instr)
  skip = label_new();
  emit_test_cond(cond, skip);
 
- a64_mov_w_imm(g_cg, W12, (uint32_t)target);
- a64_strb_w_imm(g_cg, W12, X0, O_PC);
- a64_mov_w_reg(g_cg, W27, W12);
+ a64_mov_w_imm(g_cg, W27, (uint32_t)target);
 
  label_bind(skip);
  emit_tail_dispatch();
@@ -1092,13 +1103,10 @@ static void emit_misc(bool looped, uint32_t instr)
  {
   a64_label* skip = label_new();
   a64_cbz_w(g_cg, W20, skip);
-  a64_ldrb_w_imm(g_cg, W5, X0, O_TOP);
-  a64_strb_w_imm(g_cg, W5, X0, O_PC);
-  a64_mov_w_reg(g_cg, W27, W5);
+  a64_ldrb_w_imm(g_cg, W27, X0, O_TOP);
   label_bind(skip);
   a64_sub_w_imm(g_cg, W20, W20, 1u);
   a64_and_w_imm(g_cg, W20, W20, 0xFFFu);
-  a64_strh_w_imm(g_cg, W20, X0, O_LOP);
  }
  else if(op == 1)              /* LPS */
  {
@@ -1112,8 +1120,8 @@ static void emit_misc(bool looped, uint32_t instr)
 
 /*
  * Entry stub: called from SCU_UpdateDSP with x0 = DSPS*.  Sets up an
- * AAPCS-conformant frame, loads pinned State/AC.T/P.T/NI.low32, then
- * BLR's to the first handler.
+ * AAPCS-conformant frame, loads pinned State/AC.T/P.T/NI (full 64-bit),
+ * then BLR's to the first handler.
  */
 static void emit_entry_stub(void)
 {
@@ -1131,7 +1139,7 @@ static void emit_entry_stub(void)
  a64_ldrsw_x_imm(g_cg, X16, X0, O_NI);
  a64_movp2r_pool(g_cg, X17, (const void*)&DSP_Init);
  a64_add_x_reg(g_cg, X16, X17, X16);
- a64_ldr_w_imm(g_cg, W25, X0, O_NI);
+ a64_ldr_x_imm(g_cg, X25, X0, O_NI);
  a64_blr(g_cg, X16);
 
  a64_ldp_x_off(g_cg, X27, X28, SP_REG, 80);
@@ -1145,6 +1153,8 @@ static void emit_entry_stub(void)
 
 static void emit_exit_stub(void)
 {
+ /* Pins reach memory here and at C-helper call sites, not per slot. */
+ emit_flush_pins();
  a64_ret(g_cg);
 }
 
@@ -1233,13 +1243,21 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
  }
  else
  {
-  /* DMA: tail-jump straight to the templated C handler.  The leading
-   * NOPs are the skip-safe prelude (SCU_JIT_SLOT_PRELUDE_BYTES, same
-   * size as the pin-load prelude; JIT tail_dispatch BR's past it). */
+  /* DMA: tail-jump straight to the templated C handler.  The pad is
+   * the skip-safe prelude (SCU_JIT_SLOT_PRELUDE_BYTES, same size as
+   * the pin-load prelude).  Hot entries (tail dispatch, +32) carry
+   * live pins and must flush them for the C handler; cold entries
+   * (offset 0: entry stub BLR, DSP_TailDispatch) arrive from C with
+   * memory already current but garbage registers, so the pad's first
+   * word branches around the flush. */
   void (* const c_handler)(struct DSPS*) = pick_c_handler(looped, instr);
+  a64_label* cold = label_new();
   unsigned pad;
-  for(pad = 0; pad < SCU_JIT_SLOT_PRELUDE_BYTES / 4u; ++pad)
+  a64_b(g_cg, cold);
+  for(pad = 1; pad < SCU_JIT_SLOT_PRELUDE_BYTES / 4u; ++pad)
    a64_nop(g_cg);
+  emit_flush_pins();
+  label_bind(cold);
   a64_movp2r_pool(g_cg, X16, (const void*)c_handler);
   a64_br(g_cg, X16);
  }
