@@ -430,7 +430,7 @@ static void emit_mdec_ct_update_mem(uint8_t rbl)
  *   W12,W13,W14,W15 = RAM-pipeline + dspfloat scratches
  *   W16,X16,W17,X17 = MOVP2R + offset-fallback staging */
 static void emit_step_native(const SS_SCSP_DSPStep* s,
-                             uint8_t rbl, uint8_t rbp)
+                             uint8_t rbl, uint8_t rbp, bool rwaddr_dead)
 {
  const uint32_t f   = s->flags;
  const unsigned IRA = s->IRA;
@@ -613,29 +613,37 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
   *   if (NXADDR) addr += 1
   *   if (ADRGB)  addr += sxt12(ADRS_REG)
   *   if (!TABLE) addr += MDEC_CT; addr &= (0x2000<<RBL) - 1
-  *   RWAddr = (addr + (RBP<<12)) & 0x7FFFF */
- emit_ldrh_w(W11, O(DSP.MADRS) + s->MASA * 2);
- if(f & DSPF_NXADDR)
-  a64_add_w_imm(g_cg, W11, W11, 1u);
- if(f & DSPF_ADRGB) {
-  a64_sbfx_w(g_cg, W12, W23, 0, 12);
-  a64_add_w_reg(g_cg, W11, W11, W12);
+  *   RWAddr = (addr + (RBP<<12)) & 0x7FFFF
+  *
+  * Skipped when this step's RWAddr write is dead (rwaddr_dead, decided in
+  * SCSP_DSP_JIT_Compile): the pin's only reader is the next live step's
+  * RAM block, which fires only when this step set a pending flag.  W11 is
+  * scratch here and has no downstream consumer on such steps (MWT cannot
+  * be set), so the whole block drops out. */
+ if(!rwaddr_dead) {
+  emit_ldrh_w(W11, O(DSP.MADRS) + s->MASA * 2);
+  if(f & DSPF_NXADDR)
+   a64_add_w_imm(g_cg, W11, W11, 1u);
+  if(f & DSPF_ADRGB) {
+   a64_sbfx_w(g_cg, W12, W23, 0, 12);
+   a64_add_w_reg(g_cg, W11, W11, W12);
+  }
+  if(!(f & DSPF_TABLE)) {
+   a64_add_w_reg(g_cg, W11, W11, W19);
+   a64_and_w_imm(g_cg, W11, W11, (0x2000u << (rbl & 3)) - 1u);
+  } else {
+   /* Interpreter holds addr as uint16_t; the non-TABLE mask above
+    * incidentally wraps to 0xFFFF, so TABLE must do it explicitly. */
+   a64_and_w_imm(g_cg, W11, W11, 0xFFFFu);
+  }
+  /* (RBP << 12) is 0..0x7F000 -- fits AddSubImm shifted-by-12. */
+  {
+   const uint32_t rbp_off = (uint32_t)(rbp & 0x7F) << 12;
+   if(rbp_off)
+    emit_add_w_imm_safe(W11, W11, rbp_off);
+  }
+  a64_and_w_imm(g_cg, W25, W11, 0x7FFFFu);
  }
- if(!(f & DSPF_TABLE)) {
-  a64_add_w_reg(g_cg, W11, W11, W19);
-  a64_and_w_imm(g_cg, W11, W11, (0x2000u << (rbl & 3)) - 1u);
- } else {
-  /* Interpreter holds addr as uint16_t; the non-TABLE mask above
-   * incidentally wraps to 0xFFFF, so TABLE must do it explicitly. */
-  a64_and_w_imm(g_cg, W11, W11, 0xFFFFu);
- }
- /* (RBP << 12) is 0..0x7F000 -- fits AddSubImm shifted-by-12. */
- {
-  const uint32_t rbp_off = (uint32_t)(rbp & 0x7F) << 12;
-  if(rbp_off)
-   emit_add_w_imm_safe(W11, W11, rbp_off);
- }
- a64_and_w_imm(g_cg, W25, W11, 0x7FFFFu);
 
  /* MRT: ReadPending <- NOFL ? 2 : 1 */
  if(f & DSPF_MRT)
@@ -709,13 +717,58 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
   if(scsp->DSP.MPROG_Decoded[i].live) { mode_a = true; break; }
  }
 
+ /* RWAddr (w25) dead-value analysis.  The pin's only reader is a
+  * step's RAM-pipeline block, which touches RWAddr iff ReadPending or
+  * WritePending is set on entry.  Those flags are latched by MRT/MWT and
+  * drained one per step by the RAM block (Read before Write), so their
+  * state across the cyclic step sequence is data-independent: simulate it
+  * here to learn which steps read RWAddr.
+  *
+  * MRT and MWT can both be set on one instruction (see scsp.inc note
+  * "MRT=1 and MWT=1"), leaving WritePending pending an extra step, so a
+  * plain "predecessor did MRT/MWT" test is unsound.  reads_rwaddr[] is
+  * accumulated across several passes -- the pending state carries over
+  * from the prior sample and settles within its 4-state space -- so it
+  * over-approximates; an extra keep only forgoes the fold. */
+ bool reads_rwaddr[128];
+ memset(reads_rwaddr, 0, sizeof(reads_rwaddr));
+ {
+  unsigned rp = 0, wp = 0;
+  for(unsigned pass = 0; pass < 6u; ++pass) {
+   for(unsigned i = 0; i < 128u; ++i) {
+    const SS_SCSP_DSPStep* s = &scsp->DSP.MPROG_Decoded[i];
+    if(!s->live) continue;
+    if(rp || wp) reads_rwaddr[i] = true;   /* RAM block reads RWAddr */
+    if(rp) rp = 0; else if(wp) wp = 0;      /* service one pending op */
+    if(s->flags & DSPF_MRT) rp = 1;
+    if(s->flags & DSPF_MWT) wp = 1;
+   }
+  }
+ }
+
+ /* Ordered live-step list; a step's RWAddr is consumed by the next
+  * live step (cyclically).  The highest live slot is special: its
+  * RWAddr is the pass-end value flushed to the savestate-visible
+  * DSP.RWAddr, so it is always kept regardless of consumption. */
+ unsigned live_seq[128], live_n = 0;
+ for(unsigned i = 0; i < 128u; ++i)
+  if(scsp->DSP.MPROG_Decoded[i].live) live_seq[live_n++] = i;
+
+ bool rwaddr_keep[128];
+ memset(rwaddr_keep, 0, sizeof(rwaddr_keep));
+ for(unsigned p = 0; p < live_n; ++p) {
+  const unsigned K = live_seq[p];
+  const unsigned L = live_seq[(p + 1u) % live_n];  /* consumer */
+  rwaddr_keep[K] = reads_rwaddr[L] || (p == live_n - 1u);
+ }
+
  if(mode_a) {
   emit_full_prologue();
   for(unsigned step = 0; step < 128u; ++step) {
    const SS_SCSP_DSPStep* s = &scsp->DSP.MPROG_Decoded[step];
    if(!s->live) continue;
    if(step < max_native) {
-    emit_step_native(s, rbl, rbp);
+    emit_step_native(s, rbl, rbp, !rwaddr_keep[step]);
    } else {
     emit_pin_flush();
     emit_step_helper_bl(step);
