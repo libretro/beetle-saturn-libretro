@@ -418,14 +418,13 @@ static void emit_mdec_ct_update_mem(uint8_t rbl)
  * becomes a compile-time decision to emit that branch's body.
  *
  * Per-step scratch registers (not preserved across steps):
- *   W1   = INPUTS_sxt (sxt24 of W24)
- *   W2   = y_input
+ *   W1   = INPUTS_sxt (sxt24 of W24; only when XSEL/ADRL consume it)
+ *   W2   = y_input (COEF/Y_REG selects; YSEL=0 reads the W21 pin)
  *   W3   = ShifterOutput (24-bit unsigned)
  *   W4   = TEMP read address
  *   W5   = TEMP_sxt
  *   W7   = y_sxt13
  *   X8   = Product
- *   W9   = SGAOutput
  *   W10  = TEMP write address / staging
  *   W11  = MADRS accumulator
  *   W12,W13,W14,W15 = RAM-pipeline + dspfloat scratches
@@ -435,6 +434,12 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
 {
  const uint32_t f   = s->flags;
  const unsigned IRA = s->IRA;
+
+ /* Shifter mode bits (see the shifter block below); several selects
+  * up here also key off them at compile time. */
+ const unsigned shft0     = (f >> 7) & 1;
+ const unsigned shft1     = (f >> 8) & 1;
+ const unsigned shift_amt = shft0 ^ shft1;
 
  /* IRA decode -- compile-time pick. */
  if(IRA & 0x20) {
@@ -452,14 +457,22 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
   emit_ldr_w(W24, O(DSP.MEMS) + (IRA & 0x1F) * 4);
  }
 
- /* Always emitted: X_SEL, ADRL, and the interpreter's INPUTS_sxt all
-  * read this even when DSP.INPUTS wasn't updated this step. */
- a64_sbfx_w(g_cg, W1, W24, 0, 24);
+ /* INPUTS_sxt: consumed as the multiplier X input (XSEL) and by the
+  * non-(shft0&shft1) ADRL path; dead for any other flag mix.  Always
+  * sign-extends the current W24 pin, whether or not IRA refreshed it. */
+ if((f & DSPF_XSEL) || ((f & DSPF_ADRL) && !(shft0 && shft1)))
+  a64_sbfx_w(g_cg, W1, W24, 0, 24);
 
- /* Y selector -- compile-time pick on YSEL. */
+ /* Y selector -- compile-time pick on YSEL.  All four sources latch
+  * before the YRL/FRCL writebacks below, so case 0 can read the
+  * FRC_REG pin directly unless this step also rewrites it (FRCL). */
+ unsigned w_y_input = W2;
  switch(s->YSEL & 3) {
   case 0:
-   a64_mov_w_reg(g_cg, W2, W21);
+   if(f & DSPF_FRCL)
+    a64_mov_w_reg(g_cg, W2, W21);
+   else
+    w_y_input = W21;
    break;
   case 1:
    emit_ldrh_w(W2, O(DSP.COEF) + s->CRA * 2);
@@ -484,11 +497,9 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
   *   if (!shft1) saturate to [-0x800000, 0x7FFFFF]
   *   ShifterOutput &= 0xFFFFFF
   *
-  * shft0/shft1 are compile-time, so the shift amount, the saturate
-  * check, and the FRCL/ADRL branch-select downstream all collapse. */
- const unsigned shft0     = (f >> 7) & 1;
- const unsigned shft1     = (f >> 8) & 1;
- const unsigned shift_amt = shft0 ^ shft1;
+  * shft0/shft1 are compile-time (declared at the top of this
+  * function), so the shift amount, the saturate check, and the
+  * FRCL/ADRL branch-select downstream all collapse. */
  a64_sbfx_w(g_cg, W3, W20, 0, 26);
  if(shift_amt)
   a64_lsl_w_imm(g_cg, W3, W3, shift_amt);
@@ -524,21 +535,24 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
  a64_ldr_w_uxtw(g_cg, W5, X_TEMP_BASE, W4, 2);
  a64_sbfx_w(g_cg, W5, W5, 0, 24);
  const unsigned w_x_input = (f & DSPF_XSEL) ? W1 : W5;
- a64_sbfx_w(g_cg, W7, W2, 0, 13);
+ a64_sbfx_w(g_cg, W7, w_y_input, 0, 13);
  a64_smull(g_cg, X8, W7, w_x_input);
  a64_asr_x_imm(g_cg, X8, X8, 12);
- /* The AND 0x3FFFFFF below truncates, so we read W8 (low 32). */
+ /* The AND 0x3FFFFFF truncates, so we read W8 (low 32).  B-term
+  * folds: ZERO drops the add outright; NEGB collapses to a subtract
+  * (two's-complement wraparound matches the interpreter's uint32
+  * arithmetic).  Reading w_b == W20 as an operand of the same
+  * instruction that writes W20 is fine -- sources sample first. */
  if(f & DSPF_ZERO) {
-  a64_mov_w_imm(g_cg, W9, 0u);
+  a64_and_w_imm(g_cg, W20, W8, 0x3FFFFFFu);
  } else {
   const unsigned w_b = (f & DSPF_BSEL) ? W20 : W5;
   if(f & DSPF_NEGB)
-   a64_neg_w(g_cg, W9, w_b);
+   a64_sub_w_reg(g_cg, W20, W8, w_b);
   else
-   a64_mov_w_reg(g_cg, W9, w_b);
+   a64_add_w_reg(g_cg, W20, W8, w_b);
+  a64_and_w_imm(g_cg, W20, W20, 0x3FFFFFFu);
  }
- a64_add_w_reg(g_cg, W20, W8, W9);
- a64_and_w_imm(g_cg, W20, W20, 0x3FFFFFFu);
 
  /* EWT: EFREG[EWA] <- ShifterOutput >> 8 */
  if(f & DSPF_EWT) {
