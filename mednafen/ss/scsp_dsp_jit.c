@@ -33,6 +33,14 @@
  *   w26 = ReadPending (uint8)  -- gates RAM-read branch
  *   w27 = WritePending (bool)  -- gates RAM-write branch
  *   w28 = ReadValue (uint32)
+ *   x29 = &DSP.TEMP[0] -- multiplier read every step, TWT write
+ *   x30 = &RAM[0]      -- RAM-pipeline read/write blocks
+ *
+ * x29/x30 carry no frame state in the body: the prologue's STP saves
+ * the caller's values and the body is a leaf, so both are free as
+ * table-base pins (TEMP and RAM need register-offset addressing for
+ * their dynamic indices, which [x0,#imm] can't express).  The
+ * helper-BL fallback clobbers x30, so that path re-pins after the BL.
  *
  * WriteValue (uint16) is set by an MWT step and consumed by the next
  * step's RAM-write block; lives in memory between steps rather than
@@ -121,6 +129,10 @@ void (*SCSP_DSP_JIT_Entry)(struct SS_SCSP*) = NULL;
 #define XZR 31u
 #define SP_REG 31u
 
+/* Table-base pins (Mode A body; see the layout comment above). */
+#define X_TEMP_BASE X29
+#define X_RAM_BASE  X30
+
 extern void SCSP_DSP_run_step(struct SS_SCSP* scsp, unsigned step);
 extern void SCSP_DSP_run_interpreter(struct SS_SCSP* scsp);
 
@@ -187,11 +199,15 @@ static void emit_strb_w(unsigned src, uint32_t off)
  else { a64_mov_w_imm(g_cg, W16, off); a64_strb_w_reg(g_cg, src, X0, X16); }
 }
 
-/* O(RAM) is larger than the ADD-imm direct range. */
-static void emit_load_ram_base(void)
+/* Pin the TEMP and RAM bases.  Both offsets are larger than the
+ * ADD-imm direct range, hence the MOV staging through W17.  Emitted in
+ * the Mode A prologue and again after each helper BL (BL trashes x30). */
+static void emit_base_pins(void)
 {
+ a64_mov_w_imm(g_cg, W17, O(DSP.TEMP));
+ a64_add_x_reg(g_cg, X_TEMP_BASE, X0, X17);
  a64_mov_w_imm(g_cg, W17, O(RAM));
- a64_add_x_reg(g_cg, X17, X0, X17);
+ a64_add_x_reg(g_cg, X_RAM_BASE, X0, X17);
 }
 
 /* ADD Wd, Wn, #imm with a MOV+ADD reg fallback when `imm` doesn't fit
@@ -222,8 +238,10 @@ static void emit_min_epilogue(void)
 
 static void emit_full_prologue(void)
 {
+ /* No `mov x29, sp` frame link: x29 becomes a table-base pin right
+  * below, so the register can't double as a frame pointer.  The
+  * caller's x29/x30 still sit in the frame record for the epilogue. */
  a64_stp_x_pre(g_cg, X29, X30, -96);
- a64_mov_x_sp(g_cg, X29);
  a64_stp_x_off(g_cg, X19, X20, SP_REG, 16);
  a64_stp_x_off(g_cg, X21, X22, SP_REG, 32);
  a64_stp_x_off(g_cg, X23, X24, SP_REG, 48);
@@ -240,6 +258,7 @@ static void emit_full_prologue(void)
  emit_ldrb_w(W26, O(DSP.ReadPending));
  emit_ldrb_w(W27, O(DSP.WritePending));
  emit_ldr_w (W28, O(DSP.ReadValue));
+ emit_base_pins();
 }
 static void emit_full_epilogue(void)
 {
@@ -410,7 +429,7 @@ static void emit_mdec_ct_update_mem(uint8_t rbl)
  *   W10  = TEMP write address / staging
  *   W11  = MADRS accumulator
  *   W12,W13,W14,W15 = RAM-pipeline + dspfloat scratches
- *   W16,X16,W17,X17 = MOVP2R staging + RAM base */
+ *   W16,X16,W17,X17 = MOVP2R + offset-fallback staging */
 static void emit_step_native(const SS_SCSP_DSPStep* s,
                              uint8_t rbl, uint8_t rbp)
 {
@@ -502,12 +521,7 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
   * TEMPReadAddr = (TRA + MDEC_CT) & 0x7F -- TRA compile-time. */
  emit_add_w_imm_safe(W4, W19, s->TRA);
  a64_and_w_imm(g_cg, W4, W4, 0x7Fu);
- {
-  /* X17 <- &DSP.TEMP[0]; X17 + W4*4 = &TEMP[idx] */
-  a64_mov_w_imm(g_cg, W17, O(DSP.TEMP));
-  a64_add_x_reg(g_cg, X17, X0, X17);
-  a64_ldr_w_uxtw(g_cg, W5, X17, W4, 2);
- }
+ a64_ldr_w_uxtw(g_cg, W5, X_TEMP_BASE, W4, 2);
  a64_sbfx_w(g_cg, W5, W5, 0, 24);
  const unsigned w_x_input = (f & DSPF_XSEL) ? W1 : W5;
  a64_sbfx_w(g_cg, W7, W2, 0, 13);
@@ -536,9 +550,7 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
  if(f & DSPF_TWT) {
   emit_add_w_imm_safe(W10, W19, s->TWA);
   a64_and_w_imm(g_cg, W10, W10, 0x7Fu);
-  a64_mov_w_imm(g_cg, W17, O(DSP.TEMP));
-  a64_add_x_reg(g_cg, X17, X0, X17);
-  a64_str_w_uxtw(g_cg, W3, X17, W10, 2);
+  a64_str_w_uxtw(g_cg, W3, X_TEMP_BASE, W10, 2);
  }
 
  /* IWT: MEMS[IWA] <- ReadValue (pin W28) */
@@ -561,9 +573,8 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
 
   /* Write path: skip if RWAddr & 0x40000 (bit 18). */
   a64_tbnz_w(g_cg, W25, 18, ram_write_skip);
-  emit_load_ram_base();
   emit_ldrh_w(W12, O(DSP.WriteValue));
-  a64_strh_w_uxtw(g_cg, W12, X17, W25, 1);
+  a64_strh_w_uxtw(g_cg, W12, X_RAM_BASE, W25, 1);
   label_bind(ram_write_skip);
   a64_mov_w_imm(g_cg, W27, 0u);
   a64_b(g_cg, ram_done);
@@ -573,8 +584,7 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
    *   ReadValue = (ReadPending == 2) ? (tmp << 8) : dspfloat_to_int(tmp)
    *   ReadPending = 0 */
   label_bind(ram_read);
-  emit_load_ram_base();
-  a64_ldrh_w_uxtw(g_cg, W14, X17, W25, 1);
+  a64_ldrh_w_uxtw(g_cg, W14, X_RAM_BASE, W25, 1);
   /* Inline dspfloat path into W12, NOFL path into W13, CSEL into W28. */
   emit_dspfloat_to_int(W12, W14, W13, W11);
   a64_lsl_w_imm(g_cg, W13, W14, 8);
@@ -696,6 +706,8 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
     emit_pin_flush();
     emit_step_helper_bl(step);
     emit_pin_reload();
+    /* The BL trashed the x30 base pin (x29 is callee-saved). */
+    emit_base_pins();
    }
   }
   emit_mdec_ct_update_pin(rbl);
