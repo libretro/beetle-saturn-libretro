@@ -227,6 +227,10 @@ static void emit_add_x_imm_safe(unsigned xd, unsigned xn, uint32_t imm)
 /* --- Stubs / globals --------------------------------------------- */
 
 static const void* g_exit_stub_addr = NULL;
+/* Shared no-op-run coalescing stub (emit_coalesce_stub), emitted once below
+ * g_post_stub_byte_offset so no rewind invalidates it.  Every coalesced gen
+ * slot loads its run's constants into w4/w5/w6 and branches here. */
+static const void* g_coalesce_stub_addr = NULL;
 static size_t      g_post_stub_byte_offset = 0;
 
 /* Permanent fallback thunks (indexed by `looped`), emitted once below
@@ -238,6 +242,10 @@ static const void* g_fallback_thunk[2] = { NULL, NULL };
  * segment-full check in SCU_DSP_JIT_CompileSlot. */
 static bool g_chain_live     = false;
 static bool g_rewind_pending = false;
+/* True only while rewind_locked() recompiles the whole segment.  No-op-run
+ * coalescing keys off it: only there is the entire DSP.ProgRAM[] populated,
+ * so the forward look-ahead that measures a run is valid. */
+static bool g_in_rewind      = false;
 static void (*g_entry_stub)(struct DSPS*) = NULL;
 
 /*
@@ -328,6 +336,7 @@ static void rewind_locked(void)
  unsigned i;
  if(!g_cg) return;
  g_rewind_pending = false;
+ g_in_rewind = true;
  a64_codegen_set_wptr(g_cg, (char*)g_seg_start + g_post_stub_byte_offset);
  labels_reset();
  for(i = 0; i < 256; ++i) g_looped_cache[i].entry = NULL;
@@ -352,6 +361,7 @@ static void rewind_locked(void)
    ? DSP_DecodeInstruction(instr, true)
    : DSP_DecodeSlotInstruction(0, instr, false);
  }
+ g_in_rewind = false;
 }
 
 /* --- Instruction emitters ---------------------------------------- */
@@ -863,6 +873,148 @@ static void emit_gen(bool looped, uint32_t instr)
  emit_tail_dispatch();
 }
 
+/*
+ * True iff `instr` is a general instruction whose gen body is a no-op:
+ * its only effect is the dispatch step emit_instr_pre +
+ * emit_tail_dispatch reproduce (NI = ProgRAM[PC], PC++, CC -= 2).
+ * Mirrors the empty-work arms of emit_alu_op / emit_x_op / emit_y_op /
+ * emit_d1_op.
+ */
+static bool is_nop_gen(uint32_t instr)
+{
+ unsigned alu_op, x_op, y_op, d1_op;
+
+ if(((instr >> 28) & 0xF) > 0x3) return false;   /* not a general instr */
+
+ alu_op = (instr >> 26) & 0xF;
+ x_op   = (instr >> 23) & 0x7;
+ y_op   = (instr >> 17) & 0x7;
+ d1_op  = (instr >> 12) & 0x3;
+
+ /* alu_op no-op set = emit_alu_op's default arm {0,7,C,D,E}; every other
+  * value writes the packed flags (W24) and/or ALU.T. */
+ if(!(alu_op == 0x0 || alu_op == 0x7 ||
+      alu_op == 0xC || alu_op == 0xD || alu_op == 0xE)) return false;
+ if(x_op > 0x1)     return false;  /* x_op 2 = MAC, >=3 = DataRAM read */
+ if(y_op != 0x0)    return false;  /* y_op 1/2 = AC write, >=3 = DataRAM read */
+ if(d1_op & 0x1)    return false;  /* d1 store */
+ return true;
+}
+
+/*
+ * Length of the maximal run of consecutive no-op gen instructions in
+ * DSP.ProgRAM[] starting at `pc`, capped so pc + M <= 0xFF -- the run
+ * never crosses the 8-bit PRAM wrap, and the coalesced case-A successor
+ * ProgRAM[pc + M] is always in range.  Reads high32 directly, so it is
+ * only valid once the whole program is populated (i.e. from a rewind).
+ */
+static unsigned nop_run_length(unsigned pc)
+{
+ unsigned M = 0, j = pc;
+ while(j <= 0xFFu && is_nop_gen((uint32_t)(DSP.ProgRAM[j] >> 32)))
+ {
+  M++;
+  j++;
+ }
+ if(pc + M > 0xFFu)
+  M = 0xFFu - pc;
+ return M;
+}
+
+/*
+ * Shared no-op-run coalescing stub, emitted once at init.  Inputs are the
+ * three constants the per-slot trampoline loads:
+ *   W4 = pc1      expected linear entry PC ((pc+1) & 0xFF)
+ *   W5 = two_m    2*M, M = run length
+ *   W6 = succ_idx ProgRAM index of the first non-no-op ((pc+M) & 0xFF)
+ * plus the live pins (W21=CC, W22=State, W27=PC, X25=NI, X0=DSPS, X19=anchor).
+ *
+ * On a linear entry (runtime PC == pc1) the whole run fast-forwards:
+ * case B peels where the cycle budget crosses zero, case A advances past
+ * the run and dispatches to the first non-no-op.  A non-linear entry (a
+ * delay slot, runtime PC != pc1), a paused DSP (State <= 0) or an
+ * exhausted budget (CC <= 0) take `slow`, one plain no-op step.  Runs are
+ * capped (nop_run_length) so pc+M <= 0xFF: no PRAM wrap, succ_idx in
+ * range.
+ */
+static void emit_coalesce_stub(void)
+{
+ a64_label* caseA = label_new();
+ a64_label* slow  = label_new();
+
+ a64_cmp_w_reg(g_cg, W27, W4);          /* linear entry? */
+ a64_b_cond(g_cg, A64_COND_NE, slow);
+ a64_cmp_w_imm(g_cg, W22, 0u);
+ a64_b_cond(g_cg, A64_COND_LE, slow);   /* State <= 0 -> not running */
+ a64_cmp_w_imm(g_cg, W21, 0u);
+ a64_b_cond(g_cg, A64_COND_LE, slow);   /* CC <= 0 */
+
+ a64_cmp_w_reg(g_cg, W21, W5);          /* CC vs 2M */
+ a64_b_cond(g_cg, A64_COND_GT, caseA);  /* CC > 2M -> whole run survives */
+
+ /* Case B: budget crosses zero inside the run.  n = ceil(CC/2) steps, each
+  * NI=ProgRAM[PC], PC++.  End: PC = pc1+n, NI = ProgRAM[PC-1],
+  * CC = CC-2n (0 if CC even, -1 if odd), then exit.  W27 == pc1 here. */
+ a64_add_w_imm(g_cg, W9, W21, 1u);
+ a64_lsr_w_imm(g_cg, W9, W9, 1u);         /* n = (CC+1) >> 1 */
+ a64_add_w_reg(g_cg, W27, W27, W9);
+ a64_and_w_imm(g_cg, W27, W27, 0xFFu);    /* PC = (pc1+n) & 0xFF */
+ a64_and_w_imm(g_cg, W21, W21, 0x1u);
+ a64_neg_w    (g_cg, W21, W21);           /* CC = -(CC & 1) -> {0,-1} */
+ a64_sub_w_imm(g_cg, W8, W27, 1u);
+ a64_and_w_imm(g_cg, W8, W8, 0xFFu);      /* (PC-1) & 0xFF */
+ emit_add_x_imm_safe(X7, X0, O_PRAM);
+ a64_ldr_x_idx_lsl(g_cg, X25, X7, X8, 3u); /* NI = ProgRAM[PC-1] */
+ a64_b_addr(g_cg, g_exit_stub_addr);       /* flush pins + ret */
+
+ /* Case A: whole run fits the remaining budget; advance past it and dispatch
+  * onward to the first non-no-op slot (succ_pc = succ_idx+1). */
+ label_bind(caseA);
+ a64_sub_w_reg(g_cg, W21, W21, W5);        /* CC -= 2M */
+ a64_add_w_imm(g_cg, W27, W6, 1u);
+ a64_and_w_imm(g_cg, W27, W27, 0xFFu);     /* PC = (succ_idx+1) & 0xFF */
+ emit_add_x_imm_safe(X7, X0, O_PRAM);
+ a64_ldr_x_idx_lsl(g_cg, X25, X7, X6, 3u); /* NI = ProgRAM[succ_idx] */
+ a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
+ a64_br(g_cg, X16);
+
+ /* Slow path: one faithful no-op step (== a plain no-op gen slot body). */
+ label_bind(slow);
+ emit_instr_pre(false);
+ emit_tail_dispatch();
+}
+
+/*
+ * A coalesced gen slot for a no-op run of length M >= 2 starting at `pc`:
+ * the usual cold prelude, then a trampoline that loads the run's three
+ * constants and branches to the shared stub above -- ~48 bytes against
+ * ~192 inlined.  Emitted only from rewind_locked(), where the look-ahead
+ * that measured M saw the whole program.
+ */
+static void emit_gen_coalesced(unsigned pc, unsigned M)
+{
+ const unsigned pc1      = (pc + 1u) & 0xFFu;   /* expected linear entry PC */
+ const unsigned succ_idx = (pc + M) & 0xFFu;    /* first non-no-op ProgRAM index */
+ const uint32_t two_m    = 2u * M;
+
+ /* Cold prelude (exactly SCU_JIT_SLOT_PRELUDE_BYTES): tail dispatch skips it
+  * on the hot chain; cold entries run it to reload the pins the stub reads. */
+ emit_load_cc_pin();
+ emit_load_ct32_pin();
+ emit_load_flags_pin();
+ emit_load_pc_pin();
+ emit_load_lop_pin();
+ emit_load_ac_pin();
+ emit_load_p_pin();
+ emit_load_anchor_pin();
+
+ /* Trampoline: run constants -> shared stub. */
+ a64_mov_w_imm(g_cg, W4, pc1);
+ a64_mov_w_imm(g_cg, W5, two_m);
+ a64_mov_w_imm(g_cg, W6, succ_idx);
+ a64_b_addr(g_cg, g_coalesce_stub_addr);
+}
+
 static bool is_general_instr(uint32_t instr) { return ((instr >> 28) & 0xF) <= 0x3; }
 static bool is_mvi_instr(uint32_t instr)
 {
@@ -1231,6 +1383,7 @@ void SCU_DSP_JIT_Init(void)
  void* stubs_start;
  void* entry_addr;
  void* exit_addr;
+ void* coalesce_addr;
  void* thunk_n_addr;
  void* thunk_l_addr;
  void* post_stub_ptr;
@@ -1251,6 +1404,10 @@ void SCU_DSP_JIT_Init(void)
   exit_addr = a64_codegen_wptr(g_cg);
   emit_exit_stub();
   g_exit_stub_addr = exit_addr;
+
+  coalesce_addr = a64_codegen_wptr(g_cg);
+  emit_coalesce_stub();
+  g_coalesce_stub_addr = coalesce_addr;
 
   thunk_n_addr = a64_codegen_wptr(g_cg);
   emit_fallback_thunk(&fallback_shim_normal);
@@ -1275,7 +1432,9 @@ void SCU_DSP_JIT_Init(void)
   SS_JitDump_Emit("dsp_entry_stub", entry_addr,
                   (size_t)((uintptr_t)exit_addr - (uintptr_t)entry_addr));
   SS_JitDump_Emit("dsp_exit_stub", exit_addr,
-                  (size_t)((uintptr_t)thunk_n_addr - (uintptr_t)exit_addr));
+                  (size_t)((uintptr_t)coalesce_addr - (uintptr_t)exit_addr));
+  SS_JitDump_Emit("dsp_coalesce_stub", coalesce_addr,
+                  (size_t)((uintptr_t)thunk_n_addr - (uintptr_t)coalesce_addr));
   SS_JitDump_Emit("dsp_fallback_thunk_n", thunk_n_addr,
                   (size_t)((uintptr_t)thunk_l_addr - (uintptr_t)thunk_n_addr));
   SS_JitDump_Emit("dsp_fallback_thunk_l", thunk_l_addr,
@@ -1306,10 +1465,7 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
  void* end;
  typedef void (*EmitFn)(bool, uint32_t);
  EmitFn emit_inline = NULL;
-
-#ifndef WANT_DSP_JIT_PERF_DUMP
- (void)pc;
-#endif
+ bool   coalesced   = false;
 
  if(!g_cg)
   SCU_DSP_JIT_Init();
@@ -1334,12 +1490,31 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
 
  start = a64_codegen_wptr(g_cg);
 
- if(is_general_instr(instr))   emit_inline = &emit_gen;
- else if(is_mvi_instr(instr))  emit_inline = &emit_mvi;
- else if(is_jmp_instr(instr))  emit_inline = &emit_jmp;
- else if(is_misc_instr(instr)) emit_inline = &emit_misc;
+ /* No-op-run coalescing.  Only during a whole-program rewind is the
+  * forward look-ahead valid, and only for a non-looped gen slot that
+  * genuinely sits at ProgRAM[pc] (the NextInstr re-decode reuses pc 0 for
+  * a possibly-unrelated instr, so guard on the match).  A run of >= 2
+  * no-ops collapses into one coalesced slot; see emit_gen_coalesced. */
+ if(g_in_rewind && !looped && is_nop_gen(instr)
+    && instr == (uint32_t)(DSP.ProgRAM[pc] >> 32))
+ {
+  const unsigned M = nop_run_length(pc);
+  if(M >= 2u)
+  {
+   emit_gen_coalesced(pc, M);
+   coalesced = true;
+  }
+ }
 
- if(emit_inline)
+ if(coalesced)
+ {
+  /* emit_gen_coalesced emitted the whole slot; nothing further. */
+ }
+ else if((emit_inline =
+           is_general_instr(instr) ? &emit_gen  :
+           is_mvi_instr(instr)     ? &emit_mvi  :
+           is_jmp_instr(instr)     ? &emit_jmp  :
+           is_misc_instr(instr)    ? &emit_misc : NULL))
  {
   emit_inline(looped, instr);
  }
@@ -1386,6 +1561,14 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
 
  /* Labels are scoped to one Compile -- reset for the next call. */
  labels_reset();
+
+ /* This compile ran outside a rewind (a PRAM write / DMA / reset / state
+  * load, never a looped lps recompile), so ProgRAM changed: latch a full
+  * rewind for the next chain entry.  It recompiles every slot with the
+  * whole program visible, replacing the plain slot emitted here before it
+  * can execute a stale span. */
+ if(!g_in_rewind && !looped)
+  g_rewind_pending = true;
 
  return (void (*)(struct DSPS*))start;
 }
