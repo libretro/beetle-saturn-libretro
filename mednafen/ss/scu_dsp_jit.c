@@ -248,6 +248,17 @@ static bool g_rewind_pending = false;
 static bool g_in_rewind      = false;
 static void (*g_entry_stub)(struct DSPS*) = NULL;
 
+/* --- Block linking (aarch64 direct-B chaining) -------------------------
+ * When the predecessor cannot perturb PC and the slot keeps X25=NI intact,
+ * the indirect tail dispatch (add x19,w25 ; br) becomes a direct B to
+ * slot-(pc+1)'s hot entry.  The successor's address is known only once
+ * every slot is compiled and moves on each rewind, so the tail emits a
+ * placeholder B recorded here for rewind_locked's second pass.  Populated
+ * only during a whole-program rewind, like no-op-run coalescing. */
+static void*   g_link_site[256];        /* placeholder-B address per pc, NULL = unlinked */
+static bool    g_link_this_slot = false;/* set by CompileSlot for a linkable slot */
+static uint8_t g_link_this_pc   = 0;    /* pc whose tail records into g_link_site */
+
 /*
  * Looped-slot JIT cache.  LPS dispatches the same instruction up to 4096
  * times.  Keyed by pc, validated by the cached instr, so a PRAM write
@@ -339,7 +350,11 @@ static void rewind_locked(void)
  g_in_rewind = true;
  a64_codegen_set_wptr(g_cg, (char*)g_seg_start + g_post_stub_byte_offset);
  labels_reset();
- for(i = 0; i < 256; ++i) g_looped_cache[i].entry = NULL;
+ for(i = 0; i < 256; ++i)
+ {
+  g_looped_cache[i].entry = NULL;
+  g_link_site[i] = NULL;
+ }
 
  /* The rewind invalidated every JIT pointer cached in
   * DSP.ProgRAM[].low32 / DSP.NextInstr.low32, so re-decode every slot
@@ -351,6 +366,24 @@ static void rewind_locked(void)
   const uint32_t instr = (uint32_t)(DSP.ProgRAM[i] >> 32);
   DSP.ProgRAM[i] = DSP_DecodeSlotInstruction((uint8_t)i, instr, false);
  }
+
+ /* Second pass: every slot is compiled, so patch each linkable slot's
+  * placeholder tail B to slot-(pc+1)'s +SCU_JIT_SLOT_PRELUDE_BYTES hot
+  * entry.  a64_patch_b fails only on an out-of-range offset, which the
+  * 1 MB segment cannot produce; the placeholder's branch to the exit
+  * stub stays as the correct slower fallback. */
+ for(i = 0; i < 256; ++i)
+ {
+  const unsigned succ     = (i + 1u) & 0xFFu;
+  const int32_t  succ_off = (int32_t)(uint32_t)(DSP.ProgRAM[succ] & 0xFFFFFFFFu);
+  const void*    succ_hot;
+  if(!g_link_site[i]) continue;
+  succ_hot = (const void*)((const char*)DSP_INSTR_BASE_UIPT
+                           + succ_off + (int)SCU_JIT_SLOT_PRELUDE_BYTES);
+  if(a64_patch_b(g_link_site[i], succ_hot))
+   a64_codegen_invalidate(g_cg, g_link_site[i], sizeof(uint32_t));
+ }
+
  {
   const uint32_t instr = (uint32_t)(DSP.NextInstr >> 32);
   const bool looped = DSP.NextInstrLooped;
@@ -822,8 +855,21 @@ static void emit_tail_dispatch(void)
   * &DSP_Init pre-biased by SCU_JIT_SLOT_PRELUDE_BYTES, so one extended
   * ADD both rebases the offset and skips the next slot's cold prelude.
   * Only cold entries land at offset 0 and run the reloads. */
- a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
- a64_br(g_cg, X16);
+ if(g_link_this_slot)
+ {
+  /* Direct B to the linear successor slot-(pc+1), patched by
+   * rewind_locked's second pass; the placeholder targets the exit stub,
+   * so an unpatched word still exits safely.  X25=NI is intact, so a
+   * successor whose hot entry flushes it (a DMA fallback) sees the right
+   * NextInstr. */
+  g_link_site[g_link_this_pc] = a64_codegen_wptr(g_cg);
+  a64_b_addr(g_cg, g_exit_stub_addr);
+ }
+ else
+ {
+  a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
+  a64_br(g_cg, X16);
+ }
 
  label_bind(exit_lbl);
  a64_b_addr(g_cg, g_exit_stub_addr);
@@ -1026,6 +1072,50 @@ static bool is_misc_instr(uint32_t instr)
 {
  const unsigned top = (instr >> 28) & 0xF;
  return top == 0xE || top == 0xF;
+}
+
+/*
+ * Block-linking predicates (see g_link_site).  A slot-pc's indirect tail
+ * dispatch becomes a direct B to slot-(pc+1) when both hold:
+ *
+ *  - is_linkable_slot(instr): the slot ends in emit_tail_dispatch with X25
+ *    still holding NI = ProgRAM[pc+1].  True for gen; jmp (its PC write is
+ *    delayed to the delay slot); misc BTM (op 0, the one misc form with no
+ *    helper); and mvi whose dest calls no helper.  dest 6/7/C run
+ *    DSP_FinishPRAMDMA and misc END/ENDI/LPS call helpers, all of which
+ *    reshape PC/NI; DMA has no tail dispatch at all.
+ *
+ *  - !may_perturb_pc(ProgRAM[pc-1]): the predecessor leaves PC linear, so
+ *    slot-pc is never a delay slot and is always entered with runtime
+ *    PC == pc+1.  Only a plain gen or a non-helper mvi advances PC purely
+ *    linearly; jmp, dma, misc, DMA-finishing/PC-writing mvi and reserved
+ *    opcodes are treated as perturbing.
+ */
+static bool is_linkable_slot(uint32_t instr)
+{
+ const unsigned top = (instr >> 28) & 0xF;
+ if(top <= 0x3)               return true;    /* gen */
+ if(top == 0xD)               return true;    /* JMP (delayed branch) */
+ if(top == 0xE || top == 0xF)                 /* MISC: only BTM (op 0) has no helper */
+  return ((instr >> 27) & 0x3) == 0x0;
+ if(top >= 0x8 && top <= 0xB)                 /* MVI: exclude helper dests 6/7/C */
+ {
+  const unsigned dest = (instr >> 26) & 0xF;
+  return !(dest == 0x6 || dest == 0x7 || dest == 0xC);
+ }
+ return false;                                /* DMA (0xC) / reserved: no tail dispatch */
+}
+
+static bool may_perturb_pc(uint32_t instr)
+{
+ const unsigned top = (instr >> 28) & 0xF;
+ if(top <= 0x3) return false;                 /* gen: linear PC advance only */
+ if(top >= 0x8 && top <= 0xB)                 /* MVI: only dest 6/7/C move PC */
+ {
+  const unsigned dest = (instr >> 26) & 0xF;
+  return dest == 0x6 || dest == 0x7 || dest == 0xC;
+ }
+ return true;                                 /* JMP / DMA / MISC / reserved 4-7 */
 }
 
 /* --- Helpers BLR'd from JIT slots --------------------------------- */
@@ -1504,6 +1594,19 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
    emit_gen_coalesced(pc, M);
    coalesced = true;
   }
+ }
+
+ /* Block linking: during a whole-program rewind, a non-coalesced slot that
+  * always dispatches to its linear successor (predecessor can't perturb PC)
+  * and keeps X25=NI (calls no helper) gets a direct tail B instead of the
+  * indirect dispatch; emit_tail_dispatch records the patch site, which
+  * rewind_locked's second pass fills in once every slot's address is known. */
+ g_link_this_slot = false;
+ if(g_in_rewind && !looped && !coalesced && is_linkable_slot(instr)
+    && !may_perturb_pc((uint32_t)(DSP.ProgRAM[(uint8_t)(pc - 1u)] >> 32)))
+ {
+  g_link_this_slot = true;
+  g_link_this_pc   = pc;
  }
 
  if(coalesced)
