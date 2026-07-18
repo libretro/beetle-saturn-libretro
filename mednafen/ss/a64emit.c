@@ -99,6 +99,7 @@ A64_STUB2(a64_cset_w,    unsigned wd, unsigned cond)
 A64_STUB4(a64_csel_w,    unsigned wd, unsigned wn, unsigned wm, unsigned cond)
 A64_STUB3_INT(a64_and_w_imm, unsigned wd, unsigned wn, uint32_t imm)
 A64_STUB3_INT(a64_orr_w_imm, unsigned wd, unsigned wn, uint32_t imm)
+A64_STUB3_INT(a64_eor_w_imm, unsigned wd, unsigned wn, uint32_t imm)
 A64_STUB3(a64_and_w_reg, unsigned wd, unsigned wn, unsigned wm)
 A64_STUB3(a64_orr_w_reg, unsigned wd, unsigned wn, unsigned wm)
 A64_STUB3(a64_eor_w_reg, unsigned wd, unsigned wn, unsigned wm)
@@ -760,6 +761,14 @@ int a64_orr_w_imm(a64_codegen* cg, unsigned wd, unsigned wn, uint32_t imm)
  uint32_t enc;
  if(!encode_logical_imm32(imm, &enc)) return 0;
  emit_w(cg, 0x32000000u | (enc << 10) | (A64_REG(wn) << 5) | A64_REG(wd));
+ return 1;
+}
+
+int a64_eor_w_imm(a64_codegen* cg, unsigned wd, unsigned wn, uint32_t imm)
+{
+ uint32_t enc;
+ if(!encode_logical_imm32(imm, &enc)) return 0;
+ emit_w(cg, 0x52000000u | (enc << 10) | (A64_REG(wn) << 5) | A64_REG(wd));
  return 1;
 }
 

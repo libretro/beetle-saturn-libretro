@@ -171,6 +171,7 @@ void a64_csel_w(a64_codegen*, unsigned wd, unsigned wn, unsigned wm, unsigned co
  * logical immediate, in which case nothing is emitted. */
 int a64_and_w_imm(a64_codegen*, unsigned wd_sp, unsigned wn, uint32_t imm);
 int a64_orr_w_imm(a64_codegen*, unsigned wd_sp, unsigned wn, uint32_t imm);
+int a64_eor_w_imm(a64_codegen*, unsigned wd_sp, unsigned wn, uint32_t imm);
 
 void a64_and_w_reg(a64_codegen*, unsigned wd, unsigned wn, unsigned wm);
 void a64_orr_w_reg(a64_codegen*, unsigned wd, unsigned wn, unsigned wm);

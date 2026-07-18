@@ -504,13 +504,17 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
  if(shift_amt)
   a64_lsl_w_imm(g_cg, W3, W3, shift_amt);
  if(!shft1) {
-  /* Clamp signed-32 to [-0x800000, 0x7FFFFF]. */
-  a64_mov_w_imm(g_cg, W10, 0x7FFFFFu);
+  /* Clamp signed-32 to [-0x800000, 0x7FFFFF], branchless with one
+   * constant.  sxt24(W3) == W3 iff W3 already fits, so the fit-test is
+   * the range test; the bound is sign-selected from 0x7FFFFF via EOR
+   * (W3 >= 0 -> 0x007FFFFF; W3 < 0 -> 0xFF800000 = -0x800000).  W10 and
+   * W4 are dead here (both first written by the multiplier-adder block
+   * below). */
+  a64_sbfx_w(g_cg, W10, W3, 0, 24);     /* fit-test = W3 clamped to signed-24 */
+  a64_asr_w_imm(g_cg, W4, W3, 31);      /* sign mask: 0 or -1 */
+  a64_eor_w_imm(g_cg, W4, W4, 0x7FFFFFu); /* bound: 0x7FFFFF or 0xFF800000 */
   a64_cmp_w_reg(g_cg, W3, W10);
-  a64_csel_w(g_cg, W3, W10, W3, A64_COND_GT);
-  a64_mov_w_imm(g_cg, W10, 0xFF800000u);  /* int32 -0x800000 as bit pattern */
-  a64_cmp_w_reg(g_cg, W3, W10);
-  a64_csel_w(g_cg, W3, W10, W3, A64_COND_LT);
+  a64_csel_w(g_cg, W3, W4, W3, A64_COND_NE);
  }
  a64_and_w_imm(g_cg, W3, W3, 0xFFFFFFu);
 
