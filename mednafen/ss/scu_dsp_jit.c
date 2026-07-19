@@ -252,6 +252,11 @@ static bool g_rewind_pending = false;
  * coalescing keys off it: only there is the entire DSP.ProgRAM[] populated,
  * so the forward look-ahead that measures a run is valid. */
 static bool g_in_rewind      = false;
+/* True only across rewind_locked()'s 256-slot recompile loop (pass 1).
+ * Block linking keys off this, not g_in_rewind: the trailing NextInstr
+ * re-decode also compiles under g_in_rewind but runs after the pass-2
+ * patch loop, so a link site recorded there is never patched. */
+static bool g_in_rewind_slots = false;
 static void (*g_entry_stub)(struct DSPS*) = NULL;
 
 /* --- Block linking (aarch64 direct-B chaining) -------------------------
@@ -260,7 +265,8 @@ static void (*g_entry_stub)(struct DSPS*) = NULL;
  * slot-(pc+1)'s hot entry.  The successor's address is known only once
  * every slot is compiled and moves on each rewind, so the tail emits a
  * placeholder B recorded here for rewind_locked's second pass.  Populated
- * only during a whole-program rewind, like no-op-run coalescing. */
+ * only during the rewind slot pass (g_in_rewind_slots), so every recorded
+ * site is reached by the patch loop. */
 static void*   g_link_site[256];        /* placeholder-B address per pc, NULL = unlinked */
 static bool    g_link_this_slot = false;/* set by CompileSlot for a linkable slot */
 static uint8_t g_link_this_pc   = 0;    /* pc whose tail records into g_link_site */
@@ -354,6 +360,7 @@ static void rewind_locked(void)
  if(!g_cg) return;
  g_rewind_pending = false;
  g_in_rewind = true;
+ g_in_rewind_slots = true;
  a64_codegen_set_wptr(g_cg, (char*)g_seg_start + g_post_stub_byte_offset);
  labels_reset();
  for(i = 0; i < 256; ++i)
@@ -372,6 +379,7 @@ static void rewind_locked(void)
   const uint32_t instr = (uint32_t)(DSP.ProgRAM[i] >> 32);
   DSP.ProgRAM[i] = DSP_DecodeSlotInstruction((uint8_t)i, instr, false);
  }
+ g_in_rewind_slots = false;
 
  /* Second pass: every slot is compiled, so patch each linkable slot's
   * placeholder tail B to slot-(pc+1)'s +SCU_JIT_SLOT_PRELUDE_BYTES hot
@@ -1597,13 +1605,13 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
   }
  }
 
- /* Block linking: during a whole-program rewind, a non-coalesced slot that
+ /* Block linking: during the rewind slot pass, a non-coalesced slot that
   * always dispatches to its linear successor (predecessor can't perturb PC)
   * and keeps X25=NI (calls no helper) gets a direct tail B instead of the
   * indirect dispatch; emit_tail_dispatch records the patch site, which
   * rewind_locked's second pass fills in once every slot's address is known. */
  g_link_this_slot = false;
- if(g_in_rewind && !looped && !coalesced && is_linkable_slot(instr)
+ if(g_in_rewind_slots && !looped && !coalesced && is_linkable_slot(instr)
     && !may_perturb_pc((uint32_t)(DSP.ProgRAM[(uint8_t)(pc - 1u)] >> 32)))
  {
   g_link_this_slot = true;
