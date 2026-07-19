@@ -258,6 +258,12 @@ void a64_str_w_idx_lsl(a64_codegen*, unsigned wt, unsigned xn, unsigned xm, unsi
 void a64_ldr_x_idx_lsl(a64_codegen*, unsigned xt, unsigned xn, unsigned xm, unsigned shift);
 void a64_ldrsw_x_idx_lsl(a64_codegen*, unsigned xt, unsigned xn, unsigned xm, unsigned shift);
 
+/* PRFM (immediate) -- off must be 8-byte aligned (imm12 scaled by 8).
+ * prfop: use the A64_PRFOP_* constants. */
+#define A64_PRFOP_PLDL1KEEP 0x00u
+#define A64_PRFOP_PSTL1KEEP 0x10u
+void a64_prfm_imm(a64_codegen*, unsigned prfop, unsigned xn_sp, uint32_t off);
+
 /* Loads/stores -- 32-bit-extended index (Wm with UXTW). */
 void a64_ldr_w_uxtw (a64_codegen*, unsigned wt, unsigned xn, unsigned wm, unsigned shift);
 void a64_str_w_uxtw (a64_codegen*, unsigned wt, unsigned xn, unsigned wm, unsigned shift);

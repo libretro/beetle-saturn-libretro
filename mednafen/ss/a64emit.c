@@ -157,6 +157,7 @@ A64_STUB4(a64_ldr_w_idx_lsl, unsigned wt, unsigned xn, unsigned xm, unsigned shi
 A64_STUB4(a64_str_w_idx_lsl, unsigned wt, unsigned xn, unsigned xm, unsigned shift)
 A64_STUB4(a64_ldr_x_idx_lsl, unsigned xt, unsigned xn, unsigned xm, unsigned shift)
 A64_STUB4(a64_ldrsw_x_idx_lsl, unsigned xt, unsigned xn, unsigned xm, unsigned shift)
+A64_STUB3(a64_prfm_imm, unsigned prfop, unsigned xn, uint32_t off)
 A64_STUB4(a64_ldr_w_uxtw,  unsigned wt, unsigned xn, unsigned wm, unsigned shift)
 A64_STUB4(a64_str_w_uxtw,  unsigned wt, unsigned xn, unsigned wm, unsigned shift)
 A64_STUB4(a64_ldrh_w_uxtw, unsigned wt, unsigned xn, unsigned wm, unsigned shift)
@@ -1070,6 +1071,8 @@ void a64_ldr_x_idx_lsl(a64_codegen* cg, unsigned xt, unsigned xn, unsigned xm, u
 { emit_ldst_reg(cg, 0xF8600800u, 3u, xt, xn, xm, 3u, shift); }
 void a64_ldrsw_x_idx_lsl(a64_codegen* cg, unsigned xt, unsigned xn, unsigned xm, unsigned shift)
 { emit_ldst_reg(cg, 0xB8A00800u, 2u, xt, xn, xm, 3u, shift); }
+void a64_prfm_imm(a64_codegen* cg, unsigned prfop, unsigned xn, uint32_t off)
+{ emit_ldst_imm12(cg, 0xF9800000u, 3u, prfop, xn, off); }
 void a64_ldr_w_uxtw(a64_codegen* cg, unsigned wt, unsigned xn, unsigned wm, unsigned shift)
 { emit_ldst_reg(cg, 0xB8600800u, 2u, wt, xn, wm, 2u, shift); }
 void a64_str_w_uxtw(a64_codegen* cg, unsigned wt, unsigned xn, unsigned wm, unsigned shift)

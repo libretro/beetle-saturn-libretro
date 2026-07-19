@@ -303,6 +303,22 @@ static void emit_full_prologue(bool inputs_pin_dead)
  emit_ldr_w (W28, O(DSP.ReadValue));
  emit_base_pins();
 }
+
+/* Prologue prefetch of the pass's working set.  The whole emulator runs
+ * between MPROG invocations (one per output sample), evicting the DSP
+ * state, so each pass rediscovers it one demand miss at a time.  The
+ * state block TEMP..MPROG_Dirty is contiguous (~1 KB, see SS_SCSP_DSPS),
+ * so one PRFM burst starts every line fill in parallel with the first
+ * steps' work. */
+static void emit_state_prefetch(void)
+{
+ const uint32_t lo = O(DSP.TEMP) & ~63u;
+ const uint32_t hi = O(DSP.MPROG_Dirty) + 1u;
+ uint32_t off;
+ for(off = lo; off < hi; off += 64u)
+  a64_prfm_imm(g_cg, A64_PRFOP_PLDL1KEEP, X0, off);
+}
+
 static void emit_full_epilogue(void)
 {
  emit_strh_w(W19, O(DSP.MDEC_CT));
@@ -866,6 +882,7 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
   const bool ira_defines_inputs =
    !(fIRA & 0x20) || !(fIRA & 0x10) || !(fIRA & 0xE);
   emit_full_prologue(live_seq[0] < max_native && ira_defines_inputs);
+  emit_state_prefetch();
 
   /* Pipeline fill: the first live step's preloads have no predecessor
    * tail (the previous pass's died at RET), so the prologue issues
