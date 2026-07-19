@@ -271,6 +271,18 @@ static void*   g_link_site[256];        /* placeholder-B address per pc, NULL = 
 static bool    g_link_this_slot = false;/* set by CompileSlot for a linkable slot */
 static uint8_t g_link_this_pc   = 0;    /* pc whose tail records into g_link_site */
 
+/* NextInstr-as-immediate: a slot with a linear entry fetches
+ * NI = ProgRAM[pc+1], known at compile time, so emit_instr_pre
+ * materializes it as a fixed-length MOVZ+MOVK chain instead of the
+ * indexed ProgRAM load.  Successor ProgRAM entries are still stale during
+ * the rewind slot pass, so the emitted value is a placeholder recorded
+ * here for the second pass.  A PRAM rewrite between rewinds leaves it
+ * stale for the rest of the live chain; the per-slot recompile latches
+ * g_rewind_pending, so the next chain entry repairs it. */
+static void*   g_nic_site[256];         /* mov_x_imm4 site per pc, NULL = load kept */
+static bool    g_nic_this_slot = false; /* set by CompileSlot for a linear-entry slot */
+static uint8_t g_nic_this_pc   = 0;     /* pc whose instr-pre records into g_nic_site */
+
 /*
  * Looped-slot JIT cache.  LPS dispatches the same instruction up to 4096
  * times.  Keyed by pc, validated by the cached instr, so a PRAM write
@@ -367,6 +379,7 @@ static void rewind_locked(void)
  {
   g_looped_cache[i].entry = NULL;
   g_link_site[i] = NULL;
+  g_nic_site[i] = NULL;
  }
 
  /* The rewind invalidated every JIT pointer cached in
@@ -391,6 +404,13 @@ static void rewind_locked(void)
   const unsigned succ     = (i + 1u) & 0xFFu;
   const int32_t  succ_off = (int32_t)(uint32_t)(DSP.ProgRAM[succ] & 0xFFFFFFFFu);
   const void*    succ_hot;
+  /* NI-immediate sites: the value emitted during the slot pass used the
+   * successor's then-stale ProgRAM entry; rewrite with the final one. */
+  if(g_nic_site[i])
+  {
+   a64_patch_mov_x_imm4(g_nic_site[i], DSP.ProgRAM[succ]);
+   a64_codegen_invalidate(g_cg, g_nic_site[i], 4u * sizeof(uint32_t));
+  }
   if(!g_link_site[i]) continue;
   succ_hot = (const void*)((const char*)DSP_INSTR_BASE_UIPT
                            + succ_off + (int)SCU_JIT_SLOT_PRELUDE_BYTES);
@@ -484,8 +504,18 @@ static void emit_instr_pre(bool looped)
    * X25 NI pin; NI/PC reach memory via emit_flush_pins() only.  No
    * NextInstrLooped clear: a normal slot only executes with the memory
    * byte already 0. */
-  emit_add_x_imm_safe(X4, X0, O_PRAM);
-  a64_ldr_x_idx_lsl(g_cg, X25, X4, X27, 3u);
+  if(g_nic_this_slot)
+  {
+   /* Linear entry: runtime PC == pc+1, so the fetch result is the
+    * compile-time constant ProgRAM[pc+1] (see g_nic_site). */
+   g_nic_site[g_nic_this_pc] = a64_codegen_wptr(g_cg);
+   a64_mov_x_imm4(g_cg, X25, DSP.ProgRAM[(uint8_t)(g_nic_this_pc + 1u)]);
+  }
+  else
+  {
+   emit_add_x_imm_safe(X4, X0, O_PRAM);
+   a64_ldr_x_idx_lsl(g_cg, X25, X4, X27, 3u);
+  }
   a64_add_w_imm(g_cg, W27, W27, 1u);
   a64_and_w_imm(g_cg, W27, W27, 0xFFu);
  }
@@ -1605,17 +1635,25 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
   }
  }
 
- /* Block linking: during the rewind slot pass, a non-coalesced slot that
-  * always dispatches to its linear successor (predecessor can't perturb PC)
-  * and keeps X25=NI (calls no helper) gets a direct tail B instead of the
-  * indirect dispatch; emit_tail_dispatch records the patch site, which
-  * rewind_locked's second pass fills in once every slot's address is known. */
+ /* Linear-entry specializations, valid only during the rewind slot pass.
+  * A non-coalesced slot whose predecessor can't perturb PC is always
+  * entered with runtime PC == pc+1, so its NI fetch becomes a patchable
+  * immediate (emit_instr_pre records the site).  If the slot additionally
+  * keeps X25=NI and dispatches linearly (calls no helper), its indirect
+  * tail becomes a direct B (emit_tail_dispatch records the patch site);
+  * rewind_locked's second pass fills both in once every slot is compiled. */
  g_link_this_slot = false;
- if(g_in_rewind_slots && !looped && !coalesced && is_linkable_slot(instr)
+ g_nic_this_slot  = false;
+ if(g_in_rewind_slots && !looped && !coalesced
     && !may_perturb_pc((uint32_t)(DSP.ProgRAM[(uint8_t)(pc - 1u)] >> 32)))
  {
-  g_link_this_slot = true;
-  g_link_this_pc   = pc;
+  g_nic_this_slot = true;
+  g_nic_this_pc   = pc;
+  if(is_linkable_slot(instr))
+  {
+   g_link_this_slot = true;
+   g_link_this_pc   = pc;
+  }
  }
 
  if(coalesced)

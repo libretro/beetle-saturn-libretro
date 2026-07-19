@@ -116,6 +116,9 @@ int a64_can_encode_addsub_imm(uint32_t imm);
 /* MOV / pointer materialisation. */
 void a64_mov_w_imm(a64_codegen*, unsigned wd,   uint32_t imm);
 void a64_mov_x_imm(a64_codegen*, unsigned xd,   uint64_t imm);
+/* Fixed-length MOVZ + 3 MOVK (always 16 bytes), rewritable in place
+ * via a64_patch_mov_x_imm4. */
+void a64_mov_x_imm4(a64_codegen*, unsigned xd,  uint64_t imm);
 void a64_mov_w_reg(a64_codegen*, unsigned wd,   unsigned wm);
 void a64_mov_x_reg(a64_codegen*, unsigned xd,   unsigned xm);
 /* MOV Xd_sp, SP : alias ADD Xd_sp, SP, #0.  Needed for `MOV Xd, SP`
@@ -314,6 +317,9 @@ int a64_patch_b      (void* site, const void* target);
 int a64_patch_b_cond (void* site, const void* target);
 int a64_patch_cbz    (void* site, const void* target);
 int a64_patch_tbz    (void* site, const void* target);
+/* Rewrite an a64_mov_x_imm4 site (4 words) with a new immediate; the
+ * destination register is read back from the first word.  Cannot fail. */
+void a64_patch_mov_x_imm4(void* site, uint64_t imm);
 
 #ifdef __cplusplus
 }

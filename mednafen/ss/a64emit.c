@@ -56,6 +56,7 @@ int  a64_patch_b      (void* s, const void* t) { (void)s; (void)t; return 0; }
 int  a64_patch_b_cond (void* s, const void* t) { (void)s; (void)t; return 0; }
 int  a64_patch_cbz    (void* s, const void* t) { (void)s; (void)t; return 0; }
 int  a64_patch_tbz    (void* s, const void* t) { (void)s; (void)t; return 0; }
+void a64_patch_mov_x_imm4(void* s, uint64_t v) { (void)s; (void)v; }
 
 /* Every emitter is a no-op on the stub path; argument lists kept so
  * callers compile. */
@@ -68,6 +69,7 @@ int  a64_patch_tbz    (void* s, const void* t) { (void)s; (void)t; return 0; }
 
 A64_STUB2(a64_mov_w_imm, unsigned wd, uint32_t imm)
 A64_STUB2(a64_mov_x_imm, unsigned xd, uint64_t imm)
+A64_STUB2(a64_mov_x_imm4, unsigned xd, uint64_t imm)
 A64_STUB2(a64_mov_w_reg, unsigned wd, unsigned wm)
 A64_STUB2(a64_mov_x_reg, unsigned xd, unsigned xm)
 A64_STUB1(a64_mov_x_sp,  unsigned xd)
@@ -607,6 +609,17 @@ void a64_mov_x_imm(a64_codegen* cg, unsigned xd, uint64_t imm)
  }
  if(!movz_done) /* Unreachable: all-zero and all-ones are handled above. */
   emit_w(cg, seed_op | A64_REG(xd));
+}
+
+void a64_mov_x_imm4(a64_codegen* cg, unsigned xd, uint64_t imm)
+{
+ unsigned i;
+ /* MOVZ hw0 then MOVK hw1..hw3, always 4 words so the site can be
+  * rewritten in place by a64_patch_mov_x_imm4. */
+ emit_w(cg, 0xD2800000u | (((uint32_t)imm & 0xFFFFu) << 5) | A64_REG(xd));
+ for(i = 1; i < 4u; ++i)
+  emit_w(cg, 0xF2800000u | (i << 21)
+             | (((uint32_t)(imm >> (i * 16u)) & 0xFFFFu) << 5) | A64_REG(xd));
 }
 
 void a64_mov_w_reg(a64_codegen* cg, unsigned wd, unsigned wm)
@@ -1202,5 +1215,16 @@ int a64_patch_cbz(void* site, const void* target)
 
 int a64_patch_tbz(void* site, const void* target)
 { return patch_imm(site, target, 14u, 0x0007FFE0u, 5u); }
+
+void a64_patch_mov_x_imm4(void* site, uint64_t imm)
+{
+ uint32_t* p  = (uint32_t*)site;
+ uint32_t  rd = p[0] & 0x1Fu;
+ unsigned  i;
+ p[0] = 0xD2800000u | (((uint32_t)imm & 0xFFFFu) << 5) | rd;
+ for(i = 1; i < 4u; ++i)
+  p[i] = 0xF2800000u | (i << 21)
+         | (((uint32_t)(imm >> (i * 16u)) & 0xFFFFu) << 5) | rd;
+}
 
 #endif /* AArch64 + Linux */
