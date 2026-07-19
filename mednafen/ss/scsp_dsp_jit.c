@@ -42,6 +42,16 @@
  * their dynamic indices, which [x0,#imm] can't express).  The
  * helper-BL fallback clobbers x30, so that path re-pins after the BL.
  *
+ * W6/W9 carry the software-pipelined loads across a step boundary: a
+ * step's TEMP word (W9) and -- when its RAM block can consume a pending
+ * read -- the RAM word at the settled RWAddr (W6) are loaded at the tail
+ * of the previous live step, or from the prologue / the post-helper-BL
+ * resume.  Both addresses are final at the tail: the TEMP index is
+ * TRA + MDEC_CT with MDEC_CT fixed for the whole pass and every TEMP
+ * store program-ordered before the tail, and RWAddr is rewritten only by
+ * a step's own update block.  No step body touches either register (see
+ * emit_succ_preloads).
+ *
  * WriteValue (uint16) is set by an MWT step and consumed by the next
  * step's RAM-write block; lives in memory between steps rather than
  * being pinned.
@@ -236,7 +246,34 @@ static void emit_min_epilogue(void)
  a64_ret(g_cg);
 }
 
-static void emit_full_prologue(void)
+/* The two pending-flag pins sit past the LDRB/STRB [x0,#imm] range
+ * (4095), so derive one shared base and use the direct form off it.
+ * Falls back to the generic accessors if the offsets ever move out of
+ * one 4 KiB window. */
+static void emit_pending_pins(bool store)
+{
+ const uint32_t ro = O(DSP.ReadPending);
+ const uint32_t wo = O(DSP.WritePending);
+ const uint32_t lo = ((ro < wo) ? ro : wo) & ~4095u;
+
+ if(lo && (ro - lo) <= 4095 && (wo - lo) <= 4095 &&
+    a64_try_add_x_imm(g_cg, X17, X0, lo))
+ {
+  if(store) { a64_strb_w_imm(g_cg, W26, X17, ro - lo); a64_strb_w_imm(g_cg, W27, X17, wo - lo); }
+  else      { a64_ldrb_w_imm(g_cg, W26, X17, ro - lo); a64_ldrb_w_imm(g_cg, W27, X17, wo - lo); }
+ }
+ else
+ {
+  if(store) { emit_strb_w(W26, ro); emit_strb_w(W27, wo); }
+  else      { emit_ldrb_w(W26, ro); emit_ldrb_w(W27, wo); }
+ }
+}
+
+/* inputs_pin_dead: the first live step's IRA decode fully overwrites
+ * W24 before any read, making the prologue load dead (decided in
+ * SCSP_DSP_JIT_Compile; helper-first programs must keep it because
+ * emit_pin_flush stores W24 before any def). */
+static void emit_full_prologue(bool inputs_pin_dead)
 {
  /* No `mov x29, sp` frame link: x29 becomes a table-base pin right
   * below, so the register can't double as a frame pointer.  The
@@ -253,10 +290,10 @@ static void emit_full_prologue(void)
  emit_ldrh_w(W21, O(DSP.FRC_REG));
  emit_ldr_w (W22, O(DSP.Y_REG));
  emit_ldrh_w(W23, O(DSP.ADRS_REG));
- emit_ldr_w (W24, O(DSP.INPUTS));
+ if(!inputs_pin_dead)
+  emit_ldr_w(W24, O(DSP.INPUTS));
  emit_ldr_w (W25, O(DSP.RWAddr));
- emit_ldrb_w(W26, O(DSP.ReadPending));
- emit_ldrb_w(W27, O(DSP.WritePending));
+ emit_pending_pins(false);
  emit_ldr_w (W28, O(DSP.ReadValue));
  emit_base_pins();
 }
@@ -269,8 +306,7 @@ static void emit_full_epilogue(void)
  emit_strh_w(W23, O(DSP.ADRS_REG));
  emit_str_w (W24, O(DSP.INPUTS));
  emit_str_w (W25, O(DSP.RWAddr));
- emit_strb_w(W26, O(DSP.ReadPending));
- emit_strb_w(W27, O(DSP.WritePending));
+ emit_pending_pins(true);
  emit_str_w (W28, O(DSP.ReadValue));
 
  a64_ldp_x_off(g_cg, X27, X28, SP_REG, 80);
@@ -293,8 +329,7 @@ static void emit_pin_flush(void)
  emit_strh_w(W23, O(DSP.ADRS_REG));
  emit_str_w (W24, O(DSP.INPUTS));
  emit_str_w (W25, O(DSP.RWAddr));
- emit_strb_w(W26, O(DSP.ReadPending));
- emit_strb_w(W27, O(DSP.WritePending));
+ emit_pending_pins(true);
  emit_str_w (W28, O(DSP.ReadValue));
 }
 static void emit_pin_reload(void)
@@ -306,8 +341,7 @@ static void emit_pin_reload(void)
  emit_ldrh_w(W23, O(DSP.ADRS_REG));
  emit_ldr_w (W24, O(DSP.INPUTS));
  emit_ldr_w (W25, O(DSP.RWAddr));
- emit_ldrb_w(W26, O(DSP.ReadPending));
- emit_ldrb_w(W27, O(DSP.WritePending));
+ emit_pending_pins(false);
  emit_ldr_w (W28, O(DSP.ReadValue));
 }
 
@@ -412,6 +446,42 @@ static void emit_mdec_ct_update_mem(uint8_t rbl)
  labels_reset();
 }
 
+/* --- Cross-step preloads (software pipeline) ---------------------- */
+
+/* Issue the next live step's memory reads at the tail of the current
+ * one, or from the prologue / the post-helper-BL resume: the TEMP word
+ * its multiplier will consume, and -- when its RAM block can service a
+ * pending read (succ_may_read, from the pending-state FSM) -- the RAM
+ * word at the just-settled RWAddr.
+ *
+ * `fwd_from` is the step whose tail this is, NULL from the prologue and
+ * the post-helper resume.  When its TWT wrote the very slot the successor
+ * reads (TWA == TRA, directly comparable since both indices add the same
+ * pass-constant MDEC_CT), its W3 still holds the stored value and the
+ * load folds to a register move. */
+static void emit_succ_preloads(const SS_SCSP_DSPStep* succ, bool succ_may_read,
+                               const SS_SCSP_DSPStep* fwd_from)
+{
+ if(succ_may_read)
+  a64_ldrh_w_uxtw(g_cg, W6, X_RAM_BASE, W25, 1);
+
+ if(fwd_from && (fwd_from->flags & DSPF_TWT) && fwd_from->TWA == succ->TRA)
+  a64_mov_w_reg(g_cg, W9, W3);
+ else
+ {
+  /* TEMPReadAddr = (TRA + MDEC_CT) & 0x7F; TRA == 0 folds to the
+   * bare mask of the W19 pin. */
+  if(succ->TRA)
+  {
+   a64_add_w_imm(g_cg, W4, W19, succ->TRA);
+   a64_and_w_imm(g_cg, W4, W4, 0x7Fu);
+  }
+  else
+   a64_and_w_imm(g_cg, W4, W19, 0x7Fu);
+  a64_ldr_w_uxtw(g_cg, W9, X_TEMP_BASE, W4, 2);
+ }
+}
+
 /* --- Native per-step body ----------------------------------------- */
 
 /* Mirrors scsp.inc::RunDSPStep verbatim -- each `if(f & DSPF_X)`
@@ -421,16 +491,19 @@ static void emit_mdec_ct_update_mem(uint8_t rbl)
  *   W1   = INPUTS_sxt (sxt24 of W24; only when XSEL/ADRL consume it)
  *   W2   = y_input (COEF/Y_REG selects; YSEL=0 reads the W21 pin)
  *   W3   = ShifterOutput (24-bit unsigned)
- *   W4   = TEMP read address
+ *   W4   = clamp bound / successor TEMP address (tail)
  *   W5   = TEMP_sxt
  *   W7   = y_sxt13
  *   X8   = Product
  *   W10  = TEMP write address / staging
  *   W11  = MADRS accumulator
  *   W12,W13,W14,W15 = RAM-pipeline + dspfloat scratches
- *   W16,X16,W17,X17 = MOVP2R + offset-fallback staging */
+ *   W16,X16,W17,X17 = MOVP2R + offset-fallback staging
+ * W6/W9 are not scratch: they carry this step's preloaded RAM/TEMP
+ * words in from the predecessor's tail (see emit_succ_preloads). */
 static void emit_step_native(const SS_SCSP_DSPStep* s,
-                             uint8_t rbl, uint8_t rbp, bool rwaddr_dead)
+                             uint8_t rbl, uint8_t rbp, bool rwaddr_dead,
+                             bool ram_preloaded)
 {
  const uint32_t f   = s->flags;
  const unsigned IRA = s->IRA;
@@ -508,8 +581,8 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
    * constant.  sxt24(W3) == W3 iff W3 already fits, so the fit-test is
    * the range test; the bound is sign-selected from 0x7FFFFF via EOR
    * (W3 >= 0 -> 0x007FFFFF; W3 < 0 -> 0xFF800000 = -0x800000).  W10 and
-   * W4 are dead here (both first written by the multiplier-adder block
-   * below). */
+   * W4 are dead here (next writers: EWT/TWT staging and the tail
+   * preload). */
   a64_sbfx_w(g_cg, W10, W3, 0, 24);     /* fit-test = W3 clamped to signed-24 */
   a64_asr_w_imm(g_cg, W4, W3, 31);      /* sign mask: 0 or -1 */
   a64_eor_w_imm(g_cg, W4, W4, 0x7FFFFFu); /* bound: 0x7FFFFF or 0xFF800000 */
@@ -527,17 +600,15 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
  }
 
  /* Multiplier-adder:
-  *   TEMP[TEMPReadAddr] read, sxt24 -> TEMP_sxt
+  *   TEMP[TEMPReadAddr] (preloaded into W9), sxt24 -> TEMP_sxt
   *   x_input = XSEL ? INPUTS_sxt : TEMP_sxt
   *   Product = (sxt13(y_input) * x_input) >> 12
   *   SGAOutput = ZERO ? 0 : NEGB ? -B : B  (B = BSEL ? SFT_REG : TEMP_sxt)
   *   SFT_REG  = (Product + SGAOutput) & 0x3FFFFFF
   *
-  * TEMPReadAddr = (TRA + MDEC_CT) & 0x7F -- TRA compile-time. */
- emit_add_w_imm_safe(W4, W19, s->TRA);
- a64_and_w_imm(g_cg, W4, W4, 0x7Fu);
- a64_ldr_w_uxtw(g_cg, W5, X_TEMP_BASE, W4, 2);
- a64_sbfx_w(g_cg, W5, W5, 0, 24);
+  * The TEMP word was read at the predecessor's tail
+  * (emit_succ_preloads); by now the load has long retired. */
+ a64_sbfx_w(g_cg, W5, W9, 0, 24);
  const unsigned w_x_input = (f & DSPF_XSEL) ? W1 : W5;
  a64_sbfx_w(g_cg, W7, w_y_input, 0, 13);
  a64_smull(g_cg, X8, W7, w_x_input);
@@ -564,10 +635,14 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
   emit_strh_w(W10, O(DSP.EFREG) + s->EWA * 2);
  }
 
- /* TWT: TEMP[(TWA + MDEC_CT) & 0x7F] <- ShifterOutput */
+ /* TWT: TEMP[(TWA + MDEC_CT) & 0x7F] <- ShifterOutput; TWA == 0
+  * folds to the bare mask of the W19 pin. */
  if(f & DSPF_TWT) {
-  emit_add_w_imm_safe(W10, W19, s->TWA);
-  a64_and_w_imm(g_cg, W10, W10, 0x7Fu);
+  if(s->TWA) {
+   a64_add_w_imm(g_cg, W10, W19, s->TWA);
+   a64_and_w_imm(g_cg, W10, W10, 0x7Fu);
+  } else
+   a64_and_w_imm(g_cg, W10, W19, 0x7Fu);
   a64_str_w_uxtw(g_cg, W3, X_TEMP_BASE, W10, 2);
  }
 
@@ -598,14 +673,17 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
   a64_b(g_cg, ram_done);
 
   /* Read path:
-   *   tmp = RAM[RWAddr]
+   *   tmp = RAM[RWAddr]  (preloaded into W6 when the FSM proved this
+   *   step can see a pending read, else loaded here)
    *   ReadValue = (ReadPending == 2) ? (tmp << 8) : dspfloat_to_int(tmp)
    *   ReadPending = 0 */
   label_bind(ram_read);
-  a64_ldrh_w_uxtw(g_cg, W14, X_RAM_BASE, W25, 1);
+  const unsigned w_ram = ram_preloaded ? W6 : W14;
+  if(!ram_preloaded)
+   a64_ldrh_w_uxtw(g_cg, W14, X_RAM_BASE, W25, 1);
   /* Inline dspfloat path into W12, NOFL path into W13, CSEL into W28. */
-  emit_dspfloat_to_int(W12, W14, W13, W11);
-  a64_lsl_w_imm(g_cg, W13, W14, 8);
+  emit_dspfloat_to_int(W12, w_ram, W13, W11);
+  a64_lsl_w_imm(g_cg, W13, w_ram, 8);
   a64_cmp_w_imm(g_cg, W26, 2);
   a64_csel_w(g_cg, W28, W13, W12, A64_COND_EQ);
   a64_mov_w_imm(g_cg, W26, 0u);
@@ -735,7 +813,10 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
   * from the prior sample and settles within its 4-state space -- so it
   * over-approximates; an extra keep only forgoes the fold. */
  bool reads_rwaddr[128];
+ bool may_read[128];   /* rp can be set on entry: the read path can fire,
+                          so a preloaded RAM word (W6) has a consumer */
  memset(reads_rwaddr, 0, sizeof(reads_rwaddr));
+ memset(may_read, 0, sizeof(may_read));
  {
   unsigned rp = 0, wp = 0;
   for(unsigned pass = 0; pass < 6u; ++pass) {
@@ -743,6 +824,7 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
     const SS_SCSP_DSPStep* s = &scsp->DSP.MPROG_Decoded[i];
     if(!s->live) continue;
     if(rp || wp) reads_rwaddr[i] = true;   /* RAM block reads RWAddr */
+    if(rp) may_read[i] = true;
     if(rp) rp = 0; else if(wp) wp = 0;      /* service one pending op */
     if(s->flags & DSPF_MRT) rp = 1;
     if(s->flags & DSPF_MWT) wp = 1;
@@ -767,18 +849,40 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
  }
 
  if(mode_a) {
-  emit_full_prologue();
-  for(unsigned step = 0; step < 128u; ++step) {
+  /* The prologue INPUTS load is dead when the first live step's IRA
+   * decode overwrites the pin before any read.  Requires that step to
+   * be native: a helper-first program flushes W24 before any def. */
+  const SS_SCSP_DSPStep* const first = &scsp->DSP.MPROG_Decoded[live_seq[0]];
+  const unsigned fIRA = first->IRA;
+  const bool ira_defines_inputs =
+   !(fIRA & 0x20) || !(fIRA & 0x10) || !(fIRA & 0xE);
+  emit_full_prologue(live_seq[0] < max_native && ira_defines_inputs);
+
+  /* Pipeline fill: the first live step's preloads have no predecessor
+   * tail (the previous pass's died at RET), so the prologue issues
+   * them. */
+  if(live_seq[0] < max_native)
+   emit_succ_preloads(first, may_read[live_seq[0]], NULL);
+
+  for(unsigned p = 0; p < live_n; ++p) {
+   const unsigned step = live_seq[p];
    const SS_SCSP_DSPStep* s = &scsp->DSP.MPROG_Decoded[step];
-   if(!s->live) continue;
+   /* 128 = no successor to feed: the last live step's tail is dead
+    * (next pass refills from the prologue). */
+   const unsigned nxt = (p + 1u < live_n) ? live_seq[p + 1u] : 128u;
    if(step < max_native) {
-    emit_step_native(s, rbl, rbp, !rwaddr_keep[step]);
+    emit_step_native(s, rbl, rbp, !rwaddr_keep[step], may_read[step]);
+    if(nxt < max_native)
+     emit_succ_preloads(&scsp->DSP.MPROG_Decoded[nxt], may_read[nxt], s);
    } else {
     emit_pin_flush();
     emit_step_helper_bl(step);
     emit_pin_reload();
-    /* The BL trashed the x30 base pin (x29 is callee-saved). */
+    /* The BL trashed the x30 base pin (x29 is callee-saved) and the
+     * W6/W9 preload carriers; refill both. */
     emit_base_pins();
+    if(nxt < max_native)
+     emit_succ_preloads(&scsp->DSP.MPROG_Decoded[nxt], may_read[nxt], NULL);
    }
   }
   emit_mdec_ct_update_pin(rbl);
