@@ -30,12 +30,12 @@
  *   x28  = pinned dsp->P.T.
  *
  * Memory-coherence contract: slot bodies do not flush NI/PC/flags/CC/
- * LOP per slot.  emit_flush_pins() writes them back wherever C code can
- * observe DSPS: the exit stub, the top of emit_call_helper_addr, and the
- * hot paths of the DMA fallback and the fallback thunks before their BR
- * to C.  CT32/AC.T/P.T (and TOP, which has no pin)
- * keep their store-on-change emitters; NextInstrLooped is set only by
- * lps_helper and cleared in place by the looped refetch path.
+ * LOP/CT32/AC.T/P.T per slot.  emit_flush_pins() writes them back
+ * wherever C code can observe DSPS: the exit stub, the top of
+ * emit_call_helper_addr, and the hot paths of the DMA fallback and the
+ * fallback thunks before their BR to C.  TOP and RX/RY have no pins and
+ * store straight to memory; NextInstrLooped is set only by lps_helper
+ * and cleared in place by the looped refetch path.
  *
  * Dispatch-offset invariant: tail dispatch enters its target at
  * +SCU_JIT_SLOT_PRELUDE_BYTES, so every NextInstr/ProgRAM[].low32 value
@@ -651,9 +651,7 @@ static void emit_x_op(unsigned x_op, uint32_t instr)
   /* MAC: P = (int64)(int32)RX * (int32)RY */
   a64_ldr_w_imm(g_cg, W7, X0, O_RX);
   a64_ldr_w_imm(g_cg, W8, X0, O_RY);
-  a64_smull(g_cg, X9, W7, W8);
-  a64_str_x_imm(g_cg, X9, X0, O_P);
-  a64_mov_x_reg(g_cg, X28, X9);
+  a64_smull(g_cg, X28, W7, W8);
  }
 
  if(x_op >= 0x3)
@@ -665,9 +663,7 @@ static void emit_x_op(unsigned x_op, uint32_t instr)
 
   if((x_op & 0x3) == 0x3)
   {
-   a64_sxtw(g_cg, X9, W12);
-   a64_str_x_imm(g_cg, X9, X0, O_P);
-   a64_mov_x_reg(g_cg, X28, X9);
+   a64_sxtw(g_cg, X28, W12);
   }
   if(x_op & 0x4)
   {
@@ -680,12 +676,10 @@ static void emit_y_op(unsigned y_op, uint32_t instr)
 {
  if((y_op & 0x3) == 0x1)
  {
-  a64_str_x_imm(g_cg, XZR, X0, O_AC);
   a64_mov_x_reg(g_cg, X26, XZR);
  }
  else if((y_op & 0x3) == 0x2)
  {
-  a64_str_x_imm(g_cg, X3, X0, O_AC);
   a64_mov_x_reg(g_cg, X26, X3);
  }
 
@@ -698,9 +692,7 @@ static void emit_y_op(unsigned y_op, uint32_t instr)
 
   if((y_op & 0x3) == 0x3)
   {
-   a64_sxtw(g_cg, X9, W12);
-   a64_str_x_imm(g_cg, X9, X0, O_AC);
-   a64_mov_x_reg(g_cg, X26, X9);
+   a64_sxtw(g_cg, X26, W12);
   }
   if(y_op & 0x4)
   {
@@ -769,9 +761,7 @@ static void emit_d1_op(bool looped, unsigned d1_op, uint32_t instr, const GenMet
    break;
 
   case 0x5:
-   a64_sxtw(g_cg, X7, W12);
-   a64_str_x_imm(g_cg, X7, X0, O_P);
-   a64_mov_x_reg(g_cg, X28, X7);
+   a64_sxtw(g_cg, X28, W12);
    break;
 
   case 0x6:
@@ -831,7 +821,6 @@ static void emit_ct32_update(unsigned x_op, unsigned y_op, unsigned d1_op, uint3
   a64_add_w_reg(g_cg, W23, W23, W9);
  }
  emit_and_w_imm_safe(W23, W23, 0x3F3F3F3Fu, W9);
- a64_str_w_imm(g_cg, W23, X0, O_CT32);
 }
 
 /* Write every sunk pin back to DSPS; see the coherence contract at the
@@ -843,6 +832,9 @@ static void emit_flush_pins(void)
  a64_stur_w    (g_cg, W24, X0, (int)O_FZ);   /* O_FZ is byte-aligned */
  a64_str_w_imm (g_cg, W21, X0, O_CC);
  a64_strh_w_imm(g_cg, W20, X0, O_LOP);
+ a64_str_w_imm (g_cg, W23, X0, O_CT32);
+ a64_str_x_imm (g_cg, X26, X0, O_AC);
+ a64_str_x_imm (g_cg, X28, X0, O_P);
 }
 
 static void emit_tail_dispatch(void)
@@ -1276,7 +1268,6 @@ static void emit_mvi(bool looped, uint32_t instr)
    a64_add_w_imm(g_cg, W4, W4, 1u);
    a64_and_w_imm(g_cg, W4, W4, 0x3Fu);
    a64_bfi_w(g_cg, W23, W4, 8u * dest, 8u);
-   a64_str_w_imm(g_cg, W23, X0, O_CT32);
    break;
 
   case 0x4:
@@ -1286,9 +1277,7 @@ static void emit_mvi(bool looped, uint32_t instr)
 
   case 0x5:
    /* P.T = (int64)(int32)imm -- sign-extended into 64-bit slot. */
-   a64_mov_x_imm(g_cg, X12, (uint64_t)(int64_t)imm);
-   a64_str_x_imm(g_cg, X12, X0, O_P);
-   a64_mov_x_reg(g_cg, X28, X12);
+   a64_mov_x_imm(g_cg, X28, (uint64_t)(int64_t)imm);
    break;
 
   case 0x6:
