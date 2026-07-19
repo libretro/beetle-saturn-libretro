@@ -925,7 +925,7 @@ static void emit_load_lop_pin  (void) { a64_ldrh_w_imm(g_cg, W20, X0, O_LOP); }
 static void emit_load_ac_pin   (void) { a64_ldr_x_imm (g_cg, X26, X0, O_AC); }
 static void emit_load_p_pin    (void) { a64_ldr_x_imm (g_cg, X28, X0, O_P); }
 static void emit_load_anchor_pin(void)
-{ a64_movp2r_pool(g_cg, X19, (const void*)(DSP_INSTR_BASE_UIPT + SCU_JIT_SLOT_PRELUDE_BYTES)); }
+{ a64_movp2r(g_cg, X19, (const void*)(DSP_INSTR_BASE_UIPT + SCU_JIT_SLOT_PRELUDE_BYTES)); }
 
 /*
  * Shared cold-reconstruction prelude (see g_prelude_stub_addr).  Reloads
@@ -1437,10 +1437,13 @@ static void emit_entry_stub(void)
  a64_ldr_x_imm(g_cg, X26, X0, O_AC);
  a64_ldr_x_imm(g_cg, X28, X0, O_P);
 
- a64_ldrsw_x_imm(g_cg, X16, X0, O_NI);
- a64_movp2r_pool(g_cg, X17, (const void*)&DSP_Init);
- a64_add_x_reg(g_cg, X16, X17, X16);
+ /* One NI load serves both the X25 pin and the dispatch target: the
+  * low32 offset comes out of the pin via the extending ADD.  X17 is the
+  * unbiased base, so the BLR lands at slot offset 0 -- the cold entry,
+  * which routes through the shared prelude for the remaining pins. */
  a64_ldr_x_imm(g_cg, X25, X0, O_NI);
+ a64_movp2r(g_cg, X17, (const void*)&DSP_Init);
+ a64_add_x_reg_sxtw(g_cg, X16, X17, W25);
  a64_blr(g_cg, X16);
 
  a64_ldp_x_off(g_cg, X27, X28, SP_REG, 80);
