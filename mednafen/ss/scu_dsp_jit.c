@@ -13,6 +13,9 @@
  *   x0   = DSPS* throughout the chain.
  *   x3   = ALU.T scratch inside emit_gen.
  *   x4-x9, x12 = generic per-emitter scratches.
+ *   x13-x15 = cross-slot DataRAM preload carriers, loaded sign-extended
+ *          (see DRReadSet / emit_dram_preloads).  Only gen slot bodies,
+ *          which never BLR to C, run between a preload and its use.
  *   x16, x17 = MOVP2R staging and BR/BLR targets.
  *   x19  = pinned dispatch anchor: &DSP_Init + SCU_JIT_SLOT_PRELUDE_BYTES.
  *          Re-established by the shared prelude stub on every cold entry,
@@ -133,6 +136,9 @@ void (*SCU_DSP_JIT_Entry)(struct DSPS*) = NULL;
 #define X10 10u
 #define X11 11u
 #define X12 12u
+#define X13 13u
+#define X14 14u
+#define X15 15u
 #define X16 16u
 #define X17 17u
 #define X19 19u
@@ -283,6 +289,73 @@ static void*   g_nic_site[256];         /* mov_x_imm4 site per pc, NULL = load k
 static bool    g_nic_this_slot = false; /* set by CompileSlot for a linear-entry slot */
 static uint8_t g_nic_this_pc   = 0;     /* pc whose instr-pre records into g_nic_site */
 
+/* Cross-slot DataRAM read pipelining.  Every read in a slot uses the
+ * slot's entry CT (increments are aggregated into one post-body update),
+ * so at any dispatch site that statically knows the next slot, W23
+ * already holds that slot's entry CT and its reads can issue a whole
+ * slot early:
+ *
+ *  - a linked predecessor's tail (emit_tail_dispatch) preloads the
+ *    carriers, and the pass-2 patch aims its direct B past the
+ *    successor's refill block (g_pipe_delta below);
+ *  - a self-pipelined looped gen slot preloads at its own loop-back
+ *    tail (emit_looped_pipe_tail);
+ *  - every other entry (indirect hot dispatch at
+ *    +SCU_JIT_SLOT_PRELUDE_BYTES, cold entry via the shared prelude)
+ *    lands on the refill block, which loads the same carriers in-body.
+ *
+ * Preloads sit after every DataRAM write of the emitting slot, so program
+ * order keeps them alias-correct.  Carriers are X13..X15, loaded by LDRSW
+ * so a MOV covers the X26/X28 (AC/P) consumers and the low word covers
+ * the 32-bit ones.  Predecessor and successor compiles derive the same
+ * positional bank->carrier map from the same instr (dr_read_set). */
+typedef struct {
+ unsigned nbanks;
+ uint8_t  bank[3];
+} DRReadSet;
+
+/* Distinct DataRAM banks a gen instr reads (x_op, y_op, d1 alt-source),
+ * in first-read order; empty for anything else.  bank[i] loads into
+ * X13+i. */
+static DRReadSet dr_read_set(uint32_t instr)
+{
+ DRReadSet rs;
+ unsigned x_op, y_op, d1_op, k, nwant;
+ uint8_t want[3];
+
+ rs.nbanks = 0;
+ if(((instr >> 28) & 0xFu) > 0x3u)
+  return rs;
+
+ x_op  = (instr >> 23) & 0x7;
+ y_op  = (instr >> 17) & 0x7;
+ d1_op = (instr >> 12) & 0x3;
+ nwant = 0;
+
+ if(x_op >= 0x3)
+  want[nwant++] = ((instr >> 20) & 0x7) & 0x3;
+ if(y_op >= 0x3)
+  want[nwant++] = ((instr >> 14) & 0x7) & 0x3;
+ if((d1_op & 0x1) && (d1_op & 0x2) && (instr & 0xF) <= 0x7)
+  want[nwant++] = instr & 0x3;
+
+ for(k = 0; k < nwant; ++k)
+ {
+  unsigned i;
+  for(i = 0; i < rs.nbanks; ++i)
+   if(rs.bank[i] == want[k])
+    break;
+  if(i == rs.nbanks)
+   rs.bank[rs.nbanks++] = want[k];
+ }
+ return rs;
+}
+
+static bool      g_pipe_this_slot = false; /* set by CompileSlot: the gen body consumes carriers */
+static DRReadSet g_pipe_rs;                /* this slot's read set when g_pipe_this_slot */
+static uint8_t   g_pipe_this_pc   = 0;     /* pc whose refill size records into g_pipe_delta */
+static uint16_t  g_pipe_delta[256];        /* refill-block bytes past the hot entry, 0 = none */
+
 /*
  * Looped-slot JIT cache.  LPS dispatches the same instruction up to 4096
  * times.  Keyed by pc, validated by the cached instr, so a PRAM write
@@ -380,6 +453,7 @@ static void rewind_locked(void)
   g_looped_cache[i].entry = NULL;
   g_link_site[i] = NULL;
   g_nic_site[i] = NULL;
+  g_pipe_delta[i] = 0;
  }
 
  /* The rewind invalidated every JIT pointer cached in
@@ -412,8 +486,13 @@ static void rewind_locked(void)
    a64_codegen_invalidate(g_cg, g_nic_site[i], 4u * sizeof(uint32_t));
   }
   if(!g_link_site[i]) continue;
+  /* The tail preloaded the successor's DataRAM reads exactly when the
+   * successor compiled a refill block (both from the same ProgRAM instr
+   * via dr_read_set), so the direct B skips it; g_pipe_delta[succ] is 0
+   * for a non-pipelined slot. */
   succ_hot = (const void*)((const char*)DSP_INSTR_BASE_UIPT
-                           + succ_off + (int)SCU_JIT_SLOT_PRELUDE_BYTES);
+                           + succ_off + (int)SCU_JIT_SLOT_PRELUDE_BYTES
+                           + (int)g_pipe_delta[succ]);
   if(a64_patch_b(g_link_site[i], succ_hot))
    a64_codegen_invalidate(g_cg, g_link_site[i], sizeof(uint32_t));
  }
@@ -494,6 +573,35 @@ static GenMeta compute_meta(unsigned x_op, unsigned y_op, unsigned d1_op, uint32
   }
  }
  return m;
+}
+
+/* X register carrying DataRAM[bank][CT] for this slot's pipelined body,
+ * or 0 when the slot is not pipelined. */
+static unsigned dr_carrier(unsigned bank)
+{
+ unsigned i;
+ if(!g_pipe_this_slot)
+  return 0;
+ for(i = 0; i < g_pipe_rs.nbanks; ++i)
+  if(g_pipe_rs.bank[i] == bank)
+   return X13 + i;
+ return 0;
+}
+
+/* One sign-extending carrier load per distinct bank in `rs`.  The CT
+ * index comes out of W23, so this must run where W23 holds the consuming
+ * slot's entry CT: its own refill block, a linked predecessor's tail
+ * (post CT-update), or a looped slot's loop-back tail. */
+static void emit_dram_preloads(const DRReadSet* rs)
+{
+ unsigned i;
+ for(i = 0; i < rs->nbanks; ++i)
+ {
+  const unsigned b = rs->bank[i];
+  a64_ubfx_w(g_cg, W4, W23, 8u * b, 6u);
+  emit_add_x_imm_safe(X5, X0, O_DRAM + b * 256u);
+  a64_ldrsw_x_idx_lsl(g_cg, X13 + i, X5, X4, 2u);
+ }
 }
 
 static void emit_instr_pre(bool looped)
@@ -695,17 +803,30 @@ static void emit_x_op(unsigned x_op, uint32_t instr)
  if(x_op >= 0x3)
  {
   const unsigned drw = ((instr >> 20) & 0x7) & 0x3;
-  a64_ubfx_w(g_cg, W4, W23, 8u * drw, 6u);
-  emit_add_x_imm_safe(X5, X0, O_DRAM + drw * 256u);
-  a64_ldr_w_idx_lsl(g_cg, W12, X5, X4, 2u);
+  const unsigned car = dr_carrier(drw);
 
-  if((x_op & 0x3) == 0x3)
+  if(car)
   {
-   a64_sxtw(g_cg, X28, W12);
+   if((x_op & 0x3) == 0x3)
+    a64_mov_x_reg(g_cg, X28, car);
+   if(x_op & 0x4)
+    a64_str_w_imm(g_cg, car, X0, O_RX);
   }
-  if(x_op & 0x4)
+  else if((x_op & 0x3) == 0x3)
   {
-   a64_str_w_imm(g_cg, W12, X0, O_RX);
+   a64_ubfx_w(g_cg, W4, W23, 8u * drw, 6u);
+   emit_add_x_imm_safe(X5, X0, O_DRAM + drw * 256u);
+   a64_ldrsw_x_idx_lsl(g_cg, X28, X5, X4, 2u);
+   if(x_op & 0x4)
+    a64_str_w_imm(g_cg, W28, X0, O_RX);
+  }
+  else
+  {
+   a64_ubfx_w(g_cg, W4, W23, 8u * drw, 6u);
+   emit_add_x_imm_safe(X5, X0, O_DRAM + drw * 256u);
+   a64_ldr_w_idx_lsl(g_cg, W12, X5, X4, 2u);
+   if(x_op & 0x4)
+    a64_str_w_imm(g_cg, W12, X0, O_RX);
   }
  }
 }
@@ -724,17 +845,30 @@ static void emit_y_op(unsigned y_op, uint32_t instr)
  if(y_op >= 0x3)
  {
   const unsigned drw = ((instr >> 14) & 0x7) & 0x3;
-  a64_ubfx_w(g_cg, W4, W23, 8u * drw, 6u);
-  emit_add_x_imm_safe(X5, X0, O_DRAM + drw * 256u);
-  a64_ldr_w_idx_lsl(g_cg, W12, X5, X4, 2u);
+  const unsigned car = dr_carrier(drw);
 
-  if((y_op & 0x3) == 0x3)
+  if(car)
   {
-   a64_sxtw(g_cg, X26, W12);
+   if((y_op & 0x3) == 0x3)
+    a64_mov_x_reg(g_cg, X26, car);
+   if(y_op & 0x4)
+    a64_str_w_imm(g_cg, car, X0, O_RY);
   }
-  if(y_op & 0x4)
+  else if((y_op & 0x3) == 0x3)
   {
-   a64_str_w_imm(g_cg, W12, X0, O_RY);
+   a64_ubfx_w(g_cg, W4, W23, 8u * drw, 6u);
+   emit_add_x_imm_safe(X5, X0, O_DRAM + drw * 256u);
+   a64_ldrsw_x_idx_lsl(g_cg, X26, X5, X4, 2u);
+   if(y_op & 0x4)
+    a64_str_w_imm(g_cg, W26, X0, O_RY);
+  }
+  else
+  {
+   a64_ubfx_w(g_cg, W4, W23, 8u * drw, 6u);
+   emit_add_x_imm_safe(X5, X0, O_DRAM + drw * 256u);
+   a64_ldr_w_idx_lsl(g_cg, W12, X5, X4, 2u);
+   if(y_op & 0x4)
+    a64_str_w_imm(g_cg, W12, X0, O_RY);
   }
  }
 }
@@ -760,9 +894,15 @@ static void emit_d1_op(bool looped, unsigned d1_op, uint32_t instr, const GenMet
    case 0x4: case 0x5: case 0x6: case 0x7:
    {
     const unsigned drw = alt_src & 0x3;
-    a64_ubfx_w(g_cg, W4, W23, 8u * drw, 6u);
-    emit_add_x_imm_safe(X5, X0, O_DRAM + drw * 256u);
-    a64_ldr_w_idx_lsl(g_cg, W12, X5, X4, 2u);
+    const unsigned car = dr_carrier(drw);
+    if(car)
+     a64_mov_w_reg(g_cg, W12, car);
+    else
+    {
+     a64_ubfx_w(g_cg, W4, W23, 8u * drw, 6u);
+     emit_add_x_imm_safe(X5, X0, O_DRAM + drw * 256u);
+     a64_ldr_w_idx_lsl(g_cg, W12, X5, X4, 2u);
+    }
     break;
    }
    case 0x9:
@@ -879,6 +1019,20 @@ static void emit_tail_dispatch(void)
 {
  a64_label* exit_lbl = label_new();
 
+ /* Linked tail: the target slot is static, so its DataRAM reads issue
+  * here, a whole slot ahead of their consumers -- W23 already holds its
+  * entry CT.  The pass-2 patch aims the B past the successor's refill
+  * block.  On the exit paths below the loads are dead but harmless;
+  * DataRAM is always-mapped DSPS memory. */
+ if(g_link_this_slot)
+ {
+  const uint32_t succ_instr =
+   (uint32_t)(DSP.ProgRAM[(uint8_t)(g_link_this_pc + 1u)] >> 32);
+  const DRReadSet rs = dr_read_set(succ_instr);
+  if(rs.nbanks)
+   emit_dram_preloads(&rs);
+ }
+
  /* Decrement pinned CC (2 cycles per slot), branch on <= 0. */
  a64_subs_w_imm(g_cg, W21, W21, 2u);
  a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
@@ -907,6 +1061,42 @@ static void emit_tail_dispatch(void)
   a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
   a64_br(g_cg, X16);
  }
+
+ label_bind(exit_lbl);
+ a64_b_addr(g_cg, g_exit_stub_addr);
+}
+
+/*
+ * Tail for a self-pipelined looped gen slot.  While the loop stays live
+ * the dispatch target is this slot itself, so the tail preloads the next
+ * iteration's DataRAM reads (W23 holds its entry CT) and branches back to
+ * the post-refill body.
+ *
+ * Post-decrement LOP == 0xFFF is the leave-the-loop signal: it arises
+ * only from the refetch iteration's 0 -> 0xFFF wrap (mid-loop values are
+ * <= 0xFFE, and CompileSlot excludes slots whose d1 writes LOP), and
+ * after a refetch X25 points at the next block.  Post-decrement 0 stays
+ * on the fast path: the refetch iteration still executes this slot's body
+ * once before leaving.
+ */
+static void emit_looped_pipe_tail(const void* pipe_body)
+{
+ a64_label* exit_lbl  = label_new();
+ a64_label* indir_lbl = label_new();
+
+ a64_subs_w_imm(g_cg, W21, W21, 2u);
+ a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
+ a64_cmp_w_imm(g_cg, W22, 0u);
+ a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
+ a64_cmp_w_imm(g_cg, W20, 0xFFFu);
+ a64_b_cond(g_cg, A64_COND_EQ, indir_lbl);
+
+ emit_dram_preloads(&g_pipe_rs);
+ a64_b_addr(g_cg, pipe_body);
+
+ label_bind(indir_lbl);
+ a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
+ a64_br(g_cg, X16);
 
  label_bind(exit_lbl);
  a64_b_addr(g_cg, g_exit_stub_addr);
@@ -966,8 +1156,22 @@ static void emit_gen(bool looped, uint32_t instr)
  const unsigned y_op   = (instr >> 17) & 0x7;
  const unsigned d1_op  = (instr >> 12) & 0x3;
  const GenMeta  meta   = compute_meta(x_op, y_op, d1_op, instr);
+ const void*    pipe_body = NULL;
 
  emit_cold_entry();
+ if(g_pipe_this_slot)
+ {
+  /* Dual entry: indirect/cold entries land on the refill block at the
+   * hot entry and load the carriers in-body; a preloading dispatcher (a
+   * linked predecessor's tail, this slot's own loop-back tail) enters at
+   * pipe_body, past it. */
+  const void* hot_entry = a64_codegen_wptr(g_cg);
+  emit_dram_preloads(&g_pipe_rs);
+  pipe_body = a64_codegen_wptr(g_cg);
+  if(!looped)
+   g_pipe_delta[g_pipe_this_pc] =
+    (uint16_t)((uintptr_t)pipe_body - (uintptr_t)hot_entry);
+ }
  emit_instr_pre(looped);
 
  /* X3 = ALU.T (mutated in place by alu_op). */
@@ -978,7 +1182,10 @@ static void emit_gen(bool looped, uint32_t instr)
  emit_y_op(y_op, instr);
  emit_d1_op(looped, d1_op, instr, &meta);
  emit_ct32_update(x_op, y_op, d1_op, meta.ct_inc);
- emit_tail_dispatch();
+ if(looped && g_pipe_this_slot)
+  emit_looped_pipe_tail(pipe_body);
+ else
+  emit_tail_dispatch();
 }
 
 /*
@@ -1657,6 +1864,24 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
    g_link_this_slot = true;
    g_link_this_pc   = pc;
   }
+ }
+
+ /* Cross-slot DataRAM read pipelining (see DRReadSet): a rewind-pass gen
+  * slot with DataRAM reads compiles the dual refill/pipelined entry --
+  * pipe validity needs no linear-entry proof (the reads depend only on
+  * W23/X0, never on PC), so delay slots qualify too, and a linked
+  * predecessor's tail preloads for it.  A looped gen slot self-pipelines
+  * its own next iteration regardless of the rewind, except when its d1
+  * writes LOP: emit_looped_pipe_tail's loop-back test relies on
+  * post-decrement LOP == 0xFFF being unique to the refetch iteration. */
+ g_pipe_this_slot = false;
+ if(!coalesced
+    && (looped ? !(((instr >> 12) & 0x1) && ((instr >> 8) & 0xF) == 0xA)
+               : g_in_rewind_slots))
+ {
+  g_pipe_rs = dr_read_set(instr);
+  g_pipe_this_slot = (g_pipe_rs.nbanks != 0);
+  g_pipe_this_pc   = pc;
  }
 
  if(coalesced)

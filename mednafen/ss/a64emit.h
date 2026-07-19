@@ -256,6 +256,7 @@ void a64_strb_w_reg   (a64_codegen*, unsigned wt, unsigned xn, unsigned xm);
 void a64_ldr_w_idx_lsl(a64_codegen*, unsigned wt, unsigned xn, unsigned xm, unsigned shift);
 void a64_str_w_idx_lsl(a64_codegen*, unsigned wt, unsigned xn, unsigned xm, unsigned shift);
 void a64_ldr_x_idx_lsl(a64_codegen*, unsigned xt, unsigned xn, unsigned xm, unsigned shift);
+void a64_ldrsw_x_idx_lsl(a64_codegen*, unsigned xt, unsigned xn, unsigned xm, unsigned shift);
 
 /* Loads/stores -- 32-bit-extended index (Wm with UXTW). */
 void a64_ldr_w_uxtw (a64_codegen*, unsigned wt, unsigned xn, unsigned wm, unsigned shift);
