@@ -73,6 +73,7 @@ A64_STUB2(a64_mov_x_reg, unsigned xd, unsigned xm)
 A64_STUB1(a64_mov_x_sp,  unsigned xd)
 A64_STUB2(a64_movp2r,    unsigned xd, const void* ptr)
 A64_STUB2(a64_movp2r_pool, unsigned xd, const void* ptr)
+A64_STUB2(a64_adr,       unsigned xd, const void* target)
 A64_STUB3(a64_add_w_imm, unsigned wd, unsigned wn, uint32_t imm)
 A64_STUB3(a64_sub_w_imm, unsigned wd, unsigned wn, uint32_t imm)
 A64_STUB3(a64_add_x_imm, unsigned xd, unsigned xn, uint32_t imm)
@@ -952,6 +953,17 @@ void a64_b_addr(a64_codegen* cg, const void* addr)
  int64_t delta = (int64_t)(((intptr_t)addr - (intptr_t)cg->wp) >> 2);
  assert(sint_fits(delta, 26));
  emit_w(cg, 0x14000000u | ((uint32_t)((uint64_t)delta & 0x3FFFFFFu)));
+}
+
+/* ADR Xd, target.  imm21 is a signed *byte* offset (unshifted): immlo =
+ * off[1:0] at bits 30..29, immhi = off[20:2] at bits 23..5. */
+void a64_adr(a64_codegen* cg, unsigned xd, const void* target)
+{
+ int64_t  off = (int64_t)((intptr_t)target - (intptr_t)cg->wp);
+ uint32_t immlo = (uint32_t)((uint64_t)off & 0x3u) << 29;
+ uint32_t immhi = (uint32_t)(((uint64_t)off >> 2) & 0x7FFFFu) << 5;
+ assert(sint_fits(off, 21));
+ emit_w(cg, 0x10000000u | immlo | immhi | A64_REG(xd));
 }
 
 void a64_br (a64_codegen* cg, unsigned xn) { emit_w(cg, 0xD61F0000u | (A64_REG(xn) << 5)); }

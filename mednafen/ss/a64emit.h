@@ -129,6 +129,11 @@ void a64_movp2r   (a64_codegen*, unsigned xd, const void* ptr);
  * (+/-1 MiB). */
 void a64_movp2r_pool(a64_codegen*, unsigned xd, const void* ptr);
 
+/* ADR Xd, target : PC-relative code address in one instruction.
+ * `target` must be within +/-1 MiB of the emit point (imm21 is a signed
+ * byte offset, unshifted). */
+void a64_adr(a64_codegen*, unsigned xd, const void* target);
+
 /* Add/Sub.  imm form: 12-bit unsigned + optional shift-by-12 (the
  * encoder picks the shift automatically).  reg form: shifted-reg with
  * LSL #0. */

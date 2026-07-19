@@ -15,8 +15,9 @@
  *   x4-x9, x12 = generic per-emitter scratches.
  *   x16, x17 = MOVP2R staging and BR/BLR targets.
  *   x19  = pinned dispatch anchor: &DSP_Init + SCU_JIT_SLOT_PRELUDE_BYTES.
- *          Re-established by every slot's cold prelude, so tail dispatch
- *          is one ADD (extended register) of the signed NI.low32 offset.
+ *          Re-established by the shared prelude stub on every cold entry,
+ *          so tail dispatch is one ADD (extended register) of the signed
+ *          NI.low32 offset.
  *   w20  = pinned dsp->LOP (12-bit loop counter).
  *   w21  = pinned dsp->CycleCounter.
  *   w22  = pinned dsp->State (read-only cache).
@@ -78,11 +79,11 @@ void (*SCU_DSP_JIT_Entry)(struct DSPS*) = NULL;
 #define SCU_JIT_CODE_SEGMENT_SIZE  ((size_t)0x100000)
 #define SCU_JIT_SLOT_MAX_BYTES     ((size_t)1024)
 
-/* Cold-prelude size of every slot, in bytes (8 instructions).  Tail
- * dispatch skips it via the X19 anchor, which is pre-biased by this
- * amount; the DMA fallback pads with this many NOP bytes to stay
- * skip-safe. */
-#define SCU_JIT_SLOT_PRELUDE_BYTES 32u
+/* Cold-entry size of every slot, in bytes: ADR X16,body + B to the
+ * shared prelude stub (emit_cold_entry).  Tail dispatch skips it via the
+ * X19 anchor, pre-biased by this amount; the DMA fallback pads with this
+ * many NOP bytes to stay skip-safe. */
+#define SCU_JIT_SLOT_PRELUDE_BYTES 8u
 
 /* AArch64 register-index conventions.  WZR/XZR/SP all encode as 31.
  * Numeric in source so a64emit accepts them as plain `unsigned`s. */
@@ -231,6 +232,11 @@ static const void* g_exit_stub_addr = NULL;
  * g_post_stub_byte_offset so no rewind invalidates it.  Every coalesced gen
  * slot loads its run's constants into w4/w5/w6 and branches here. */
 static const void* g_coalesce_stub_addr = NULL;
+/* Shared cold-reconstruction prelude (emit_prelude_stub), emitted once below
+ * g_post_stub_byte_offset.  Every slot's 2-instruction cold entry branches
+ * here to reload the cross-block pins, then the stub BR X16's back into the
+ * slot body.  The hot JIT-to-JIT chain skips it entirely (X19 anchor bias). */
+static const void* g_prelude_stub_addr = NULL;
 static size_t      g_post_stub_byte_offset = 0;
 
 /* Permanent fallback thunks (indexed by `looped`), emitted once below
@@ -853,8 +859,9 @@ static void emit_tail_dispatch(void)
 
  /* W25 = pinned NI.low32, a signed offset from &DSP_Init; X19 holds
   * &DSP_Init pre-biased by SCU_JIT_SLOT_PRELUDE_BYTES, so one extended
-  * ADD both rebases the offset and skips the next slot's cold prelude.
-  * Only cold entries land at offset 0 and run the reloads. */
+  * ADD both rebases the offset and skips the next slot's cold entry.
+  * Only cold entries land at offset 0, where the cold-entry stub routes
+  * them through the shared prelude to run the reloads. */
  if(g_link_this_slot)
  {
   /* Direct B to the linear successor slot-(pc+1), patched by
@@ -882,13 +889,45 @@ static void emit_load_flags_pin(void) { a64_ldur_w    (g_cg, W24, X0, (int)O_FZ)
 static void emit_load_pc_pin   (void) { a64_ldrb_w_imm(g_cg, W27, X0, O_PC); }
 static void emit_load_lop_pin  (void) { a64_ldrh_w_imm(g_cg, W20, X0, O_LOP); }
 /* AC.T (X26), P.T (X28) and the X19 anchor are pinned across blocks:
- * tail-dispatched entries skip these loads (the X19 bias skips
- * SCU_JIT_SLOT_PRELUDE_BYTES), while cold entries land at offset 0 with
- * arbitrary X19 and need the reloads. */
+ * tail-dispatched entries skip these loads, while cold entries land at
+ * offset 0 with arbitrary X19 and route through the shared prelude, which
+ * runs them. */
 static void emit_load_ac_pin   (void) { a64_ldr_x_imm (g_cg, X26, X0, O_AC); }
 static void emit_load_p_pin    (void) { a64_ldr_x_imm (g_cg, X28, X0, O_P); }
 static void emit_load_anchor_pin(void)
 { a64_movp2r_pool(g_cg, X19, (const void*)(DSP_INSTR_BASE_UIPT + SCU_JIT_SLOT_PRELUDE_BYTES)); }
+
+/*
+ * Shared cold-reconstruction prelude (see g_prelude_stub_addr).  Reloads
+ * the eight cross-block pins from DSPS, then BR X16 back into the slot
+ * body.  State (W22) and NI (X25) are not reloaded: the entry stub,
+ * emit_instr_pre and the helper resync own them.
+ */
+static void emit_prelude_stub(void)
+{
+ emit_load_cc_pin();
+ emit_load_ct32_pin();
+ emit_load_flags_pin();
+ emit_load_pc_pin();
+ emit_load_lop_pin();
+ emit_load_ac_pin();
+ emit_load_p_pin();
+ emit_load_anchor_pin();
+ a64_br(g_cg, X16);
+}
+
+/*
+ * Per-slot cold entry at every real-body slot's offset 0, exactly
+ * SCU_JIT_SLOT_PRELUDE_BYTES: stash the body address in X16 and branch to
+ * the shared prelude.  The hot chain skips it, entering at
+ * +SCU_JIT_SLOT_PRELUDE_BYTES via the X19 anchor bias.
+ */
+static void emit_cold_entry(void)
+{
+ void* body = (char*)a64_codegen_wptr(g_cg) + SCU_JIT_SLOT_PRELUDE_BYTES;
+ a64_adr(g_cg, X16, body);
+ a64_b_addr(g_cg, g_prelude_stub_addr);
+}
 
 static void emit_gen(bool looped, uint32_t instr)
 {
@@ -898,14 +937,7 @@ static void emit_gen(bool looped, uint32_t instr)
  const unsigned d1_op  = (instr >> 12) & 0x3;
  const GenMeta  meta   = compute_meta(x_op, y_op, d1_op, instr);
 
- emit_load_cc_pin();
- emit_load_ct32_pin();
- emit_load_flags_pin();
- emit_load_pc_pin();
- emit_load_lop_pin();
- emit_load_ac_pin();
- emit_load_p_pin();
- emit_load_anchor_pin();
+ emit_cold_entry();
  emit_instr_pre(looped);
 
  /* X3 = ALU.T (mutated in place by alu_op). */
@@ -1032,10 +1064,10 @@ static void emit_coalesce_stub(void)
 
 /*
  * A coalesced gen slot for a no-op run of length M >= 2 starting at `pc`:
- * the usual cold prelude, then a trampoline that loads the run's three
- * constants and branches to the shared stub above -- ~48 bytes against
- * ~192 inlined.  Emitted only from rewind_locked(), where the look-ahead
- * that measured M saw the whole program.
+ * the cold entry, then a trampoline that loads the run's three constants
+ * and branches to the shared stub above -- ~24 bytes against ~192
+ * inlined.  Emitted only from rewind_locked(), where the look-ahead that
+ * measured M saw the whole program.
  */
 static void emit_gen_coalesced(unsigned pc, unsigned M)
 {
@@ -1043,16 +1075,10 @@ static void emit_gen_coalesced(unsigned pc, unsigned M)
  const unsigned succ_idx = (pc + M) & 0xFFu;    /* first non-no-op ProgRAM index */
  const uint32_t two_m    = 2u * M;
 
- /* Cold prelude (exactly SCU_JIT_SLOT_PRELUDE_BYTES): tail dispatch skips it
-  * on the hot chain; cold entries run it to reload the pins the stub reads. */
- emit_load_cc_pin();
- emit_load_ct32_pin();
- emit_load_flags_pin();
- emit_load_pc_pin();
- emit_load_lop_pin();
- emit_load_ac_pin();
- emit_load_p_pin();
- emit_load_anchor_pin();
+ /* Cold entry (exactly SCU_JIT_SLOT_PRELUDE_BYTES): tail dispatch skips it
+  * on the hot chain; cold entries route through the shared prelude to reload
+  * the pins the coalesce stub reads. */
+ emit_cold_entry();
 
  /* Trampoline: run constants -> shared stub. */
  a64_mov_w_imm(g_cg, W4, pc1);
@@ -1221,14 +1247,7 @@ static void emit_mvi(bool looped, uint32_t instr)
                        : sign_x_to_s32(25, instr);
  a64_label* skip;
 
- emit_load_cc_pin();
- emit_load_ct32_pin();
- emit_load_flags_pin();
- emit_load_pc_pin();
- emit_load_lop_pin();
- emit_load_ac_pin();
- emit_load_p_pin();
- emit_load_anchor_pin();
+ emit_cold_entry();
  emit_instr_pre(looped);
 
  skip = label_new();
@@ -1330,14 +1349,7 @@ static void emit_jmp(bool looped, uint32_t instr)
  const uint8_t  target = (uint8_t)instr;
  a64_label* skip;
 
- emit_load_cc_pin();
- emit_load_ct32_pin();
- emit_load_flags_pin();
- emit_load_pc_pin();
- emit_load_lop_pin();
- emit_load_ac_pin();
- emit_load_p_pin();
- emit_load_anchor_pin();
+ emit_cold_entry();
  emit_instr_pre(looped);
 
  skip = label_new();
@@ -1353,14 +1365,7 @@ static void emit_misc(bool looped, uint32_t instr)
 {
  const unsigned op = (instr >> 27) & 0x3;
 
- emit_load_cc_pin();
- emit_load_ct32_pin();
- emit_load_flags_pin();
- emit_load_pc_pin();
- emit_load_lop_pin();
- emit_load_ac_pin();
- emit_load_p_pin();
- emit_load_anchor_pin();
+ emit_cold_entry();
  emit_instr_pre(looped);
 
  if(op == 2 || op == 3)        /* END / ENDI */
@@ -1474,6 +1479,7 @@ void SCU_DSP_JIT_Init(void)
  void* entry_addr;
  void* exit_addr;
  void* coalesce_addr;
+ void* prelude_addr;
  void* thunk_n_addr;
  void* thunk_l_addr;
  void* post_stub_ptr;
@@ -1498,6 +1504,10 @@ void SCU_DSP_JIT_Init(void)
   coalesce_addr = a64_codegen_wptr(g_cg);
   emit_coalesce_stub();
   g_coalesce_stub_addr = coalesce_addr;
+
+  prelude_addr = a64_codegen_wptr(g_cg);
+  emit_prelude_stub();
+  g_prelude_stub_addr = prelude_addr;
 
   thunk_n_addr = a64_codegen_wptr(g_cg);
   emit_fallback_thunk(&fallback_shim_normal);
@@ -1524,7 +1534,9 @@ void SCU_DSP_JIT_Init(void)
   SS_JitDump_Emit("dsp_exit_stub", exit_addr,
                   (size_t)((uintptr_t)coalesce_addr - (uintptr_t)exit_addr));
   SS_JitDump_Emit("dsp_coalesce_stub", coalesce_addr,
-                  (size_t)((uintptr_t)thunk_n_addr - (uintptr_t)coalesce_addr));
+                  (size_t)((uintptr_t)prelude_addr - (uintptr_t)coalesce_addr));
+  SS_JitDump_Emit("dsp_prelude_stub", prelude_addr,
+                  (size_t)((uintptr_t)thunk_n_addr - (uintptr_t)prelude_addr));
   SS_JitDump_Emit("dsp_fallback_thunk_n", thunk_n_addr,
                   (size_t)((uintptr_t)thunk_l_addr - (uintptr_t)thunk_n_addr));
   SS_JitDump_Emit("dsp_fallback_thunk_l", thunk_l_addr,
@@ -1623,13 +1635,14 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
  }
  else
  {
-  /* DMA: tail-jump straight to the templated C handler.  The pad is
-   * the skip-safe prelude (SCU_JIT_SLOT_PRELUDE_BYTES, same size as
-   * the pin-load prelude).  Hot entries (tail dispatch, +32) carry
-   * live pins and must flush them for the C handler; cold entries
-   * (offset 0: entry stub BLR, DSP_TailDispatch) arrive from C with
-   * memory already current but garbage registers, so the pad's first
-   * word branches around the flush. */
+  /* DMA: tail-jump straight to the templated C handler.  The pad is the
+   * skip-safe cold entry (SCU_JIT_SLOT_PRELUDE_BYTES).  Hot entries (tail
+   * dispatch, +SCU_JIT_SLOT_PRELUDE_BYTES) carry live pins and must flush
+   * them for the C handler; cold entries (offset 0: entry stub BLR,
+   * DSP_TailDispatch) arrive from C with memory already current but
+   * garbage registers, so the pad's first word branches around the flush.
+   * Going straight to C, it needs no pin reloads and does not route
+   * through the shared prelude. */
   void (* const c_handler)(struct DSPS*) = pick_c_handler(looped, instr);
   a64_label* cold = label_new();
   unsigned pad;
