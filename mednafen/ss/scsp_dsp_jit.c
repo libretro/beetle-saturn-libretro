@@ -28,13 +28,19 @@
  *   w21 = FRC_REG (13-bit) -- FRCL steps write
  *   w22 = Y_REG   (24-bit) -- YRL steps write
  *   w23 = ADRS_REG (12-bit) -- ADRL steps write
- *   w24 = INPUTS  (24-bit) -- most steps write
+ *   w24 = INPUTS  (24-bit, sign-extended) -- most steps write
  *   w25 = RWAddr  (19-bit) -- every step writes
  *   w26 = ReadPending (uint8)  -- gates RAM-read branch
  *   w27 = WritePending (bool)  -- gates RAM-write branch
- *   w28 = ReadValue (uint32)
+ *   w28 = ReadValue (24-bit, sign-extended)
  *   x29 = &DSP.TEMP[0] -- multiplier read every step, TWT write
  *   x30 = &RAM[0]      -- RAM-pipeline read/write blocks
+ *
+ * TEMP/MEMS entries, INPUTS and ReadValue hold their 24-bit values
+ * sign-extended to 32 bits (see scsp.h), so loads feed the multiplier
+ * directly and the shifter output (W3) stores back unmasked.  The
+ * interpreter shares the representation, keeping memory state
+ * byte-identical between the two.
  *
  * x29/x30 carry no frame state in the body: the prologue's STP saves
  * the caller's values and the body is a leaf, so both are free as
@@ -383,10 +389,9 @@ static void emit_dspfloat_to_int(unsigned w_out, unsigned w_in,
  a64_cmp_w_imm(g_cg, w_tmp_b, 11);
  a64_csel_w(g_cg, W15, w_tmp_b, W15, A64_COND_LE);
  a64_add_w_imm(g_cg, W15, W15, 8);
- /* ret = (int32)ret >> shift */
+ /* ret = (int32)ret >> shift -- |ret| < 2^23, so this is already the
+  * sign-extended ReadValue representation; no trailing mask. */
  a64_asr_w_reg(g_cg, w_out, w_out, W15);
- /* return ret & 0xFFFFFF */
- a64_and_w_imm(g_cg, w_out, w_out, 0xFFFFFFu);
 }
 
 /* int_to_dspfloat(W_in32) -> W_out16. */
@@ -488,11 +493,9 @@ static void emit_succ_preloads(const SS_SCSP_DSPStep* succ, bool succ_may_read,
  * becomes a compile-time decision to emit that branch's body.
  *
  * Per-step scratch registers (not preserved across steps):
- *   W1   = INPUTS_sxt (sxt24 of W24; only when XSEL/ADRL consume it)
  *   W2   = y_input (COEF/Y_REG selects; YSEL=0 reads the W21 pin)
- *   W3   = ShifterOutput (24-bit unsigned)
+ *   W3   = ShifterOutput (24-bit, sign-extended)
  *   W4   = clamp bound / successor TEMP address (tail)
- *   W5   = TEMP_sxt
  *   W7   = y_sxt13
  *   X8   = Product
  *   W10  = TEMP write address / staging
@@ -514,27 +517,24 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
  const unsigned shft1     = (f >> 8) & 1;
  const unsigned shift_amt = shft0 ^ shft1;
 
- /* IRA decode -- compile-time pick. */
+ /* IRA decode -- compile-time pick.  The W24 pin holds a
+  * sign-extended-24 value: MEMS entries already carry the extension, and
+  * the EXTS (uint16) and MIXS (masked 20-bit) sources get it from the
+  * SBFIZ insert. */
  if(IRA & 0x20) {
   if(IRA & 0x10) {
    if(!(IRA & 0xE)) {
     emit_ldrh_w(W24, O(EXTS) + (IRA & 0x1) * 2);
-    a64_lsl_w_imm(g_cg, W24, W24, 8);
+    a64_sbfiz_w(g_cg, W24, W24, 8, 16);
    }
    /* else: INPUTS unchanged */
   } else {
    emit_ldr_w(W24, O(DSP.MIXS) + (IRA & 0xF) * 4);
-   a64_lsl_w_imm(g_cg, W24, W24, 4);
+   a64_sbfiz_w(g_cg, W24, W24, 4, 20);
   }
  } else {
   emit_ldr_w(W24, O(DSP.MEMS) + (IRA & 0x1F) * 4);
  }
-
- /* INPUTS_sxt: consumed as the multiplier X input (XSEL) and by the
-  * non-(shft0&shft1) ADRL path; dead for any other flag mix.  Always
-  * sign-extends the current W24 pin, whether or not IRA refreshed it. */
- if((f & DSPF_XSEL) || ((f & DSPF_ADRL) && !(shft0 && shft1)))
-  a64_sbfx_w(g_cg, W1, W24, 0, 24);
 
  /* Y selector -- compile-time pick on YSEL.  All four sources latch
   * before the YRL/FRCL writebacks below, so case 0 can read the
@@ -558,8 +558,9 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
    break;
  }
 
- /* YRL: Y_REG <- INPUTS & 0xFFFFFF.  W24 holds the raw DSP.INPUTS
-  * (already <= 0xFFFFFF), so AND-mask is enough. */
+ /* YRL: Y_REG <- INPUTS & 0xFFFFFF.  Y_REG stays a masked 24-bit
+  * value (its consumers are bitfield extracts), so the AND strips
+  * the W24 pin's sign-extension bits. */
  if(f & DSPF_YRL)
   a64_and_w_imm(g_cg, W22, W24, 0xFFFFFFu);
 
@@ -568,48 +569,52 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
   *   shft1 = (f >> 8) & 1
   *   ShifterOutput = ((int32)sxt26(SFT_REG)) << (shft0 ^ shft1)
   *   if (!shft1) saturate to [-0x800000, 0x7FFFFF]
-  *   ShifterOutput &= 0xFFFFFF
+  *   ShifterOutput = sxt24(ShifterOutput)
   *
   * shft0/shft1 are compile-time (declared at the top of this
   * function), so the shift amount, the saturate check, and the
-  * FRCL/ADRL branch-select downstream all collapse. */
- a64_sbfx_w(g_cg, W3, W20, 0, 26);
- if(shift_amt)
-  a64_lsl_w_imm(g_cg, W3, W3, shift_amt);
+  * FRCL/ADRL branch-select downstream all collapse.  W3 carries the
+  * result sign-extended (the TEMP-store representation). */
  if(!shft1) {
+  a64_sbfx_w(g_cg, W3, W20, 0, 26);
+  if(shift_amt)
+   a64_lsl_w_imm(g_cg, W3, W3, shift_amt);
   /* Clamp signed-32 to [-0x800000, 0x7FFFFF], branchless with one
    * constant.  sxt24(W3) == W3 iff W3 already fits, so the fit-test is
    * the range test; the bound is sign-selected from 0x7FFFFF via EOR
-   * (W3 >= 0 -> 0x007FFFFF; W3 < 0 -> 0xFF800000 = -0x800000).  W10 and
-   * W4 are dead here (next writers: EWT/TWT staging and the tail
+   * (W3 >= 0 -> 0x007FFFFF; W3 < 0 -> 0xFF800000 = -0x800000).  Both
+   * CSEL arms are valid sign-extended-24 values, so no trailing mask.
+   * W10 and W4 are dead here (next writers: EWT/TWT staging and the tail
    * preload). */
   a64_sbfx_w(g_cg, W10, W3, 0, 24);     /* fit-test = W3 clamped to signed-24 */
   a64_asr_w_imm(g_cg, W4, W3, 31);      /* sign mask: 0 or -1 */
   a64_eor_w_imm(g_cg, W4, W4, 0x7FFFFFu); /* bound: 0x7FFFFF or 0xFF800000 */
   a64_cmp_w_reg(g_cg, W3, W10);
   a64_csel_w(g_cg, W3, W4, W3, A64_COND_NE);
- }
- a64_and_w_imm(g_cg, W3, W3, 0xFFFFFFu);
+ } else if(shift_amt)
+  a64_sbfiz_w(g_cg, W3, W20, 1, 23);    /* sxt24(sxt26 << 1) = sxt23 << 1 */
+ else
+  a64_sbfx_w(g_cg, W3, W20, 0, 24);     /* sxt24(sxt26) = sxt24 */
 
- /* FRCL: FRC_REG <- (shft0&shft1) ? (Shifter & 0xFFF) : (Shifter >> 11) */
+ /* FRCL: FRC_REG <- (shft0&shft1) ? (Shifter & 0xFFF) : (Shifter>>11 & 0x1FFF)
+  * -- UBFX so W3's sign-extension bits stay out of the 13-bit pin. */
  if(f & DSPF_FRCL) {
   if(shft0 && shft1)
    a64_and_w_imm(g_cg, W21, W3, 0xFFFu);
   else
-   a64_lsr_w_imm(g_cg, W21, W3, 11);
+   a64_ubfx_w(g_cg, W21, W3, 11, 13);
  }
 
  /* Multiplier-adder:
-  *   TEMP[TEMPReadAddr] (preloaded into W9), sxt24 -> TEMP_sxt
-  *   x_input = XSEL ? INPUTS_sxt : TEMP_sxt
+  *   x_input = XSEL ? INPUTS : TEMP[TEMPReadAddr]
   *   Product = (sxt13(y_input) * x_input) >> 12
-  *   SGAOutput = ZERO ? 0 : NEGB ? -B : B  (B = BSEL ? SFT_REG : TEMP_sxt)
+  *   SGAOutput = ZERO ? 0 : NEGB ? -B : B  (B = BSEL ? SFT_REG : TEMP)
   *   SFT_REG  = (Product + SGAOutput) & 0x3FFFFFF
   *
   * The TEMP word was read at the predecessor's tail
-  * (emit_succ_preloads); by now the load has long retired. */
- a64_sbfx_w(g_cg, W5, W9, 0, 24);
- const unsigned w_x_input = (f & DSPF_XSEL) ? W1 : W5;
+  * (emit_succ_preloads) into W9; both it and the INPUTS pin are
+  * stored sign-extended, so they feed the multiplier directly. */
+ const unsigned w_x_input = (f & DSPF_XSEL) ? W24 : W9;
  a64_sbfx_w(g_cg, W7, w_y_input, 0, 13);
  a64_smull(g_cg, X8, W7, w_x_input);
  a64_asr_x_imm(g_cg, X8, X8, 12);
@@ -621,7 +626,7 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
  if(f & DSPF_ZERO) {
   a64_and_w_imm(g_cg, W20, W8, 0x3FFFFFFu);
  } else {
-  const unsigned w_b = (f & DSPF_BSEL) ? W20 : W5;
+  const unsigned w_b = (f & DSPF_BSEL) ? W20 : W9;
   if(f & DSPF_NEGB)
    a64_sub_w_reg(g_cg, W20, W8, w_b);
   else
@@ -681,9 +686,10 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
   const unsigned w_ram = ram_preloaded ? W6 : W14;
   if(!ram_preloaded)
    a64_ldrh_w_uxtw(g_cg, W14, X_RAM_BASE, W25, 1);
-  /* Inline dspfloat path into W12, NOFL path into W13, CSEL into W28. */
+  /* Inline dspfloat path into W12, NOFL path into W13, CSEL into W28.
+   * SBFIZ on the NOFL arm: ReadValue is stored sign-extended. */
   emit_dspfloat_to_int(W12, w_ram, W13, W11);
-  a64_lsl_w_imm(g_cg, W13, w_ram, 8);
+  a64_sbfiz_w(g_cg, W13, w_ram, 8, 16);
   a64_cmp_w_imm(g_cg, W26, 2);
   a64_csel_w(g_cg, W28, W13, W12, A64_COND_EQ);
   a64_mov_w_imm(g_cg, W26, 0u);
@@ -743,12 +749,15 @@ static void emit_step_native(const SS_SCSP_DSPStep* s,
   }
  }
 
- /* ADRL: ADRS_REG <- (shft0&shft1) ? (Shifter>>12) : (INPUTS_sxt>>16) & 0xFFF */
+ /* ADRL: ADRS_REG <- (shft0&shft1) ? (Shifter>>12 & 0xFFF)
+  *                                 : (INPUTS>>16) & 0xFFF
+  * -- UBFX on the Shifter arm keeps W3's sign-extension bits out of
+  * the 12-bit pin; the INPUTS arm's mask handles W24's. */
  if(f & DSPF_ADRL) {
   if(shft0 && shft1) {
-   a64_lsr_w_imm(g_cg, W23, W3, 12);
+   a64_ubfx_w(g_cg, W23, W3, 12, 12);
   } else {
-   a64_lsr_w_imm(g_cg, W23, W1, 16);
+   a64_lsr_w_imm(g_cg, W23, W24, 16);
    a64_and_w_imm(g_cg, W23, W23, 0xFFFu);
   }
  }

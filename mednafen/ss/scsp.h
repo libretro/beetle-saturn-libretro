@@ -200,15 +200,15 @@ struct SS_SCSP_DSPS
 {
  uint64_t MPROG[0x80];
  SS_SCSP_DSPStep MPROG_Decoded[0x80];
- uint32_t TEMP[0x80];	// 24 bit
- uint32_t MEMS[0x20];	// 24 bit
+ uint32_t TEMP[0x80];	// 24 bit, stored sign-extended to 32
+ uint32_t MEMS[0x20];	// 24 bit, stored sign-extended to 32
  uint16_t COEF[64];	// 13 bit
  uint16_t MADRS[32];	// 16 bit
 
  uint32_t MIXS[0x10];	// 20 bit
  uint16_t EFREG[0x10];
 
- uint32_t INPUTS;	// 24 bit
+ uint32_t INPUTS;	// 24 bit, stored sign-extended to 32
 
  uint32_t SFT_REG;	// 26 bit
  uint16_t FRC_REG;	// 13 bit
@@ -223,7 +223,7 @@ struct SS_SCSP_DSPS
  uint16_t WriteValue;
 
  uint8_t ReadPending;	// = 1 (NOFL=0), =2 (NOFL=1) at time or MRT
- uint32_t ReadValue;
+ uint32_t ReadValue;	// 24 bit, stored sign-extended to 32
 
  bool MPROG_Dirty;
 };

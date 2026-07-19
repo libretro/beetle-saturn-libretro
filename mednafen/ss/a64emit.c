@@ -120,6 +120,7 @@ A64_STUB3(a64_lsr_x_imm, unsigned xd, unsigned xn, unsigned shift)
 A64_STUB3(a64_asr_x_imm, unsigned xd, unsigned xn, unsigned shift)
 A64_STUB4(a64_ubfx_w, unsigned wd, unsigned wn, unsigned lsb, unsigned width)
 A64_STUB4(a64_sbfx_w, unsigned wd, unsigned wn, unsigned lsb, unsigned width)
+A64_STUB4(a64_sbfiz_w, unsigned wd, unsigned wn, unsigned lsb, unsigned width)
 A64_STUB4(a64_bfi_w,  unsigned wd, unsigned wn, unsigned lsb, unsigned width)
 A64_STUB4(a64_bfi_x,  unsigned xd, unsigned xn, unsigned lsb, unsigned width)
 A64_STUB2(a64_sxtw,   unsigned xd, unsigned wn)
@@ -865,6 +866,13 @@ void a64_ubfx_w(a64_codegen* cg, unsigned wd, unsigned wn, unsigned lsb, unsigne
 void a64_sbfx_w(a64_codegen* cg, unsigned wd, unsigned wn, unsigned lsb, unsigned width)
 {
  emit_w(cg, 0x13000000u | ((lsb & 0x1Fu) << 16) | (((lsb + width - 1u) & 0x1Fu) << 10)
+            | (A64_REG(wn) << 5) | A64_REG(wd));
+}
+void a64_sbfiz_w(a64_codegen* cg, unsigned wd, unsigned wn, unsigned lsb, unsigned width)
+{ /* Wd = sxt(Wn[width-1:0]) << lsb */
+ uint32_t immr = (32u - lsb) & 0x1Fu;
+ uint32_t imms = (width - 1u) & 0x1Fu;
+ emit_w(cg, 0x13000000u | (immr << 16) | (imms << 10)
             | (A64_REG(wn) << 5) | A64_REG(wd));
 }
 void a64_bfi_w(a64_codegen* cg, unsigned wd, unsigned wn, unsigned lsb, unsigned width)

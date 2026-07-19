@@ -204,6 +204,7 @@ void a64_asr_x_imm(a64_codegen*, unsigned xd, unsigned xn, unsigned shift);
 /* Bitfield. */
 void a64_ubfx_w(a64_codegen*, unsigned wd, unsigned wn, unsigned lsb, unsigned width);
 void a64_sbfx_w(a64_codegen*, unsigned wd, unsigned wn, unsigned lsb, unsigned width);
+void a64_sbfiz_w(a64_codegen*, unsigned wd, unsigned wn, unsigned lsb, unsigned width);
 void a64_bfi_w (a64_codegen*, unsigned wd, unsigned wn, unsigned lsb, unsigned width);
 void a64_bfi_x (a64_codegen*, unsigned xd, unsigned xn, unsigned lsb, unsigned width);
 
