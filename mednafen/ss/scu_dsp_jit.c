@@ -234,6 +234,10 @@ static void emit_add_x_imm_safe(unsigned xd, unsigned xn, uint32_t imm)
 /* --- Stubs / globals --------------------------------------------- */
 
 static const void* g_exit_stub_addr = NULL;
+/* Shared CC-decrement/checks/indirect-dispatch stub (emit_dispatch_stub),
+ * emitted once below g_post_stub_byte_offset, falling through into the exit
+ * stub.  Every unlinked slot tail is a single B here. */
+static const void* g_dispatch_stub_addr = NULL;
 /* Shared no-op-run coalescing stub (emit_coalesce_stub), emitted once below
  * g_post_stub_byte_offset so no rewind invalidates it.  Every coalesced gen
  * slot loads its run's constants into w4/w5/w6 and branches here. */
@@ -1017,14 +1021,25 @@ static void emit_flush_pins(void)
 
 static void emit_tail_dispatch(void)
 {
- a64_label* exit_lbl = label_new();
+ a64_label* exit_lbl;
+
+ /* Unlinked tail: the CC decrement, the run checks and the indirect
+  * dispatch are slot-invariant, so the whole tail is one B into the
+  * shared dispatch stub.  No flags cross the branch; the SUBS is in the
+  * stub. */
+ if(!g_link_this_slot)
+ {
+  a64_b_addr(g_cg, g_dispatch_stub_addr);
+  return;
+ }
+
+ exit_lbl = label_new();
 
  /* Linked tail: the target slot is static, so its DataRAM reads issue
   * here, a whole slot ahead of their consumers -- W23 already holds its
   * entry CT.  The pass-2 patch aims the B past the successor's refill
   * block.  On the exit paths below the loads are dead but harmless;
   * DataRAM is always-mapped DSPS memory. */
- if(g_link_this_slot)
  {
   const uint32_t succ_instr =
    (uint32_t)(DSP.ProgRAM[(uint8_t)(g_link_this_pc + 1u)] >> 32);
@@ -1041,26 +1056,13 @@ static void emit_tail_dispatch(void)
  a64_cmp_w_imm(g_cg, W22, 0u);
  a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
 
- /* W25 = pinned NI.low32, a signed offset from &DSP_Init; X19 holds
-  * &DSP_Init pre-biased by SCU_JIT_SLOT_PRELUDE_BYTES, so one extended
-  * ADD both rebases the offset and skips the next slot's cold entry.
-  * Only cold entries land at offset 0, where the cold-entry stub routes
-  * them through the shared prelude to run the reloads. */
- if(g_link_this_slot)
- {
-  /* Direct B to the linear successor slot-(pc+1), patched by
-   * rewind_locked's second pass; the placeholder targets the exit stub,
-   * so an unpatched word still exits safely.  X25=NI is intact, so a
-   * successor whose hot entry flushes it (a DMA fallback) sees the right
-   * NextInstr. */
-  g_link_site[g_link_this_pc] = a64_codegen_wptr(g_cg);
-  a64_b_addr(g_cg, g_exit_stub_addr);
- }
- else
- {
-  a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
-  a64_br(g_cg, X16);
- }
+ /* Direct B to the linear successor slot-(pc+1), patched by
+  * rewind_locked's second pass; the placeholder targets the exit stub,
+  * so an unpatched word still exits safely.  X25=NI is intact, so a
+  * successor whose hot entry flushes it (a DMA fallback) sees the right
+  * NextInstr. */
+ g_link_site[g_link_this_pc] = a64_codegen_wptr(g_cg);
+ a64_b_addr(g_cg, g_exit_stub_addr);
 
  label_bind(exit_lbl);
  a64_b_addr(g_cg, g_exit_stub_addr);
@@ -1662,6 +1664,32 @@ static void emit_entry_stub(void)
  a64_ret(g_cg);
 }
 
+/*
+ * Shared dispatch stub: the tail of every slot without a linked
+ * successor.  Decrement pinned CC (2 cycles per slot), leave the chain on
+ * CC <= 0 or State <= 0 (DSPS_IsRunning() = State > 0, signed), else
+ * dispatch indirect through the X19 anchor and W25.
+ *
+ * Must be emitted immediately before the exit stub: both B.LEs bind to
+ * its pin flush.  Linked tails keep their own copy of the sequence (the
+ * fallthrough is the per-slot patched direct B), as does
+ * emit_looped_pipe_tail, whose LOP test sits between the checks and the
+ * dispatch.
+ */
+static void emit_dispatch_stub(void)
+{
+ a64_label* exit_lbl = label_new();
+
+ a64_subs_w_imm(g_cg, W21, W21, 2u);
+ a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
+ a64_cmp_w_imm(g_cg, W22, 0u);
+ a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
+ a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
+ a64_br(g_cg, X16);
+
+ label_bind(exit_lbl);   /* == the exit stub, emitted next */
+}
+
 static void emit_exit_stub(void)
 {
  /* Pins reach memory here and at C-helper call sites, not per slot. */
@@ -1714,6 +1742,7 @@ void SCU_DSP_JIT_Init(void)
 {
  void* stubs_start;
  void* entry_addr;
+ void* dispatch_addr;
  void* exit_addr;
  void* coalesce_addr;
  void* prelude_addr;
@@ -1733,6 +1762,10 @@ void SCU_DSP_JIT_Init(void)
   emit_entry_stub();
   g_entry_stub = (void (*)(struct DSPS*))entry_addr;
   SCU_DSP_JIT_Entry = &jit_entry;
+
+  dispatch_addr = a64_codegen_wptr(g_cg);
+  emit_dispatch_stub();
+  g_dispatch_stub_addr = dispatch_addr;
 
   exit_addr = a64_codegen_wptr(g_cg);
   emit_exit_stub();
@@ -1767,7 +1800,9 @@ void SCU_DSP_JIT_Init(void)
 
   SS_JitDump_Open();
   SS_JitDump_Emit("dsp_entry_stub", entry_addr,
-                  (size_t)((uintptr_t)exit_addr - (uintptr_t)entry_addr));
+                  (size_t)((uintptr_t)dispatch_addr - (uintptr_t)entry_addr));
+  SS_JitDump_Emit("dsp_dispatch_stub", dispatch_addr,
+                  (size_t)((uintptr_t)exit_addr - (uintptr_t)dispatch_addr));
   SS_JitDump_Emit("dsp_exit_stub", exit_addr,
                   (size_t)((uintptr_t)coalesce_addr - (uintptr_t)exit_addr));
   SS_JitDump_Emit("dsp_coalesce_stub", coalesce_addr,
