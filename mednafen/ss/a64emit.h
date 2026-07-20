@@ -226,6 +226,10 @@ void a64_b_cond(a64_codegen*, unsigned cond, a64_label*);
  * respectively of the current write pointer). */
 void a64_b_addr (a64_codegen*, const void* addr);
 
+/* B.cond to an absolute address (imm19: must be within +/-1 MiB of the
+ * current write pointer). */
+void a64_b_cond_addr(a64_codegen*, unsigned cond, const void* addr);
+
 void a64_br (a64_codegen*, unsigned xn);
 void a64_blr(a64_codegen*, unsigned xn);
 void a64_ret(a64_codegen*);

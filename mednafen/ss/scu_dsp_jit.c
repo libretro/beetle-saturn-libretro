@@ -1021,8 +1021,6 @@ static void emit_flush_pins(void)
 
 static void emit_tail_dispatch(void)
 {
- a64_label* exit_lbl;
-
  /* Unlinked tail: the CC decrement, the run checks and the indirect
   * dispatch are slot-invariant, so the whole tail is one B into the
   * shared dispatch stub.  No flags cross the branch; the SUBS is in the
@@ -1032,8 +1030,6 @@ static void emit_tail_dispatch(void)
   a64_b_addr(g_cg, g_dispatch_stub_addr);
   return;
  }
-
- exit_lbl = label_new();
 
  /* Linked tail: the target slot is static, so its DataRAM reads issue
   * here, a whole slot ahead of their consumers -- W23 already holds its
@@ -1048,13 +1044,14 @@ static void emit_tail_dispatch(void)
    emit_dram_preloads(&rs);
  }
 
- /* Decrement pinned CC (2 cycles per slot), branch on <= 0. */
+ /* Decrement pinned CC (2 cycles per slot), branch on <= 0 straight to
+  * the exit stub (imm19 reaches anywhere in the 1 MB segment). */
  a64_subs_w_imm(g_cg, W21, W21, 2u);
- a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
+ a64_b_cond_addr(g_cg, A64_COND_LE, g_exit_stub_addr);
 
  /* DSPS_IsRunning() = State > 0 (signed). */
  a64_cmp_w_imm(g_cg, W22, 0u);
- a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
+ a64_b_cond_addr(g_cg, A64_COND_LE, g_exit_stub_addr);
 
  /* Direct B to the linear successor slot-(pc+1), patched by
   * rewind_locked's second pass; the placeholder targets the exit stub,
@@ -1062,9 +1059,6 @@ static void emit_tail_dispatch(void)
   * successor whose hot entry flushes it (a DMA fallback) sees the right
   * NextInstr. */
  g_link_site[g_link_this_pc] = a64_codegen_wptr(g_cg);
- a64_b_addr(g_cg, g_exit_stub_addr);
-
- label_bind(exit_lbl);
  a64_b_addr(g_cg, g_exit_stub_addr);
 }
 
@@ -1083,13 +1077,12 @@ static void emit_tail_dispatch(void)
  */
 static void emit_looped_pipe_tail(const void* pipe_body)
 {
- a64_label* exit_lbl  = label_new();
  a64_label* indir_lbl = label_new();
 
  a64_subs_w_imm(g_cg, W21, W21, 2u);
- a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
+ a64_b_cond_addr(g_cg, A64_COND_LE, g_exit_stub_addr);
  a64_cmp_w_imm(g_cg, W22, 0u);
- a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
+ a64_b_cond_addr(g_cg, A64_COND_LE, g_exit_stub_addr);
  a64_cmp_w_imm(g_cg, W20, 0xFFFu);
  a64_b_cond(g_cg, A64_COND_EQ, indir_lbl);
 
@@ -1099,9 +1092,6 @@ static void emit_looped_pipe_tail(const void* pipe_body)
  label_bind(indir_lbl);
  a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
  a64_br(g_cg, X16);
-
- label_bind(exit_lbl);
- a64_b_addr(g_cg, g_exit_stub_addr);
 }
 
 /* --- Slot preludes ------------------------------------------------ */

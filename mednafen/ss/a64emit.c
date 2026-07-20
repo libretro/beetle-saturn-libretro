@@ -978,6 +978,14 @@ void a64_b_addr(a64_codegen* cg, const void* addr)
  emit_w(cg, 0x14000000u | ((uint32_t)((uint64_t)delta & 0x3FFFFFFu)));
 }
 
+void a64_b_cond_addr(a64_codegen* cg, unsigned cond, const void* addr)
+{
+ int64_t delta = (int64_t)(((intptr_t)addr - (intptr_t)cg->wp) >> 2);
+ assert(sint_fits(delta, 19));
+ emit_w(cg, 0x54000000u | ((uint32_t)((uint64_t)delta & 0x7FFFFu) << 5) |
+            (cond & 0xFu));
+}
+
 /* ADR Xd, target.  imm21 is a signed *byte* offset (unshifted): immlo =
  * off[1:0] at bits 30..29, immhi = off[20:2] at bits 23..5. */
 void a64_adr(a64_codegen* cg, unsigned xd, const void* target)
