@@ -59,9 +59,9 @@
 extern uintptr_t SH7095_FastMap[1U << (32 - SH7095_EXT_MAP_GRAN_BITS)];
 
 /* Per-FastMap-slot writeable bit (packed 1-bit-per-slot bitmap).
- * sh7095.inc reads the array directly for the CacheBypassHack
- * path; the SetFastMemMap setup path writes it.  Was std::bitset;
- * replaced by uint32_t[] packed bitfield. */
+ * sh7095.inc reads it for the CacheBypassHack path; the SetFastMemMap
+ * setup path writes it.  Was std::bitset; replaced by uint32_t[]
+ * packed bitfield. */
 #define FMISWRITEABLE_BITS (1U << (27 - SH7095_EXT_MAP_GRAN_BITS))
 extern uint32_t FMIsWriteable[FMISWRITEABLE_BITS / 32];
 
@@ -93,6 +93,11 @@ extern sscpu_timestamp_t next_event_ts;
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+static INLINE bool FMIsWriteable_get(uint32_t i)
+{
+ return (FMIsWriteable[i >> 5] >> (i & 31)) & 1;
+}
 
 static INLINE void FMIsWriteable_set(uint32_t i, bool v)
 {

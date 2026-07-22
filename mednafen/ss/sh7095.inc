@@ -4152,7 +4152,7 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 	 z->Cache_LRU[(A >> 4) & 0x3F] = (z->Cache_LRU[(A >> 4) & 0x3F] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;	\
 														\
          /* Ugggghhhh.... */											\
-         if(CacheBypassHack && FMIsWriteable[A >> SH7095_EXT_MAP_GRAN_BITS])					\
+         if(CacheBypassHack && FMIsWriteable_get(A >> SH7095_EXT_MAP_GRAN_BITS))				\
 	 {													\
           retval = SH7095_RBO_BE_T(T, SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);				\
 	  goto MemReturn;											\
