@@ -3974,14 +3974,15 @@ static INLINE void ApplyMeshOverlay(uint32_t* target, const uint16_t* mesh_line,
    if(SpriteColorMode && (m & 0x8000))
    {
     // RGB-direct: m is a Saturn 15-bit RGB555 + MSB opaque marker.
-    // Expand 5-bit channels to 8 with bit-replication (matches the
-    // hardware-accurate top-bits-replicated-into-low expansion).
-    const uint32_t r5 = (m >>  0) & 0x1F;
-    const uint32_t g5 = (m >>  5) & 0x1F;
-    const uint32_t b5 = (m >> 10) & 0x1F;
-    mesh_rgb24 = ((r5 << 3) | (r5 >> 2))
-               | (((g5 << 3) | (g5 >> 2)) << 8)
-               | (((b5 << 3) | (b5 >> 2)) << 16);
+    // Expand through rgb15_to_rgb24, exactly as T_DrawSpriteData does
+    // for the same framebuffer halfword.  VDP2 places the 5-bit
+    // channels in the top bits of its internal 8-bit color bus with
+    // the low 3 bits zero (so 555 full-scale is 0xF8, not 0xFF); the
+    // previous hand-rolled expansion here bit-replicated instead,
+    // making RGB-direct mesh texels up to 7/255 per channel brighter
+    // than both the non-mesh rendering of the same texel and the
+    // paletted mesh texels below (ColorCache also zero-fills).
+    mesh_rgb24 = rgb15_to_rgb24(m);
    }
    else
    {
