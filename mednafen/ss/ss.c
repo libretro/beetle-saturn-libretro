@@ -1763,7 +1763,12 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          bios_filename = "mpr-17933.bin"; /* North America and Europe */
 
       {
-         char bios_path[4096];
+         /* +32: retro_base_directory is char[4096] and can legally be
+          * 4095 chars, so a same-sized destination cannot always hold
+          * base + RETRO_SLASH + filename + NUL; GCC 13 flags exactly
+          * that as -Wformat-truncation.  Longest appended suffix here
+          * is RETRO_SLASH "mpr-17933.bin" (14 chars + NUL). */
+         char bios_path[4096 + 32];
          RFILE *BIOSFile;
          int64_t bios_size;
          unsigned bw;
@@ -1795,7 +1800,9 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
              * sega_101.bin / mpr-17933.bin as bare files. */
             if(is_stv)
             {
-               char zip_path[4096];
+               /* +32: same -Wformat-truncation sizing as bios_path
+                * above (RETRO_SLASH "stvbios.zip" is 12 chars + NUL). */
+               char zip_path[4096 + 32];
                zip_archive za;
                snprintf(zip_path, sizeof(zip_path),
                      "%s" RETRO_SLASH "stvbios.zip", retro_base_directory);
