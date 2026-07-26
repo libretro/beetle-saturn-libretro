@@ -2237,7 +2237,7 @@ static void SS_SCSP_DecodeMPROG(SS_SCSP* z)
  z->DSP.MPROG_Dirty = false;
 }
 
-static INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
+static NO_INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
 {
  if(z->DSP.MPROG_Dirty)
   SS_SCSP_DecodeMPROG(z);
