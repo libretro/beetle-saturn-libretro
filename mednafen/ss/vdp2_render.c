@@ -3037,14 +3037,15 @@ static void (*DrawRBG_ConstAB[2 /*bitmap enable*/][5 /*col mode*/][2 /*igntp*/][
 #define DOUBLEIZE_BODY(elem_t, ptr, orig_len) do {                                 \
  elem_t* DUB_p = (ptr);                                                            \
  const int DUB_len = (orig_len);                                                   \
- elem_t DUB_src[352];                                                              \
-                                                                                   \
- for(int DUB_i = 0; MDFN_LIKELY(DUB_i < DUB_len); DUB_i++)                         \
-  DUB_src[DUB_i] = DUB_p[DUB_i];                                                   \
-                                                                                   \
- for(int DUB_i = 0; MDFN_LIKELY(DUB_i < DUB_len); DUB_i++)                         \
+ /* In-place, iterating backward: at step DUB_i the writes land at        \
+  * indices (DUB_i << 1) and (DUB_i << 1) + 1, both >= DUB_i + 1 for     \
+  * DUB_i >= 1 (and step 0 reads its source before writing it), so no    \
+  * not-yet-read source element is ever clobbered.  Replaces a copy      \
+  * through a 2816-byte stack buffer (the old elem_t DUB_src[352]),      \
+  * which accounted for nearly all of RBGPP's 2848-byte stack frame.  */ \
+ for(int DUB_i = DUB_len - 1; MDFN_LIKELY(DUB_i >= 0); DUB_i--)                    \
  {                                                                                 \
-  const elem_t DUB_tmp = DUB_src[DUB_i];                                           \
+  const elem_t DUB_tmp = DUB_p[DUB_i];                                             \
                                                                                    \
   DUB_p[(DUB_i << 1) + 0] = DUB_tmp;                                               \
   DUB_p[(DUB_i << 1) + 1] = DUB_tmp;                                               \
