@@ -3,6 +3,7 @@
 #include <libretro.h>
 #include <rthreads/rthreads.h>
 #include <string/stdstring.h>
+#include <compat/strl.h>
 #include <streams/file_stream.h>
 #include <file/file_path.h>
 #include <vfs/vfs_implementation.h>
@@ -855,9 +856,12 @@ static const struct STVGameInfo* prepare_stv_zip_content(
       arch_base[sizeof(arch_base) - 1] = '\0';
       strip_zip_ext(arch_base);
    }
-   snprintf(out_dir, out_dir_size,
-         "%s" RETRO_SLASH "stv_extract" RETRO_SLASH "%s",
-         retro_save_directory, arch_base);
+   /* Two strlcpy-based joins instead of one snprintf: GCC 13's
+    * -Wformat-truncation flags the format form (retro_save_directory
+    * alone can fill the destination).  fill_pathname_join documents
+    * in-place use (out_path == dir) for the second call. */
+   fill_pathname_join(out_dir, retro_save_directory, "stv_extract", out_dir_size);
+   fill_pathname_join(out_dir, out_dir, arch_base, out_dir_size);
 
    /* mkdir -p semantics: create the leaf plus any missing parents.
     * libretro-common's path_mkdir declaration has no matching body
@@ -901,8 +905,7 @@ static const struct STVGameInfo* prepare_stv_zip_content(
          return NULL;
       }
 
-      snprintf(out_path, sizeof(out_path),
-            "%s" RETRO_SLASH "%s", out_dir, rle->fname);
+      fill_pathname_join(out_path, out_dir, rle->fname, sizeof(out_path));
 
       /* Cache hit: skip if the on-disk file already has the right
        * uncompressed size.  We trust the size as a fingerprint --
@@ -1191,7 +1194,16 @@ bool retro_load_game(const struct retro_game_info *info)
    extract_basename(retro_cd_base_name,       info->path, sizeof(retro_cd_base_name));
    extract_directory(retro_cd_base_directory, info->path, sizeof(retro_cd_base_directory));
 
-   snprintf(tocbasepath, sizeof(tocbasepath), "%s" RETRO_SLASH "%s.toc", retro_cd_base_directory, retro_cd_base_name);
+   /* fill_pathname_join + strlcat instead of a single snprintf:
+    * the format-string form makes GCC 13 sum the worst case of both
+    * 4096-byte source buffers (8196 bytes into 4096,
+    * -Wformat-truncation) even though dir and base name both derive
+    * from the same info->path and can't jointly exceed it.  The
+    * strlcpy-based join also fixes a latent quirk: with an empty
+    * directory the old code produced a rooted "/<name>.toc" instead
+    * of a relative path. */
+   fill_pathname_join(tocbasepath, retro_cd_base_directory, retro_cd_base_name, sizeof(tocbasepath));
+   strlcat(tocbasepath, ".toc", sizeof(tocbasepath));
 
    if (!strstr(tocbasepath, "cdrom://") && filestream_exists(tocbasepath))
       snprintf(retro_cd_path, sizeof(retro_cd_path), "%s", tocbasepath);
