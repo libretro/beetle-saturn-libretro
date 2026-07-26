@@ -26,19 +26,9 @@
 
 /* C-compat typedefs: in C the struct tag is not auto-aliased to a
  * type name (that aliasing is C++ name-injection).  Forward-declare
- * the tags as typedefs so `SH7095*` and `SH7095_CacheEntry*` work
- * as type references in both languages, and so SH7095_CacheEntry
- * inside the SH7095 struct body parses cleanly in C. */
+ * the tag as a typedef so `SH7095*` works as a type reference in
+ * both languages. */
 typedef struct SH7095 SH7095;
-typedef struct SH7095_CacheEntry SH7095_CacheEntry;
-
- struct SH7095_CacheEntry
- {
-  // Rather than have separate validity bits, we're putting an INvalidity bit(invalid when =1)
-  // in the lower bit of the Tag variables.
-  uint32_t Tag[4];
-  uint8_t Data[4][16];
- };
 
  enum // must be in range of 0 ... 7
  {
@@ -168,10 +158,21 @@ struct SH7095
 
  //
  //
- // Cache:
+ // Cache (SoA layout):
  //
+ // The old AoS form -- 64 entries of { uint32_t Tag[4]; uint8_t
+ // Data[4][16]; }, 80 bytes each -- put every set's tags at an 80-byte
+ // stride, so sequential guest code (PC advances one set per 16 bytes)
+ // burned one host cache line per set on tag probes.  Split out,
+ // CacheTags is a contiguous 1KiB block: each 16-byte tag row is still
+ // a single aligned SSE2/NEON load for FindWay, but four sets of tags
+ // now share one 64-byte host line.  CacheData keeps [set][way][16].
  //
- MDFN_ALIGN(16) SH7095_CacheEntry Cache[64];
+ // The INvalidity convention is unchanged: bit0 of a tag = 1 means
+ // that way is invalid.
+ //
+ MDFN_ALIGN(16) uint32_t CacheTags[64][4];
+ MDFN_ALIGN(16) uint8_t CacheData[64][4][16];
 
  uint8_t Cache_LRU[64];
  int32_t CCRC_Replace_OR[2];	// Cached cache var, calculated from the ID and OD bits of CCR in SetCCR()
@@ -210,7 +211,7 @@ struct SH7095
  // Exit/Resume stuff for slave CPU with icache emulation(RunSlaveUntil())
  //
  uint16_t resume_id;
- SH7095_CacheEntry* Resume_cent;
+ uint32_t Resume_set;	/* cache set index (0..63); was a SH7095_CacheEntry* before the SoA split */
  uint32_t Resume_instr;
  int Resume_way_match;
  uint32_t Resume_uint8_A;

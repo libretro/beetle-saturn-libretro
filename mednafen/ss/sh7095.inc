@@ -107,7 +107,7 @@ static void SH7095_FRT_Reset(SH7095* z);
 static void SH7095_FRT_CheckOCR(SH7095* z);
 static void SH7095_FRT_ClockFRC(SH7095* z);
 static void SH7095_Cache_AssocPurge(SH7095* z, const uint32_t A);
-static int  SH7095_Cache_FindWay(SH7095_CacheEntry* const cent, const uint32_t ATM);
+static int  SH7095_Cache_FindWay(const uint32_t* const tags, const uint32_t ATM);
 static uint8_t  SH7095_BSC_BusRead_u8 (SH7095* z, uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
 static uint16_t SH7095_BSC_BusRead_u16(SH7095* z, uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
 static uint32_t SH7095_BSC_BusRead_u32(SH7095* z, uint32_t A, const bool BurstHax, int32_t* SH2DMAHax);
@@ -372,7 +372,8 @@ void SH7095_TruePowerOn(SH7095* z)
 
  z->PC_IF = z->PC_ID = 0;
 
- memset(z->Cache, 0, sizeof(z->Cache));
+ memset(z->CacheTags, 0, sizeof(z->CacheTags));
+ memset(z->CacheData, 0, sizeof(z->CacheData));
  memset(z->Cache_LRU, 0, sizeof(z->Cache_LRU));
  z->CCRC_Replace_OR[0] = 0;
  z->CCRC_Replace_OR[1] = 0;
@@ -382,7 +383,7 @@ void SH7095_TruePowerOn(SH7095* z)
  //
  //
  z->resume_id = 0;
- z->Resume_cent = NULL;
+ z->Resume_set = 0;
  z->Resume_instr = 0;
  z->Resume_way_match = 0;
  z->Resume_uint8_A = 0;
@@ -3922,13 +3923,13 @@ static INLINE uint32_t cmov_eq_thing(const uint32_t reg_compval, const uint32_t 
 static INLINE void SH7095_Cache_AssocPurge(SH7095* z, const uint32_t A)
 {
  const uint32_t ATM = A & (0x7FFFF << 10);
- SH7095_CacheEntry* cent = &z->Cache[(A >> 4) & 0x3F];
+ uint32_t* const tags = z->CacheTags[(A >> 4) & 0x3F];
 
  // Ignore two-way-mode bit in z->CCR here.
- cent->Tag[0] |= (ATM == cent->Tag[0]);	// Set invalid bit to 1.
- cent->Tag[1] |= (ATM == cent->Tag[1]);
- cent->Tag[2] |= (ATM == cent->Tag[2]);
- cent->Tag[3] |= (ATM == cent->Tag[3]);
+ tags[0] |= (ATM == tags[0]);	// Set invalid bit to 1.
+ tags[1] |= (ATM == tags[1]);
+ tags[2] |= (ATM == tags[2]);
+ tags[3] |= (ATM == tags[3]);
 }
 
 #if defined(__SSE2__)
@@ -3937,14 +3938,14 @@ static INLINE void SH7095_Cache_AssocPurge(SH7095* z, const uint32_t A)
 #include <arm_neon.h>
 #endif
 
-static INLINE int SH7095_Cache_FindWay(SH7095_CacheEntry* const cent, const uint32_t ATM)
+static INLINE int SH7095_Cache_FindWay(const uint32_t* const tags, const uint32_t ATM)
 {
 #if defined(__SSE2__)
  __m128i atm = _mm_set1_epi32(ATM);
  __m128i v1234 = _mm_setr_epi32(1, 2, 3, 4);
  __m128i tmp;
 
- tmp = _mm_cmpeq_epi32(_mm_load_si128((__m128i*)cent->Tag), atm);
+ tmp = _mm_cmpeq_epi32(_mm_load_si128((const __m128i*)tags), atm);
  tmp = _mm_and_si128(tmp, v1234);
  tmp = _mm_max_epi16(tmp, _mm_shuffle_epi32(tmp, (3 << 0) | (2 << 2) | (1 << 4) | (0 << 6)));
  tmp = _mm_max_epi16(tmp, _mm_shuffle_epi32(tmp, (1 << 0) | (0 << 2)));
@@ -3955,16 +3956,16 @@ static INLINE int SH7095_Cache_FindWay(SH7095_CacheEntry* const cent, const uint
  // vmaxvq_u32 does horizontal max across the 128-bit register in one instruction.
  const uint32x4_t atm   = vdupq_n_u32(ATM);
  const uint32x4_t v1234 = { 1u, 2u, 3u, 4u };
- const uint32x4_t tags  = vld1q_u32(cent->Tag);
- const uint32x4_t hits  = vandq_u32(vceqq_u32(tags, atm), v1234);
+ const uint32x4_t tagv  = vld1q_u32(tags);
+ const uint32x4_t hits  = vandq_u32(vceqq_u32(tagv, atm), v1234);
  return (int)vmaxvq_u32(hits) - 1;
 #else
  int way_match = -1;
 
- way_match = cmov_eq_thing(ATM, cent->Tag[0], way_match, 0);
- way_match = cmov_eq_thing(ATM, cent->Tag[1], way_match, 1);
- way_match = cmov_eq_thing(ATM, cent->Tag[2], way_match, 2);
- way_match = cmov_eq_thing(ATM, cent->Tag[3], way_match, 3);
+ way_match = cmov_eq_thing(ATM, tags[0], way_match, 0);
+ way_match = cmov_eq_thing(ATM, tags[1], way_match, 1);
+ way_match = cmov_eq_thing(ATM, tags[2], way_match, 2);
+ way_match = cmov_eq_thing(ATM, tags[3], way_match, 3);
 
  return way_match;
 #endif
@@ -3974,13 +3975,12 @@ INLINE void SH7095_Cache_WriteUpdate_u8(SH7095* z, uint32_t A, uint8_t V)
 {
  const uint32_t ATM = A & (0x7FFFF << 10);
  const unsigned ena = (A >> 4) & 0x3F;
- SH7095_CacheEntry* cent = &z->Cache[ena];
- const int way_match = SH7095_Cache_FindWay(cent, ATM);
+ const int way_match = SH7095_Cache_FindWay(z->CacheTags[ena], ATM);
 
  if(MDFN_LIKELY(way_match >= 0))
  {
   z->Cache_LRU[ena] = (z->Cache_LRU[ena] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;
-  *(uint8_t*)&cent->Data[way_match][NE32ASU8_IDX_ADJ(uint8_t, A & 0x0F)] = V;
+  *(uint8_t*)&z->CacheData[ena][way_match][NE32ASU8_IDX_ADJ(uint8_t, A & 0x0F)] = V;
  }
 }
 
@@ -3988,13 +3988,12 @@ static INLINE void SH7095_Cache_WriteUpdate_u16(SH7095* z, uint32_t A, uint16_t 
 {
  const uint32_t ATM = A & (0x7FFFF << 10);
  const unsigned ena = (A >> 4) & 0x3F;
- SH7095_CacheEntry* cent = &z->Cache[ena];
- const int way_match = SH7095_Cache_FindWay(cent, ATM);
+ const int way_match = SH7095_Cache_FindWay(z->CacheTags[ena], ATM);
 
  if(MDFN_LIKELY(way_match >= 0))
  {
   z->Cache_LRU[ena] = (z->Cache_LRU[ena] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;
-  *(uint16_t*)&cent->Data[way_match][NE32ASU8_IDX_ADJ(uint16_t, A & 0x0F)] = V;
+  *(uint16_t*)&z->CacheData[ena][way_match][NE32ASU8_IDX_ADJ(uint16_t, A & 0x0F)] = V;
  }
 }
 
@@ -4002,13 +4001,12 @@ static INLINE void SH7095_Cache_WriteUpdate_u32(SH7095* z, uint32_t A, uint32_t 
 {
  const uint32_t ATM = A & (0x7FFFF << 10);
  const unsigned ena = (A >> 4) & 0x3F;
- SH7095_CacheEntry* cent = &z->Cache[ena];
- const int way_match = SH7095_Cache_FindWay(cent, ATM);
+ const int way_match = SH7095_Cache_FindWay(z->CacheTags[ena], ATM);
 
  if(MDFN_LIKELY(way_match >= 0))
  {
   z->Cache_LRU[ena] = (z->Cache_LRU[ena] & LRU_Update_Tab[way_match].AND) | LRU_Update_Tab[way_match].OR;
-  *(uint32_t*)&cent->Data[way_match][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)] = V;
+  *(uint32_t*)&z->CacheData[ena][way_match][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)] = V;
  }
 }
 
@@ -4017,7 +4015,7 @@ static INLINE void SH7095_Cache_WriteDataArray_u8(SH7095* z, uint32_t A, uint8_t
  const unsigned way = (A >> 10) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
 
- *(uint8_t*)&z->Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint8_t, A & 0x0F)] = V;
+ *(uint8_t*)&z->CacheData[ena][way][NE32ASU8_IDX_ADJ(uint8_t, A & 0x0F)] = V;
 }
 
 static INLINE void SH7095_Cache_WriteDataArray_u16(SH7095* z, uint32_t A, uint16_t V)
@@ -4025,7 +4023,7 @@ static INLINE void SH7095_Cache_WriteDataArray_u16(SH7095* z, uint32_t A, uint16
  const unsigned way = (A >> 10) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
 
- *(uint16_t*)&z->Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint16_t, A & 0x0F)] = V;
+ *(uint16_t*)&z->CacheData[ena][way][NE32ASU8_IDX_ADJ(uint16_t, A & 0x0F)] = V;
 }
 
 static INLINE void SH7095_Cache_WriteDataArray_u32(SH7095* z, uint32_t A, uint32_t V)
@@ -4033,7 +4031,7 @@ static INLINE void SH7095_Cache_WriteDataArray_u32(SH7095* z, uint32_t A, uint32
  const unsigned way = (A >> 10) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
 
- *(uint32_t*)&z->Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)] = V;
+ *(uint32_t*)&z->CacheData[ena][way][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)] = V;
 }
 
 static INLINE uint8_t SH7095_Cache_ReadDataArray_u8(SH7095* z, uint32_t A)
@@ -4042,7 +4040,7 @@ static INLINE uint8_t SH7095_Cache_ReadDataArray_u8(SH7095* z, uint32_t A)
  const unsigned ena = (A >> 4) & 0x3F;
  uint8_t tmp;
 
- tmp = *(uint8_t*)&z->Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint8_t, A & 0x0F)];
+ tmp = *(uint8_t*)&z->CacheData[ena][way][NE32ASU8_IDX_ADJ(uint8_t, A & 0x0F)];
  return tmp;
 }
 
@@ -4052,7 +4050,7 @@ static INLINE uint16_t SH7095_Cache_ReadDataArray_u16(SH7095* z, uint32_t A)
  const unsigned ena = (A >> 4) & 0x3F;
  uint16_t tmp;
 
- tmp = *(uint16_t*)&z->Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint16_t, A & 0x0F)];
+ tmp = *(uint16_t*)&z->CacheData[ena][way][NE32ASU8_IDX_ADJ(uint16_t, A & 0x0F)];
  return tmp;
 }
 
@@ -4062,7 +4060,7 @@ static INLINE uint32_t SH7095_Cache_ReadDataArray_u32(SH7095* z, uint32_t A)
  const unsigned ena = (A >> 4) & 0x3F;
  uint32_t tmp;
 
- tmp = *(uint32_t*)&z->Cache[ena].Data[way][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)];
+ tmp = *(uint32_t*)&z->CacheData[ena][way][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)];
  return tmp;
 }
 
@@ -4072,7 +4070,7 @@ static INLINE void SH7095_Cache_WriteAddressArray(SH7095* z, uint32_t A, uint32_
  const unsigned way = (z->CCR >> 6) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
 
- z->Cache[ena].Tag[way] = (A & (0x7FFFF << 10)) | (!(A & 0x4));
+ z->CacheTags[ena][way] = (A & (0x7FFFF << 10)) | (!(A & 0x4));
  z->Cache_LRU[ena] = (V >> 4) & 0x3F;
 }
 
@@ -4083,10 +4081,10 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
  const unsigned way = (z->CCR >> 6) & 0x3;
  const unsigned ena = (A >> 4) & 0x3F;
 
- return (z->Cache[ena].Tag[way] & (0x7FFFF << 10)) | ((~z->Cache[ena].Tag[way] & 1) << 2) | (z->Cache_LRU[ena] << 4);
+ return (z->CacheTags[ena][way] & (0x7FFFF << 10)) | ((~z->CacheTags[ena][way] & 1) << 2) | (z->Cache_LRU[ena] << 4);
 }
 
-#define MemRead(IsInstr, T, region, CacheEnabled, A_, outval_, A, unmasked_A, cent, way_match)			\
+#define MemRead(IsInstr, T, region, CacheEnabled, A_, outval_, A, unmasked_A, cset, way_match)			\
 {														\
  __label__ EBRCase, MemReturn;											\
  T retval;													\
@@ -4117,9 +4115,9 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 	 uint32_t ATM;												\
 														\
 	 ATM = A & (0x7FFFF << 10);										\
-	 cent = &z->Cache[(A >> 4) & 0x3F];									\
+	 cset = (A >> 4) & 0x3F;									\
 														\
-	 way_match = SH7095_Cache_FindWay(cent, ATM);									\
+	 way_match = SH7095_Cache_FindWay(z->CacheTags[cset], ATM);									\
 														\
 	 if(MDFN_UNLIKELY(way_match < 0)) /* z->Cache miss! */							\
 	 {													\
@@ -4131,15 +4129,15 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 	  /*                        */										\
 	  /* Load cache line.       */										\
 	  /*                        */										\
-	  cent->Tag[way_match] = ATM;										\
+	  z->CacheTags[cset][way_match] = ATM;										\
 	  /* Don't use ATM after z point. */									\
 	  CHECK_EXIT_RESUME();											\
 	  {													\
-	   unsigned di = (A + 4 + 0) & 0xC; { uint32_t vtmp__ = ExtBusRead(uint32_t, false, (A &~ 0xF) + di); *(uint32_t*)&cent->Data[way_match][di] = vtmp__; }	\
+	   unsigned di = (A + 4 + 0) & 0xC; { uint32_t vtmp__ = ExtBusRead(uint32_t, false, (A &~ 0xF) + di); *(uint32_t*)&z->CacheData[cset][way_match][di] = vtmp__; }	\
 	  }													\
 	  for(unsigned i = 4; i < 16; i += 4)									\
 	  {													\
-	   unsigned di = (A + 4 + i) & 0xC; { uint32_t vtmp__ = ExtBusRead(uint32_t,  true, (A &~ 0xF) + di); *(uint32_t*)&cent->Data[way_match][di] = vtmp__; }	\
+	   unsigned di = (A + 4 + i) & 0xC; { uint32_t vtmp__ = ExtBusRead(uint32_t,  true, (A &~ 0xF) + di); *(uint32_t*)&z->CacheData[cset][way_match][di] = vtmp__; }	\
 	  }													\
 	  if(IsInstr <= 0)											\
 	  { if((SH7095_mem_timestamp + 1) > z->MA_until) z->MA_until = (SH7095_mem_timestamp + 1); }				\
@@ -4158,7 +4156,7 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 	  goto MemReturn;											\
 	 }													\
 														\
-  	 retval = *(T*)&cent->Data[way_match][NE32ASU8_IDX_ADJ(T, A & 0x0F)];			\
+  	 retval = *(T*)&z->CacheData[cset][way_match][NE32ASU8_IDX_ADJ(T, A & 0x0F)];			\
 	 goto MemReturn;											\
 	}													\
 	/* Fall-through, no break here */									\
@@ -4325,7 +4323,7 @@ static INLINE void SH7095_SetCCR(SH7095* z, uint8_t V)
   {
    z->Cache_LRU[entry] = 0;
    for(unsigned way = 0; way < 4; way++)
-    z->Cache[entry].Tag[way] |= 1;	// Set invalid bit to 1.
+    z->CacheTags[entry][way] |= 1;	// Set invalid bit to 1.
   }
   V &= ~SH7095_CCR_CP;
  }
@@ -5045,12 +5043,12 @@ do {                                                    \
   else                    ExtBusWrite_NI_w1_SP1_u32(A, V); \
 } while(0)
 
-#define MemReadInstr(A, outval) MemRead(true,  uint32_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint32_A, z->Resume_unmasked_A, z->Resume_cent, z->Resume_way_match)
-#define MemRead8(A, outval)	MemRead(false, uint8_t,  ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint8_A,  z->Resume_unmasked_A, z->Resume_cent, z->Resume_way_match)
-#define MemRead16(A, outval)	MemRead(false, uint16_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint16_A, z->Resume_unmasked_A, z->Resume_cent, z->Resume_way_match)
-#define MemRead32(A, outval)	MemRead(false, uint32_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint32_A, z->Resume_unmasked_A, z->Resume_cent, z->Resume_way_match)
-#define MemRead16_I(A, outval)	MemRead(-1,    uint16_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint16_A, z->Resume_unmasked_A, z->Resume_cent, z->Resume_way_match)
-#define MemRead32_I(A, outval)	MemRead(-1,    uint32_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint32_A, z->Resume_unmasked_A, z->Resume_cent, z->Resume_way_match)
+#define MemReadInstr(A, outval) MemRead(true,  uint32_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint32_A, z->Resume_unmasked_A, z->Resume_set, z->Resume_way_match)
+#define MemRead8(A, outval)	MemRead(false, uint8_t,  ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint8_A,  z->Resume_unmasked_A, z->Resume_set, z->Resume_way_match)
+#define MemRead16(A, outval)	MemRead(false, uint16_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint16_A, z->Resume_unmasked_A, z->Resume_set, z->Resume_way_match)
+#define MemRead32(A, outval)	MemRead(false, uint32_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint32_A, z->Resume_unmasked_A, z->Resume_set, z->Resume_way_match)
+#define MemRead16_I(A, outval)	MemRead(-1,    uint16_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint16_A, z->Resume_unmasked_A, z->Resume_set, z->Resume_way_match)
+#define MemRead32_I(A, outval)	MemRead(-1,    uint32_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), outval, /**/ z->Resume_uint32_A, z->Resume_unmasked_A, z->Resume_set, z->Resume_way_match)
 
 #define MemWrite8(A, V)  MemWrite(uint8_t,  ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), (V), /**/ z->Resume_uint8_A,  z->Resume_unmasked_A, z->Resume_uint8_V)
 #define MemWrite16(A, V) MemWrite(uint16_t, ((A) >> 29), (z->CCR & SH7095_CCR_CE), (A), (V), /**/ z->Resume_uint16_A, z->Resume_unmasked_A, z->Resume_uint16_V)
@@ -5191,14 +5189,14 @@ void SH7095_StateAction(SH7095* z, StateMem* sm, const unsigned load, const bool
 
   SFVARN(z->IBuffer,  "IBuffer"),
 
-  SFPTR32N(z->Cache->Tag, 4, 64, sizeof(*z->Cache), z->Cache, "Cache->Tag"),
+  SFPTR32N(&z->CacheTags[0][0], 4 * 64, "Cache->Tag"),
   SFPTR8N(&(z->Cache_LRU)[0], (sizeof(z->Cache_LRU) / sizeof(uint8_t)), "Cache->LRU"),
   // Cast because it's stored as native-endian 32-bit.  SFPTR32N (explicit
   // name) rather than SFPTR32 (auto #x name): the typedef rename changed the
   // cast spelling from (uint32*) to (uint32_t*), and SFPTR32 would stringize
   // that into a different savestate field name.  Pass the original name
   // verbatim to keep savestates byte-compatible.
-  SFPTR32N((uint32_t*)z->Cache->Data, 16, 64, sizeof(*z->Cache), z->Cache, "(uint32*)Cache->Data"),
+  SFPTR32N((uint32_t*)z->CacheData, 16 * 64, "(uint32*)Cache->Data"),
 
   SFVARN(z->CCR, "CCR"),
 
@@ -5343,11 +5341,12 @@ static void SH7095_StateAction_SlaveResume(SH7095* z, StateMem* sm, const unsign
   if(z->resume_id)
    ResumePointI = (int32_t)top - (int32_t)z->resume_id;
 
-  if(z->Resume_cent)
-  {
-   Resume_cent_I = z->Resume_cent - z->Cache;
-   assert(Resume_cent_I < 0x40);
-  }
+  /* Wire name/semantics unchanged from the pointer era: a NULL
+   * Resume_cent serialized as 0, indistinguishable from set 0, and
+   * load always rebuilt a non-NULL pointer -- so a plain index
+   * round-trips identically. */
+  Resume_cent_I = z->Resume_set;
+  assert(Resume_cent_I < 0x40);
  }
 
  /* As in SH7095_StateAction, the persisted field-name strings
@@ -5394,7 +5393,7 @@ static void SH7095_StateAction_SlaveResume(SH7095* z, StateMem* sm, const unsign
                  : 0;
   z->Resume_uint16_A &= ~1;
   z->Resume_uint32_A &= ~3;
-  z->Resume_cent = &z->Cache[Resume_cent_I & 0x3F];
+  z->Resume_set = Resume_cent_I & 0x3F;
   z->Resume_way_match = ((int)(-1) > (int)(((int)(3) < (int)(z->Resume_way_match) ? (int)(3) : (int)(z->Resume_way_match))) ? (int)(-1) : (int)(((int)(3) < (int)(z->Resume_way_match) ? (int)(3) : (int)(z->Resume_way_match))));
   z->Resume_instr &= 0xFFFF;
  }
@@ -5410,14 +5409,12 @@ void SH7095_PostStateLoad(SH7095* z, const unsigned state_version, const bool re
  //
  for(unsigned entry = 0; entry < 64; entry++)
  {
-  SH7095_CacheEntry* const ce = &z->Cache[entry];
-
   for(unsigned way = 0; way < 4; way++)
   {
-   const uint32_t ATM = ce->Tag[way] & (0x7FFFF << 10);
-   const bool invalid = ce->Tag[way] & ~(0x7FFFF << 10);	// Handles backwards compat when invalid was bit31 instead of bit0.
+   const uint32_t ATM = z->CacheTags[entry][way] & (0x7FFFF << 10);
+   const bool invalid = z->CacheTags[entry][way] & ~(0x7FFFF << 10);	// Handles backwards compat when invalid was bit31 instead of bit0.
 
-   ce->Tag[way] = ATM | invalid;
+   z->CacheTags[entry][way] = ATM | invalid;
   }
  }
  //
@@ -5441,7 +5438,7 @@ void SH7095_PostStateLoad(SH7095* z, const unsigned state_version, const bool re
   const uint32_t A = (z->PC - 2) & ~3;
 
   if((int32_t)A < 0)
-   z->IBuffer = *(uint32_t*)&z->Cache[(A >> 4) & 0x3F].Data[(A >> 10) & 0x3][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)];
+   z->IBuffer = *(uint32_t*)&z->CacheData[(A >> 4) & 0x3F][(A >> 10) & 0x3][NE32ASU8_IDX_ADJ(uint32_t, A & 0x0F)];
   else
    z->IBuffer = SH7095_RBO_BE_T(uint32_t, SH7095_FastMap[A >> SH7095_EXT_MAP_GRAN_BITS], A);
 

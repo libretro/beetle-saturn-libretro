@@ -26,13 +26,13 @@ static NO_INLINE MDFN_FASTCALL T C_MemReadRT_##suffix(uint32_t A)             \
     enum { NeedSlaveCall = nsc_v };                                           \
     enum { CacheBypassHack = cbh_v };                                         \
     SH7095* const z = &CPU[w_v];                                              \
-    SH7095_CacheEntry* cent;                                                  \
+    uint32_t cset;                                                  \
     int way_match;                                                            \
     uint32_t unmasked_A;                                                      \
     T ret;                                                                    \
-    (void)cent; (void)way_match; (void)unmasked_A;                            \
+    (void)cset; (void)way_match; (void)unmasked_A;                            \
     (void)which; (void)NeedSlaveCall; (void)CacheBypassHack;                  \
-    MemRead(isin_v, T, region_v, ce_v, A, ret, A, unmasked_A, cent, way_match); \
+    MemRead(isin_v, T, region_v, ce_v, A, ret, A, unmasked_A, cset, way_match); \
     return ret;                                                               \
 }
 
