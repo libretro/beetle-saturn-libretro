@@ -47,6 +47,21 @@ static unsigned geometry_height			= 0;
 // constant + `pointer_cycles_after_released[]` counter, but the cycle
 // count had been pinned at 1 for some time and the >1-frame branch was
 // unreachable; both have been removed.
+/* Mouse sensitivity fractional-motion carry, Q16, per player/axis.
+ * Rounding each frame's delta independently quantizes the *rate*: at
+ * 50% sensitivity a slow 1-count/frame drag still moved 1 count/frame
+ * (round-half-away turned 0.5 into 1 every frame), and at 150% it
+ * moved 2 (effective 200%).  Carrying the sub-count remainder across
+ * frames makes the long-run rate exactly sensitivity * input rate for
+ * any movement speed.  Shared per player across the two mouse-type
+ * device cases below -- input_type[] selects exactly one case per
+ * player per frame.  Like pointer_pressed[] below, this is
+ * frontend-side input conditioning state and is deliberately not
+ * serialized; a runahead secondary instance can diverge from the
+ * primary by at most one count for one frame, same exposure as the
+ * existing gun debounce state. */
+static int32_t mouse_residual_q16[ MAX_CONTROLLERS ][ 2 ] = {{0}};
+
 static int pointer_pressed[ MAX_CONTROLLERS ]		= {0};
 static int pointer_pressed_last_x[ MAX_CONTROLLERS ]	= {0};
 static int pointer_pressed_last_y[ MAX_CONTROLLERS ]	= {0};
@@ -741,6 +756,8 @@ void input_init(void)
 		input_type[ i ] = RETRO_DEVICE_JOYPAD;
 		input_mode[ i ] = INPUT_MODE_DEFAULT;
 		input_throttle_latch[ i ] = 0;
+		mouse_residual_q16[ i ][ 0 ] = 0;
+		mouse_residual_q16[ i ][ 1 ] = 0;
 
 		SS_SetInput( i, "gamepad", (uint8_t*)&input_data[ i ] );
 	}
@@ -1147,8 +1164,23 @@ void input_update_with_bitmasks( retro_input_state_t input_state_cb )
 				dy_raw = input_state_cb( iplayer, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_Y );
 
 				delta = (int16_t*)p_input;
-				delta[ 0 ] = (int16_t)analog_q16_round( (int64_t)dx_raw * mouse_sensitivity_q16 );
-				delta[ 1 ] = (int16_t)analog_q16_round( (int64_t)dy_raw * mouse_sensitivity_q16 );
+				{
+					/* Scale in Q16 with the carried remainder folded in, emit
+					 * the integer part (floor), keep the fraction for next
+					 * frame.  The residual stays in [0, 0xFFFF], so
+					 * alternating e.g. -0.5 motion emits -1, 0, -1, 0 --
+					 * exactly half rate -- instead of -1 every frame. */
+					int64_t vx = (int64_t)dx_raw * mouse_sensitivity_q16 + mouse_residual_q16[ iplayer ][ 0 ];
+					int64_t vy = (int64_t)dy_raw * mouse_sensitivity_q16 + mouse_residual_q16[ iplayer ][ 1 ];
+					int32_t ix = (int32_t)(vx >> ANALOG_Q16_SHIFT);
+					int32_t iy = (int32_t)(vy >> ANALOG_Q16_SHIFT);
+
+					mouse_residual_q16[ iplayer ][ 0 ] = (int32_t)(vx - ((int64_t)ix << ANALOG_Q16_SHIFT));
+					mouse_residual_q16[ iplayer ][ 1 ] = (int32_t)(vy - ((int64_t)iy << ANALOG_Q16_SHIFT));
+
+					delta[ 0 ] = (int16_t)ix;
+					delta[ 1 ] = (int16_t)iy;
+				}
 			}
 
 			break;
@@ -1721,8 +1753,23 @@ void input_update( retro_input_state_t input_state_cb )
 				dy_raw = input_state_cb( iplayer, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_Y );
 
 				delta = (int16_t*)p_input;
-				delta[ 0 ] = (int16_t)analog_q16_round( (int64_t)dx_raw * mouse_sensitivity_q16 );
-				delta[ 1 ] = (int16_t)analog_q16_round( (int64_t)dy_raw * mouse_sensitivity_q16 );
+				{
+					/* Scale in Q16 with the carried remainder folded in, emit
+					 * the integer part (floor), keep the fraction for next
+					 * frame.  The residual stays in [0, 0xFFFF], so
+					 * alternating e.g. -0.5 motion emits -1, 0, -1, 0 --
+					 * exactly half rate -- instead of -1 every frame. */
+					int64_t vx = (int64_t)dx_raw * mouse_sensitivity_q16 + mouse_residual_q16[ iplayer ][ 0 ];
+					int64_t vy = (int64_t)dy_raw * mouse_sensitivity_q16 + mouse_residual_q16[ iplayer ][ 1 ];
+					int32_t ix = (int32_t)(vx >> ANALOG_Q16_SHIFT);
+					int32_t iy = (int32_t)(vy >> ANALOG_Q16_SHIFT);
+
+					mouse_residual_q16[ iplayer ][ 0 ] = (int32_t)(vx - ((int64_t)ix << ANALOG_Q16_SHIFT));
+					mouse_residual_q16[ iplayer ][ 1 ] = (int32_t)(vy - ((int64_t)iy << ANALOG_Q16_SHIFT));
+
+					delta[ 0 ] = (int16_t)ix;
+					delta[ 1 ] = (int16_t)iy;
+				}
 			}
 
 			break;
