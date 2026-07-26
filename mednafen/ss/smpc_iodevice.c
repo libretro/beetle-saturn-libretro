@@ -2103,7 +2103,11 @@ static void IODevice_Multitap_StateAction(IODevice *self_, StateMem *sm, const u
 
    for(i = 0; i < 6; i++)
    {
-      char snsp[32];
+      /* Sized for the worst case of section_name[64] + "P" + digit +
+       * NUL; the old [32] tripped GCC 13's -Wformat-truncation.  Real
+       * prefixes are far shorter, so no previously-written state ever
+       * had a truncated name and the section names are unchanged. */
+      char snsp[64 + 8];
 
       snprintf(snsp, sizeof(snsp), "%sP%u", section_name, i);
       if(self->devices[i])

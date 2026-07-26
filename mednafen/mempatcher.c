@@ -452,6 +452,15 @@ static bool TestConditions(const char *string)
 
   value_at_address = 0;
 
+  /* bytelen / endian / v_address are consumed only by the #if 0
+   * MemRead comparison block below (disabled since the mednafen
+   * import); they're still parsed so a malformed condition string
+   * fails the same way it always did.  Reference them explicitly to
+   * keep -Wunused-but-set-variable quiet without deleting the parse. */
+  (void)bytelen;
+  (void)endian;
+  (void)v_address;
+
 #if 0
   {
    unsigned int x;
