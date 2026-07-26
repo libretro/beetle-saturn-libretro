@@ -60,7 +60,7 @@ switch(z->Pipe_ID >> 24)
  // 2+2 inside macro + 2 post-switch = 6 bytes for 3 folded instructions.
  #define FUSE_LOAD_CMPTST_BRANCH(alu_op_id, br_op_id, alu_set_t_expr, br_cond_expr)	\
   if(MDFN_LIKELY((z->Pipe_ID >> 24) == (alu_op_id) &&					\
-                 InstrDecodeTab[(uint16_t)z->Pipe_IF] == (br_op_id)))			\
+                 InstrDecodeTab_Lookup((uint16_t)z->Pipe_IF) == (br_op_id)))			\
   {											\
    const uint16_t alu_instr = (uint16_t)z->Pipe_ID;						\
    const uint16_t br_instr = (uint16_t)z->Pipe_IF;						\
@@ -2041,7 +2041,7 @@ switch(z->Pipe_ID >> 24)
 	  // 	: "memory");
 	  //
 	  z->Pipe_ID = (uint16_t)z->Pipe_ID;
-	  z->Pipe_ID |= InstrDecodeTab[z->Pipe_ID] << 24;
+	  z->Pipe_ID |= InstrDecodeTab_Lookup(z->Pipe_ID) << 24;
 	  goto SPEPRecover;
 	 }
 	}
@@ -2070,7 +2070,7 @@ switch(z->Pipe_ID >> 24)
 	 z->Pipe_ID &= 0x00FFFFFF;
 	 z->Pipe_ID &= ~(1U << (SH7095_PEX_PSEUDO_DMABURST + SH7095_EPENDING_PEXBITS_SHIFT));
 	 z->Pipe_ID &= ~(1U << (SH7095_PEX_PSEUDO_EXTHALT + SH7095_EPENDING_PEXBITS_SHIFT));
-	 z->Pipe_ID |= InstrDecodeTab[(uint16_t)z->Pipe_ID] << 24;
+	 z->Pipe_ID |= InstrDecodeTab_Lookup((uint16_t)z->Pipe_ID) << 24;
 	 if(z->Pipe_ID & (0xFF << SH7095_EPENDING_PEXBITS_SHIFT))
 	  z->Pipe_ID |= SH7095_EPENDING_OP_OR;
 

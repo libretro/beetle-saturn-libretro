@@ -4591,10 +4591,28 @@ static NO_INLINE void SH7095_RecalcPendingIntPEX(SH7095* z)
   SH7095_ClearPEX(z, SH7095_PEX_INT);
 }
 
-static const uint8_t InstrDecodeTab[65536] =
-{
- #include "sh7095_idecodetab.inc"
-};
+/* Two-level compressed instruction decode table.  The flat 64KiB
+ * uint8[65536] form (sh7095_idecodetab.inc, still the source of truth)
+ * is losslessly compressed by tools/gen_idecodetab2.py into a 4KiB
+ * row-index array plus 48 distinct 16-entry rows (768 bytes) --
+ * 4864 bytes total, verified equivalent for all 65536 encodings at
+ * generation time.
+ *
+ * Rationale: the flat table is indexed by the raw instruction word, so
+ * its hot L1 dcache footprint scales with the diversity of executed
+ * code (one 64-byte line per 64 adjacent encodings), competing with
+ * the SH7095 struct, the dispatch tables, and the emulated I/D cache
+ * for L1 residency -- doubly so with two CPU instances interleaving at
+ * instruction granularity.  In the compressed form one RowIdx line
+ * covers a 1024-encoding span and the entire Rows array is 12 lines
+ * that stay pinned.  The cost is one extra dependent byte load, whose
+ * latency is hidden: the decoded op lands in the high byte of Pipe_ID
+ * and isn't consumed until the following Step's dispatch, a full
+ * emulated instruction later. */
+#include "sh7095_idecodetab2.inc"
+
+#define InstrDecodeTab_Lookup(instr_) \
+ ((uint32_t)InstrDecodeRows[InstrDecodeRowIdx[(uint32_t)(uint16_t)(instr_) >> 4]][(instr_) & 0xF])
 
 
 
@@ -4651,7 +4669,7 @@ static const uint8_t InstrDecodeTab[65536] =
 
 #define DoID(IntPreventNext)						\
 {									\
- uint32_t op = InstrDecodeTab[z->Pipe_IF];					\
+ uint32_t op = InstrDecodeTab_Lookup(z->Pipe_IF);					\
  uint32_t epo = z->EPending;							\
 									\
  if(IntPreventNext)							\
@@ -4687,7 +4705,7 @@ static const uint8_t InstrDecodeTab[65536] =
  /* opcode table so we can generate illegal slot instruction      */	\
  /* exceptions as appropriate. */					\
  z->Pipe_ID = (uint16_t)z->Pipe_ID;						\
- z->Pipe_ID |= (InstrDecodeTab[z->Pipe_ID] | 0x80) << 24;			\
+ z->Pipe_ID |= (InstrDecodeTab_Lookup(z->Pipe_ID) | 0x80) << 24;			\
 									\
  if(MDFN_UNLIKELY(z->PC & 1))						\
  {									\
@@ -4738,7 +4756,7 @@ static const uint8_t InstrDecodeTab[65536] =
 {									\
  z->PC = target;								\
 									\
- z->Pipe_ID = z->Pipe_IF | ((InstrDecodeTab[z->Pipe_IF] | 0x80) << 24);		\
+ z->Pipe_ID = z->Pipe_IF | ((InstrDecodeTab_Lookup(z->Pipe_IF) | 0x80) << 24);		\
 									\
  z->timestamp++;								\
 									\
