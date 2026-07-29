@@ -26,7 +26,7 @@ CDAccess *CDAccess_CHD_New  (const char *path, bool image_memcache);
 static int has_ext(const char *path, const char *ext3)
 {
    size_t n = strlen(path);
-   if (n < 4 || path[n - 4] != '.')
+   if (n < 4)
       return 0;
    return strcasecmp(path + n - 3, ext3) == 0;
 }
