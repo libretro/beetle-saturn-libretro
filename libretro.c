@@ -5,6 +5,7 @@
 #include <string/stdstring.h>
 #include <compat/strl.h>
 #include <streams/file_stream.h>
+#include <vfs/vfs_hybrid.h>
 #include <file/file_path.h>
 #include <vfs/vfs_implementation.h>
 
@@ -1631,7 +1632,6 @@ unsigned retro_api_version(void)
 
 void retro_set_environment(retro_environment_t cb)
 {
-   struct retro_vfs_interface_info vfs_iface_info;
    struct retro_led_interface led_interface;
    /* libretro_set_core_options early-returns on NULL out-arg, so we
     * pass a function-local instead of a real out-arg.  The boolean
@@ -1643,10 +1643,19 @@ void retro_set_environment(retro_environment_t cb)
    libretro_set_core_options(environ_cb,
            &option_categories_supported);
 
-   vfs_iface_info.required_interface_version = 2;
-   vfs_iface_info.iface                      = NULL;
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VFS_INTERFACE, &vfs_iface_info))
-      filestream_vfs_init(&vfs_iface_info);
+#ifndef STATIC_LINKING
+   /*
+      Hybrid VFS replaces the wholesale adoption (ported from
+      beetle-psx): plain paths - disc images, BIOS, saves - serve
+      through the local implementation with no per-read frontend
+      indirection, and the local VFS can map disc images for the
+      cdstream and CHD zero-copy paths; the frontend covers URI paths
+      and sandboxed-platform fallback plus dirent/stat coverage the
+      old wiring lacked. Compiled out for statically linked frontends,
+      which share one libretro-common with the core.
+   */
+   vfs_hybrid_init(environ_cb, NULL);
+#endif
 
    if(environ_cb(RETRO_ENVIRONMENT_GET_LED_INTERFACE, &led_interface))
    if (led_interface.set_led_state && !led_state_cb)

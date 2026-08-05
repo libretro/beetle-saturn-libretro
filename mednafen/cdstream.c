@@ -45,6 +45,18 @@ bool cdstream_open_memcached(cdstream *out, const char *path)
 
    memset(out, 0, sizeof(*out));
 
+   /* Mapped-first: when the VFS can map the file, the page cache IS
+    * the memcache - same all-in-memory access pattern, none of the
+    * slurp's copy, commit charge, or load-time cost.  Only when no
+    * mapping is available does the historical slurp run. */
+   if (cdstream_open(out, path))
+   {
+      if (out->buf)
+         return true;
+      cdstream_close(out);
+      memset(out, 0, sizeof(*out));
+   }
+
    /* filestream_read_file returns non-zero on success and allocates
     * buf with malloc; we own it from this point on. */
    if (!filestream_read_file(path, &buf, &len) || !buf)

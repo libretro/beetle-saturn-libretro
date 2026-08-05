@@ -31,6 +31,7 @@
 #include <libretro.h>
 
 #include "CDAccess_CHD.h"
+#include <streams/file_stream.h>
 
 extern retro_log_printf_t log_cb;
 
@@ -140,9 +141,155 @@ static bool CDAccess_CHD_init(CDAccess_CHD *self, const char *path, bool image_m
   return CDAccess_CHD_Load_internal(self, path, image_memcache);
 }
 
+
+/* libchdr file IO - ported from beetle-psx.  A heap-allocated
+ * core_file whose argp is a chd_rfile wrapper around a
+ * libretro-common RFILE, replacing chd_open(path)'s internal stdio:
+ * that bypassed the VFS entirely (a sandboxed-storage hole on its
+ * own) and offered no mapping seam.  chd_open_core_file() consumes
+ * the core_file whether it succeeds or fails; the fclose shim closes
+ * the RFILE (releasing any mapping with it) and frees the wrapper.
+ *
+ * Mapped mode: the open passes FREQUENT_ACCESS - hunk fetches are
+ * the whole read traffic of a CHD for the whole session.  When the
+ * local VFS hands back a mapping, every fread the decompressor
+ * issues becomes a memcpy from the page cache at a cursor this
+ * wrapper tracks itself: zero per-hunk syscalls.  Frontend-backed
+ * handles and mmap-less platforms get NULL from the accessor and
+ * take the filestream path, unchanged. */
+
+typedef struct
+{
+   RFILE         *fp;
+   const uint8_t *base;   /* non-NULL when the VFS mapped the file */
+   int64_t        len;
+   int64_t        pos;    /* mapped-mode cursor */
+} chd_rfile;
+
+static uint64_t Callback_fsize(core_file *cf)
+{
+   chd_rfile *rf = (chd_rfile *)cf->argp;
+   int64_t    sz;
+   if (rf->base)
+      return (uint64_t)rf->len;
+   sz = filestream_get_size(rf->fp);
+   if (sz < 0)
+      return (uint64_t)-1;
+   return (uint64_t)sz;
+}
+
+static size_t Callback_fread(void *buffer, size_t size, size_t count,
+      core_file *cf)
+{
+   chd_rfile *rf = (chd_rfile *)cf->argp;
+   int64_t    got;
+   if (size == 0 || count == 0)
+      return 0;
+
+   if (rf->base)
+   {
+      int64_t want = (int64_t)(count * size);
+      int64_t avail;
+      if (rf->pos < 0 || rf->pos >= rf->len)
+         return 0;
+      avail = rf->len - rf->pos;
+      if (want > avail)
+         want = avail;
+      memcpy(buffer, rf->base + rf->pos, (size_t)want);
+      rf->pos += want;
+      return (size_t)want / size;
+   }
+
+   got = filestream_read(rf->fp, buffer, (int64_t)(count * size));
+   if (got < 0)
+      return 0;
+   return (size_t)got / size;
+}
+
+static int Callback_fclose(core_file *cf)
+{
+   chd_rfile *rf = (chd_rfile *)cf->argp;
+   /* closing the RFILE releases the mapping with it */
+   filestream_close(rf->fp);
+   free(rf);
+   free(cf);
+   return 0;
+}
+
+static int Callback_fseek(core_file *cf, int64_t offset, int whence)
+{
+   chd_rfile *rf = (chd_rfile *)cf->argp;
+   if (rf->base)
+   {
+      int64_t new_pos;
+      switch (whence)
+      {
+         case SEEK_SET: new_pos = offset;            break;
+         case SEEK_CUR: new_pos = rf->pos + offset;  break;
+         case SEEK_END: new_pos = rf->len + offset;  break;
+         default:       return -1;
+      }
+      if (new_pos < 0)
+         return -1;
+      /* past-EOF positions read as EOF (fread clamps) */
+      rf->pos = new_pos;
+      return 0;
+   }
+   {
+      int seek_position = RETRO_VFS_SEEK_POSITION_START;
+      switch (whence)
+      {
+         case SEEK_SET: seek_position = RETRO_VFS_SEEK_POSITION_START;   break;
+         case SEEK_CUR: seek_position = RETRO_VFS_SEEK_POSITION_CURRENT; break;
+         case SEEK_END: seek_position = RETRO_VFS_SEEK_POSITION_END;     break;
+      }
+      filestream_seek(rf->fp, offset, seek_position);
+      return 0;
+   }
+}
+
+static core_file *chd_core_rfile_open(const char *path)
+{
+   core_file *cf;
+   chd_rfile *rf;
+   RFILE     *fp = filestream_open(path,
+         RETRO_VFS_FILE_ACCESS_READ,
+         RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS);
+   if (!fp)
+      return NULL;
+
+   rf = (chd_rfile *)calloc(1, sizeof(*rf));
+   cf = (core_file *)calloc(1, sizeof(*cf));
+   if (!rf || !cf)
+   {
+      filestream_close(fp);
+      free(rf);
+      free(cf);
+      return NULL;
+   }
+   rf->fp   = fp;
+   rf->base = filestream_get_mapped_ptr(fp, &rf->len);
+   if (rf->base && rf->len <= 0)
+      rf->base = NULL;
+   cf->argp   = rf;
+   cf->fsize  = Callback_fsize;
+   cf->fread  = Callback_fread;
+   cf->fclose = Callback_fclose;
+   cf->fseek  = Callback_fseek;
+   return cf;
+}
+
 static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, bool image_memcache)
 {
-  chd_error err = chd_open(path, CHD_OPEN_READ, NULL, &self->chd);
+  chd_error err;
+  core_file *cf = chd_core_rfile_open(path);
+  if (!cf)
+  {
+    log_cb(RETRO_LOG_ERROR, "Failed to open CHD image: %s", path);
+    return false;
+  }
+  /* consumes cf whether it succeeds or fails */
+  err = chd_open_core_file(cf, CHD_OPEN_READ, NULL, &self->chd);
   if (err != CHDERR_NONE)
   {
     log_cb(RETRO_LOG_ERROR, "Failed to load CHD image: %s", path);

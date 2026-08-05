@@ -82,16 +82,6 @@ bool cdstream_open_memcached(cdstream *out, const char *path);
  * bytes actually read; 0 on EOF or error. */
 static INLINE uint64_t cdstream_read(cdstream *s, void *data, uint64_t count)
 {
-   if (s->fp)
-   {
-      int64_t got = filestream_read(s->fp, data, (int64_t)count);
-      /* filestream_read returns -1 on error.  Don't wrap a negative
-       * up to UINT64_MAX - return 0 so callers comparing against the
-       * requested count behave sanely. */
-      if (got < 0)
-         return 0;
-      return (uint64_t)got;
-   }
    if (s->buf)
    {
       uint64_t avail;
@@ -103,6 +93,16 @@ static INLINE uint64_t cdstream_read(cdstream *s, void *data, uint64_t count)
       memcpy(data, s->buf + s->pos, (size_t)count);
       s->pos += (int64_t)count;
       return count;
+   }
+   if (s->fp)
+   {
+      int64_t got = filestream_read(s->fp, data, (int64_t)count);
+      /* filestream_read returns -1 on error.  Don't wrap a negative
+       * up to UINT64_MAX - return 0 so callers comparing against the
+       * requested count behave sanely. */
+      if (got < 0)
+         return 0;
+      return (uint64_t)got;
    }
    return 0;
 }
@@ -124,18 +124,6 @@ static INLINE uint64_t cdstream_write(cdstream *s, const void *data, uint64_t co
 
 static INLINE void cdstream_seek(cdstream *s, int64_t offset, int whence)
 {
-   if (s->fp)
-   {
-      int seek_position = RETRO_VFS_SEEK_POSITION_START;
-      switch (whence)
-      {
-         case SEEK_SET: seek_position = RETRO_VFS_SEEK_POSITION_START;   break;
-         case SEEK_CUR: seek_position = RETRO_VFS_SEEK_POSITION_CURRENT; break;
-         case SEEK_END: seek_position = RETRO_VFS_SEEK_POSITION_END;     break;
-      }
-      filestream_seek(s->fp, offset, seek_position);
-      return;
-   }
    if (s->buf)
    {
       int64_t new_position;
@@ -152,10 +140,24 @@ static INLINE void cdstream_seek(cdstream *s, int64_t offset, int whence)
        * behaviour; the historical grow-on-write path is gone. */
       s->pos = new_position;
    }
+   if (s->fp)
+   {
+      int seek_position = RETRO_VFS_SEEK_POSITION_START;
+      switch (whence)
+      {
+         case SEEK_SET: seek_position = RETRO_VFS_SEEK_POSITION_START;   break;
+         case SEEK_CUR: seek_position = RETRO_VFS_SEEK_POSITION_CURRENT; break;
+         case SEEK_END: seek_position = RETRO_VFS_SEEK_POSITION_END;     break;
+      }
+      filestream_seek(s->fp, offset, seek_position);
+      return;
+   }
 }
 
 static INLINE uint64_t cdstream_tell(cdstream *s)
 {
+   if (s->buf)
+      return (uint64_t)s->pos;
    if (s->fp)
    {
       int64_t pos = filestream_tell(s->fp);
@@ -163,13 +165,13 @@ static INLINE uint64_t cdstream_tell(cdstream *s)
          return (uint64_t)-1;
       return (uint64_t)pos;
    }
-   if (s->buf)
-      return (uint64_t)s->pos;
    return (uint64_t)-1;
 }
 
 static INLINE uint64_t cdstream_size(cdstream *s)
 {
+   if (s->buf)
+      return s->size;
    if (s->fp)
    {
       int64_t sz = filestream_get_size(s->fp);
@@ -177,25 +179,28 @@ static INLINE uint64_t cdstream_size(cdstream *s)
          return (uint64_t)-1;
       return (uint64_t)sz;
    }
-   if (s->buf)
-      return s->size;
    return (uint64_t)-1;
 }
 
-/* Release backing resources (RFILE handle or buffer) and zero the
- * stream.  Idempotent; safe to call on a stream that failed to
- * open. */
+/* Release backing resources and zero the stream.  Idempotent; safe to
+ * call on a stream that failed to open.  Ownership discrimination:
+ * a mapped stream has BOTH buf and fp set - buf points into the
+ * VFS's mapping and must not be freed; closing the RFILE releases
+ * the mapping.  A slurped stream has buf without fp and owns the
+ * malloc'd buffer. */
 static INLINE void cdstream_close(cdstream *s)
 {
+   bool mapped = (s->buf != NULL && s->fp != NULL);
+   if (s->buf)
+   {
+      if (!mapped)
+         free(s->buf);
+      s->buf = NULL;
+   }
    if (s->fp)
    {
       filestream_close(s->fp);
       s->fp = NULL;
-   }
-   if (s->buf)
-   {
-      free(s->buf);
-      s->buf  = NULL;
    }
    s->size = 0;
    s->pos  = 0;
