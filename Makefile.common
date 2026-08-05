@@ -206,3 +206,13 @@ ifeq ($(NEED_THREADING), 1)
 SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/rthreads/rthreads.c \
 		 $(LIBRETRO_COMM_DIR)/rthreads/rsemaphore.c
 endif
+
+# Dynamically loaded builds only: statically linked frontends share one
+# libretro-common with the core (the hybrid is semantically void there),
+# and vfs_hybrid.o's reference to filestream_set_mapped_ptr_cb can pull
+# this tree's file_stream.o into symbol collision with griffin.
+ifneq ($(STATIC_LINKING), 1)
+SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/vfs/vfs_hybrid.c \
+		 $(LIBRETRO_COMM_DIR)/file/retro_dirent.c \
+		 $(LIBRETRO_COMM_DIR)/file/file_path_io.c
+endif
