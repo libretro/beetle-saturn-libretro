@@ -22,7 +22,11 @@ endif
 
 include $(CLEAR_VARS)
 LOCAL_MODULE       := retro
-LOCAL_SRC_FILES    := $(SOURCES_CXX) $(SOURCES_C)
+# ndk-build derives LOCAL_OBJECTS from LOCAL_SRC_FILES verbatim, so a source
+# listed twice in Makefile.common becomes the same .o twice on the link line
+# and lld rejects it as a duplicate symbol. The GNU Makefile links with $^ and
+# never sees such a slip, so guard it here.
+LOCAL_SRC_FILES    := $(sort $(SOURCES_CXX) $(SOURCES_C))
 LOCAL_CFLAGS       := $(COREFLAGS)
 LOCAL_CXXFLAGS     := $(COREFLAGS) -std=c++11
 LOCAL_LDFLAGS      := -Wl,-version-script=$(CORE_DIR)/link.T

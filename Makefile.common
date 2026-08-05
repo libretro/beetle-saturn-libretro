@@ -211,8 +211,13 @@ endif
 # libretro-common with the core (the hybrid is semantically void there),
 # and vfs_hybrid.o's reference to filestream_set_mapped_ptr_cb can pull
 # this tree's file_stream.o into symbol collision with griffin.
+#
+# retro_dirent.c is deliberately NOT repeated here - it is already in the
+# dynamic block above. Listing a source twice is invisible to the GNU
+# Makefile (its link line uses $^, which drops duplicates) but fatal to
+# ndk-build, which keeps LOCAL_OBJECTS in LOCAL_SRC_FILES order with no
+# dedup and hands the same .o to the linker twice.
 ifneq ($(STATIC_LINKING), 1)
 SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/vfs/vfs_hybrid.c \
-		 $(LIBRETRO_COMM_DIR)/file/retro_dirent.c \
 		 $(LIBRETRO_COMM_DIR)/file/file_path_io.c
 endif
