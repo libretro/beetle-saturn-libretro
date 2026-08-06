@@ -92,13 +92,109 @@ enum
 
 /* HIRQ bits the card asks the CD block to raise.  Mirrors the
    HIRQ_MPED/MPCM/MPST values in cdb.c; kept separate so this TU does
-   not have to include cdb.c's private enum. */
+   not have to include cdb.c's private enum.
+
+   Names and meanings from SBL 6.01, sega_cdc.h:
+     MPED  bit11  end of MPEG-related processing
+     MPCM  bit12  end of an MPEG operation-indeterminate interval
+     MPST  bit13  notification of MPEG interrupt status
+*/
 enum
 {
  MPEG_HIRQ_MPED = 0x0800,
  MPEG_HIRQ_MPCM = 0x1000,
  MPEG_HIRQ_MPST = 0x2000
 };
+
+/*
+   MPEG interrupt factors, verbatim from SBL 6.01's CDC_MPINT_* in
+   sega_cdc.h.  GET_INTERRUPT returns these masked by SET_INTERRUPT_MASK
+   in CR1's low byte (23..16) and CR2 (15..0), and raises HIRQ_MPST when
+   any unmasked factor is pending.
+
+   Comments are translated from the Japanese originals.
+*/
+enum
+{
+ MPEG_INT_VSRDY  = 0x00000001, /* video stream ready                     */
+ MPEG_INT_VSCHG  = 0x00000002, /* video stream switch complete           */
+ MPEG_INT_VORDY  = 0x00000004, /* video output ready                     */
+ MPEG_INT_VOSTRT = 0x00000008, /* video output started                   */
+ MPEG_INT_VDERR  = 0x00000010, /* video decode error                     */
+ MPEG_INT_VSERR  = 0x00000020, /* video stream data error                */
+ MPEG_INT_VBERR  = 0x00000040, /* video buffer partition connect error   */
+ MPEG_INT_VNERR  = 0x00000080, /* next video stream data error           */
+ MPEG_INT_PSTRT  = 0x00000100, /* picture start detected                 */
+ MPEG_INT_GSTRT  = 0x00000200, /* GOP start detected                     */
+ MPEG_INT_SQEND  = 0x00000400, /* sequence end detected                  */
+ MPEG_INT_SQSTRT = 0x00000800, /* sequence start detected                */
+ MPEG_INT_VTRG   = 0x00001000, /* trigger bit in a video sector          */
+ MPEG_INT_VEOR   = 0x00002000, /* EOR bit in a video sector              */
+ MPEG_INT_ATRG   = 0x00004000, /* trigger bit in an audio sector         */
+ MPEG_INT_AEOR   = 0x00008000, /* EOR bit in an audio sector             */
+ MPEG_INT_ASRDY  = 0x00010000, /* audio stream ready                     */
+ MPEG_INT_ASCHG  = 0x00020000, /* audio stream switch complete           */
+ MPEG_INT_AORDY  = 0x00040000, /* audio output ready                     */
+ MPEG_INT_AOSTRT = 0x00080000, /* audio output started                   */
+ MPEG_INT_ADERR  = 0x00100000, /* audio decode error                     */
+ MPEG_INT_ASERR  = 0x00200000, /* audio stream data error                */
+ MPEG_INT_ABERR  = 0x00400000, /* audio buffer partition connect error   */
+ MPEG_INT_ANERR  = 0x00800000  /* next audio stream data error           */
+};
+
+/* MPEG video status, CR4 of a status report.  SBL CDC_MPSTV_*. */
+enum
+{
+ MPEG_STV_DEC    = 0x0001, /* video decode running       */
+ MPEG_STV_DISP   = 0x0002, /* displaying                 */
+ MPEG_STV_PAUSE  = 0x0004, /* paused                     */
+ MPEG_STV_FREEZE = 0x0008, /* frozen                     */
+ MPEG_STV_LSTPIC = 0x0010, /* showing the last picture   */
+ MPEG_STV_FIELD  = 0x0020, /* odd field                  */
+ MPEG_STV_UPDPIC = 0x0040, /* picture updated            */
+ MPEG_STV_ERR    = 0x0080, /* video error                */
+ MPEG_STV_RDY    = 0x0100, /* output ready               */
+ MPEG_STV_1STPIC = 0x0800, /* showing the first picture  */
+ MPEG_STV_BEMPTY = 0x1000  /* video buffer partition empty */
+};
+
+/* MPEG audio status, CR3's low byte.  SBL CDC_MPSTA_*. */
+enum
+{
+ MPEG_STA_DEC    = 0x01, /* audio decode running         */
+ MPEG_STA_ILG    = 0x08, /* illegal audio                */
+ MPEG_STA_BEMPTY = 0x10, /* audio buffer partition empty */
+ MPEG_STA_ERR    = 0x20, /* audio error                  */
+ MPEG_STA_OUTL   = 0x40, /* left channel output          */
+ MPEG_STA_OUTR   = 0x80  /* right channel output         */
+};
+
+/*
+   MPEG operation status, CR1's low byte.  Video state in bits 0..2,
+   decode-stopped in bit 3, audio state in bits 4..6.  SBL CDC_MPASTV_*
+   / CDC_MPASTD_STOP / CDC_MPASTA_*.
+*/
+enum
+{
+ MPEG_ASTV_STOP = 0x01,
+ MPEG_ASTV_PRE1 = 0x02,
+ MPEG_ASTV_PRE2 = 0x03,
+ MPEG_ASTV_TRNS = 0x04,  /* transferring / playing */
+ MPEG_ASTV_CHG  = 0x05,
+ MPEG_ASTV_RCV  = 0x06,
+
+ MPEG_ASTD_STOP = 0x08,  /* MPEG decode stopped */
+
+ MPEG_ASTA_STOP = 0x10,
+ MPEG_ASTA_PRE1 = 0x20,
+ MPEG_ASTA_PRE2 = 0x30,
+ MPEG_ASTA_TRNS = 0x40,
+ MPEG_ASTA_CHG  = 0x50,
+ MPEG_ASTA_RCV  = 0x60
+};
+
+/* Hardware flag bit reported by GET_HWINFO.  SBL CDC_HFLAG_MPEG. */
+#define MPEG_HFLAG_PRESENT 0x02
 
 /* Video CD / MPEG-1 constrained-parameter frame geometry. */
 #define MPEG_MAX_WIDTH   352
@@ -166,7 +262,16 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
    Demultiplexing and substream selection happen inside, driven by the
    stream IDs that SET_STREAM configured.
 */
-void MPEG_FeedSector(const uint8_t *data, uint32_t len) MDFN_HOT;
+void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode) MDFN_HOT;
+
+/*
+   HIRQ bits the card has accumulated since the last call, cleared by
+   reading.  Polled by the CD block after MPEG_Update(): the card raises
+   HIRQ_MPST when an unmasked interrupt factor becomes pending, and
+   nothing else in the CD block is watching the decoders closely enough
+   to notice on its own.
+*/
+uint16_t MPEG_TakePendingHIRQ(void);
 
 /* Bytes of demultiplexed elementary stream currently buffered, for the
    CD block's buffer-full/backpressure decisions and for tests. */

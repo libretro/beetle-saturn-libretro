@@ -1610,7 +1610,9 @@ static uint8_t FilterBuf(const unsigned fnum, const unsigned bfsidx)
      len  = 2048;
     }
 
-    MPEG_FeedSector(sd + offs, len);
+    // Submode byte of the Mode 2 subheader carries the trigger and
+    // end-of-record flags the card reports as interrupt factors.
+    MPEG_FeedSector(sd + offs, len, (sd[15] == 0x2) ? sd[16 + 2] : 0x00);
    }
 
    if(Filters[cur].TrueConn != 0xFF)
@@ -2402,6 +2404,13 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
   MPEG_Update(clocks);
 
+  {
+   const uint16_t mpeg_hirq = MPEG_TakePendingHIRQ();
+
+   if(MDFN_UNLIKELY(mpeg_hirq))
+    TriggerIRQ(mpeg_hirq);
+  }
+
   //
   //
   //
@@ -2457,7 +2466,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
      // authenticated (see COMMAND_AUTH_DEVICE with CR2 == 1).  Both are
      // zero when no card is configured, which preserves the stock
      // no-card results exactly.
-     const uint16_t mpeg_hwflag = MPEG_IsPresent() ? 0x0200 : 0x0000;
+     // CDC_HFLAG_MPEG in SBL 6.01's sega_cdc.h; the hardware flag is
+     // CR2's high byte, so the bit lands at 0x0200.
+     const uint16_t mpeg_hwflag = MPEG_IsPresent() ? (MPEG_HFLAG_PRESENT << 8) : 0x0000;
      const uint16_t mpeg_auth   = MPEG_GetAuth() ? 0x0001 : 0x0000;
 
      BasicResults(MakeBaseStatus(false, 0) << 8,

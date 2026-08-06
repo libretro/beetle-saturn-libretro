@@ -221,13 +221,18 @@ int main(void)
    /* --- 3. Status report layout ----------------------------------- */
    printf("[status report]\n");
    Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
-   expect_eq("CR1 = status<<8 | action", Out[0], 0x0100);
+   /* Low byte is the MPEG operation status: video stopped, decode
+      stopped, audio stopped.  SBL CDC_MPASTV_STOP | CDC_MPASTD_STOP |
+      CDC_MPASTA_STOP. */
+   expect_eq("CR1 = status<<8 | action", Out[0],
+             0x0100 | MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP);
    expect_eq("HIRQ", Hirq, MPEG_HIRQ_MPCM);
 
    /* --- 4. Interrupt mask round trip + read-to-clear --------------- */
    printf("[interrupt]\n");
    Cmd(MPEG_CMD_SET_INT_MASK, 0x00AB, 0xCDEF, 0, 0);
-   expect_eq("SET_INT_MASK CR1 report", Out[0], 0x0100);
+   expect_eq("SET_INT_MASK CR1 report", Out[0],
+             0x0100 | MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP);
 
    Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
    expect_eq("GET_INTERRUPT CR1 (no flags)", Out[0], 0x0100);
@@ -294,7 +299,8 @@ int main(void)
    Cmd(MPEG_CMD_SET_MODE, 0x00FF, 0xFFFF, 0xFF00, 0);
    /* No getter is exposed; the check is that the command is claimed and
       reports normally rather than clobbering to 0xFF and wedging. */
-   expect_eq("SET_MODE report", Out[0], 0x0100);
+   expect_eq("SET_MODE report", Out[0],
+             0x0100 | MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP);
 
    /* --- 9. Unimplemented in-range opcodes are benign no-ops ------- */
    printf("[unimplemented opcodes]\n");
@@ -338,7 +344,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
       }
 
       vfill = MPEG_GetESFill(true);
@@ -360,7 +366,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
       }
 
       expect_eq("unselected video stream dropped", MPEG_GetESFill(true), 0);
@@ -375,7 +381,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
       }
 
       expect_eq("bare index selects stream 0", MPEG_GetESFill(true), PS_VIDEO_BYTES);
@@ -384,7 +390,7 @@ int main(void)
          must resynchronise rather than deadlock or mis-slice. */
       MPEG_Reset(true);
       Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
-      MPEG_FeedSector(ps + 37, (uint32_t)(len - 37));
+      MPEG_FeedSector(ps + 37, (uint32_t)(len - 37), 0x00);
       expect_true("resynced mid-stream", MPEG_GetESFill(true) > 0);
 
       /* Garbage must not fault and must not be mistaken for a stream. */
@@ -392,17 +398,17 @@ int main(void)
       Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
       memset(sec, 0xA5, sizeof(sec));
       for(i = 0; i < 64; i++)
-         MPEG_FeedSector(sec, sizeof(sec));
+         MPEG_FeedSector(sec, sizeof(sec), 0x00);
       expect_eq("garbage yields no video ES", MPEG_GetESFill(true), 0);
       expect_eq("garbage yields no audio ES", MPEG_GetESFill(false), 0);
 
       /* Overrun: feed the fixture until the ES FIFOs are saturated.
          Writes must clamp, never wrap past the end. */
       for(i = 0; i < 400; i++)
-         MPEG_FeedSector(ps, (uint32_t)(len > 2324 ? 2324 : len));
+         MPEG_FeedSector(ps, (uint32_t)(len > 2324 ? 2324 : len), 0x00);
 
-      MPEG_FeedSector(NULL, 0);
-      MPEG_FeedSector(sec, 0);
+      MPEG_FeedSector(NULL, 0, 0x00);
+      MPEG_FeedSector(sec, 0, 0x00);
 
       expect_true("no frame yet", MPEG_RunFrame() == false);
       expect_true("no frame buffer yet", MPEG_GetFrame(NULL, NULL) == NULL);
@@ -440,7 +446,7 @@ int main(void)
             int16_t pcm[4096 * 2];
             uint32_t n;
 
-            MPEG_FeedSector(sec, (uint32_t)got);
+            MPEG_FeedSector(sec, (uint32_t)got, 0x00);
             MPEG_Update(sector_period);
 
             while((n = MPEG_ReadAudio(pcm, 4096)) > 0)
@@ -613,7 +619,7 @@ int main(void)
             /* Enough sectors to get well past the first audio frame. */
             for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
             {
-               MPEG_FeedSector(sec, (uint32_t)got);
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
                MPEG_RunFrame();
             }
 
@@ -653,7 +659,123 @@ int main(void)
       expect_true("reset returns input to CD-DA", !MPEG_GetAudioSample(smp));
    }
 
-   /* --- 16. Double init must not leak ----------------------------- */
+   /* --- 16. Interrupt factors ------------------------------------- */
+   printf("[interrupts]\n");
+   {
+      static uint8_t ps[8192];
+      size_t len;
+      unsigned i;
+      uint32_t pend;
+
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+
+      /* Masked off, nothing may be reported and no HIRQ may be owed --
+         this is the whole point of the mask. */
+      Cmd(MPEG_CMD_SET_INT_MASK, 0x0000, 0x0000, 0, 0);
+      (void)MPEG_TakePendingHIRQ();
+
+      len = build_ps(ps, sizeof(ps));
+
+      for(i = 0; i < len; i += 2324)
+      {
+         size_t chunk = len - i;
+         if(chunk > 2324)
+            chunk = 2324;
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+      }
+
+      Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
+      expect_eq  ("masked: nothing reported (hi)", Out[0] & 0xFF, 0);
+      expect_eq  ("masked: nothing reported (lo)", Out[1], 0);
+      expect_true("masked: no MPST owed", MPEG_TakePendingHIRQ() == 0);
+
+      /* Unmask everything and re-feed.  Both stream-ready factors must
+         appear, and MPST must be owed to the CD block -- without that
+         the host never knows to come and read this register. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_INT_MASK, 0x00FF, 0xFFFF, 0, 0);
+      (void)MPEG_TakePendingHIRQ();
+
+      for(i = 0; i < len; i += 2324)
+      {
+         size_t chunk = len - i;
+         if(chunk > 2324)
+            chunk = 2324;
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+      }
+
+      expect_true("MPST owed after factors set",
+                  (MPEG_TakePendingHIRQ() & MPEG_HIRQ_MPST) != 0);
+      expect_true("MPST drained by reading", MPEG_TakePendingHIRQ() == 0);
+
+      Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
+      pend = ((uint32_t)(Out[0] & 0xFF) << 16) | Out[1];
+
+      expect_true("video stream ready raised", (pend & MPEG_INT_VSRDY) != 0);
+      expect_true("audio stream ready raised", (pend & MPEG_INT_ASRDY) != 0);
+      expect_true("sequence end raised",       (pend & MPEG_INT_SQEND) != 0);
+
+      /* Read-to-clear. */
+      Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
+      expect_eq("factors cleared by read (hi)", Out[0] & 0xFF, 0);
+      expect_eq("factors cleared by read (lo)", Out[1], 0);
+
+      /* Sector trigger and EOR submode bits become factors, and only
+         for the streams the sector actually carried. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_INT_MASK, 0x00FF, 0xFFFF, 0, 0);
+
+      for(i = 0; i < len; i += 2324)
+      {
+         size_t chunk = len - i;
+         if(chunk > 2324)
+            chunk = 2324;
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x11);  /* trigger | EOR */
+      }
+
+      Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
+      pend = ((uint32_t)(Out[0] & 0xFF) << 16) | Out[1];
+
+      expect_true("video trigger raised", (pend & MPEG_INT_VTRG) != 0);
+      expect_true("video EOR raised",     (pend & MPEG_INT_VEOR) != 0);
+      expect_true("audio trigger raised", (pend & MPEG_INT_ATRG) != 0);
+      expect_true("audio EOR raised",     (pend & MPEG_INT_AEOR) != 0);
+
+      /* A sector with no flags must not manufacture them. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_INT_MASK, 0x00FF, 0xFFFF, 0, 0);
+      MPEG_FeedSector(ps, (uint32_t)(len > 2324 ? 2324 : len), 0x00);
+
+      Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
+      pend = ((uint32_t)(Out[0] & 0xFF) << 16) | Out[1];
+
+      expect_eq("no trigger without the submode bit", pend & MPEG_INT_VTRG, 0);
+      expect_eq("no EOR without the submode bit",     pend & MPEG_INT_VEOR, 0);
+
+      /* INIT clears the register and anything owed. */
+      Cmd(MPEG_CMD_INIT, 0, 0, 0, 0);
+      (void)MPEG_TakePendingHIRQ();
+      Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
+      expect_eq("INIT clears factors", ((uint32_t)(Out[0] & 0xFF) << 16) | Out[1], 0);
+
+      /* Status fields must carry the SBL encodings, not placeholders. */
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      expect_eq("stopped action status after INIT",
+                Out[0] & 0xFF, MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP);
+      expect_eq("video buffer empty after INIT", Out[3], MPEG_STV_BEMPTY);
+      expect_eq("audio buffer empty after INIT", Out[2] & 0xFF, MPEG_STA_BEMPTY);
+
+      Cmd(MPEG_CMD_PLAY, 0, 0, 0, 0);
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      expect_eq("playing action status after PLAY",
+                Out[0] & 0xFF, MPEG_ASTV_TRNS | MPEG_ASTA_TRNS);
+   }
+
+   /* --- 17. Double init must not leak ----------------------------- */
    printf("[double init]\n");
    expect_true("re-init", MPEG_Init(NULL));
    expect_true("still present", MPEG_IsPresent());

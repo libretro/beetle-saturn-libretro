@@ -130,13 +130,22 @@ static uint32_t CardROMSize;
 static uint8_t  AuthState;      /* 0 = unauthenticated, 2 = authenticated */
 
 /* MPEG interrupt register.  24 bits wide: CR1's low byte carries bits
-   23..16 and CR2 carries bits 15..0.  The individual bit assignments
-   are not documented in any source I can verify against, so nothing
-   sets them yet -- GET_INTERRUPT returns a masked zero, which is what
-   idle hardware would report.  Filling this in is a stage 2 job, driven
-   by the decoders. */
+   23..16 and CR2 carries bits 15..0.  Bit assignments are SBL 6.01's
+   CDC_MPINT_*, mirrored into mpeg.h. */
 static uint32_t IntFlags;
 static uint32_t IntMask;
+
+/* HIRQ bits owed to the CD block, drained by MPEG_TakePendingHIRQ(). */
+static uint16_t PendingHIRQ;
+
+/* Edge detectors, so a level condition raises its factor once rather
+   than on every decode. */
+static bool SeqSeen;
+static bool VideoStarted;
+static bool AudioStarted;
+static bool VideoReady;
+static bool AudioReady;
+static uint32_t LastVideoErrors;
 
 static MPEG_Mode        Mode;
 static MPEG_Connection  Con[2];   /* [0] = current, [1] = next */
@@ -478,6 +487,14 @@ void MPEG_Reset(bool powering_up)
 
    IntFlags     = 0;
    IntMask      = 0;
+   PendingHIRQ  = 0;
+
+   SeqSeen         = false;
+   VideoStarted    = false;
+   AudioStarted    = false;
+   VideoReady      = false;
+   AudioReady      = false;
+   LastVideoErrors = 0;
 
    Mode.vidplaymode   = 0;
    Mode.dectimingmode = 0;
@@ -501,11 +518,11 @@ void MPEG_Reset(bool powering_up)
       Stm[i].vidchannum = 0x00;
    }
 
-   ActionStatus = 0;
+   ActionStatus = MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP;
    VCounter     = 0;
    PictureInfo  = 0;
-   AudioStatus  = 0;
-   VideoStatus  = 0;
+   AudioStatus  = MPEG_STA_BEMPTY;
+   VideoStatus  = MPEG_STV_BEMPTY;
 
    DecodeMethod = 0;
 
@@ -604,6 +621,35 @@ uint16_t MPEG_GetAuth(void)
  *
  */
 
+/*
+   Raise interrupt factors.
+
+   HIRQ_MPST is what tells the host to go and read GET_INTERRUPT -- SBL
+   names it "notification of MPEG interrupt status" -- so it follows the
+   masked pending set, not the raw one.  Without this a title that waits
+   on a decode-complete interrupt hangs at exactly the point where
+   everything else is working, which is why it is raised here rather
+   than anywhere convenient.
+*/
+static void RaiseInt(uint32_t bits)
+{
+   const uint32_t before = IntFlags & IntMask;
+
+   IntFlags |= bits;
+
+   if((IntFlags & IntMask) != before)
+      PendingHIRQ |= MPEG_HIRQ_MPST;
+}
+
+uint16_t MPEG_TakePendingHIRQ(void)
+{
+   const uint16_t ret = PendingHIRQ;
+
+   PendingHIRQ = 0;
+
+   return ret;
+}
+
 static void MPEGReport(uint8_t base_status, uint16_t out[4])
 {
    out[0] = ((uint16_t)base_status << 8) | ActionStatus;
@@ -671,17 +717,25 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          out[2] = 0;
          out[3] = 0;
 
-         IntFlags = 0;
+         IntFlags    = 0;
+         PendingHIRQ = 0;
 
          FIFO_Clear(&VFIFO);
          FIFO_Clear(&AFIFO);
 
-         ActionStatus = 0;
+         ActionStatus = MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP;
          PictureInfo  = 0;
-         AudioStatus  = 0;
-         VideoStatus  = 0;
+         AudioStatus  = MPEG_STA_BEMPTY;
+         VideoStatus  = MPEG_STV_BEMPTY;
          VCounter     = 0;
          FrameValid   = false;
+
+         SeqSeen         = false;
+         VideoStarted    = false;
+         AudioStarted    = false;
+         VideoReady      = false;
+         AudioReady      = false;
+         LastVideoErrors = 0;
 
          /* CR2 bit 0 selects the soft-reset variant, which additionally
             completes the command handshake immediately. */
@@ -709,9 +763,11 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
       break;
 
       case MPEG_CMD_PLAY:
-         /* STAGE 2: kick the decoders from the play mode in CR1/CR2 and
-            the start offset in CR3/CR4. */
-         ActionStatus = 0;
+         /* Video and audio both move to the transferring state.  The
+            play mode in CR1/CR2 and the start offset in CR3/CR4 are not
+            acted on: the decoders are already fed by whatever the CD
+            block routes, and nothing here seeks. */
+         ActionStatus = MPEG_ASTV_TRNS | MPEG_ASTA_TRNS;
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
@@ -865,9 +921,11 @@ static INLINE bool StreamSelected(uint8_t want, uint8_t got_index, uint8_t base)
    return want == got_index;
 }
 
-void MPEG_FeedSector(const uint8_t *data, uint32_t len)
+void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
 {
    rmpeg1_ps_packet_t pkt;
+   bool saw_video = false;
+   bool saw_audio = false;
 
    if(!Present || !Demux || !data || !len)
       return;
@@ -893,6 +951,14 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len)
 
                   if(pkt.pts != RMPEG1_PS_NO_PTS)
                      VideoPTS = pkt.pts;
+
+                  saw_video = true;
+
+                  if(!VideoReady)
+                  {
+                     VideoReady = true;
+                     RaiseInt(MPEG_INT_VSRDY);
+                  }
                }
                break;
 
@@ -903,6 +969,14 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len)
 
                   if(pkt.pts != RMPEG1_PS_NO_PTS)
                      AudioPTS = pkt.pts;
+
+                  saw_audio = true;
+
+                  if(!AudioReady)
+                  {
+                     AudioReady = true;
+                     RaiseInt(MPEG_INT_ASRDY);
+                  }
                }
                break;
 
@@ -921,6 +995,27 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len)
    }
 
    LastSCR = rmpeg1_ps_scr(Demux);
+
+   /* CD-ROM XA submode carries per-sector trigger and end-of-record
+      flags, and the card reports them as interrupt factors so software
+      can synchronise to authored marks in the stream.  The sector's
+      own video/audio submode bits say nothing useful here -- a Video CD
+      sector is Form 2 real-time data carrying both -- so attribute the
+      flags to whichever streams the demuxer actually produced. */
+   if(submode & 0x10)   /* trigger */
+   {
+      if(saw_video) RaiseInt(MPEG_INT_VTRG);
+      if(saw_audio) RaiseInt(MPEG_INT_ATRG);
+   }
+
+   if(submode & 0x01)   /* end of record */
+   {
+      if(saw_video) RaiseInt(MPEG_INT_VEOR);
+      if(saw_audio) RaiseInt(MPEG_INT_AEOR);
+   }
+
+   if(rmpeg1_ps_ended(Demux))
+      RaiseInt(MPEG_INT_SQEND);
 }
 
 uint32_t MPEG_GetESFill(bool is_video)
@@ -1191,7 +1286,23 @@ static void RunAudio(void)
             ARateStep = 1U << 16;
 
          ARing_Push(APCM, (uint32_t)wrote, AudioChannels);
-         AudioStatus = 1;
+
+         AudioStatus = MPEG_STA_DEC | MPEG_STA_OUTL
+                     | ((AudioChannels >= 2) ? MPEG_STA_OUTR : 0);
+
+         if(!AudioReady)
+         {
+            AudioReady = true;
+            RaiseInt(MPEG_INT_ASRDY);
+         }
+
+         RaiseInt(MPEG_INT_AORDY);
+
+         if(!AudioStarted)
+         {
+            AudioStarted = true;
+            RaiseInt(MPEG_INT_AOSTRT);
+         }
       }
 
       if(st != RMP3_STREAM_OK)
@@ -1216,6 +1327,27 @@ bool MPEG_RunFrame(void)
 
    RunAudio();
 
+   /* Sequence start is a level condition inside the decoder rather than
+      an event it reports, so edge-detect it here.  GOP start has no
+      equivalent in rmpeg1_video's interface, so MPEG_INT_GSTRT is never
+      raised -- worth knowing if a title turns out to synchronise on it. */
+   if(!SeqSeen && rmpeg1_video_has_sequence(Video))
+   {
+      SeqSeen = true;
+      RaiseInt(MPEG_INT_SQSTRT);
+   }
+
+   {
+      const uint32_t errs = rmpeg1_video_errors(Video);
+
+      if(errs != LastVideoErrors)
+      {
+         LastVideoErrors = errs;
+         VideoStatus |= MPEG_STV_ERR;
+         RaiseInt(MPEG_INT_VDERR);
+      }
+   }
+
    /* Push video ES until a picture pops out.  rmpeg1_video holds a
       window internally and reports a short write when it is full, which
       is the signal to stop feeding and drain. */
@@ -1231,7 +1363,19 @@ bool MPEG_RunFrame(void)
          FrameValid  = true;
          produced    = true;
          PictureInfo = frame.coding_type;
-         VideoStatus = 1;
+
+         VideoStatus = MPEG_STV_DEC | MPEG_STV_UPDPIC | MPEG_STV_RDY
+                     | (Display.enabled ? MPEG_STV_DISP : 0);
+
+         RaiseInt(MPEG_INT_PSTRT);
+         RaiseInt(MPEG_INT_VORDY);
+
+         if(!VideoStarted)
+         {
+            VideoStarted = true;
+            VideoStatus |= MPEG_STV_1STPIC;
+            RaiseInt(MPEG_INT_VOSTRT);
+         }
 
          break;
       }
@@ -1358,6 +1502,13 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
 
       SFVAR(IntFlags),
       SFVAR(IntMask),
+      SFVAR(PendingHIRQ),
+      SFVAR(SeqSeen),
+      SFVAR(VideoStarted),
+      SFVAR(AudioStarted),
+      SFVAR(VideoReady),
+      SFVAR(AudioReady),
+      SFVAR(LastVideoErrors),
 
       SFVAR(Mode.vidplaymode),
       SFVAR(Mode.dectimingmode),
