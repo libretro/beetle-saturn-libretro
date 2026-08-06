@@ -580,6 +580,73 @@ const MPEG_DisplayState *MPEG_GetDisplayState(void);
 */
 bool MPEG_DirectOutput(void);
 
+/*
+   Display-to-source coordinate mapping.
+
+   Factored out of the VDP2 compositor and put here, inline, so it can
+   be exercised on its own.  This arithmetic is where the geometry risk
+   lives -- the window bounds, the three separate origins SET_WINDOW
+   maintains, and the mosaic quantisation -- and inside DrawEXBG it was
+   reachable only by running a game.  It is still not validated against
+   hardware, since nothing in SBL describes the compositing, but it can
+   at least be pinned against regression and self-inconsistency.
+
+   Returns false when the pixel falls outside the display window or
+   outside the decoded picture, in which case the caller draws the
+   border colour.  On true, *sx and *sy are in-range source
+   coordinates.
+
+   Row mapping is separate from column mapping because the compositor
+   works a scanline at a time and hoists the row out of the inner loop.
+*/
+static INLINE bool MPEG_MapRow(const MPEG_DisplayState *ds,
+                               unsigned line, uint32_t fh, int32_t *sy)
+{
+   int32_t y;
+
+   if(!fh || line < ds->y || line >= (unsigned)(ds->y + ds->h))
+      return false;
+
+   /* DOFS shifts the window within the display without moving DPOS,
+      which is what SBL's CDC_MpSetWinDofs is for. */
+   y = (int32_t)ds->src_y + (int32_t)(line - ds->y) + (int32_t)ds->ofs_y;
+
+   /* Mosaic quantises the source coordinate before sampling, so a block
+      takes the colour of its top-left source pixel.  The field is SBL's
+      "ratio" per axis; 0 is off and N selects an N+1 pixel block, the
+      encoding VDP2's own MZCTL uses.  Quantise before the range test,
+      not after: a block whose origin is off the top of the picture has
+      nothing to sample. */
+   if(ds->moz_v)
+      y -= y % (int32_t)(ds->moz_v + 1);
+
+   if(y < 0 || (uint32_t)y >= fh)
+      return false;
+
+   *sy = y;
+   return true;
+}
+
+static INLINE bool MPEG_MapCol(const MPEG_DisplayState *ds,
+                               unsigned x, uint32_t fw, int32_t *sx)
+{
+   int32_t v;
+
+   if(!fw || x < ds->x || x >= (unsigned)(ds->x + ds->w))
+      return false;
+
+   v = (int32_t)ds->src_x + (int32_t)(x - ds->x) + (int32_t)ds->ofs_x;
+
+   if(ds->moz_h)
+      v -= v % (int32_t)(ds->moz_h + 1);
+
+   if(v < 0 || (uint32_t)v >= fw)
+      return false;
+
+   *sx = v;
+   return true;
+}
+
 #ifdef __cplusplus
 }
 #endif

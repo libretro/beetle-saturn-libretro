@@ -2254,31 +2254,12 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
    unsigned x;
    int32_t sy;
 
-   if(!fb || !fw || !fh || line < ds->y || line >= (unsigned)(ds->y + ds->h))
+   if(!fb || !MPEG_MapRow(ds, line, fh, &sy))
    {
       for(x = 0; x < w; x++)
          bgbuf[x] = border;
       return;
    }
-
-   /* DOFS shifts the window within the display without moving DPOS,
-      which is what SBL's CDC_MpSetWinDofs is for. */
-   sy = (int32_t)ds->src_y + (int32_t)(line - ds->y) + (int32_t)ds->ofs_y;
-
-   if(sy < 0 || (uint32_t)sy >= fh)
-   {
-      for(x = 0; x < w; x++)
-         bgbuf[x] = border;
-      return;
-   }
-
-   /* Mosaic quantises the source coordinate before sampling, so a block
-      takes the colour of its top-left source pixel. The field is SBL's
-      "ratio" per axis; 0 is off and N selects an N+1 pixel block, which
-      is the same encoding VDP2's own MZCTL uses -- same designers, and
-      nothing else in the field's range makes sense. */
-   if(ds->moz_v)
-      sy -= sy % (int32_t)(ds->moz_v + 1);
 
    {
       const uint8_t *luma = MPEG_GetFrameLuma();
@@ -2290,18 +2271,7 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
       {
          int32_t sx;
 
-         if(x < ds->x || x >= (unsigned)(ds->x + ds->w))
-         {
-            bgbuf[x] = border;
-            continue;
-         }
-
-         sx = (int32_t)ds->src_x + (int32_t)(x - ds->x) + (int32_t)ds->ofs_x;
-
-         if(ds->moz_h)
-            sx -= sx % (int32_t)(ds->moz_h + 1);
-
-         if(sx < 0 || (uint32_t)sx >= fw)
+         if(!MPEG_MapCol(ds, x, fw, &sx))
          {
             bgbuf[x] = border;
             continue;

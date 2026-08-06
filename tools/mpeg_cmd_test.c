@@ -1382,6 +1382,106 @@ int main(void)
       expect_eq("no false GOP start",      pend & MPEG_INT_GSTRT,  0);
    }
 
+   /* --- 15i. Compositing geometry ---------------------------------- */
+   printf("[compositing geometry]\n");
+   {
+      /* MPEG_MapRow/MapCol are the arithmetic DrawEXBG runs per pixel.
+         Nothing in SBL describes the compositing, so this is not
+         validated against hardware -- but it can be pinned against
+         regression and against being self-inconsistent, which inside
+         DrawEXBG was reachable only by running a game. */
+      MPEG_DisplayState ds;
+      int32_t sx, sy;
+      unsigned i;
+
+      memset(&ds, 0, sizeof(ds));
+      ds.w = 352;
+      ds.h = 240;
+
+      /* Identity: display (0,0) maps to source (0,0). */
+      expect_true("row 0 maps",  MPEG_MapRow(&ds, 0, 240, &sy));
+      expect_eq  ("row 0 -> 0",  (uint32_t)sy, 0);
+      expect_true("col 0 maps",  MPEG_MapCol(&ds, 0, 352, &sx));
+      expect_eq  ("col 0 -> 0",  (uint32_t)sx, 0);
+
+      expect_true("last row maps", MPEG_MapRow(&ds, 239, 240, &sy));
+      expect_eq  ("last row",      (uint32_t)sy, 239);
+      expect_true("last col maps", MPEG_MapCol(&ds, 351, 352, &sx));
+      expect_eq  ("last col",      (uint32_t)sx, 351);
+
+      /* One past the window is border, not a wrapped sample. */
+      expect_true("row past window", !MPEG_MapRow(&ds, 240, 240, &sy));
+      expect_true("col past window", !MPEG_MapCol(&ds, 352, 352, &sx));
+
+      /* A picture smaller than the window: inside the window but past
+         the picture must be border, not a read off the end. */
+      expect_true("row past picture", !MPEG_MapRow(&ds, 200, 120, &sy));
+      expect_true("col past picture", !MPEG_MapCol(&ds, 300, 176, &sx));
+
+      /* DPOS moves the window; rows before it are border and the first
+         row inside it maps to source 0. */
+      ds.x = 32; ds.y = 16;
+      expect_true("above DPOS is border", !MPEG_MapRow(&ds, 15, 240, &sy));
+      expect_true("at DPOS maps",          MPEG_MapRow(&ds, 16, 240, &sy));
+      expect_eq  ("DPOS row -> source 0",  (uint32_t)sy, 0);
+      expect_true("left of DPOS is border", !MPEG_MapCol(&ds, 31, 352, &sx));
+      expect_true("at DPOS col maps",       MPEG_MapCol(&ds, 32, 352, &sx));
+      expect_eq  ("DPOS col -> source 0",   (uint32_t)sx, 0);
+
+      /* FPOS shifts the source origin without moving the window. */
+      ds.src_x = 8; ds.src_y = 4;
+      expect_true("FPOS row maps", MPEG_MapRow(&ds, 16, 240, &sy));
+      expect_eq  ("FPOS row",      (uint32_t)sy, 4);
+      expect_true("FPOS col maps", MPEG_MapCol(&ds, 32, 352, &sx));
+      expect_eq  ("FPOS col",      (uint32_t)sx, 8);
+
+      /* DOFS adds on top of FPOS -- they are separate registers and
+         must not overwrite each other. */
+      ds.ofs_x = 2; ds.ofs_y = 3;
+      expect_true("DOFS row maps", MPEG_MapRow(&ds, 16, 240, &sy));
+      expect_eq  ("FPOS+DOFS row", (uint32_t)sy, 7);
+      expect_true("DOFS col maps", MPEG_MapCol(&ds, 32, 352, &sx));
+      expect_eq  ("FPOS+DOFS col", (uint32_t)sx, 10);
+
+      /* Mosaic quantises to blocks of N+1, anchored at source zero. */
+      memset(&ds, 0, sizeof(ds));
+      ds.w = 352; ds.h = 240;
+      ds.moz_h = 3;   /* 4-pixel blocks */
+      ds.moz_v = 1;   /* 2-line blocks  */
+
+      for(i = 0; i < 8; i++)
+      {
+         expect_true("mosaic col maps", MPEG_MapCol(&ds, i, 352, &sx));
+         expect_eq  ("mosaic col block", (uint32_t)sx, (i / 4) * 4);
+      }
+
+      for(i = 0; i < 6; i++)
+      {
+         expect_true("mosaic row maps", MPEG_MapRow(&ds, i, 240, &sy));
+         expect_eq  ("mosaic row block", (uint32_t)sy, (i / 2) * 2);
+      }
+
+      /* Mosaic must not push a block origin outside the picture and
+         then sample it anyway: quantisation happens before the range
+         test, so a source coordinate is either valid or border. */
+      ds.moz_h = 63;
+      for(i = 0; i < 352; i++)
+      {
+         if(MPEG_MapCol(&ds, i, 100, &sx))
+            expect_true("mosaic stays in picture", sx >= 0 && sx < 100);
+      }
+
+      /* A zero-size window produces nothing rather than everything. */
+      memset(&ds, 0, sizeof(ds));
+      expect_true("zero-width window is border",  !MPEG_MapCol(&ds, 0, 352, &sx));
+      expect_true("zero-height window is border", !MPEG_MapRow(&ds, 0, 240, &sy));
+
+      /* A zero-size picture is border regardless of the window. */
+      ds.w = 352; ds.h = 240;
+      expect_true("no picture, no row", !MPEG_MapRow(&ds, 0, 0, &sy));
+      expect_true("no picture, no col", !MPEG_MapCol(&ds, 0, 0, &sx));
+   }
+
    /* --- 16. Interrupt factors ------------------------------------- */
    printf("[interrupts]\n");
    {
