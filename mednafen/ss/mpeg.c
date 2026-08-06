@@ -25,9 +25,13 @@
    elementary-stream FIFOs.  Enough for software to probe for the card,
    authenticate it, configure it and drive it without hanging.
 
-   STAGE 2 (not implemented): MPEG-1 video and MPEG-1 Layer II audio
-   elementary stream decoders, fed by MPEG_FeedSector() and clocked by
-   MPEG_RunFrame().
+   STAGE 2 (this file): the decode path, entirely on libretro-common
+   codecs.  rmpeg1_ps demultiplexes the Program Stream that
+   MPEG_FeedSector() receives; the selected video substream goes to
+   rmpeg1_video and the selected audio substream to rmp3, both clocked
+   by MPEG_RunFrame().  What lives here is glue: substream selection,
+   4:2:0 to RGB555 conversion for the Saturn's display path, an audio
+   ring, and the status fields the CD block command surface reports.
 
    STAGE 3 (not implemented): VDP2 external-background compositing of
    the decoded picture, and SCSP-side mixing of the decoded audio.
@@ -39,8 +43,12 @@
 #include <string.h>
 #include <stdint.h>
 #include <boolean.h>
+#include <retro_inline.h>
 
 #include <streams/file_stream.h>
+#include <formats/rmpeg1_ps.h>
+#include <formats/rmpeg1_video.h>
+#include <formats/rmp3.h>
 
 #include "../state.h"
 #include "../mednafen-types.h"
@@ -52,14 +60,25 @@
    padded, longer ones are truncated with the tail ignored. */
 #define MPEG_ROM_SIZE 0x80000
 
-/* Elementary stream FIFOs.  The card has 2 MiB of DRAM split between
-   the two streams and the frame buffers; the split is programmable via
-   the buffer-number fields of SET_CONNECTION, which stage 1 records but
-   does not act on.  Until the decoders land these are fixed-size ring
-   buffers sized generously enough that a stalled decoder drops sectors
-   instead of stalling the CD block. */
+/* Elementary stream FIFOs, downstream of the demuxer.  The card has
+   2 MiB of DRAM split between the two streams and the frame buffers;
+   the split is programmable via the buffer-number fields of
+   SET_CONNECTION, which is recorded but not yet acted on.  Until the
+   decoders land these are fixed-size ring buffers sized generously
+   enough that a stalled decoder drops elementary stream instead of
+   stalling the CD block. */
 #define MPEG_VFIFO_SIZE (256 * 1024)
 #define MPEG_AFIFO_SIZE (64  * 1024)
+
+/* Demuxer input buffer.  rmpeg1_ps requires at least the 65541-byte
+   worst-case packet; give it room for a few sectors beyond that so a
+   single MPEG_FeedSector() call never has to be split. */
+#define MPEG_DEMUX_CAPACITY (96 * 1024)
+
+/* Decoded audio ring, in interleaved stereo sample pairs.  rmp3 emits
+   1152 frames at a time and the SCSP drains at its own cadence, so this
+   only has to absorb the mismatch: half a second is generous. */
+#define MPEG_ARING_FRAMES 22050
 
 typedef struct
 {
@@ -139,6 +158,32 @@ static MPEG_DisplayState Display;
 static MPEG_FIFO VFIFO;
 static MPEG_FIFO AFIFO;
 
+/* System layer.  Owned here rather than by the CD block: on real
+   hardware the CD block hands the card whole sectors and the card does
+   its own demultiplexing. */
+static rmpeg1_ps_t   *Demux;
+static rmpeg1_video_t *Video;
+static rmp3_stream_t  *Audio;
+
+/* Decoded audio ring.  Stereo s16 pairs; mono streams are duplicated on
+   the way in so the drain side never has to care. */
+static int16_t  *ARing;
+static uint32_t  ARing_RP, ARing_WP, ARing_Count;
+static uint32_t  AudioRate, AudioChannels;
+
+/* Scratch for one rmp3 frame before it is folded into the ring. */
+static int16_t   APCM[RMP3_MAX_SAMPLES_PER_FRAME];
+
+static uint64_t VideoPTS;
+static uint64_t AudioPTS;
+static uint64_t LastSCR;
+
+/* Dropped-payload counters, for diagnosing a wedged decoder: an ES FIFO
+   that fills means the demuxer is outrunning a decoder that does not
+   exist yet, which is expected until stage 2 completes. */
+static uint32_t VDropped;
+static uint32_t ADropped;
+
 /* Decoded picture, RGB555.  Untouched by stage 1. */
 static uint16_t *FrameBuf;
 static uint32_t  FrameW, FrameH;
@@ -183,20 +228,68 @@ static MDFN_COLD void FIFO_Clear(MPEG_FIFO *f)
    f->count = 0;
 }
 
+/* Copy up to len bytes from the front without consuming them.  The
+   decoders take a contiguous window, and a ring's front may wrap, so
+   the caller stages into a flat buffer and reports back how much was
+   actually consumed via FIFO_Drop(). */
+static MDFN_HOT uint32_t FIFO_Peek(const MPEG_FIFO *f, uint8_t *dst, uint32_t len)
+{
+   uint32_t rp  = f->rp;
+   uint32_t got = 0;
+
+   if(!f->data)
+      return 0;
+
+   if(len > f->count)
+      len = f->count;
+
+   while(len)
+   {
+      uint32_t chunk = f->size - rp;
+
+      if(chunk > len)
+         chunk = len;
+
+      memcpy(dst + got, f->data + rp, chunk);
+
+      rp   = (rp + chunk) % f->size;
+      got += chunk;
+      len -= chunk;
+   }
+
+   return got;
+}
+
+static MDFN_HOT void FIFO_Drop(MPEG_FIFO *f, uint32_t len)
+{
+   if(!f->data)
+      return;
+
+   if(len > f->count)
+      len = f->count;
+
+   f->rp     = (f->rp + len) % f->size;
+   f->count -= len;
+}
+
 /* Writes as much as will fit and drops the remainder.  A real card
    would apply backpressure through the CD block's buffer-full path;
    until the decoders exist there is nothing draining these, so dropping
    is the only option that does not deadlock. */
-static MDFN_HOT void FIFO_Write(MPEG_FIFO *f, const uint8_t *src, uint32_t len)
+static MDFN_HOT uint32_t FIFO_Write(MPEG_FIFO *f, const uint8_t *src, uint32_t len)
 {
    uint32_t space;
+   uint32_t dropped = 0;
 
    if(!f->data)
-      return;
+      return len;
 
    space = f->size - f->count;
    if(len > space)
-      len = space;
+   {
+      dropped = len - space;
+      len     = space;
+   }
 
    while(len)
    {
@@ -212,6 +305,8 @@ static MDFN_HOT void FIFO_Write(MPEG_FIFO *f, const uint8_t *src, uint32_t len)
       src      += chunk;
       len      -= chunk;
    }
+
+   return dropped;
 }
 
 /*
@@ -231,6 +326,10 @@ bool MPEG_Init(RFILE *rom_fp)
    CardROM     = NULL;
    CardROMSize = 0;
    FrameBuf    = NULL;
+   Demux       = NULL;
+   Video       = NULL;
+   Audio       = NULL;
+   ARing       = NULL;
 
    memset(&VFIFO, 0, sizeof(VFIFO));
    memset(&AFIFO, 0, sizeof(AFIFO));
@@ -270,6 +369,24 @@ bool MPEG_Init(RFILE *rom_fp)
    if(!FIFO_Alloc(&AFIFO, MPEG_AFIFO_SIZE))
       goto fail;
 
+   Demux = rmpeg1_ps_init(MPEG_DEMUX_CAPACITY);
+   if(!Demux)
+      goto fail;
+
+   Video = rmpeg1_video_init();
+   if(!Video)
+      goto fail;
+
+   Audio = rmp3_stream_new();
+   if(!Audio)
+      goto fail;
+
+   ARing = (int16_t*)malloc(MPEG_ARING_FRAMES * 2 * sizeof(int16_t));
+   if(!ARing)
+      goto fail;
+
+   memset(ARing, 0, MPEG_ARING_FRAMES * 2 * sizeof(int16_t));
+
    FrameBuf = (uint16_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
    if(!FrameBuf)
       goto fail;
@@ -287,6 +404,22 @@ fail:
 
 void MPEG_Kill(void)
 {
+   if(Demux)
+      rmpeg1_ps_free(Demux);
+   Demux = NULL;
+
+   if(Video)
+      rmpeg1_video_free(Video);
+   Video = NULL;
+
+   if(Audio)
+      rmp3_stream_free(Audio);
+   Audio = NULL;
+
+   if(ARing)
+      free(ARing);
+   ARing = NULL;
+
    FIFO_Free(&VFIFO);
    FIFO_Free(&AFIFO);
 
@@ -350,6 +483,33 @@ void MPEG_Reset(bool powering_up)
 
    FIFO_Clear(&VFIFO);
    FIFO_Clear(&AFIFO);
+
+   if(Demux)
+      rmpeg1_ps_reset(Demux);
+
+   if(Video)
+      rmpeg1_video_reset(Video);
+
+   /* rmp3's streaming context has no reset entry point, so recycle it.
+      Failure leaves Audio NULL, which RunAudio() already tolerates --
+      video keeps working without sound rather than the card dying. */
+   if(Audio)
+   {
+      rmp3_stream_free(Audio);
+      Audio = rmp3_stream_new();
+   }
+
+   ARing_RP      = 0;
+   ARing_WP      = 0;
+   ARing_Count   = 0;
+   AudioRate     = 0;
+   AudioChannels = 0;
+
+   VideoPTS = RMPEG1_PS_NO_PTS;
+   AudioPTS = RMPEG1_PS_NO_PTS;
+   LastSCR  = RMPEG1_PS_NO_PTS;
+   VDropped = 0;
+   ADropped = 0;
 
    FrameW     = 0;
    FrameH     = 0;
@@ -631,21 +791,347 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
  *
  */
 
-void MPEG_FeedSector(const uint8_t *data, uint32_t len, bool is_video)
+/*
+   Substream selection.  SET_STREAM's audstmid/vidstmid fields carry the
+   stream ID the card should decode.  Software writes them either as a
+   raw MPEG stream_id (0xE0.. for video, 0xC0.. for audio) or as a bare
+   substream index, so accept both: mask off the type nibble when the
+   value looks like a full stream_id.  0xFF is the SBL "don't care"
+   convention and matches whatever arrives first.
+*/
+static INLINE bool StreamSelected(uint8_t want, uint8_t got_index, uint8_t base)
 {
-   if(!Present || !data || !len)
+   if(want == 0xFF)
+      return true;
+
+   if((want & 0xE0) == base)
+      return (want & 0x1F) == got_index;
+
+   return want == got_index;
+}
+
+void MPEG_FeedSector(const uint8_t *data, uint32_t len)
+{
+   rmpeg1_ps_packet_t pkt;
+
+   if(!Present || !Demux || !data || !len)
       return;
 
-   FIFO_Write(is_video ? &VFIFO : &AFIFO, data, len);
+   /* rmpeg1_ps_write() consumes less than len only when its buffer is
+      full, which means packets are waiting; drain and retry rather than
+      losing the tail. */
+   while(len)
+   {
+      size_t took = rmpeg1_ps_write(Demux, data, len);
+
+      data += took;
+      len  -= (uint32_t)took;
+
+      while(rmpeg1_ps_next(Demux, &pkt))
+      {
+         switch(pkt.type)
+         {
+            case RMPEG1_PS_VIDEO:
+               if(StreamSelected(Stm[0].vidstmid, pkt.index, 0xE0))
+               {
+                  VDropped += FIFO_Write(&VFIFO, pkt.data, (uint32_t)pkt.size);
+
+                  if(pkt.pts != RMPEG1_PS_NO_PTS)
+                     VideoPTS = pkt.pts;
+               }
+               break;
+
+            case RMPEG1_PS_AUDIO:
+               if(StreamSelected(Stm[0].audstmid, pkt.index, 0xC0))
+               {
+                  ADropped += FIFO_Write(&AFIFO, pkt.data, (uint32_t)pkt.size);
+
+                  if(pkt.pts != RMPEG1_PS_NO_PTS)
+                     AudioPTS = pkt.pts;
+               }
+               break;
+
+            default:
+               /* Private and padding streams are not used by Video CD
+                  video tracks; ignore rather than buffer them. */
+               break;
+         }
+      }
+
+      /* No forward progress and nothing drained: the packet is larger
+         than the buffer, which rmpeg1_ps_init() already refused to make
+         possible.  Bail rather than spin. */
+      if(!took)
+         break;
+   }
+
+   LastSCR = rmpeg1_ps_scr(Demux);
+}
+
+uint32_t MPEG_GetESFill(bool is_video)
+{
+   return is_video ? VFIFO.count : AFIFO.count;
+}
+
+uint64_t MPEG_GetPTS(bool is_video)
+{
+   return is_video ? VideoPTS : AudioPTS;
+}
+
+/*
+ *
+ * Colour conversion
+ *
+ * ITU-R BT.601 studio-swing YCbCr to RGB, in integer arithmetic at 16
+ * fractional bits.  Fixed point rather than float on purpose: this
+ * output feeds savestates and, through VDP2, the frame the rest of the
+ * emulator compares against, so it has to be bit-reproducible across
+ * hosts and build configurations.
+ *
+ *   R = 1.164(Y-16)                  + 1.596(Cr-128)
+ *   G = 1.164(Y-16) - 0.392(Cb-128)  - 0.813(Cr-128)
+ *   B = 1.164(Y-16) + 2.017(Cb-128)
+ */
+
+#define YUV_FRAC   16
+#define YUV_Y      76309   /* 1.164 */
+#define YUV_RV    104597   /* 1.596 */
+#define YUV_GU    -25675   /* -0.392 */
+#define YUV_GV    -53279   /* -0.813 */
+#define YUV_BU    132201   /* 2.017 */
+
+static INLINE uint32_t ClampU5(int32_t v)
+{
+   /* Shift to 5 bits, then clamp -- clamping after the shift keeps the
+      comparison against constants the compiler can fold. */
+   v >>= (YUV_FRAC + 3);
+
+   if(v < 0)
+      return 0;
+   if(v > 31)
+      return 31;
+
+   return (uint32_t)v;
+}
+
+/* 4:2:0 planar to RGB555, chroma upsampled by replication.  Nearest
+   neighbour rather than a proper interpolating upsampler because the
+   card's own output was not doing anything cleverer at 352x240 and an
+   interpolator would be inventing detail the hardware did not show. */
+static void ConvertFrame(const rmpeg1_video_frame_t *f)
+{
+   unsigned x, y;
+   unsigned w = f->width;
+   unsigned h = f->height;
+
+   if(w > MPEG_MAX_WIDTH)  w = MPEG_MAX_WIDTH;
+   if(h > MPEG_MAX_HEIGHT) h = MPEG_MAX_HEIGHT;
+
+   for(y = 0; y < h; y++)
+   {
+      const uint8_t *yp = f->y  + (size_t)y * f->y_stride;
+      const uint8_t *up = f->cb + (size_t)(y >> 1) * f->c_stride;
+      const uint8_t *vp = f->cr + (size_t)(y >> 1) * f->c_stride;
+      uint16_t      *dp = FrameBuf + (size_t)y * MPEG_MAX_WIDTH;
+
+      for(x = 0; x < w; x++)
+      {
+         const int32_t yy = ((int32_t)yp[x] - 16)      * YUV_Y;
+         const int32_t cb = (int32_t)up[x >> 1] - 128;
+         const int32_t cr = (int32_t)vp[x >> 1] - 128;
+
+         const uint32_t r = ClampU5(yy + YUV_RV * cr);
+         const uint32_t g = ClampU5(yy + YUV_GU * cb + YUV_GV * cr);
+         const uint32_t b = ClampU5(yy + YUV_BU * cb);
+
+         /* Saturn RGB555 is BGR order in the low 15 bits. */
+         dp[x] = (uint16_t)((b << 10) | (g << 5) | r);
+      }
+   }
+
+   FrameW = w;
+   FrameH = h;
+}
+
+/*
+ *
+ * Audio ring
+ *
+ */
+
+static void ARing_Push(const int16_t *pcm, uint32_t frames, uint32_t channels)
+{
+   uint32_t i;
+
+   if(!ARing)
+      return;
+
+   for(i = 0; i < frames; i++)
+   {
+      int16_t l, r;
+
+      if(ARing_Count >= MPEG_ARING_FRAMES)
+      {
+         /* Overrun: drop the oldest pair rather than the newest, so a
+            momentarily starved drain resumes at the current position
+            instead of replaying stale audio. */
+         ARing_RP = (ARing_RP + 1) % MPEG_ARING_FRAMES;
+         ARing_Count--;
+         ADropped++;
+      }
+
+      if(channels >= 2)
+      {
+         l = pcm[i * 2 + 0];
+         r = pcm[i * 2 + 1];
+      }
+      else
+         l = r = pcm[i];
+
+      ARing[ARing_WP * 2 + 0] = l;
+      ARing[ARing_WP * 2 + 1] = r;
+
+      ARing_WP = (ARing_WP + 1) % MPEG_ARING_FRAMES;
+      ARing_Count++;
+   }
+}
+
+uint32_t MPEG_ReadAudio(int16_t *out, uint32_t frames)
+{
+   uint32_t got = 0;
+
+   if(!ARing || !out)
+      return 0;
+
+   while(got < frames && ARing_Count)
+   {
+      out[got * 2 + 0] = ARing[ARing_RP * 2 + 0];
+      out[got * 2 + 1] = ARing[ARing_RP * 2 + 1];
+
+      ARing_RP = (ARing_RP + 1) % MPEG_ARING_FRAMES;
+      ARing_Count--;
+      got++;
+   }
+
+   return got;
+}
+
+void MPEG_GetAudioFormat(uint32_t *rate, uint32_t *channels)
+{
+   if(rate)     *rate     = AudioRate;
+   if(channels) *channels = AudioChannels;
+}
+
+/*
+ *
+ * Decode
+ *
+ */
+
+/* Drain the audio ES FIFO through rmp3.  Separate from the picture
+   cadence: an MPEG audio frame is 1152 samples and lines up with
+   nothing in particular on the video side. */
+static void RunAudio(void)
+{
+   uint8_t staging[4096];
+
+   if(!Audio || !AFIFO.count)
+      return;
+
+   for(;;)
+   {
+      uint32_t avail = AFIFO.count;
+      uint32_t take  = (avail > sizeof(staging)) ? (uint32_t)sizeof(staging) : avail;
+      size_t   read  = 0;
+      size_t   wrote = 0;
+      int      st;
+
+      if(!take)
+         break;
+
+      FIFO_Peek(&AFIFO, staging, take);
+
+      rmp3_stream_set_in(Audio, staging, take);
+      rmp3_stream_set_out_s16(Audio, APCM, RMP3_MAX_SAMPLES_PER_FRAME / 2);
+
+      st = rmp3_stream_process(Audio, &read, &wrote);
+
+      FIFO_Drop(&AFIFO, (uint32_t)read);
+
+      if(wrote)
+      {
+         unsigned ch = 2, rate = 44100;
+
+         rmp3_stream_info(Audio, &ch, &rate);
+
+         AudioChannels = ch ? ch : 2;
+         AudioRate     = rate ? rate : 44100;
+
+         ARing_Push(APCM, (uint32_t)wrote, AudioChannels);
+         AudioStatus = 1;
+      }
+
+      if(st != RMP3_STREAM_OK)
+         break;
+
+      /* No forward progress on either side: the decoder wants a whole
+         frame it has not been given yet.  Wait for more input rather
+         than spinning on the same bytes. */
+      if(!read && !wrote)
+         break;
+   }
 }
 
 bool MPEG_RunFrame(void)
 {
-   /* STAGE 2: parse the video elementary stream out of VFIFO, decode
-      one picture into FrameBuf, decode the matching Layer II audio out
-      of AFIFO, update PictureInfo/VideoStatus/AudioStatus/VCounter and
-      raise the corresponding IntFlags bits. */
-   return false;
+   uint8_t staging[8192];
+   rmpeg1_video_frame_t frame;
+   bool produced = false;
+
+   if(!Present || !Video)
+      return false;
+
+   RunAudio();
+
+   /* Push video ES until a picture pops out.  rmpeg1_video holds a
+      window internally and reports a short write when it is full, which
+      is the signal to stop feeding and drain. */
+   for(;;)
+   {
+      uint32_t take;
+      size_t   took;
+
+      if(rmpeg1_video_decode(Video, &frame))
+      {
+         ConvertFrame(&frame);
+
+         FrameValid  = true;
+         produced    = true;
+         PictureInfo = frame.coding_type;
+         VideoStatus = 1;
+         VCounter    = (uint16_t)(VCounter + 1);
+
+         break;
+      }
+
+      if(!VFIFO.count)
+         break;
+
+      take = VFIFO.count;
+      if(take > sizeof(staging))
+         take = (uint32_t)sizeof(staging);
+
+      FIFO_Peek(&VFIFO, staging, take);
+      took = rmpeg1_video_write(Video, staging, take);
+      FIFO_Drop(&VFIFO, (uint32_t)took);
+
+      /* Window full and no picture ready: the decoder needs a start
+         code it has not seen.  Nothing more to do this call. */
+      if(!took)
+         break;
+   }
+
+   return produced;
 }
 
 const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height)
@@ -724,43 +1210,57 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(Display.border_color),
       SFVAR(Display.fade),
 
-      SFVAR(VFIFO.rp),
-      SFVAR(VFIFO.wp),
-      SFVAR(VFIFO.count),
-      SFVAR(AFIFO.rp),
-      SFVAR(AFIFO.wp),
-      SFVAR(AFIFO.count),
+      SFVAR(VideoPTS),
+      SFVAR(AudioPTS),
+      SFVAR(LastSCR),
 
       SFEND
    };
 
    MDFNSS_StateAction(sm, load, data_only, StateRegs, "MPEG", true);
 
-   /* FIFO contents are intentionally not serialised: they are pure
-      decoder input, sized in the hundreds of KiB, and stage 1 never
-      drains them.  Clamp the indices on load so a state written by a
-      future build with different FIFO sizes cannot walk off the end. */
    if(load)
    {
-      if(VFIFO.size)
-      {
-         VFIFO.rp    %= VFIFO.size;
-         VFIFO.wp    %= VFIFO.size;
-         if(VFIFO.count > VFIFO.size)
-            VFIFO.count = VFIFO.size;
-      }
-      else
-         FIFO_Clear(&VFIFO);
+      /* Neither the ES FIFOs nor the demuxer's parse state are
+         serialised.  The demuxer holds a partially-parsed packet and a
+         start-code hunt position; restoring elementary stream that a
+         stale parser then appended to would splice two unrelated
+         packets together.  Dropping both is correct and cheap: the CD
+         block re-feeds from the restored disc position and the parser
+         resynchronises on the next start code, which is exactly the
+         mid-stream entry case rmpeg1_ps is built to handle.
 
-      if(AFIFO.size)
+         The timestamps above are kept, because they are what the
+         decode-timing comparison against SCR needs in order to resume
+         at the right presentation point rather than from zero. */
+      if(Demux)
+         rmpeg1_ps_reset(Demux);
+
+      /* Same reasoning applies one layer down.  rmpeg1_video holds
+         reference pictures and a partially-decoded slice, rmp3 holds
+         filter-bank history; neither is serialised, and feeding
+         restored ES into stale state would decode against the wrong
+         references.  Both resynchronise on the next start code, and
+         rmpeg1_video counts the unreconstructable pictures it steps
+         over rather than emitting garbage. */
+      if(Video)
+         rmpeg1_video_reset(Video);
+
+      if(Audio)
       {
-         AFIFO.rp    %= AFIFO.size;
-         AFIFO.wp    %= AFIFO.size;
-         if(AFIFO.count > AFIFO.size)
-            AFIFO.count = AFIFO.size;
+         rmp3_stream_free(Audio);
+         Audio = rmp3_stream_new();
       }
-      else
-         FIFO_Clear(&AFIFO);
+
+      FIFO_Clear(&VFIFO);
+      FIFO_Clear(&AFIFO);
+
+      ARing_RP    = 0;
+      ARing_WP    = 0;
+      ARing_Count = 0;
+
+      VDropped   = 0;
+      ADropped   = 0;
 
       FrameValid = false;
    }

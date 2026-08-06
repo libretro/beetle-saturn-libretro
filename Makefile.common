@@ -185,7 +185,10 @@ endif
 endif
 
 ifneq ($(STATIC_LINKING), 1)
-SOURCES_C += 	 $(LIBRETRO_COMM_DIR)/streams/file_stream.c \
+SOURCES_C += 	 $(LIBRETRO_COMM_DIR)/formats/mpeg1/rmpeg1_ps.c \
+		 $(LIBRETRO_COMM_DIR)/formats/mpeg1/rmpeg1_video.c \
+		 $(LIBRETRO_COMM_DIR)/formats/mp3/rmp3.c \
+		 $(LIBRETRO_COMM_DIR)/streams/file_stream.c \
 		 $(LIBRETRO_COMM_DIR)/streams/file_stream_transforms.c \
 		 $(LIBRETRO_COMM_DIR)/file/file_path.c \
 		 $(LIBRETRO_COMM_DIR)/file/retro_dirent.c \

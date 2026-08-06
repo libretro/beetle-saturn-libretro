@@ -35,10 +35,11 @@
         path.
 
    This translation unit models (1) in full and holds the state that
-   (2) and (3) will consume.  The MPEG-1 video / Layer II audio
-   elementary stream decoders are behind MPEG_FeedSector() and
-   MPEG_RunFrame() and are not implemented yet -- see the STAGE
-   comments in mpeg.c.
+   (2) and (3) consume.  All three codec layers come from
+   libretro-common: rmpeg1_ps demultiplexes the Program Stream,
+   rmpeg1_video decodes the MPEG-1 video elementary stream, and rmp3
+   decodes the MPEG-1 Layer II audio elementary stream.  Nothing about
+   MPEG lives in this core beyond the glue.
 */
 
 #ifndef __MDFN_SS_MPEG_H
@@ -48,6 +49,7 @@
 #include <boolean.h>
 
 #include <streams/file_stream.h>
+#include <formats/rmpeg1_ps.h>	/* RMPEG1_PS_NO_PTS */
 
 #include "../state.h"
 #include "../mednafen-types.h"
@@ -152,18 +154,48 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
                   uint8_t base_status, uint16_t out[4], uint16_t *hirq);
 
 /*
-   Sector feed.  The CD block calls this for every 2324/2048-byte sector
-   whose filter output connector routes to the MPEG decoder rather than
-   to a partition.  Data is the sector payload; is_video selects the
-   video or audio elementary stream FIFO.
+   Sector feed.  The CD block calls this for every sector whose filter
+   output connector routes to the MPEG decoder rather than to a
+   partition, passing the raw payload -- 2324 bytes for the Mode 2 Form
+   2 sectors of a Video CD track, 2048 for Mode 1.
+
+   The payload is an MPEG-1 Program Stream fragment, not an elementary
+   stream: on a VCD the program stream is simply the concatenation of
+   the Form 2 payloads.  Splitting it is the card's job, not the CD
+   block's, so there is deliberately no video/audio selector here.
+   Demultiplexing and substream selection happen inside, driven by the
+   stream IDs that SET_STREAM configured.
 */
-void MPEG_FeedSector(const uint8_t *data, uint32_t len, bool is_video) MDFN_HOT;
+void MPEG_FeedSector(const uint8_t *data, uint32_t len) MDFN_HOT;
+
+/* Bytes of demultiplexed elementary stream currently buffered, for the
+   CD block's buffer-full/backpressure decisions and for tests. */
+uint32_t MPEG_GetESFill(bool is_video);
+
+/* Presentation timestamp most recently attached to a demultiplexed
+   packet of the selected substream, in 90 kHz units, or
+   RMPEG1_PS_NO_PTS when none has been seen. */
+uint64_t MPEG_GetPTS(bool is_video);
 
 /*
-   Advance the decoders by one display frame.  Returns true if a new
-   picture was produced, in which case MPEG_GetFrame() is valid.
+   Advance the decoders.  Returns true if a new picture was produced, in
+   which case MPEG_GetFrame() is valid.  Audio is decoded independently
+   of the picture cadence and accumulates in the ring MPEG_ReadAudio()
+   drains, because MPEG frames carry 1152 samples apiece and do not line
+   up with video frames.
 */
 bool MPEG_RunFrame(void) MDFN_HOT;
+
+/*
+   Drain decoded audio.  Writes up to frames interleaved stereo s16
+   sample pairs and returns how many were actually available.  Output is
+   at the stream's own rate -- 44.1 kHz for Video CD -- and needs
+   resampling to the SCSP rate by the caller.
+*/
+uint32_t MPEG_ReadAudio(int16_t *out, uint32_t frames) MDFN_HOT;
+
+/* Decoded audio rate and channel count, or 0 before the first frame. */
+void MPEG_GetAudioFormat(uint32_t *rate, uint32_t *channels);
 
 /*
    Most recently decoded picture, as packed 16bpp RGB555 in the Saturn's
