@@ -159,7 +159,7 @@ static uint8_t  AudioStatus;
 static uint16_t VideoStatus;
 
 static uint8_t  DecodeMethod;
-static uint8_t  VideoEffects[4];
+static uint8_t  VideoEffects[6];
 static uint32_t LSIRegs[2];
 
 static MPEG_DisplayState Display;
@@ -831,27 +831,75 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          break;
 
       case MPEG_CMD_DISPLAY:
-         Display.enabled = (cd[0] & 0x0001) != 0;
+         /* CDC_MpDisp(dspsw, fbn) puts the display switch in CR2's high
+            byte and the frame buffer number in its low byte.  This was
+            previously read as CR1 bit 0, which meant the display switch
+            never came on and nothing ever composited. */
+         Display.enabled = (cd[1] >> 8) != 0;
+         Display.fbn     = cd[1] & 0xFF;
+
+         if(Display.enabled)
+            VideoStatus |= MPEG_STV_DISP;
+         else
+            VideoStatus &= ~(uint16_t)MPEG_STV_DISP;
+
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
 
       case MPEG_CMD_SET_WINDOW:
-         Display.src_x = cd[0] & 0x03FF;
-         Display.src_y = cd[1] & 0x03FF;
-         Display.x     = cd[2] & 0x03FF;
-         Display.y     = cd[3] & 0x03FF;
+      {
+         /* One opcode, five sub-functions.  SBL's cmdRspWin emits the
+            selector in CR1's low byte, the change flag in CR2's low
+            byte, x in CR3 and y in CR4.  The previous reading of this
+            command ignored the selector entirely and so applied every
+            window write to the same two fields. */
+         const unsigned sel = cd[0] & 0xFF;
+         const uint16_t x   = cd[2];
+         const uint16_t y   = cd[3];
 
-         /* NOTE: this register layout is the least certain thing in
-            this file.  Yabause does not model SET_WINDOW at all and I
-            have no source that names the fields, so the source/dest
-            origin split here is a reading, not a fact.  It only becomes
-            observable through VDP2 compositing; if a title places its
-            picture wrongly, start here. */
+         switch(sel)
+         {
+            case MPEG_WIN_FPOS:
+               Display.src_x = x;
+               Display.src_y = y;
+               break;
+
+            case MPEG_WIN_FRAT:
+               Display.rat_x = x;
+               Display.rat_y = y;
+               break;
+
+            case MPEG_WIN_DPOS:
+               Display.x = x;
+               Display.y = y;
+               break;
+
+            case MPEG_WIN_DSIZ:
+               Display.w     = x;
+               Display.h     = y;
+               WindowSizeSet = true;
+               break;
+
+            case MPEG_WIN_DOFS:
+               Display.ofs_x = x;
+               Display.ofs_y = y;
+               break;
+
+            default:
+               break;
+         }
+
+         /* CR2's low byte is SBL's chgflg.  Its meaning is not
+            documented in anything I have -- most likely apply-now
+            versus apply-at-next-VSYNC -- so the write is always applied
+            rather than sometimes dropped, which is the failure mode
+            that would be hardest to spot. */
 
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
-         break;
+      }
+      break;
 
       case MPEG_CMD_SET_BORDERCOL:
          Display.border_color = cd[1];
@@ -860,18 +908,38 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          break;
 
       case MPEG_CMD_SET_FADE:
-         Display.fade = cd[1] & 0xFF;
+         /* CDC_MpSetFade(gain_y, gain_c): luma gain in CR2's high byte,
+            chroma gain in its low byte.  Only the luma gain scales the
+            converted RGB; the chroma gain is recorded but unused until
+            the conversion works in YCbCr. */
+         Display.fade   = cd[1] >> 8;
+         Display.fade_c = cd[1] & 0xFF;
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
 
       case MPEG_CMD_SET_VIDEOEFF:
-         VideoEffects[0] = cd[0] & 0xFF;
-         VideoEffects[1] = cd[1] & 0xFF;
-         VideoEffects[2] = cd[2] & 0xFF;
-         VideoEffects[3] = cd[3] & 0xFF;
+         /* CDC_MpSetVeff(itp, trp, moz_h, moz_v, soft_h, soft_v) packs
+            six bytes across CR2..CR4.  Recorded but not acted on. */
+         VideoEffects[0] = cd[1] >> 8;   /* interpolation mode  */
+         VideoEffects[1] = cd[1] & 0xFF; /* transparent bit     */
+         VideoEffects[2] = cd[2] >> 8;   /* horizontal mosaic   */
+         VideoEffects[3] = cd[2] & 0xFF; /* vertical mosaic     */
+         VideoEffects[4] = cd[3] >> 8;   /* horizontal soften   */
+         VideoEffects[5] = cd[3] & 0xFF; /* vertical soften     */
 
          MPEGReport(base_status, out);
+         *hirq |= MPEG_HIRQ_MPCM;
+         break;
+
+      case MPEG_CMD_GET_PICT_SIZE:
+         /* CDC_MpGetPictSiz reads the horizontal size from CR3 and the
+            vertical from CR4. */
+         out[0] = (uint16_t)base_status << 8;
+         out[1] = 0;
+         out[2] = (uint16_t)FrameW;
+         out[3] = (uint16_t)FrameH;
+
          *hirq |= MPEG_HIRQ_MPCM;
          break;
 
@@ -1541,6 +1609,12 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(LSIRegs[1]),
 
       SFVAR(Display.enabled),
+      SFVAR(Display.fbn),
+      SFVAR(Display.ofs_x),
+      SFVAR(Display.ofs_y),
+      SFVAR(Display.rat_x),
+      SFVAR(Display.rat_y),
+      SFVAR(Display.fade_c),
       SFVAR(Display.x),
       SFVAR(Display.y),
       SFVAR(Display.w),

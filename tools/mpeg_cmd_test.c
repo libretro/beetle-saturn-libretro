@@ -273,24 +273,54 @@ int main(void)
    {
       const MPEG_DisplayState *d;
 
-      Cmd(MPEG_CMD_DISPLAY, 0x0001, 0, 0, 0);
+      /* CDC_MpDisp(dspsw, fbn): switch in CR2's high byte, frame buffer
+         number in the low byte.  A write to CR1 must do nothing -- that
+         was the old misreading, and it kept the display permanently
+         off. */
+      Cmd(MPEG_CMD_DISPLAY, 0x0001, 0x0000, 0, 0);
       d = MPEG_GetDisplayState();
-      expect_true("display enabled", d->enabled);
+      expect_true("CR1 does not enable display", !d->enabled);
 
-      Cmd(MPEG_CMD_DISPLAY, 0x0000, 0, 0, 0);
+      Cmd(MPEG_CMD_DISPLAY, 0x0000, 0x0102, 0, 0);
+      expect_true("CR2 high byte enables display", d->enabled);
+      expect_eq  ("frame buffer number", d->fbn, 0x02);
+
+      Cmd(MPEG_CMD_DISPLAY, 0x0000, 0x0000, 0, 0);
       expect_true("display disabled", !d->enabled);
 
-      Cmd(MPEG_CMD_SET_WINDOW, 0x0010, 0x0020, 0x0030, 0x0040);
-      expect_eq("src_x", d->src_x, 0x10);
-      expect_eq("src_y", d->src_y, 0x20);
-      expect_eq("x",     d->x,     0x30);
-      expect_eq("y",     d->y,     0x40);
+      /* One opcode, five sub-functions selected by CR1's low byte;
+         x in CR3, y in CR4. */
+      Cmd(MPEG_CMD_SET_WINDOW, MPEG_WIN_FPOS, 0x0001, 0x0011, 0x0022);
+      expect_eq("FPOS src_x", d->src_x, 0x11);
+      expect_eq("FPOS src_y", d->src_y, 0x22);
+
+      Cmd(MPEG_CMD_SET_WINDOW, MPEG_WIN_DPOS, 0x0001, 0x0033, 0x0044);
+      expect_eq("DPOS x", d->x, 0x33);
+      expect_eq("DPOS y", d->y, 0x44);
+
+      Cmd(MPEG_CMD_SET_WINDOW, MPEG_WIN_DSIZ, 0x0001, 0x0140, 0x00F0);
+      expect_eq("DSIZ w", d->w, 0x140);
+      expect_eq("DSIZ h", d->h, 0x0F0);
+
+      Cmd(MPEG_CMD_SET_WINDOW, MPEG_WIN_DOFS, 0x0001, 0x0055, 0x0066);
+      expect_eq("DOFS x", d->ofs_x, 0x55);
+      expect_eq("DOFS y", d->ofs_y, 0x66);
+
+      Cmd(MPEG_CMD_SET_WINDOW, MPEG_WIN_FRAT, 0x0001, 0x0077, 0x0088);
+      expect_eq("FRAT x", d->rat_x, 0x77);
+      expect_eq("FRAT y", d->rat_y, 0x88);
+
+      /* Each sub-function must touch only its own pair. */
+      expect_eq("FPOS untouched by later writes", d->src_x, 0x11);
+      expect_eq("DPOS untouched by later writes", d->x,     0x33);
 
       Cmd(MPEG_CMD_SET_BORDERCOL, 0, 0x7C1F, 0, 0);
       expect_eq("border color", d->border_color, 0x7C1F);
 
-      Cmd(MPEG_CMD_SET_FADE, 0, 0x0080, 0, 0);
-      expect_eq("fade", d->fade, 0x80);
+      /* CDC_MpSetFade(gain_y, gain_c). */
+      Cmd(MPEG_CMD_SET_FADE, 0, 0x8040, 0, 0);
+      expect_eq("fade luma",   d->fade,   0x80);
+      expect_eq("fade chroma", d->fade_c, 0x40);
    }
 
    /* --- 8. SET_MODE 0xFF-means-keep semantics --------------------- */
@@ -657,6 +687,42 @@ int main(void)
 
       MPEG_Reset(true);
       expect_true("reset returns input to CD-DA", !MPEG_GetAudioSample(smp));
+   }
+
+   /* --- 15b. Picture size query ----------------------------------- */
+   printf("[picture size]\n");
+   {
+      /* CDC_MpGetPictSiz: horizontal in CR3, vertical in CR4. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_GET_PICT_SIZE, 0, 0, 0, 0);
+      expect_eq("no picture yet: width",  Out[2], 0);
+      expect_eq("no picture yet: height", Out[3], 0);
+
+      if(getenv("MPEG_TEST_STREAM"))
+      {
+         FILE *fp = fopen(getenv("MPEG_TEST_STREAM"), "rb");
+
+         if(fp)
+         {
+            static uint8_t sec[2324];
+            size_t got;
+            unsigned i;
+
+            Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+
+            for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
+            {
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+               MPEG_RunFrame();
+            }
+
+            fclose(fp);
+
+            Cmd(MPEG_CMD_GET_PICT_SIZE, 0, 0, 0, 0);
+            expect_eq("picture width",  Out[2], 352);
+            expect_eq("picture height", Out[3], 240);
+         }
+      }
    }
 
    /* --- 16. Interrupt factors ------------------------------------- */

@@ -58,34 +58,66 @@
 extern "C" {
 #endif
 
-/* CD block command opcodes handled by the card.  Confirmed against
-   Yabause's cs2.c and the SBL MPEG library entry points.  Opcodes in
-   the 0x90-0xAF range that are absent here are accepted and answered
-   with a plain status report (see MPEG_Command) rather than rejected,
-   because a rejection is far more likely to wedge a caller than a
-   benign no-op is. */
+/*
+   CD block command opcodes handled by the card.
+
+   Recovered by disassembling SEGA_CDC.A from Sega Basic Library 6.01 --
+   the SH-2 COFF objects cdc_mdc.o / cdc_mst.o / cdc_mwn.o / cdc_mfb.o /
+   cdc_mbu.o / cdc_mls.o.  Each CDC_Mp* entry point builds an 8-byte
+   command buffer whose first byte is the opcode, so the mapping is
+   unambiguous.  This supersedes the partial and partly speculative list
+   that had been derived from Yabause: the range 0x90-0xAF is fully
+   accounted for, with no gaps.
+*/
 enum
 {
- MPEG_CMD_GET_STATUS      = 0x90,
- MPEG_CMD_GET_INTERRUPT   = 0x91,
- MPEG_CMD_SET_INT_MASK    = 0x92,
- MPEG_CMD_INIT            = 0x93,
- MPEG_CMD_SET_MODE        = 0x94,
- MPEG_CMD_PLAY            = 0x95,
- MPEG_CMD_SET_DECMETHOD   = 0x96,
+ MPEG_CMD_GET_STATUS      = 0x90, /* CDC_MpGetCurStat   */
+ MPEG_CMD_GET_INTERRUPT   = 0x91, /* CDC_MpGetInt       */
+ MPEG_CMD_SET_INT_MASK    = 0x92, /* CDC_MpSetIntMsk    */
+ MPEG_CMD_INIT            = 0x93, /* CDC_MpInit         */
+ MPEG_CMD_SET_MODE        = 0x94, /* CDC_MpSetMode      */
+ MPEG_CMD_PLAY            = 0x95, /* CDC_MpPlay         */
+ MPEG_CMD_SET_DECMETHOD   = 0x96, /* CDC_MpSetDec       */
+ MPEG_CMD_OUT_DECSYNC     = 0x97, /* CDC_MpOutDsync     */
+ MPEG_CMD_GET_TIMECODE    = 0x98, /* CDC_MpGetTc        */
+ MPEG_CMD_GET_PTS         = 0x99, /* CDC_MpGetPts       */
 
- MPEG_CMD_SET_CONNECTION  = 0x9A,
- MPEG_CMD_GET_CONNECTION  = 0x9B,
- MPEG_CMD_SET_STREAM      = 0x9D,
- MPEG_CMD_GET_STREAM      = 0x9E,
+ MPEG_CMD_SET_CONNECTION  = 0x9A, /* CDC_MpSetCon       */
+ MPEG_CMD_GET_CONNECTION  = 0x9B, /* CDC_MpGetCon       */
+ MPEG_CMD_CHANGE_CONN     = 0x9C, /* CDC_MpChgCon       */
+ MPEG_CMD_SET_STREAM      = 0x9D, /* CDC_MpSetStm       */
+ MPEG_CMD_GET_STREAM      = 0x9E, /* CDC_MpGetStm       */
+ MPEG_CMD_GET_PICT_SIZE   = 0x9F, /* CDC_MpGetPictSiz   */
 
- MPEG_CMD_DISPLAY         = 0xA0,
- MPEG_CMD_SET_WINDOW      = 0xA1,
- MPEG_CMD_SET_BORDERCOL   = 0xA2,
- MPEG_CMD_SET_FADE        = 0xA3,
- MPEG_CMD_SET_VIDEOEFF    = 0xA4,
+ MPEG_CMD_DISPLAY         = 0xA0, /* CDC_MpDisp         */
+ MPEG_CMD_SET_WINDOW      = 0xA1, /* the five CDC_MpSetWin* entry points */
+ MPEG_CMD_SET_BORDERCOL   = 0xA2, /* CDC_MpSetBcolor    */
+ MPEG_CMD_SET_FADE        = 0xA3, /* CDC_MpSetFade      */
+ MPEG_CMD_SET_VIDEOEFF    = 0xA4, /* CDC_MpSetVeff      */
+ MPEG_CMD_GET_IMAGE       = 0xA5, /* CDC_MpGetImg       */
+ MPEG_CMD_SET_IMAGE       = 0xA6, /* CDC_MpSetImgPos / CDC_MpSetImgSiz */
+ MPEG_CMD_READ_IMAGE      = 0xA7, /* CDC_MpReadImg      */
+ MPEG_CMD_WRITE_IMAGE     = 0xA8, /* CDC_MpWriteImg     */
+ MPEG_CMD_READ_SECTOR     = 0xA9, /* CDC_MpReadSct      */
+ MPEG_CMD_WRITE_SECTOR    = 0xAA, /* CDC_MpWriteSct     */
 
- MPEG_CMD_SET_LSI         = 0xAF
+ MPEG_CMD_GET_LSI         = 0xAE, /* CDC_MpGetLsi       */
+ MPEG_CMD_SET_LSI         = 0xAF  /* CDC_MpSetLsi       */
+};
+
+/*
+   SET_WINDOW sub-function, in CR1's low byte.  All five SBL window
+   entry points tail-call one builder (cdc_mwn.o's cmdRspWin) which
+   emits opcode 0xA1 with this selector, the change flag in CR2's low
+   byte, x in CR3 and y in CR4.
+*/
+enum
+{
+ MPEG_WIN_FPOS = 0, /* CDC_MpSetWinFpos -- source origin in the frame */
+ MPEG_WIN_FRAT = 1, /* CDC_MpSetWinFrat -- source scaling ratio       */
+ MPEG_WIN_DPOS = 2, /* CDC_MpSetWinDpos -- display origin             */
+ MPEG_WIN_DSIZ = 3, /* CDC_MpSetWinDsiz -- display size               */
+ MPEG_WIN_DOFS = 4  /* CDC_MpSetWinDofs -- display offset             */
 };
 
 #define MPEG_CMD_IS_MPEG(c) ((c) >= 0x90 && (c) <= 0xAF)
@@ -350,12 +382,16 @@ const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height);
 /* Display geometry/appearance state, for the VDP2 compositor. */
 typedef struct
 {
- bool     enabled;      /* MPEG_CMD_DISPLAY                      */
- uint16_t x, y;         /* Window origin, display coordinates    */
- uint16_t w, h;         /* Window size                           */
- uint16_t src_x, src_y; /* Source origin within the decoded frame */
- uint16_t border_color; /* RGB555                                */
- uint8_t  fade;         /* 0x00 = black .. 0xFF = full           */
+ bool     enabled;      /* DISPLAY, CR2's high byte               */
+ uint8_t  fbn;          /* DISPLAY, frame buffer number           */
+ uint16_t x, y;         /* DPOS -- display origin                 */
+ uint16_t w, h;         /* DSIZ -- display size                   */
+ uint16_t src_x, src_y; /* FPOS -- source origin in the frame     */
+ uint16_t ofs_x, ofs_y; /* DOFS -- display offset                 */
+ uint16_t rat_x, rat_y; /* FRAT -- source scaling ratio           */
+ uint16_t border_color; /* RGB555                                 */
+ uint8_t  fade;         /* SET_FADE luma gain, 0x00..0xFF         */
+ uint8_t  fade_c;       /* SET_FADE chroma gain                   */
 } MPEG_DisplayState;
 
 const MPEG_DisplayState *MPEG_GetDisplayState(void);

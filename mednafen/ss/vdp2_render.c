@@ -2206,7 +2206,9 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
       return;
    }
 
-   sy = (int32_t)ds->src_y + (int32_t)(line - ds->y);
+   /* DOFS shifts the window within the display without moving DPOS,
+      which is what SBL's CDC_MpSetWinDofs is for. */
+   sy = (int32_t)ds->src_y + (int32_t)(line - ds->y) + (int32_t)ds->ofs_y;
 
    if(sy < 0 || (uint32_t)sy >= fh)
    {
@@ -2228,7 +2230,7 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
             continue;
          }
 
-         sx = (int32_t)ds->src_x + (int32_t)(x - ds->x);
+         sx = (int32_t)ds->src_x + (int32_t)(x - ds->x) + (int32_t)ds->ofs_x;
 
          if(sx < 0 || (uint32_t)sx >= fw)
          {
