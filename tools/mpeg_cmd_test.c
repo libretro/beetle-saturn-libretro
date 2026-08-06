@@ -923,6 +923,143 @@ int main(void)
       expect_true("WRITE_IMAGE not rejected", (Out[0] >> 8) != 0xFF);
    }
 
+   /* --- 15e. Pause, freeze and mute -------------------------------- */
+   printf("[pause/freeze/mute]\n");
+   if(getenv("MPEG_TEST_STREAM"))
+   {
+      const int64_t frame_ntsc = ((int64_t)((11289600ULL * 1001) / 30000)) << 32;
+      static uint8_t buf[300000];
+      size_t len;
+      FILE *fp = fopen(getenv("MPEG_TEST_STREAM"), "rb");
+
+      if(!fp)
+         printf("  skipped\n");
+      else
+      {
+         unsigned i, frames;
+         uint16_t last_vc;
+
+         len = fread(buf, 1, sizeof(buf), fp);
+         fclose(fp);
+
+         /* Normal speed: a picture per decode period. */
+         MPEG_Reset(true);
+         Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+
+         for(i = 0; i + 2324 <= len && i < 2324 * 60; i += 2324)
+            MPEG_FeedSector(buf + i, 2324, 0x00);
+
+         frames = 0;
+         for(i = 0; i < 20; i++)
+         {
+            MPEG_Update(frame_ntsc);
+            if(MPEG_GetFrame(NULL, NULL))
+               frames++;
+         }
+         expect_true("normal speed produces pictures", frames > 0);
+
+         /* Pause: the decoder holds, but VCounter must keep running --
+            it is the card's vertical counter, not a picture counter,
+            and software polls it to see the card is alive. */
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         last_vc = Out[1];
+
+         Cmd(MPEG_CMD_SET_DECMETHOD, 0x00FF, MPEG_INTVL_HOLD, 0, MPEG_NOCHG16);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_true("pause status bit set", (Out[3] & MPEG_STV_PAUSE) != 0);
+
+         for(i = 0; i < 10; i++)
+            MPEG_Update(frame_ntsc);
+
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_eq("vcounter runs while paused", Out[1], (uint16_t)(last_vc + 10));
+
+         /* Resuming must clear the status bit. */
+         Cmd(MPEG_CMD_SET_DECMETHOD, 0x00FF, MPEG_INTVL_NORMAL, 0, MPEG_NOCHG16);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_true("pause bit cleared", (Out[3] & MPEG_STV_PAUSE) == 0);
+
+         /* Freeze is a separate field and must not be disturbed by a
+            pause-only write, nor vice versa. */
+         Cmd(MPEG_CMD_SET_DECMETHOD, 0x00FF, MPEG_NOCHG16, 0, MPEG_INTVL_HOLD);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_true("freeze bit set",       (Out[3] & MPEG_STV_FREEZE) != 0);
+         expect_true("pause still cleared",  (Out[3] & MPEG_STV_PAUSE) == 0);
+
+         Cmd(MPEG_CMD_SET_DECMETHOD, 0x00FF, MPEG_INTVL_HOLD, 0, MPEG_NOCHG16);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_true("freeze survives a pause write", (Out[3] & MPEG_STV_FREEZE) != 0);
+      }
+   }
+
+   printf("[mute]\n");
+   {
+      int16_t pcm[64 * 2];
+      uint16_t smp[2];
+      uint32_t n;
+      unsigned i;
+      int nonzero_l, nonzero_r;
+
+      /* Drive the ring directly through a decode so there is audio to
+         mute, then check each channel independently. */
+      if(getenv("MPEG_TEST_STREAM"))
+      {
+         FILE *fp = fopen(getenv("MPEG_TEST_STREAM"), "rb");
+
+         if(fp)
+         {
+            static uint8_t sec[2324];
+            size_t got;
+
+            MPEG_Reset(true);
+            Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+
+            for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
+            {
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+               MPEG_RunFrame();
+            }
+            fclose(fp);
+
+            /* Default: nothing muted. */
+            n = MPEG_ReadAudio(pcm, 64);
+            nonzero_l = nonzero_r = 0;
+            for(i = 0; i < n; i++)
+            {
+               if(pcm[i * 2 + 0]) nonzero_l = 1;
+               if(pcm[i * 2 + 1]) nonzero_r = 1;
+            }
+            expect_true("left audible by default",  nonzero_l);
+            expect_true("right audible by default", nonzero_r);
+
+            /* Mute left only. */
+            Cmd(MPEG_CMD_SET_DECMETHOD, MPEG_MUT_L, MPEG_NOCHG16, 0, MPEG_NOCHG16);
+            n = MPEG_ReadAudio(pcm, 64);
+            nonzero_l = nonzero_r = 0;
+            for(i = 0; i < n; i++)
+            {
+               if(pcm[i * 2 + 0]) nonzero_l = 1;
+               if(pcm[i * 2 + 1]) nonzero_r = 1;
+            }
+            expect_true("left muted",        !nonzero_l);
+            expect_true("right still audible", nonzero_r);
+
+            /* The SCSP pull path must mute too, not just the host one. */
+            expect_true("scsp pull answers", MPEG_GetAudioSample(smp));
+            expect_eq  ("scsp left muted",   smp[0], 0);
+
+            /* The default bit overrides the channel bits. */
+            Cmd(MPEG_CMD_SET_DECMETHOD, MPEG_MUT_DFL | MPEG_MUT_L,
+                MPEG_NOCHG16, 0, MPEG_NOCHG16);
+            n = MPEG_ReadAudio(pcm, 64);
+            nonzero_l = 0;
+            for(i = 0; i < n; i++)
+               if(pcm[i * 2 + 0]) nonzero_l = 1;
+            expect_true("default bit overrides channel mute", nonzero_l);
+         }
+      }
+   }
+
    /* --- 16. Interrupt factors ------------------------------------- */
    printf("[interrupts]\n");
    {

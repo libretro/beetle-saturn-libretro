@@ -262,6 +262,34 @@ enum
  MPEG_SRCH_AV    = 0xC0
 };
 
+/*
+   SET_DECMETHOD's audio mute field, CR1's low byte.  SBL CDC_MPMUT_*.
+   The default value has its own bit rather than being zero, so a caller
+   that wants no muting sets 0x04 rather than clearing everything.
+*/
+enum
+{
+ MPEG_MUT_R   = 0x01, /* mute the right channel */
+ MPEG_MUT_L   = 0x02, /* mute the left channel  */
+ MPEG_MUT_DFL = 0x04  /* default: do not mute   */
+};
+
+/*
+   CDC_PARA_NOCHG: leave a parameter alone.  Byte fields carry 0xFF and
+   16-bit fields 0xFFFF; SBL spells both MPG_IGNORE.
+*/
+#define MPEG_NOCHG8  0xFF
+#define MPEG_NOCHG16 0xFFFF
+
+/*
+   SET_DECMETHOD's pause and freeze fields are intervals, not modes.
+   MPG_MvPause maps its command onto one: 0 holds, 1 is normal speed,
+   and anything larger is the caller's interval for slow playback or
+   strobe.  MPG_MvFreeze does the same for the freeze field.
+*/
+#define MPEG_INTVL_HOLD   0
+#define MPEG_INTVL_NORMAL 1
+
 /* CDC_NUL_SEL: no selector / no partition. */
 #define MPEG_NUL_SEL 0xFF
 

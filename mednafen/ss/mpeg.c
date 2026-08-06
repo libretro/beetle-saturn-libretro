@@ -158,7 +158,18 @@ static uint8_t  PictureInfo;
 static uint8_t  AudioStatus;
 static uint16_t VideoStatus;
 
-static uint8_t  DecodeMethod;
+/*
+   SET_DECMETHOD state.  Pause and freeze are intervals in decode
+   periods: 0 holds, 1 runs at normal speed, larger values step every N.
+   Pause gates whether a new picture is decoded at all; freeze gates
+   whether a decoded picture reaches the display, which is what makes
+   strobe playback differ from slow playback.
+*/
+static uint8_t  AudioMute;
+static uint16_t PauseIntvl;
+static uint16_t FreezeIntvl;
+static uint16_t PauseCount;
+static uint16_t FreezeCount;
 
 /* temporal_reference of the last decoded picture, reported by
    GET_TIMECODE alongside the picture type. */
@@ -539,7 +550,11 @@ void MPEG_Reset(bool powering_up)
    AudioStatus  = MPEG_STA_BEMPTY;
    VideoStatus  = MPEG_STV_BEMPTY;
 
-   DecodeMethod = 0;
+   AudioMute    = MPEG_MUT_DFL;
+   PauseIntvl   = MPEG_INTVL_NORMAL;
+   FreezeIntvl  = MPEG_INTVL_NORMAL;
+   PauseCount   = 0;
+   FreezeCount  = 0;
    TemporalRef  = 0;
 
    memset(ImgWin, 0, sizeof(ImgWin));
@@ -791,10 +806,45 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          break;
 
       case MPEG_CMD_SET_DECMETHOD:
-         DecodeMethod = cd[0] & 0xFF;
+      {
+         /* CDC_MpSetDec(mute, pautim, frztim): mute in CR1's low byte,
+            the pause interval in CR2 and the freeze interval in CR4.
+            CR3 is unused.  Each field independently honours the
+            no-change convention, which is how MPG_MvPause changes the
+            pause interval without disturbing mute or freeze. */
+         const uint8_t  mute = cd[0] & 0xFF;
+         const uint16_t pau  = cd[1];
+         const uint16_t frz  = cd[3];
+
+         if(mute != MPEG_NOCHG8)
+            AudioMute = mute;
+
+         if(pau != MPEG_NOCHG16)
+         {
+            PauseIntvl = pau;
+            PauseCount = 0;
+         }
+
+         if(frz != MPEG_NOCHG16)
+         {
+            FreezeIntvl = frz;
+            FreezeCount = 0;
+         }
+
+         if(PauseIntvl == MPEG_INTVL_HOLD)
+            VideoStatus |= MPEG_STV_PAUSE;
+         else
+            VideoStatus &= ~(uint16_t)MPEG_STV_PAUSE;
+
+         if(FreezeIntvl == MPEG_INTVL_HOLD)
+            VideoStatus |= MPEG_STV_FREEZE;
+         else
+            VideoStatus &= ~(uint16_t)MPEG_STV_FREEZE;
+
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
-         break;
+      }
+      break;
 
       case MPEG_CMD_SET_CONNECTION:
          which = (cd[2] >> 8) ? 1 : 0;
@@ -1418,6 +1468,22 @@ static void ARing_Push(const int16_t *pcm, uint32_t frames, uint32_t channels)
    }
 }
 
+/* Mute is live rather than baked in on the way to the ring, so a title
+   toggling it hears the change immediately instead of after whatever is
+   already buffered has drained.  The default value has its own bit, so
+   check that before the per-channel ones. */
+static INLINE void ApplyMute(int16_t *l, int16_t *r)
+{
+   if(AudioMute & MPEG_MUT_DFL)
+      return;
+
+   if(AudioMute & MPEG_MUT_L)
+      *l = 0;
+
+   if(AudioMute & MPEG_MUT_R)
+      *r = 0;
+}
+
 uint32_t MPEG_ReadAudio(int16_t *out, uint32_t frames)
 {
    uint32_t got = 0;
@@ -1429,6 +1495,8 @@ uint32_t MPEG_ReadAudio(int16_t *out, uint32_t frames)
    {
       out[got * 2 + 0] = ARing[ARing_RP * 2 + 0];
       out[got * 2 + 1] = ARing[ARing_RP * 2 + 1];
+
+      ApplyMute(&out[got * 2 + 0], &out[got * 2 + 1]);
 
       ARing_RP = (ARing_RP + 1) % MPEG_ARING_FRAMES;
       ARing_Count--;
@@ -1483,8 +1551,15 @@ bool MPEG_GetAudioSample(uint16_t *out)
    if(ARatePhase >= (1U << 16))
       ARatePhase = 0;
 
-   out[0] = (uint16_t)ACur[0];
-   out[1] = (uint16_t)ACur[1];
+   {
+      int16_t l = ACur[0];
+      int16_t r = ACur[1];
+
+      ApplyMute(&l, &r);
+
+      out[0] = (uint16_t)l;
+      out[1] = (uint16_t)r;
+   }
 
    return true;
 }
@@ -1614,6 +1689,23 @@ bool MPEG_RunFrame(void)
 
       if(rmpeg1_video_decode(Video, &frame))
       {
+         /* Freeze holds the displayed picture while decoding
+            continues, which is what separates strobe playback from slow
+            playback: the stream advances either way, only the display
+            refresh rate differs. */
+         if(FreezeIntvl == MPEG_INTVL_HOLD)
+            break;
+
+         if(FreezeIntvl > MPEG_INTVL_NORMAL)
+         {
+            FreezeCount++;
+
+            if(FreezeCount < FreezeIntvl)
+               break;
+
+            FreezeCount = 0;
+         }
+
          ConvertFrame(&frame);
 
          FrameValid   = true;
@@ -1745,6 +1837,22 @@ void MPEG_Update(int64_t clocks)
 
       VCounter = (uint16_t)(VCounter + 1);
 
+      /* Pause holds the decoder; VCounter keeps running because it is
+         the card's vertical counter, not a picture counter, and
+         software polls it to notice that the card is still alive. */
+      if(PauseIntvl == MPEG_INTVL_HOLD)
+         continue;
+
+      if(PauseIntvl > MPEG_INTVL_NORMAL)
+      {
+         PauseCount++;
+
+         if(PauseCount < PauseIntvl)
+            continue;
+
+         PauseCount = 0;
+      }
+
       MPEG_RunFrame();
    }
 }
@@ -1817,7 +1925,11 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(AudioStatus),
       SFVAR(VideoStatus),
 
-      SFVAR(DecodeMethod),
+      SFVAR(AudioMute),
+      SFVAR(PauseIntvl),
+      SFVAR(FreezeIntvl),
+      SFVAR(PauseCount),
+      SFVAR(FreezeCount),
       SFVAR(TemporalRef),
       SFVAR(ImgFB),
       SFVAR(ImgWin->x, MPEG_NUM_FBUF, sizeof(*ImgWin), ImgWin),
