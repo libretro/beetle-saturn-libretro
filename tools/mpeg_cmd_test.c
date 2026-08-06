@@ -540,36 +540,47 @@ int main(void)
       }
    }
 
-   /* --- 13. Filter routing gate ----------------------------------- */
-   printf("[filter routing]\n");
+   /* --- 13. Partition routing gate -------------------------------- */
+   printf("[partition routing]\n");
    {
-      unsigned f;
+      unsigned p;
 
       MPEG_Reset(true);
 
-      /* Before any SET_CONNECTION no filter routes here, even though
-         the connection fields read back as 0 -- otherwise enabling the
-         option would hand the card every sector on any disc. */
-      for(f = 0; f < 0x18; f++)
-         expect_true("no routing before SET_CONNECTION", !MPEG_WantsFilter((uint8_t)f));
+      /* Both bn fields reset to CDC_NUL_SEL, so nothing routes. */
+      for(p = 0; p < 0x18; p++)
+         expect_true("no routing before SET_CONNECTION", !MPEG_WantsPartition((uint8_t)p));
 
-      /* audcon = 5 (CR1 low), vidcon = 7 (CR3 low), current bank. */
-      Cmd(MPEG_CMD_SET_CONNECTION, 0x0005, 0x0000, 0x0007, 0x0000);
+      /* cmod is a flags field, not a selector: setting it alone must
+         not make anything route.  This is what the old filter-number
+         reading got wrong. */
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0005, 0x00FF, 0x0007, 0x00FF);
+      for(p = 0; p < 0x18; p++)
+         expect_true("cmod alone routes nothing", !MPEG_WantsPartition((uint8_t)p));
 
-      expect_true("vidcon filter routes",   MPEG_WantsFilter(7));
-      expect_true("audcon filter routes",   MPEG_WantsFilter(5));
-      expect_true("other filter does not",  !MPEG_WantsFilter(6));
-      expect_true("out-of-range rejected",  !MPEG_WantsFilter(0x18));
-      expect_true("0xFF rejected",          !MPEG_WantsFilter(0xFF));
+      /* audio bn = 5, video bn = 7. */
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0x0005, 0x0000, 0x0007);
 
-      /* The "next" bank must not affect routing, which follows the
-         current connection only. */
-      Cmd(MPEG_CMD_SET_CONNECTION, 0x0009, 0x0000, 0x010B, 0x0000);
-      expect_true("next bank does not route", !MPEG_WantsFilter(0x0B));
-      expect_true("current bank still routes", MPEG_WantsFilter(7));
+      expect_true("video partition routes",  MPEG_WantsPartition(7));
+      expect_true("audio partition routes",  MPEG_WantsPartition(5));
+      expect_true("other partition does not", !MPEG_WantsPartition(6));
+      expect_true("out-of-range rejected",   !MPEG_WantsPartition(0x18));
+      expect_true("NUL_SEL rejected",        !MPEG_WantsPartition(MPEG_NUL_SEL));
+
+      /* CDC_MPCMOD_DEL controls whether the card consumes the sector. */
+      expect_true("not consumed without DEL", !MPEG_ConsumesPartition(7));
+
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0x0005, 0x0004, 0x0007);
+      expect_true("consumed with DEL on video", MPEG_ConsumesPartition(7));
+      expect_true("audio still not consumed",  !MPEG_ConsumesPartition(5));
+
+      /* The "next" bank must not affect routing. */
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0x0009, 0x0100, 0x000B);
+      expect_true("next bank does not route", !MPEG_WantsPartition(0x0B));
+      expect_true("current bank still routes", MPEG_WantsPartition(7));
 
       MPEG_Reset(true);
-      expect_true("reset clears routing", !MPEG_WantsFilter(7));
+      expect_true("reset clears routing", !MPEG_WantsPartition(7));
    }
 
    /* --- 14. Decode clock ------------------------------------------ */
@@ -687,6 +698,65 @@ int main(void)
 
       MPEG_Reset(true);
       expect_true("reset returns input to CD-DA", !MPEG_GetAudioSample(smp));
+   }
+
+   /* --- 14b. Layer selection -------------------------------------- */
+   printf("[layer selection]\n");
+   {
+      static uint8_t ps[8192];
+      static uint8_t raw[1024];
+      size_t len;
+      unsigned i;
+
+      len = build_ps(ps, sizeof(ps));
+
+      /* System layer (lay 0): the card demultiplexes, so a Program
+         Stream yields both elementary streams. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0x0005, 0x0000, 0x0007);
+
+      for(i = 0; i < len; i += 2324)
+      {
+         size_t chunk = len - i;
+         if(chunk > 2324)
+            chunk = 2324;
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+      }
+
+      expect_eq("system layer demuxes video", MPEG_GetESFill(true),  PS_VIDEO_BYTES);
+      expect_eq("system layer demuxes audio", MPEG_GetESFill(false), PS_AUDIO_BYTES);
+
+      /* Video layer (lay 1): the payload is already an elementary
+         stream, so it must bypass the demuxer and arrive verbatim.
+         Feeding raw bytes through a Program Stream parser would find no
+         pack headers and discard every one of them. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0xFF00 | MPEG_NUL_SEL,
+                                   0x0000, 0x0100 | 0x0007);
+
+      memset(raw, 0x5A, sizeof(raw));
+      MPEG_FeedSector(raw, sizeof(raw), 0x00);
+
+      expect_eq("video layer bypasses demux", MPEG_GetESFill(true), sizeof(raw));
+      expect_eq("nothing leaked to audio",    MPEG_GetESFill(false), 0);
+
+      /* The picture-search bits in lay must not change the layer. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0xFF00 | MPEG_NUL_SEL,
+                                   0x0000, (MPEG_SRCH_VIDEO << 8) | 0x0007);
+
+      for(i = 0; i < len; i += 2324)
+      {
+         size_t chunk = len - i;
+         if(chunk > 2324)
+            chunk = 2324;
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+      }
+
+      expect_eq("search bits do not select ES layer",
+                MPEG_GetESFill(true), PS_VIDEO_BYTES);
    }
 
    /* --- 15b. Picture size query ----------------------------------- */

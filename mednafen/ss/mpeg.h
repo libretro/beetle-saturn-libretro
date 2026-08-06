@@ -228,6 +228,43 @@ enum
 /* Hardware flag bit reported by GET_HWINFO.  SBL CDC_HFLAG_MPEG. */
 #define MPEG_HFLAG_PRESENT 0x02
 
+/*
+   SET_CONNECTION's CdcMpCon.cmod is a set of switch and clear
+   conditions, not a selector.  SBL CDC_MPCMOD_*.
+*/
+enum
+{
+ MPEG_CMOD_EOR   = 0x01, /* switch on the EOR bit              */
+ MPEG_CMOD_SEC   = 0x02, /* switch on the system end code      */
+ MPEG_CMOD_DEL   = 0x04, /* delete the sector after taking it  */
+ MPEG_CMOD_IGPTS = 0x08, /* ignore PTS identification          */
+ MPEG_CMOD_VCLR  = 0x10, /* clear the VBV                      */
+ MPEG_CMOD_VWCLR = 0x20, /* clear VBV and WBC                  */
+ MPEG_CMOD_BEF   = 0x40  /* test the end condition before the
+                            trailing aperture                  */
+};
+
+/*
+   CdcMpCon.lay selects which layer the connection carries.  The system
+   layer is the whole Program Stream, which the card demultiplexes
+   itself; the audio and video layers are already-separated elementary
+   streams.  Bits 7..6 are the picture-search mode and are masked off.
+   SBL CDC_MPLAY_* / CDC_MPSRCH_*.
+*/
+enum
+{
+ MPEG_LAY_SYS   = 0x00,
+ MPEG_LAY_ES    = 0x01, /* CDC_MPLAY_AUDIO == CDC_MPLAY_VIDEO == 1 */
+ MPEG_LAY_MASK  = 0x01,
+
+ MPEG_SRCH_OFF   = 0x00,
+ MPEG_SRCH_VIDEO = 0x80,
+ MPEG_SRCH_AV    = 0xC0
+};
+
+/* CDC_NUL_SEL: no selector / no partition. */
+#define MPEG_NUL_SEL 0xFF
+
 /* Video CD / MPEG-1 constrained-parameter frame geometry. */
 #define MPEG_MAX_WIDTH   352
 #define MPEG_MAX_HEIGHT  288
@@ -340,12 +377,23 @@ bool MPEG_RunFrame(void) MDFN_HOT;
 void MPEG_Update(int64_t clocks) MDFN_HOT;
 
 /*
-   True when sectors passing CD block filter fnum should be handed to
-   the card.  MPEG_SetConnection names the filter whose output feeds the
-   decoders; before any SET_CONNECTION this is false for every filter,
-   so a disc that never touches the card never pays for it.
+   True when sectors destined for CD block buffer partition pnum should
+   be handed to the card.
+
+   SET_CONNECTION's third field per stream is CdcMpCon.bn, the buffer
+   partition number the decoder draws from -- not a filter number, which
+   is what this predicate used to test.  CDC_NUL_SEL (0xFF) means no
+   connection and is the reset value for both streams, so a disc that
+   never configures the card never routes anything to it.
 */
-bool MPEG_WantsFilter(uint8_t fnum);
+bool MPEG_WantsPartition(uint8_t pnum);
+
+/*
+   True when the card consumes sectors it takes rather than leaving them
+   in the partition, i.e. CDC_MPCMOD_DEL is set in the connection mode
+   for the stream that partition feeds.
+*/
+bool MPEG_ConsumesPartition(uint8_t pnum);
 
 /*
    Drain decoded audio.  Writes up to frames interleaved stereo s16

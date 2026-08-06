@@ -1589,12 +1589,15 @@ static uint8_t FilterBuf(const unsigned fnum, const unsigned bfsidx)
  {
   if(TestFilterCond(cur, Buffers[bfsidx].Data))
   {
-   // Sectors passing a filter the MPEG card's connection names are
-   // handed to the card, in addition to whatever the true output
-   // connector does with them.  The card takes the raw payload: on a
-   // Video CD the program stream is the concatenation of the Mode 2
-   // Form 2 payloads, and splitting it is the card's job.
-   if(MPEG_WantsFilter(cur))
+   const uint8_t tconn = Filters[cur].TrueConn;
+
+   // The MPEG card draws from a buffer partition, named by
+   // CdcMpCon.bn in Set Connection -- so the test is on where this
+   // buffer is headed, not on which filter passed it. The card takes
+   // the raw payload: on a Video CD the program stream is the
+   // concatenation of the Mode 2 Form 2 payloads, and splitting it is
+   // the card's job.
+   if(tconn != 0xFF && MPEG_WantsPartition(tconn))
    {
     const uint8_t* sd = Buffers[bfsidx].Data;
     uint32_t offs, len;
@@ -1613,11 +1616,19 @@ static uint8_t FilterBuf(const unsigned fnum, const unsigned bfsidx)
     // Submode byte of the Mode 2 subheader carries the trigger and
     // end-of-record flags the card reports as interrupt factors.
     MPEG_FeedSector(sd + offs, len, (sd[15] == 0x2) ? sd[16 + 2] : 0x00);
+
+    // CDC_MPCMOD_DEL: the card consumes the sector rather than leaving
+    // it in the partition for the host to read as well.
+    if(MPEG_ConsumesPartition(tconn))
+    {
+     Buffer_Free(bfsidx);
+     return cur;
+    }
    }
 
-   if(Filters[cur].TrueConn != 0xFF)
+   if(tconn != 0xFF)
    {
-    Partition_LinkBuffer(Filters[cur].TrueConn, bfsidx);
+    Partition_LinkBuffer(tconn, bfsidx);
     return cur;
    }
    cur = 0xFF;

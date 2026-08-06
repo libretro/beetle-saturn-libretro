@@ -206,12 +206,6 @@ static uint64_t LastSCR;
 static uint32_t VDropped;
 static uint32_t ADropped;
 
-/* Set by SET_CONNECTION.  Until software has actually named a filter,
-   no sector is routed here: Con[].vidcon defaults to 0, and treating
-   that as "filter 0" would hand the card every sector on any disc the
-   moment the option is enabled. */
-static bool ConValid;
-
 /* Set once SET_WINDOW supplies an explicit size, after which the
    decoded picture no longer drives the window geometry. */
 static bool WindowSizeSet;
@@ -562,7 +556,6 @@ void MPEG_Reset(bool powering_up)
    ACur[1]       = 0;
    ACurValid     = false;
 
-   ConValid      = false;
    WindowSizeSet = false;
    FrameAccum    = 0;
    FrameRateNum = 30000;
@@ -788,8 +781,6 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          Con[which].vidlay    = cd[3] >> 8;
          Con[which].vidbufnum = cd[3] & 0xFF;
 
-         ConValid = true;
-
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
@@ -997,6 +988,47 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
 
    if(!Present || !Demux || !data || !len)
       return;
+
+   /*
+      CdcMpCon.lay says what the connection carries.  The system layer
+      is the whole Program Stream and the card demultiplexes it, which
+      is the Video CD case and everything below.  A connection on the
+      audio or video layer carries an already-separated elementary
+      stream, so the demuxer must be bypassed entirely -- running a raw
+      elementary stream through a Program Stream parser would find no
+      pack headers and discard all of it.
+   */
+   if((Con[0].vidlay & MPEG_LAY_MASK) == MPEG_LAY_ES
+      && Con[0].vidbufnum != MPEG_NUL_SEL)
+   {
+      VDropped += FIFO_Write(&VFIFO, data, len);
+
+      if(!VideoReady)
+      {
+         VideoReady = true;
+         RaiseInt(MPEG_INT_VSRDY);
+      }
+
+      if(submode & 0x10) RaiseInt(MPEG_INT_VTRG);
+      if(submode & 0x01) RaiseInt(MPEG_INT_VEOR);
+      return;
+   }
+
+   if((Con[0].audlay & MPEG_LAY_MASK) == MPEG_LAY_ES
+      && Con[0].audbufnum != MPEG_NUL_SEL)
+   {
+      ADropped += FIFO_Write(&AFIFO, data, len);
+
+      if(!AudioReady)
+      {
+         AudioReady = true;
+         RaiseInt(MPEG_INT_ASRDY);
+      }
+
+      if(submode & 0x10) RaiseInt(MPEG_INT_ATRG);
+      if(submode & 0x01) RaiseInt(MPEG_INT_AEOR);
+      return;
+   }
 
    /* rmpeg1_ps_write() consumes less than len only when its buffer is
       full, which means packets are waiting; drain and retry rather than
@@ -1468,18 +1500,43 @@ bool MPEG_RunFrame(void)
    return produced;
 }
 
-bool MPEG_WantsFilter(uint8_t fnum)
+bool MPEG_WantsPartition(uint8_t pnum)
 {
-   if(!Present || !ConValid || fnum >= 0x18)
+   if(!Present || pnum >= 0x18)
       return false;
 
-   /* Either connection matching is enough, and the sector is fed once
-      rather than per-connection: on a Video CD both elementary streams
-      arrive interleaved in one Program Stream through a single filter,
-      and it is the card that splits them.  Feeding twice because
-      audcon and vidcon happen to name the same filter would duplicate
-      every byte into the demuxer. */
-   return (Con[0].vidcon == fnum) || (Con[0].audcon == fnum);
+   /* CdcMpCon.bn is the buffer partition the decoder draws from.  This
+      previously matched on cmod, which is not a selector at all but a
+      set of switch and clear condition flags -- routing only appeared
+      to work because both fields default to values that never matched
+      a live partition.
+
+      Either stream matching is enough and the sector is fed once: on a
+      Video CD both elementary streams arrive interleaved in one Program
+      Stream through one partition, and the card splits them.  Feeding
+      twice because both connections name the same partition would
+      duplicate every byte into the demuxer. */
+   if(Con[0].vidbufnum != MPEG_NUL_SEL && Con[0].vidbufnum == pnum)
+      return true;
+
+   if(Con[0].audbufnum != MPEG_NUL_SEL && Con[0].audbufnum == pnum)
+      return true;
+
+   return false;
+}
+
+bool MPEG_ConsumesPartition(uint8_t pnum)
+{
+   if(!MPEG_WantsPartition(pnum))
+      return false;
+
+   if(Con[0].vidbufnum == pnum && (Con[0].vidcon & MPEG_CMOD_DEL))
+      return true;
+
+   if(Con[0].audbufnum == pnum && (Con[0].audcon & MPEG_CMOD_DEL))
+      return true;
+
+   return false;
 }
 
 void MPEG_Update(int64_t clocks)
@@ -1629,7 +1686,6 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(AudioRate),
       SFVAR(AudioChannels),
 
-      SFVAR(ConValid),
       SFVAR(WindowSizeSet),
       SFVAR(FrameAccum),
       SFVAR(FrameRateNum),
