@@ -463,6 +463,17 @@ int main(void)
          printf("  %u pictures, %u audio frames, %ux%u @ %u Hz x%u\n",
                 frames, audio_frames, w, h, rate, ch);
 
+         /* The display window must have followed the decoded picture,
+            since SET_WINDOW never supplied a size.  VDP2 compositing
+            reads these, so a stale 352x240 default would letterboxed
+            PAL content for no reason. */
+         {
+            const MPEG_DisplayState *d = MPEG_GetDisplayState();
+
+            expect_eq("window width follows picture",  d->w, w);
+            expect_eq("window height follows picture", d->h, h);
+         }
+
          /* Colour conversion must stay inside RGB555. */
          {
             const uint16_t *fb = MPEG_GetFrame(&w, &h);

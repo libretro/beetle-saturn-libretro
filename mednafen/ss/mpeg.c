@@ -190,6 +190,10 @@ static uint32_t ADropped;
    moment the option is enabled. */
 static bool ConValid;
 
+/* Set once SET_WINDOW supplies an explicit size, after which the
+   decoded picture no longer drives the window geometry. */
+static bool WindowSizeSet;
+
 /* Decode clock.  Accumulates the 32.32 fixed-point CD block clocks
    MPEG_Update() is handed and fires one decode per frame period.  The
    period follows the sequence header once one has been parsed; until
@@ -523,8 +527,9 @@ void MPEG_Reset(bool powering_up)
    AudioRate     = 0;
    AudioChannels = 0;
 
-   ConValid     = false;
-   FrameAccum   = 0;
+   ConValid      = false;
+   WindowSizeSet = false;
+   FrameAccum    = 0;
    FrameRateNum = 30000;
    FrameRateDen = 1001;
 
@@ -763,6 +768,13 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          Display.x     = cd[2] & 0x03FF;
          Display.y     = cd[3] & 0x03FF;
 
+         /* NOTE: this register layout is the least certain thing in
+            this file.  Yabause does not model SET_WINDOW at all and I
+            have no source that names the fields, so the source/dest
+            origin split here is a reading, not a fact.  It only becomes
+            observable through VDP2 compositing; if a title places its
+            picture wrongly, start here. */
+
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
@@ -976,6 +988,17 @@ static void ConvertFrame(const rmpeg1_video_frame_t *f)
 
    FrameW = w;
    FrameH = h;
+
+   /* The display window follows the decoded picture unless SET_WINDOW
+      has said otherwise.  A Video CD is full-screen by default and the
+      picture size is not known until the sequence header is parsed, so
+      a fixed default would letterbox 352x288 PAL content inside a
+      352x240 window for no reason. */
+   if(!WindowSizeSet)
+   {
+      Display.w = (uint16_t)w;
+      Display.h = (uint16_t)h;
+   }
 }
 
 /*
@@ -1302,6 +1325,7 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(Display.fade),
 
       SFVAR(ConValid),
+      SFVAR(WindowSizeSet),
       SFVAR(FrameAccum),
       SFVAR(FrameRateNum),
       SFVAR(FrameRateDen),

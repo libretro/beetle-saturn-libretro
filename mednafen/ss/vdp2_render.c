@@ -30,6 +30,7 @@
 #include "../mdfn_gameinfo.h"
 #include "vdp2_common.h"
 #include "vdp2_render.h"
+#include "mpeg.h"
 
 #include <retro_timers.h>
 #include <rthreads/rthreads.h>
@@ -130,6 +131,12 @@ static uint16_t SFCODE;
 
 static uint16_t CHCTLA;
 static uint16_t CHCTLB;
+
+// External background enable (EXTEN bit 0).  The external image
+// replaces NBG1's data source; everything downstream -- priority,
+// window, mosaic, colour calculation -- is NBG1's.  Only the Video CD
+// Card drives this input on a retail Saturn.
+static bool ExBGEnable;
 
 static uint16_t BMPNA;
 static uint8_t BMPNB;
@@ -749,7 +756,7 @@ static INLINE void RegsWrite(uint32_t A, uint16_t V)
 	//ExSyncEnable = (V >> 8) & 0x1;
 
 	//DispAreaSelect = (V >> 1) & 0x1;
-	//ExBGEnable = (V >> 0) & 0x1;
+	ExBGEnable = (V >> 0) & 0x1;
 	break;
 
   case 0x0E:
@@ -1216,6 +1223,10 @@ static void Reset(bool powering_up)
 
  CHCTLA = 0;
  CHCTLB = 0;
+
+ // Restored on state load by the RegsWrite() replay in
+ // VDP2REND_StateAction, same as every other register-derived flag.
+ ExBGEnable = false;
 
  BMPNA = 0;
  BMPNB = 0;
@@ -2163,6 +2174,87 @@ DNBG_FN_AT_BM(1)
 #define DNBG_TBL_AT_IG(BMEN, CM, BPP, ISRGB, IGNTP)        { DNBG_ENUM_PM(DNBG_TBL_AT_PM, BMEN, CM, BPP, ISRGB, IGNTP) },
 #define DNBG_TBL_AT_CM(BMEN, CM, BPP, ISRGB)               { DNBG_ENUM_IG(DNBG_TBL_AT_IG, BMEN, CM, BPP, ISRGB) },
 #define DNBG_TBL_AT_BM(BMEN)                               { DNBG_ENUM_CM(DNBG_TBL_AT_CM, BMEN) },
+
+/*
+   External background.
+
+   The Video CD Card's decoded picture enters VDP2 here.  It is not an
+   overlay: the external image replaces NBG1's data source and keeps
+   NBG1's priority, window, mosaic and colour-calculation registers, so
+   writing it into LB.nbg[1] in the ordinary linebuffer format is all
+   that is needed -- everything downstream is unchanged.
+
+   The card's picture is 352 wide against a 320 or 352 pixel display, so
+   the window registers place it and the border colour fills whatever it
+   does not cover.  Source and destination origins come from SET_WINDOW.
+*/
+static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_or,
+                     const unsigned line)
+{
+   const MPEG_DisplayState *ds = MPEG_GetDisplayState();
+   uint32_t fw = 0, fh = 0;
+   const uint16_t *fb = MPEG_GetFrame(&fw, &fh);
+   const uint64_t border = (uint64_t)pix_base_or
+                         | ((uint64_t)rgb15_to_rgb24(ds->border_color & 0x7FFF) << PIX_RGB_SHIFT);
+   unsigned x;
+   int32_t sy;
+
+   if(!fb || !fw || !fh || line < ds->y || line >= (unsigned)(ds->y + ds->h))
+   {
+      for(x = 0; x < w; x++)
+         bgbuf[x] = border;
+      return;
+   }
+
+   sy = (int32_t)ds->src_y + (int32_t)(line - ds->y);
+
+   if(sy < 0 || (uint32_t)sy >= fh)
+   {
+      for(x = 0; x < w; x++)
+         bgbuf[x] = border;
+      return;
+   }
+
+   {
+      const uint16_t *src = fb + (size_t)sy * MPEG_MAX_WIDTH;
+
+      for(x = 0; x < w; x++)
+      {
+         int32_t sx;
+
+         if(x < ds->x || x >= (unsigned)(ds->x + ds->w))
+         {
+            bgbuf[x] = border;
+            continue;
+         }
+
+         sx = (int32_t)ds->src_x + (int32_t)(x - ds->x);
+
+         if(sx < 0 || (uint32_t)sx >= fw)
+         {
+            bgbuf[x] = border;
+            continue;
+         }
+
+         /* Fade is a straight scale on the way out, which is what
+            MPEG_SET_FADE describes; 0xFF is unity and is the common
+            case, so keep it off the multiply path. */
+         if(ds->fade == 0xFF)
+            bgbuf[x] = (uint64_t)pix_base_or
+                     | ((uint64_t)rgb15_to_rgb24(src[sx] & 0x7FFF) << PIX_RGB_SHIFT);
+         else
+         {
+            const uint32_t c = rgb15_to_rgb24(src[sx] & 0x7FFF);
+            const uint32_t r = ((c & 0x0000FF) * ds->fade) >> 8;
+            const uint32_t g = (((c >> 8) & 0xFF) * ds->fade) >> 8;
+            const uint32_t b = (((c >> 16) & 0xFF) * ds->fade) >> 8;
+
+            bgbuf[x] = (uint64_t)pix_base_or
+                     | ((uint64_t)(r | (g << 8) | (b << 16)) << PIX_RGB_SHIFT);
+         }
+      }
+   }
+}
 
 static void (*DrawNBG[2 /*bitmap enable*/][5/*col mode*/][2/*igntp*/][3/*priomode*/][4/*ccmode*/])(const unsigned n, uint64_t* bgbuf, const unsigned w, const uint32_t pix_base_or) =
 {
@@ -4602,7 +4694,13 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
      else
       pix_base_or |= (prio << PIX_PRIO_SHIFT);
 
-     if(n < 2)
+     // NBG1 doubles as the external background input when EXBGEN is
+     // set.  Gated on the card being present and enabled as well, so a
+     // game that sets the bit with nothing plugged in gets NBG1 as
+     // before rather than a screenful of border colour.
+     if(n == 1 && ExBGEnable && MPEG_IsPresent() && MPEG_GetDisplayState()->enabled)
+      DrawEXBG(LB.nbg[n] + 8, w, pix_base_or | (1U << PIX_ISRGB_SHIFT), vdp2_line);
+     else if(n < 2)
       DrawNBG[bmen][colornum][igntp][priomode % 3][ccmode](n, LB.nbg[n] + 8, w, pix_base_or);
      else
       DrawNBG23[colornum][igntp][priomode % 3][ccmode](n, LB.nbg[n] + 8, w, pix_base_or);
