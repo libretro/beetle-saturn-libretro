@@ -139,6 +139,10 @@
 #include "scu.h"
 #include "sound.h"
 #include "cdb.h"
+#include "mpeg.h"
+
+#include "../settings.h"	/* MDFN_GetSettingB / MDFN_GetSettingS */
+#include "../general.h"	/* MDFN_MakeFName, MDFNMKF_FIRMWARE */
 
 #include "../cdrom/CDUtility.h"
 #include "../cdrom/cdromif.h"
@@ -1299,11 +1303,38 @@ void CDB_Init(void)
  lastts = 0;
  Cur_CDIF = NULL;
  TrayOpen = false;
+
+ //
+ // Video CD Card (MPEG card).  It is not a cartridge -- it plugs into
+ // the dedicated MPEG expansion connector and is driven entirely
+ // through this CD block -- so it is initialised here rather than in
+ // cart.c.  The firmware ROM is optional at this level: without it the
+ // card still answers commands, but it will not authenticate, which is
+ // what gates the BIOS Video CD player.
+ //
+ if(MDFN_GetSettingB("ss.mpeg_card"))
+ {
+  char fpath[4096];
+  const char* rom_setting = MDFN_GetSettingS("ss.mpeg_card_path");
+  RFILE* fp = NULL;
+
+  if(rom_setting && rom_setting[0])
+  {
+   const char* path = MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_FIRMWARE, 0, rom_setting);
+
+   fp = filestream_open(path, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+  }
+
+  MPEG_Init(fp);
+
+  if(fp)
+   filestream_close(fp);
+ }
 }
 
 void CDB_Kill(void)
 {
-
+ MPEG_Kill();
 }
 
 void CDB_SetDisc(bool tray_open, CDIF* cdif)
@@ -1331,6 +1362,8 @@ static INLINE void RecalcIRQOut(void)
 
 void CDB_Reset(bool powering_up)
 {
+ MPEG_Reset(powering_up);
+
  if(powering_up)
  {
   //
@@ -2384,9 +2417,17 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_HWINFO) //	= 0x01,
     {
+     // CR2 high byte is the hardware flag word; bit 1 reports an
+     // installed MPEG card.  CR3 reports whether that card has been
+     // authenticated (see COMMAND_AUTH_DEVICE with CR2 == 1).  Both are
+     // zero when no card is configured, which preserves the stock
+     // no-card results exactly.
+     const uint16_t mpeg_hwflag = MPEG_IsPresent() ? 0x0200 : 0x0000;
+     const uint16_t mpeg_auth   = MPEG_GetAuth() ? 0x0001 : 0x0000;
+
      BasicResults(MakeBaseStatus(false, 0) << 8,
-		  0x0002,
-		  0x0000,
+		  0x0002 | mpeg_hwflag,
+		  mpeg_auth,
 		  0x0600); // TODO: Before INIT: 0xFF00;
     }
     //
@@ -2703,9 +2744,18 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     {
      uint8_t fnum;
 
+     // CR2 == 0x0001 authenticates the MPEG card rather than the disc.
+     // It is unambiguous: a partition-0 disc auth uses CR2 == 0x0000,
+     // and every other partition puts its number in the high byte.
      fnum = (CTR.CD[2] >> 8);
 
-     if(fnum >= 0x18)
+     if(CTR.CD[2] == 0x0001)
+     {
+      MPEG_Auth();
+      CDStatusResults(false, 0);
+      TriggerIRQ(HIRQ_MPED);
+     }
+     else if(fnum >= 0x18)
       CDStatusResults(true, 0);
      else if(FLS.Active)
       CDStatusResults(false, STATUS_WAIT);
@@ -2735,7 +2785,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_AUTH)
     {
-     if(FLS.Active && FLS.DoAuth)
+     if(CTR.CD[2])
+      BasicResults(MakeBaseStatus(false, 0) << 8, MPEG_GetAuth(), 0, 0);
+     else if(FLS.Active && FLS.DoAuth)
       CDStatusResults(true, 0);
      else
       BasicResults(MakeBaseStatus(false, 0) << 8, AuthDiscType, 0, 0);
@@ -3660,6 +3712,21 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
      FLS.Abort = true;
     }
+    //
+    //
+    //
+    else if(MPEG_CMD_IS_MPEG(CTR.Command))
+    {
+     uint16_t mpeg_res[4]  = { 0, 0, 0, 0 };
+     uint16_t mpeg_hirq    = 0;
+
+     MPEG_Command(CTR.Command, CTR.CD, MakeBaseStatus(false, 0), mpeg_res, &mpeg_hirq);
+
+     BasicResults(mpeg_res[0], mpeg_res[1], mpeg_res[2], mpeg_res[3]);
+
+     if(mpeg_hirq)
+      TriggerIRQ(mpeg_hirq);
+    }
     else
     {
      ResultsRead = false;
@@ -4348,5 +4415,9 @@ void CDB_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   CDDABuf_RP %= CDDABuf_MaxCount;
   CDDABuf_WP %= CDDABuf_MaxCount;
  }
+
+ // Optional section, so states written without a card configured load
+ // into a build with one and vice versa.
+ MPEG_StateAction(sm, load, data_only);
 }
 

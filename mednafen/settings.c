@@ -49,6 +49,8 @@ bool MDFN_GetSettingB(const char *name)
       return (int)(setting_smpc_autortc);
    if (!strcmp("ss.bios_sanity", name))
       return true;
+   if (!strcmp("ss.mpeg_card", name))
+      return setting_mpeg_card;
    /* FILESYS */
    if (!strcmp("filesys.untrusted_fip_check", name))
       return 0;
@@ -63,5 +65,7 @@ const char *MDFN_GetSettingS(const char *name)
       return "mpr-19367-mx.ic1";
    if (!strcmp("ss.cart.satar4mp_path", name))
       return "satar4mp.bin";
+   if (!strcmp("ss.mpeg_card_path", name))
+      return "mpeg_card.bin";
    return NULL;
 }

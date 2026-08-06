@@ -461,6 +461,16 @@ static void check_variables(bool startup)
          setting_midsync = false;
    }
 
+   var.key = "beetle_saturn_mpeg_card";
+   var.value = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (!strcmp(var.value, "enabled"))
+         setting_mpeg_card = true;
+      else if (!strcmp(var.value, "disabled"))
+         setting_mpeg_card = false;
+   }
+
    var.key = "beetle_saturn_autortc";
    var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)

@@ -115,6 +115,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "english"
    },
    {
+      "beetle_saturn_mpeg_card",
+      "Video CD Card (MPEG Card)",
+      NULL,
+      "Emulate the Saturn Video CD Card, a Japan/Europe-only expansion adding hardware MPEG-1 decoding. Requires the card firmware (mpeg_card.bin) in the system directory. Restart required.",
+      NULL,
+      "system",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled"
+   },
+   {
       "beetle_saturn_autortc",
       "RTC Automatic Set",
       NULL,
