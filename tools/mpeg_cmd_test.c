@@ -1293,6 +1293,95 @@ int main(void)
       expect_eq  ("buffers cleared", MPEG_GetESFill(true), 0);
    }
 
+   /* --- 15h. Video start-code detection ---------------------------- */
+   printf("[start codes]\n");
+   {
+      static uint8_t ps[8192];
+      uint8_t *p;
+      uint32_t pend;
+      unsigned i;
+
+      /* Build a video packet carrying a sequence header, a GOP header,
+         two picture start codes and a sequence end code. */
+      p = ps;
+      p = put_startcode(p, 0xBA);
+      p = put_ts(p, 0x02, 0);
+      *p++ = 0x80; *p++ = 0x00; *p++ = 0x01;
+
+      {
+         static uint8_t es[64];
+         uint8_t *e = es;
+
+         e = put_startcode(e, 0xB3);   /* sequence header */
+         *e++ = 0x16; *e++ = 0x01; *e++ = 0x20;
+         e = put_startcode(e, 0xB8);   /* group start     */
+         *e++ = 0x00; *e++ = 0x00; *e++ = 0x00;
+         e = put_startcode(e, 0x00);   /* picture start   */
+         *e++ = 0x00; *e++ = 0x0F;
+         e = put_startcode(e, 0x00);   /* picture start   */
+         *e++ = 0x00; *e++ = 0x0F;
+         e = put_startcode(e, 0xB7);   /* sequence end    */
+
+         p = put_packet(p, 0xE0, RMPEG1_PS_NO_PTS, (size_t)(e - es), 0x00);
+         memcpy(p - (size_t)(e - es), es, (size_t)(e - es));
+      }
+
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_INT_MASK, 0x00FF, 0xFFFF, 0, 0);
+
+      MPEG_FeedSector(ps, (uint32_t)(p - ps), 0x00);
+
+      Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
+      pend = ((uint32_t)(Out[0] & 0xFF) << 16) | Out[1];
+
+      expect_true("sequence start detected", (pend & MPEG_INT_SQSTRT) != 0);
+      expect_true("GOP start detected",      (pend & MPEG_INT_GSTRT)  != 0);
+      expect_true("picture start detected",  (pend & MPEG_INT_PSTRT)  != 0);
+      expect_true("sequence end detected",   (pend & MPEG_INT_SQEND)  != 0);
+
+      /* A start code split across two feeds must still be seen: the
+         scanner keeps a rolling window for exactly this. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_INT_MASK, 0x00FF, 0xFFFF, 0, 0);
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0xFF00 | MPEG_NUL_SEL,
+                                   0x0000, 0x0100 | 0x0007);
+
+      {
+         static const uint8_t half1[] = { 0x11, 0x22, 0x00, 0x00 };
+         static const uint8_t half2[] = { 0x01, 0xB8, 0x33 };
+
+         MPEG_FeedSector(half1, sizeof(half1), 0x00);
+         MPEG_FeedSector(half2, sizeof(half2), 0x00);
+      }
+
+      Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
+      pend = ((uint32_t)(Out[0] & 0xFF) << 16) | Out[1];
+      expect_true("split start code detected", (pend & MPEG_INT_GSTRT) != 0);
+
+      /* Bytes that merely resemble a start code must not fire. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_INT_MASK, 0x00FF, 0xFFFF, 0, 0);
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0xFF00 | MPEG_NUL_SEL,
+                                   0x0000, 0x0100 | 0x0007);
+
+      {
+         static uint8_t junk[256];
+
+         for(i = 0; i < sizeof(junk); i++)
+            junk[i] = (uint8_t)(i | 0x40);
+
+         MPEG_FeedSector(junk, sizeof(junk), 0x00);
+      }
+
+      Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
+      pend = ((uint32_t)(Out[0] & 0xFF) << 16) | Out[1];
+      expect_eq("no false sequence start", pend & MPEG_INT_SQSTRT, 0);
+      expect_eq("no false GOP start",      pend & MPEG_INT_GSTRT,  0);
+   }
+
    /* --- 16. Interrupt factors ------------------------------------- */
    printf("[interrupts]\n");
    {
@@ -1349,7 +1438,11 @@ int main(void)
 
       expect_true("video stream ready raised", (pend & MPEG_INT_VSRDY) != 0);
       expect_true("audio stream ready raised", (pend & MPEG_INT_ASRDY) != 0);
-      expect_true("sequence end raised",       (pend & MPEG_INT_SQEND) != 0);
+      /* The fixture ends with the Program Stream's ISO_11172_end_code,
+         not a video sequence_end_code.  SQEND reports the latter, so it
+         must NOT fire here -- the two are different layers and used to
+         be conflated. */
+      expect_eq  ("PS end is not a sequence end", pend & MPEG_INT_SQEND, 0);
 
       /* Read-to-clear. */
       Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);

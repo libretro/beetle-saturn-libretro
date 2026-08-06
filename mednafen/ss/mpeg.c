@@ -141,6 +141,11 @@ static uint16_t PendingHIRQ;
 /* Edge detectors, so a level condition raises its factor once rather
    than on every decode. */
 static bool SeqSeen;
+
+/* Rolling window for the video elementary stream start-code scanner.
+   Holds the last three bytes seen so a 000001h prefix split across two
+   FIFO writes is still recognised. */
+static uint32_t SCWindow;
 static bool VideoStarted;
 static bool AudioStarted;
 static bool VideoReady;
@@ -527,6 +532,7 @@ void MPEG_Reset(bool powering_up)
    PendingHIRQ  = 0;
 
    SeqSeen         = false;
+   SCWindow        = 0;
    VideoStarted    = false;
    AudioStarted    = false;
    VideoReady      = false;
@@ -779,6 +785,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          FrameValid   = false;
 
          SeqSeen         = false;
+         SCWindow        = 0;
          VideoStarted    = false;
          AudioStarted    = false;
          VideoReady      = false;
@@ -1314,6 +1321,48 @@ static INLINE bool StreamSelected(uint8_t want, uint8_t got_index, uint8_t base)
    return want == got_index;
 }
 
+/*
+   Scan video elementary stream for the start codes the card reports as
+   interrupt factors.
+
+   These are detection events -- SBL calls them "検出", detected -- so
+   they belong at the point the bytes arrive, not at the point a picture
+   comes out of the decoder.  Raising them from the decoder would have
+   made them late by however much the decoder is buffering, and would
+   have missed a sequence end entirely on a stream that stops before its
+   last picture is emitted.
+
+   ISO/IEC 11172-2 start codes, after a 000001h prefix:
+     00h  picture_start_code
+     B3h  sequence_header_code
+     B7h  sequence_end_code
+     B8h  group_start_code
+*/
+static MDFN_HOT void ScanVideoStartCodes(const uint8_t *data, uint32_t len)
+{
+   uint32_t w = SCWindow;
+   uint32_t i;
+
+   for(i = 0; i < len; i++)
+   {
+      w = (w << 8) | data[i];
+
+      if((w & 0xFFFFFF00) != 0x00000100)
+         continue;
+
+      switch(w & 0xFF)
+      {
+         case 0x00: RaiseInt(MPEG_INT_PSTRT);  break;
+         case 0xB3: RaiseInt(MPEG_INT_SQSTRT); break;
+         case 0xB7: RaiseInt(MPEG_INT_SQEND);  break;
+         case 0xB8: RaiseInt(MPEG_INT_GSTRT);  break;
+         default: break;
+      }
+   }
+
+   SCWindow = w;
+}
+
 void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
 {
    rmpeg1_ps_packet_t pkt;
@@ -1335,6 +1384,8 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
    if((Con[0].vidlay & MPEG_LAY_MASK) == MPEG_LAY_ES
       && Con[0].vidbufnum != MPEG_NUL_SEL)
    {
+      ScanVideoStartCodes(data, len);
+
       VDropped += FIFO_Write(&VFIFO, data, len);
 
       if(!VideoReady)
@@ -1381,6 +1432,8 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
             case RMPEG1_PS_VIDEO:
                if(StreamSelected(Stm[0].vidstmid, pkt.index, 0xE0))
                {
+                  ScanVideoStartCodes(pkt.data, (uint32_t)pkt.size);
+
                   VDropped += FIFO_Write(&VFIFO, pkt.data, (uint32_t)pkt.size);
 
                   if(pkt.pts != RMPEG1_PS_NO_PTS)
@@ -1448,8 +1501,9 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
       if(saw_audio) RaiseInt(MPEG_INT_AEOR);
    }
 
-   if(rmpeg1_ps_ended(Demux))
-      RaiseInt(MPEG_INT_SQEND);
+   /* SQEND comes from the video sequence_end_code, which the scanner
+      catches; the Program Stream's own ISO_11172_end_code is a
+      different layer and does not necessarily coincide with it. */
 }
 
 uint32_t MPEG_GetESFill(bool is_video)
@@ -1825,15 +1879,12 @@ bool MPEG_RunFrame(void)
 
    RunAudio();
 
-   /* Sequence start is a level condition inside the decoder rather than
-      an event it reports, so edge-detect it here.  GOP start has no
-      equivalent in rmpeg1_video's interface, so MPEG_INT_GSTRT is never
-      raised -- worth knowing if a title turns out to synchronise on it. */
+   /* SeqSeen gates the frame-rate follow below and nothing else; the
+      SQSTRT factor itself is raised by the start-code scanner, which
+      sees the sequence header when it arrives rather than when the
+      decoder gets round to it. */
    if(!SeqSeen && rmpeg1_video_has_sequence(Video))
-   {
       SeqSeen = true;
-      RaiseInt(MPEG_INT_SQSTRT);
-   }
 
    {
       const uint32_t errs = rmpeg1_video_errors(Video);
@@ -1883,7 +1934,6 @@ bool MPEG_RunFrame(void)
          VideoStatus = MPEG_STV_DEC | MPEG_STV_UPDPIC | MPEG_STV_RDY
                      | (Display.enabled ? MPEG_STV_DISP : 0);
 
-         RaiseInt(MPEG_INT_PSTRT);
          RaiseInt(MPEG_INT_VORDY);
 
          if(!VideoStarted)
@@ -2081,6 +2131,7 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(IntMask),
       SFVAR(PendingHIRQ),
       SFVAR(SeqSeen),
+      SFVAR(SCWindow),
       SFVAR(VideoStarted),
       SFVAR(AudioStarted),
       SFVAR(VideoReady),
