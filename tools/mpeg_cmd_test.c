@@ -861,6 +861,68 @@ int main(void)
       }
    }
 
+   /* --- 15d. Image window ----------------------------------------- */
+   printf("[image window]\n");
+   {
+      MPEG_Reset(true);
+
+      /* Unconfigured: GET_IMAGE reports the whole decoded picture,
+         which is zero before anything decodes. */
+      Cmd(MPEG_CMD_GET_IMAGE, 0, 0, 0, 0);
+      expect_eq("no image yet (hi)", Out[0] & 0xFF, 0);
+      expect_eq("no image yet (lo)", Out[1], 0);
+
+      /* SET_IMAGE: selector in CR1's low byte, frame buffer in CR2's
+         low byte, x in CR3 and y in CR4. */
+      Cmd(MPEG_CMD_SET_IMAGE, MPEG_IMG_SIZ, 0x0000, 352, 240);
+      Cmd(MPEG_CMD_GET_IMAGE, 0, 0, 0, 0);
+
+      /* 352*240 luma plus two 176*120 chroma planes, in longwords. */
+      {
+         const uint32_t expect_dw = (352u * 240u + 2u * 176u * 120u) / 4u;
+
+         expect_eq("transfer size hi", Out[0] & 0xFF, (expect_dw >> 16) & 0xFF);
+         expect_eq("transfer size lo", Out[1], expect_dw & 0xFFFF);
+      }
+
+      /* A second frame buffer keeps its own window. */
+      Cmd(MPEG_CMD_SET_IMAGE, MPEG_IMG_SIZ, 0x0001, 176, 120);
+      Cmd(MPEG_CMD_GET_IMAGE, 0, 0, 0, 0);
+      {
+         const uint32_t expect_dw = (176u * 120u + 2u * 88u * 60u) / 4u;
+
+         expect_eq("second buffer size", Out[1], expect_dw & 0xFFFF);
+      }
+
+      /* Selecting the first again must report its own size back, not
+         the one just written. */
+      Cmd(MPEG_CMD_SET_IMAGE, MPEG_IMG_POS, 0x0000, 16, 32);
+      Cmd(MPEG_CMD_GET_IMAGE, 0, 0, 0, 0);
+      {
+         const uint32_t expect_dw = (352u * 240u + 2u * 176u * 120u) / 4u;
+
+         expect_eq("first buffer size preserved", Out[1], expect_dw & 0xFFFF);
+      }
+
+      /* Odd dimensions must round the chroma planes up, not down. */
+      Cmd(MPEG_CMD_SET_IMAGE, MPEG_IMG_SIZ, 0x0002, 3, 3);
+      Cmd(MPEG_CMD_GET_IMAGE, 0, 0, 0, 0);
+      expect_eq("odd dimensions round up", Out[1], (3u * 3u + 2u * 2u * 2u + 3u) / 4u);
+
+      /* An out-of-range frame buffer must be ignored, not written past
+         the end of the array. */
+      Cmd(MPEG_CMD_SET_IMAGE, MPEG_IMG_SIZ, 0x00FF, 640, 480);
+      Cmd(MPEG_CMD_GET_IMAGE, 0, 0, 0, 0);
+      expect_eq("out-of-range fbn ignored", Out[1], (3u * 3u + 2u * 2u * 2u + 3u) / 4u);
+
+      /* READ_IMAGE and WRITE_IMAGE are recognised but unimplemented;
+         they must answer with a normal status rather than a rejection. */
+      Cmd(MPEG_CMD_READ_IMAGE, 0, 0, 0, 0);
+      expect_true("READ_IMAGE not rejected", (Out[0] >> 8) != 0xFF);
+      Cmd(MPEG_CMD_WRITE_IMAGE, 0, 0, 0, 0);
+      expect_true("WRITE_IMAGE not rejected", (Out[0] >> 8) != 0xFF);
+   }
+
    /* --- 16. Interrupt factors ------------------------------------- */
    printf("[interrupts]\n");
    {

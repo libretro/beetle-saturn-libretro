@@ -265,6 +265,27 @@ enum
 /* CDC_NUL_SEL: no selector / no partition. */
 #define MPEG_NUL_SEL 0xFF
 
+/*
+   SET_IMAGE sub-function, in CR1's low byte.  CDC_MpSetImgPos and
+   CDC_MpSetImgSiz tail-call one builder (cdc_mfb.o's cmdRspSetImg)
+   which emits opcode 0xA6 with this selector, the frame buffer number
+   in CR2's low byte, x in CR3 and y in CR4 -- the same shape as the
+   window command.
+*/
+enum
+{
+ MPEG_IMG_POS = 0, /* CDC_MpSetImgPos */
+ MPEG_IMG_SIZ = 1  /* CDC_MpSetImgSiz */
+};
+
+/*
+   Frame buffers.  The card has several, selected by the fbn field of
+   DISPLAY, SET_IMAGE, READ_IMAGE and WRITE_IMAGE.  Four is what the
+   image commands' single-byte field and the Video CD player's usage
+   suggest; nothing observed needs more.
+*/
+#define MPEG_NUM_FBUF 4
+
 /* Video CD / MPEG-1 constrained-parameter frame geometry. */
 #define MPEG_MAX_WIDTH   352
 #define MPEG_MAX_HEIGHT  288

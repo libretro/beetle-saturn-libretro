@@ -163,6 +163,23 @@ static uint8_t  DecodeMethod;
 /* temporal_reference of the last decoded picture, reported by
    GET_TIMECODE alongside the picture type. */
 static uint8_t  TemporalRef;
+
+/*
+   Per-frame-buffer image window, set by SET_IMAGE.  This is the region
+   of a frame buffer that READ_IMAGE and WRITE_IMAGE transfer, which is
+   independent of the display window SET_WINDOW controls: one is what
+   the host copies, the other is what VDP2 shows.
+*/
+static struct
+{
+ uint16_t x, y;
+ uint16_t w, h;
+} ImgWin[MPEG_NUM_FBUF];
+
+/* Frame buffer most recently addressed by SET_IMAGE.  GET_IMAGE takes
+   no frame buffer number, so it reports on whichever one was last set
+   up -- which is how the SBL sequence uses it. */
+static uint8_t  ImgFB;
 static uint8_t  VideoEffects[6];
 static uint32_t LSIRegs[2];
 
@@ -524,6 +541,9 @@ void MPEG_Reset(bool powering_up)
 
    DecodeMethod = 0;
    TemporalRef  = 0;
+
+   memset(ImgWin, 0, sizeof(ImgWin));
+   ImgFB = 0;
 
    memset(VideoEffects, 0, sizeof(VideoEffects));
    memset(LSIRegs, 0, sizeof(LSIRegs));
@@ -928,6 +948,67 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          *hirq |= MPEG_HIRQ_MPCM;
          break;
 
+      case MPEG_CMD_SET_IMAGE:
+      {
+         /* One opcode, two sub-functions, same builder shape as
+            SET_WINDOW: selector in CR1's low byte, frame buffer number
+            in CR2's low byte, x in CR3 and y in CR4. */
+         const unsigned sel = cd[0] & 0xFF;
+         const unsigned fb  = cd[1] & 0xFF;
+
+         if(fb < MPEG_NUM_FBUF)
+         {
+            ImgFB = (uint8_t)fb;
+
+            if(sel == MPEG_IMG_POS)
+            {
+               ImgWin[fb].x = cd[2];
+               ImgWin[fb].y = cd[3];
+            }
+            else if(sel == MPEG_IMG_SIZ)
+            {
+               ImgWin[fb].w = cd[2];
+               ImgWin[fb].h = cd[3];
+            }
+         }
+
+         MPEGReport(base_status, out);
+         *hirq |= MPEG_HIRQ_MPCM;
+      }
+      break;
+
+      case MPEG_CMD_GET_IMAGE:
+      {
+         /* CDC_MpGetImg(dwnum) reads a 32-bit value from the response
+            and masks it to 24 bits, so the count occupies CR1's low
+            byte and CR2.  It is the size of the transfer READ_IMAGE
+            would produce for the image window last set up, in
+            longwords: three 4:2:0 planes, w*h for luma and a quarter of
+            that for each chroma plane. */
+         uint32_t w = ImgWin[ImgFB].w;
+         uint32_t h = ImgWin[ImgFB].h;
+         uint32_t dwnum;
+
+         /* An unconfigured window reports the whole decoded picture,
+            which is what a caller that never called SET_IMAGE means. */
+         if(!w) w = FrameW;
+         if(!h) h = FrameH;
+
+         /* Round the chroma planes up: an odd dimension still needs a
+            whole chroma sample to cover its last row or column. */
+         dwnum = (w * h) + 2 * (((w + 1) >> 1) * ((h + 1) >> 1));
+         dwnum = (dwnum + 3) >> 2;
+         dwnum &= 0x00FFFFFF;
+
+         out[0] = ((uint16_t)base_status << 8) | ((dwnum >> 16) & 0xFF);
+         out[1] = (uint16_t)dwnum;
+         out[2] = 0;
+         out[3] = 0;
+
+         *hirq |= MPEG_HIRQ_MPCM;
+      }
+      break;
+
       case MPEG_CMD_GET_PTS:
          /* CDC_MpGetPts(pts_a) reads a single 32-bit value out of the
             response at offset 4, i.e. CR3:CR4.  The 90 kHz system clock
@@ -993,6 +1074,26 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          LSIRegs[0] = ((uint32_t)cd[0] << 16) | cd[1];
          LSIRegs[1] = ((uint32_t)cd[2] << 16) | cd[3];
 
+         MPEGReport(base_status, out);
+         *hirq |= MPEG_HIRQ_MPCM;
+         break;
+
+      case MPEG_CMD_READ_IMAGE:
+      case MPEG_CMD_WRITE_IMAGE:
+         /* CDC_MpReadImg(srcfbn, fln_y, fln_cr, fln_cb) puts the three
+            plane filter numbers in CR1's low byte and CR2 and the
+            source frame buffer in CR3's high byte; WRITE_IMAGE is the
+            mirror image with buffer partition numbers and a colour mode
+            in CR3's low byte.
+
+            Not implemented, and deliberately so: transferring the
+            planes means synthesising sectors into CD block partitions
+            and back, and getting the sector shape wrong there corrupts
+            partition state rather than merely producing a bad picture.
+            The register layouts are recovered and the decoded planes
+            are available from rmpeg1_video, so this is a bounded job --
+            it just needs something that exercises it to verify against.
+            A status report is the safe answer meanwhile. */
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
@@ -1718,6 +1819,11 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
 
       SFVAR(DecodeMethod),
       SFVAR(TemporalRef),
+      SFVAR(ImgFB),
+      SFVAR(ImgWin->x, MPEG_NUM_FBUF, sizeof(*ImgWin), ImgWin),
+      SFVAR(ImgWin->y, MPEG_NUM_FBUF, sizeof(*ImgWin), ImgWin),
+      SFVAR(ImgWin->w, MPEG_NUM_FBUF, sizeof(*ImgWin), ImgWin),
+      SFVAR(ImgWin->h, MPEG_NUM_FBUF, sizeof(*ImgWin), ImgWin),
       SFPTR8N(VideoEffects, sizeof(VideoEffects), "VideoEffects"),
       SFVAR(LSIRegs[0]),
       SFVAR(LSIRegs[1]),
