@@ -172,6 +172,12 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len) MDFN_HOT;
    CD block's buffer-full/backpressure decisions and for tests. */
 uint32_t MPEG_GetESFill(bool is_video);
 
+/* Bytes of elementary stream dropped because a FIFO was full, since the
+   last reset.  Nonzero means the demuxer outran a decoder, which under
+   the real sector cadence should not happen -- treat it as a bug signal
+   rather than an expected condition. */
+uint32_t MPEG_GetESDropped(bool is_video);
+
 /* Presentation timestamp most recently attached to a demultiplexed
    packet of the selected substream, in 90 kHz units, or
    RMPEG1_PS_NO_PTS when none has been seen. */

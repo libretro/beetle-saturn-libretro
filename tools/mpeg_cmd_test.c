@@ -424,35 +424,48 @@ int main(void)
          unsigned frames = 0;
          unsigned audio_frames = 0;
          size_t got;
+         const int64_t sector_period = ((int64_t)(11289600 / 75)) << 32;
+         uint16_t last_vc = 0;
 
          MPEG_Reset(true);
          Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
 
+         /* Feed at the real single-speed Video CD cadence -- 75
+            sectors per second -- and clock the card between sectors,
+            exactly as the CD block does. A tight feed loop would hide
+            any imbalance between how fast the demuxer fills the ES
+            FIFOs and how fast the decoders drain them. */
          while((got = fread(sec, 1, sizeof(sec), fp)) > 0)
          {
             int16_t pcm[4096 * 2];
             uint32_t n;
 
             MPEG_FeedSector(sec, (uint32_t)got);
-
-            /* Drain the way the CD block event loop would: keep
-               calling until the decoders stop producing. */
-            while(MPEG_RunFrame())
-            {
-               const uint16_t *fb = MPEG_GetFrame(&w, &h);
-
-               if(fb)
-                  frames++;
-            }
+            MPEG_Update(sector_period);
 
             while((n = MPEG_ReadAudio(pcm, 4096)) > 0)
                audio_frames += n;
+
+            /* VCounter advances once per decode period, so it is what
+               says a new picture was due; MPEG_GetFrame() then says
+               whether one actually came out. */
+            Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+
+            if(Out[1] != last_vc)
+            {
+               last_vc = Out[1];
+
+               if(MPEG_GetFrame(&w, &h))
+                  frames++;
+            }
          }
 
          fclose(fp);
 
          MPEG_GetAudioFormat(&rate, &ch);
 
+         expect_eq  ("no video ES dropped", MPEG_GetESDropped(true),  0);
+         expect_eq  ("no audio ES dropped", MPEG_GetESDropped(false), 0);
          expect_true("decoded at least one picture", frames > 0);
          expect_eq  ("picture width",  w, 352);
          expect_eq  ("picture height", h, 240);
