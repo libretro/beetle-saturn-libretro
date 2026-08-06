@@ -19,22 +19,32 @@
 */
 
 /*
-   STAGE 1 (this file): host-visible control plane.  The CD block
-   command surface, the card's mode/connection/stream/display state, the
-   interrupt register and mask, authentication, savestates, and the
-   elementary-stream FIFOs.  Enough for software to probe for the card,
-   authenticate it, configure it and drive it without hanging.
+   What lives here.
 
-   STAGE 2 (this file): the decode path, entirely on libretro-common
-   codecs.  rmpeg1_ps demultiplexes the Program Stream that
-   MPEG_FeedSector() receives; the selected video substream goes to
-   rmpeg1_video and the selected audio substream to rmp3, both clocked
-   by MPEG_RunFrame().  What lives here is glue: substream selection,
-   4:2:0 to RGB555 conversion for the Saturn's display path, an audio
-   ring, and the status fields the CD block command surface reports.
+   The host-visible control plane: the CD block command surface for
+   0x90-0xAF, the card's mode, connection, stream, image and display
+   state, the interrupt register and its mask, authentication and
+   savestates.
 
-   STAGE 3 (not implemented): VDP2 external-background compositing of
-   the decoded picture, and SCSP-side mixing of the decoded audio.
+   The decode path, entirely on libretro-common codecs.  rmpeg1_ps
+   demultiplexes the Program Stream that MPEG_FeedSector() receives --
+   unless the connection is on an elementary-stream layer, in which case
+   it is bypassed -- and the selected substreams go to rmpeg1_video and
+   rmp3, clocked by MPEG_Update() off the CD block's own clock.
+
+   What this file contributes beyond routing is glue: substream
+   selection, 4:2:0 to RGB555 conversion in integer arithmetic, the
+   luma plane the luminance key needs, an audio ring, the display
+   geometry mapping the VDP2 compositor uses (MPEG_MapRow / MPEG_MapCol
+   in the header), and the status fields the command surface reports.
+
+   Two consumers live outside: vdp2_render.c composites the picture as
+   VDP2's external background, in NBG1's layer slot, and cdb.c pulls
+   decoded audio into the SCSP's external input via CDB_GetCDDA().
+
+   Not modelled: the image and sector transfer commands 0xA7-0xAA, which
+   would move decoded planes through CD block partitions.  Their
+   register layouts are recovered and commented at their dispatch sites.
 
    Deliberately NOT modelled as a CartInfo -- see the header comment.
 */

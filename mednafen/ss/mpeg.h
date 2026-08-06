@@ -34,12 +34,12 @@
      3) SCSP.  Decoded MPEG audio is mixed into the analogue output
         path.
 
-   This translation unit models (1) in full and holds the state that
-   (2) and (3) consume.  All three codec layers come from
-   libretro-common: rmpeg1_ps demultiplexes the Program Stream,
-   rmpeg1_video decodes the MPEG-1 video elementary stream, and rmp3
-   decodes the MPEG-1 Layer II audio elementary stream.  Nothing about
-   MPEG lives in this core beyond the glue.
+   mpeg.c models (1) in full and holds the state (2) and (3) consume;
+   vdp2_render.c and cdb.c are the consumers.  All three codec layers
+   come from libretro-common: rmpeg1_ps demultiplexes the Program
+   Stream, rmpeg1_video decodes the MPEG-1 video elementary stream, and
+   rmp3 decodes the MPEG-1 Layer II audio elementary stream.  Nothing
+   about MPEG lives in this core beyond the glue.
 */
 
 #ifndef __MDFN_SS_MPEG_H
