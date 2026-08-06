@@ -191,7 +191,6 @@ static struct
    no frame buffer number, so it reports on whichever one was last set
    up -- which is how the SBL sequence uses it. */
 static uint8_t  ImgFB;
-static uint8_t  VideoEffects[6];
 static uint32_t LSIRegs[2];
 
 static MPEG_DisplayState Display;
@@ -256,6 +255,7 @@ static uint32_t FrameRateDen = 1001;
 
 /* Decoded picture, RGB555.  Untouched by stage 1. */
 static uint16_t *FrameBuf;
+static uint8_t  *FrameLuma;
 static uint32_t  FrameW, FrameH;
 static bool      FrameValid;
 
@@ -396,6 +396,7 @@ bool MPEG_Init(RFILE *rom_fp)
    CardROM     = NULL;
    CardROMSize = 0;
    FrameBuf    = NULL;
+   FrameLuma   = NULL;
    Demux       = NULL;
    Video       = NULL;
    Audio       = NULL;
@@ -463,6 +464,12 @@ bool MPEG_Init(RFILE *rom_fp)
 
    memset(FrameBuf, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
 
+   FrameLuma = (uint8_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+   if(!FrameLuma)
+      goto fail;
+
+   memset(FrameLuma, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+
    MPEG_Reset(true);
 
    return true;
@@ -501,6 +508,10 @@ void MPEG_Kill(void)
    if(FrameBuf)
       free(FrameBuf);
    FrameBuf = NULL;
+
+   if(FrameLuma)
+      free(FrameLuma);
+   FrameLuma = NULL;
 
    Present = false;
 }
@@ -560,7 +571,6 @@ void MPEG_Reset(bool powering_up)
    memset(ImgWin, 0, sizeof(ImgWin));
    ImgFB = 0;
 
-   memset(VideoEffects, 0, sizeof(VideoEffects));
    memset(LSIRegs, 0, sizeof(LSIRegs));
 
    memset(&Display, 0, sizeof(Display));
@@ -611,8 +621,13 @@ void MPEG_Reset(bool powering_up)
    FrameH     = 0;
    FrameValid = false;
 
-   if(FrameBuf && powering_up)
-      memset(FrameBuf, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
+   if(powering_up)
+   {
+      if(FrameBuf)
+         memset(FrameBuf, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
+      if(FrameLuma)
+         memset(FrameLuma, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+   }
 }
 
 bool MPEG_IsPresent(void)
@@ -986,13 +1001,13 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
 
       case MPEG_CMD_SET_VIDEOEFF:
          /* CDC_MpSetVeff(itp, trp, moz_h, moz_v, soft_h, soft_v) packs
-            six bytes across CR2..CR4.  Recorded but not acted on. */
-         VideoEffects[0] = cd[1] >> 8;   /* interpolation mode  */
-         VideoEffects[1] = cd[1] & 0xFF; /* transparent bit     */
-         VideoEffects[2] = cd[2] >> 8;   /* horizontal mosaic   */
-         VideoEffects[3] = cd[2] & 0xFF; /* vertical mosaic     */
-         VideoEffects[4] = cd[3] >> 8;   /* horizontal soften   */
-         VideoEffects[5] = cd[3] & 0xFF; /* vertical soften     */
+            six bytes across CR2..CR4. */
+         Display.itp    = cd[1] >> 8;
+         Display.trp    = cd[1] & 0xFF;
+         Display.moz_h  = cd[2] >> 8;
+         Display.moz_v  = cd[2] & 0xFF;
+         Display.soft_h = cd[3] >> 8;
+         Display.soft_v = cd[3] & 0xFF;
 
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
@@ -1395,18 +1410,57 @@ static void ConvertFrame(const rmpeg1_video_frame_t *f)
       const uint8_t *vp = f->cr + (size_t)(y >> 1) * f->c_stride;
       uint16_t      *dp = FrameBuf + (size_t)y * MPEG_MAX_WIDTH;
 
+      uint8_t *lp = FrameLuma + (size_t)y * MPEG_MAX_WIDTH;
+
+      /* CDC_MPITP_CH: interpolate chroma horizontally instead of
+         replicating it.  The card defaults to replication, which is why
+         that is the unconditional path; interpolation is only done when
+         SET_VIDEO_EFFECTS asks for it.  Vertical chroma interpolation
+         (CDC_MPITP_CV) would need the neighbouring chroma row and is
+         not done yet.  The luma switches only matter when the picture
+         is being scaled, which this does not do. */
+      const bool itp_ch = (Display.itp & MPEG_ITP_CH) != 0;
+      const unsigned cw = (w + 1) >> 1;
+
       for(x = 0; x < w; x++)
       {
-         const int32_t yy = ((int32_t)yp[x] - 16)      * YUV_Y;
-         const int32_t cb = (int32_t)up[x >> 1] - 128;
-         const int32_t cr = (int32_t)vp[x >> 1] - 128;
+         int32_t cb, cr;
+         const int32_t yy = ((int32_t)yp[x] - 16) * YUV_Y;
 
-         const uint32_t r = ClampU5(yy + YUV_RV * cr);
-         const uint32_t g = ClampU5(yy + YUV_GU * cb + YUV_GV * cr);
-         const uint32_t b = ClampU5(yy + YUV_BU * cb);
+         lp[x] = yp[x];
 
-         /* Saturn RGB555 is BGR order in the low 15 bits. */
-         dp[x] = (uint16_t)((b << 10) | (g << 5) | r);
+         if(itp_ch)
+         {
+            const unsigned c0 = x >> 1;
+            const unsigned c1 = (c0 + 1 < cw) ? (c0 + 1) : c0;
+
+            /* Half-sample offset: even output pixels sit on the chroma
+               sample, odd ones halfway to the next. */
+            if(x & 1)
+            {
+               cb = (((int32_t)up[c0] + up[c1] + 1) >> 1) - 128;
+               cr = (((int32_t)vp[c0] + vp[c1] + 1) >> 1) - 128;
+            }
+            else
+            {
+               cb = (int32_t)up[c0] - 128;
+               cr = (int32_t)vp[c0] - 128;
+            }
+         }
+         else
+         {
+            cb = (int32_t)up[x >> 1] - 128;
+            cr = (int32_t)vp[x >> 1] - 128;
+         }
+
+         {
+            const uint32_t r = ClampU5(yy + YUV_RV * cr);
+            const uint32_t g = ClampU5(yy + YUV_GU * cb + YUV_GV * cr);
+            const uint32_t b = ClampU5(yy + YUV_BU * cb);
+
+            /* Saturn RGB555 is BGR order in the low 15 bits. */
+            dp[x] = (uint16_t)((b << 10) | (g << 5) | r);
+         }
       }
    }
 
@@ -1857,6 +1911,11 @@ void MPEG_Update(int64_t clocks)
    }
 }
 
+const uint8_t *MPEG_GetFrameLuma(void)
+{
+   return FrameValid ? FrameLuma : NULL;
+}
+
 const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height)
 {
    if(!FrameValid)
@@ -1936,7 +1995,6 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(ImgWin->y, MPEG_NUM_FBUF, sizeof(*ImgWin), ImgWin),
       SFVAR(ImgWin->w, MPEG_NUM_FBUF, sizeof(*ImgWin), ImgWin),
       SFVAR(ImgWin->h, MPEG_NUM_FBUF, sizeof(*ImgWin), ImgWin),
-      SFPTR8N(VideoEffects, sizeof(VideoEffects), "VideoEffects"),
       SFVAR(LSIRegs[0]),
       SFVAR(LSIRegs[1]),
 
@@ -1947,6 +2005,12 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(Display.rat_x),
       SFVAR(Display.rat_y),
       SFVAR(Display.fade_c),
+      SFVAR(Display.itp),
+      SFVAR(Display.trp),
+      SFVAR(Display.moz_h),
+      SFVAR(Display.moz_v),
+      SFVAR(Display.soft_h),
+      SFVAR(Display.soft_v),
       SFVAR(Display.x),
       SFVAR(Display.y),
       SFVAR(Display.w),

@@ -2188,6 +2188,61 @@ DNBG_FN_AT_BM(1)
    the window registers place it and the border colour fills whatever it
    does not cover.  Source and destination origins come from SET_WINDOW.
 */
+/* Sample one source pixel, applying the soften filter when SET_VIDEO_
+   EFFECTS asks for it.  Soften is a 3-tap box across the enabled axes,
+   clamped at the picture edges -- CDC_MPSOFT_ON is a plain switch with
+   no strength parameter, so a symmetric one-tap-either-side average is
+   the only reading of it that does not invent a knob. */
+static INLINE uint32_t SampleEXBG(const uint16_t *row, const uint8_t *lrow,
+                                  const int32_t sx, const int32_t sy,
+                                  const uint32_t fw, const uint32_t fh,
+                                  const MPEG_DisplayState *ds)
+{
+   uint32_t acc_r, acc_g, acc_b, n;
+   int32_t dx, dy;
+   const int32_t hspan = ds->soft_h ? 1 : 0;
+   const int32_t vspan = ds->soft_v ? 1 : 0;
+
+   (void)lrow;
+
+   if(!hspan && !vspan)
+      return rgb15_to_rgb24(row[sx] & 0x7FFF);
+
+   acc_r = acc_g = acc_b = n = 0;
+
+   for(dy = -vspan; dy <= vspan; dy++)
+   {
+      const int32_t yy = sy + dy;
+      const uint16_t *r2;
+
+      if(yy < 0 || (uint32_t)yy >= fh)
+         continue;
+
+      r2 = row + (ptrdiff_t)dy * MPEG_MAX_WIDTH;
+
+      for(dx = -hspan; dx <= hspan; dx++)
+      {
+         const int32_t xx = sx + dx;
+         uint32_t c;
+
+         if(xx < 0 || (uint32_t)xx >= fw)
+            continue;
+
+         c = rgb15_to_rgb24(r2[xx] & 0x7FFF);
+
+         acc_r += c & 0xFF;
+         acc_g += (c >> 8) & 0xFF;
+         acc_b += (c >> 16) & 0xFF;
+         n++;
+      }
+   }
+
+   if(!n)
+      return rgb15_to_rgb24(row[sx] & 0x7FFF);
+
+   return (acc_r / n) | ((acc_g / n) << 8) | ((acc_b / n) << 16);
+}
+
 static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_or,
                      const unsigned line)
 {
@@ -2217,8 +2272,19 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
       return;
    }
 
+   /* Mosaic quantises the source coordinate before sampling, so a block
+      takes the colour of its top-left source pixel. The field is SBL's
+      "ratio" per axis; 0 is off and N selects an N+1 pixel block, which
+      is the same encoding VDP2's own MZCTL uses -- same designers, and
+      nothing else in the field's range makes sense. */
+   if(ds->moz_v)
+      sy -= sy % (int32_t)(ds->moz_v + 1);
+
    {
+      const uint8_t *luma = MPEG_GetFrameLuma();
       const uint16_t *src = fb + (size_t)sy * MPEG_MAX_WIDTH;
+      const uint8_t  *lsrc = luma ? (luma + (size_t)sy * MPEG_MAX_WIDTH) : NULL;
+      const unsigned trp = ds->trp & MPEG_TRP_MASK;
 
       for(x = 0; x < w; x++)
       {
@@ -2232,27 +2298,47 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
 
          sx = (int32_t)ds->src_x + (int32_t)(x - ds->x) + (int32_t)ds->ofs_x;
 
+         if(ds->moz_h)
+            sx -= sx % (int32_t)(ds->moz_h + 1);
+
          if(sx < 0 || (uint32_t)sx >= fw)
          {
             bgbuf[x] = border;
             continue;
          }
 
-         /* Fade is a straight scale on the way out, which is what
-            MPEG_SET_FADE describes; 0xFF is unity and is the common
-            case, so keep it off the multiply path. */
-         if(ds->fade == 0xFF)
-            bgbuf[x] = (uint64_t)pix_base_or
-                     | ((uint64_t)rgb15_to_rgb24(src[sx] & 0x7FFF) << PIX_RGB_SHIFT);
-         else
+         /* Luminance key. Pixels below the threshold become fully
+            transparent -- a zero linebuffer entry, which is how a
+            disabled layer is represented, so lower-priority layers show
+            through rather than the border colour. CDC_MPTRP_MAG, which
+            dilates the keyed region, is not applied. */
+         if(trp != MPEG_TRP_DFL && lsrc)
          {
-            const uint32_t c = rgb15_to_rgb24(src[sx] & 0x7FFF);
-            const uint32_t r = ((c & 0x0000FF) * ds->fade) >> 8;
-            const uint32_t g = (((c >> 8) & 0xFF) * ds->fade) >> 8;
-            const uint32_t b = (((c >> 16) & 0xFF) * ds->fade) >> 8;
+            static const unsigned thresh[4] = { 0, 64, 128, 256 };
 
-            bgbuf[x] = (uint64_t)pix_base_or
-                     | ((uint64_t)(r | (g << 8) | (b << 16)) << PIX_RGB_SHIFT);
+            if((unsigned)lsrc[sx] < thresh[trp])
+            {
+               bgbuf[x] = 0;
+               continue;
+            }
+         }
+
+         {
+            uint32_t c = SampleEXBG(src, lsrc, sx, sy, fw, fh, ds);
+
+            /* Fade is a straight scale on the way out, which is what
+               MPEG_SET_FADE describes; 0xFF is unity and is the common
+               case, so keep it off the multiply path. */
+            if(ds->fade != 0xFF)
+            {
+               const uint32_t r = ((c & 0x0000FF) * ds->fade) >> 8;
+               const uint32_t g = (((c >> 8) & 0xFF) * ds->fade) >> 8;
+               const uint32_t b = (((c >> 16) & 0xFF) * ds->fade) >> 8;
+
+               c = r | (g << 8) | (b << 16);
+            }
+
+            bgbuf[x] = (uint64_t)pix_base_or | ((uint64_t)c << PIX_RGB_SHIFT);
          }
       }
    }

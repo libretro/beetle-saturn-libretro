@@ -1060,6 +1060,124 @@ int main(void)
       }
    }
 
+   /* --- 15f. Video effects ----------------------------------------- */
+   printf("[video effects]\n");
+   {
+      const MPEG_DisplayState *d;
+
+      MPEG_Reset(true);
+      d = MPEG_GetDisplayState();
+
+      expect_eq("effects clear after reset", d->itp | d->trp | d->moz_h
+                                           | d->moz_v | d->soft_h | d->soft_v, 0);
+
+      /* CDC_MpSetVeff(itp, trp, moz_h, moz_v, soft_h, soft_v) packs six
+         bytes across CR2..CR4, two per register. */
+      Cmd(MPEG_CMD_SET_VIDEOEFF, 0,
+          (MPEG_ITP_CH << 8) | MPEG_TRP_128,
+          (0x03 << 8) | 0x07,
+          (MPEG_SOFT_ON << 8) | MPEG_SOFT_ON);
+
+      expect_eq("interpolation", d->itp,    MPEG_ITP_CH);
+      expect_eq("luminance key", d->trp,    MPEG_TRP_128);
+      expect_eq("mosaic h",      d->moz_h,  0x03);
+      expect_eq("mosaic v",      d->moz_v,  0x07);
+      expect_eq("soften h",      d->soft_h, MPEG_SOFT_ON);
+      expect_eq("soften v",      d->soft_v, MPEG_SOFT_ON);
+
+      /* The luma plane must track the decoded picture, since the
+         luminance key thresholds on it and cannot recover it from the
+         converted RGB. */
+      expect_true("no luma before decode", MPEG_GetFrameLuma() == NULL);
+
+      if(getenv("MPEG_TEST_STREAM"))
+      {
+         FILE *fp = fopen(getenv("MPEG_TEST_STREAM"), "rb");
+
+         if(fp)
+         {
+            static uint8_t sec[2324];
+            size_t got;
+            unsigned i;
+            uint32_t fw = 0, fh = 0;
+
+            MPEG_Reset(true);
+            Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+
+            for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
+            {
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+               MPEG_RunFrame();
+            }
+            fclose(fp);
+
+            expect_true("luma available after decode", MPEG_GetFrameLuma() != NULL);
+            expect_true("frame available", MPEG_GetFrame(&fw, &fh) != NULL);
+
+            /* Luma must be real 8-bit video, not a constant. */
+            {
+               const uint8_t *l = MPEG_GetFrameLuma();
+               unsigned lo = 255, hi = 0;
+               unsigned x, y;
+
+               for(y = 0; y < fh; y++)
+                  for(x = 0; x < fw; x++)
+                  {
+                     const unsigned v = l[y * MPEG_MAX_WIDTH + x];
+
+                     if(v < lo) lo = v;
+                     if(v > hi) hi = v;
+                  }
+
+               expect_true("luma plane has range", hi > lo);
+            }
+
+            /* Chroma interpolation must change the converted output.
+               Compare the same picture converted twice rather than two
+               different pictures: decode a fixed prefix of the stream
+               with the switch off, snapshot a row, then start over with
+               the switch on and compare. */
+            {
+               static uint16_t before[MPEG_MAX_WIDTH];
+               static uint8_t prefix[2324 * 64];
+               size_t plen;
+               const uint16_t *f;
+               unsigned x, diff = 0;
+
+               fp = fopen(getenv("MPEG_TEST_STREAM"), "rb");
+               plen = fp ? fread(prefix, 1, sizeof(prefix), fp) : 0;
+               if(fp)
+                  fclose(fp);
+
+               f = MPEG_GetFrame(NULL, NULL);
+               memcpy(before, f + (size_t)(fh / 2) * MPEG_MAX_WIDTH,
+                      fw * sizeof(uint16_t));
+
+               MPEG_Reset(true);
+               Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+               Cmd(MPEG_CMD_SET_VIDEOEFF, 0, MPEG_ITP_CH << 8, 0, 0);
+
+               for(i = 0; i + 2324 <= plen; i += 2324)
+               {
+                  MPEG_FeedSector(prefix + i, 2324, 0x00);
+                  MPEG_RunFrame();
+               }
+
+               f = MPEG_GetFrame(NULL, NULL);
+
+               if(f)
+               {
+                  for(x = 0; x < fw; x++)
+                     if(f[(size_t)(fh / 2) * MPEG_MAX_WIDTH + x] != before[x])
+                        diff++;
+               }
+
+               expect_true("chroma interpolation changes output", diff > 0);
+            }
+         }
+      }
+   }
+
    /* --- 16. Interrupt factors ------------------------------------- */
    printf("[interrupts]\n");
    {

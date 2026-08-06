@@ -290,6 +290,29 @@ enum
 #define MPEG_INTVL_HOLD   0
 #define MPEG_INTVL_NORMAL 1
 
+/*
+   SET_VIDEO_EFFECTS fields.  SBL CDC_MPITP_* / CDC_MPTRP_* /
+   CDC_MPSOFT_*.  Interpolation and soften are per-axis switches; the
+   transparent-bit field is a luminance key with the threshold in its
+   low two bits; mosaic is a per-axis ratio.
+*/
+enum
+{
+ MPEG_ITP_YH = 0x01, /* interpolate luma horizontally   */
+ MPEG_ITP_CH = 0x02, /* interpolate chroma horizontally */
+ MPEG_ITP_YV = 0x04, /* interpolate luma vertically     */
+ MPEG_ITP_CV = 0x08, /* interpolate chroma vertically   */
+
+ MPEG_TRP_DFL = 0x00, /* no luminance keying   */
+ MPEG_TRP_64  = 0x01, /* key below luma 64     */
+ MPEG_TRP_128 = 0x02, /* key below luma 128    */
+ MPEG_TRP_256 = 0x03, /* key below luma 256    */
+ MPEG_TRP_MASK = 0x03,
+ MPEG_TRP_MAG = 0x04, /* enlarge the keyed region */
+
+ MPEG_SOFT_ON = 0x01  /* soften along this axis */
+};
+
 /* CDC_NUL_SEL: no selector / no partition. */
 #define MPEG_NUL_SEL 0xFF
 
@@ -476,6 +499,15 @@ bool MPEG_GetAudioSample(uint16_t *out) MDFN_HOT;
 */
 const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height);
 
+/*
+   Luma plane of the same picture, one byte per pixel at the same stride
+   as MPEG_GetFrame().  Kept alongside the converted RGB because the
+   luminance key in SET_VIDEO_EFFECTS thresholds on luma and can change
+   after a picture has been converted, so recovering it from the RGB
+   would be both lossy and wrong.
+*/
+const uint8_t *MPEG_GetFrameLuma(void);
+
 /* Display geometry/appearance state, for the VDP2 compositor. */
 typedef struct
 {
@@ -489,6 +521,12 @@ typedef struct
  uint16_t border_color; /* RGB555                                 */
  uint8_t  fade;         /* SET_FADE luma gain, 0x00..0xFF         */
  uint8_t  fade_c;       /* SET_FADE chroma gain                   */
+
+ /* SET_VIDEO_EFFECTS */
+ uint8_t  itp;          /* interpolation switches, MPEG_ITP_*     */
+ uint8_t  trp;          /* luminance key, MPEG_TRP_*              */
+ uint8_t  moz_h, moz_v; /* mosaic ratio per axis, 0 = off         */
+ uint8_t  soft_h, soft_v; /* soften switches, MPEG_SOFT_*         */
 } MPEG_DisplayState;
 
 const MPEG_DisplayState *MPEG_GetDisplayState(void);
