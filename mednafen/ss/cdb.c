@@ -1589,6 +1589,30 @@ static uint8_t FilterBuf(const unsigned fnum, const unsigned bfsidx)
  {
   if(TestFilterCond(cur, Buffers[bfsidx].Data))
   {
+   // Sectors passing a filter the MPEG card's connection names are
+   // handed to the card, in addition to whatever the true output
+   // connector does with them.  The card takes the raw payload: on a
+   // Video CD the program stream is the concatenation of the Mode 2
+   // Form 2 payloads, and splitting it is the card's job.
+   if(MPEG_WantsFilter(cur))
+   {
+    const uint8_t* sd = Buffers[bfsidx].Data;
+    uint32_t offs, len;
+
+    if(sd[15] == 0x2)	// Mode 2
+    {
+     offs = 24;
+     len  = (sd[16 + 2] & 0x20) ? 2324 : 2048;	// Form 2 : Form 1
+    }
+    else		// Mode 1
+    {
+     offs = 16;
+     len  = 2048;
+    }
+
+    MPEG_FeedSector(sd + offs, len);
+   }
+
    if(Filters[cur].TrueConn != 0xFF)
    {
     Partition_LinkBuffer(Filters[cur].TrueConn, bfsidx);
@@ -2366,6 +2390,8 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
   lastts = timestamp;
 
   Drive_Run(clocks);
+
+  MPEG_Update(clocks);
 
   //
   //

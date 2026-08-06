@@ -187,6 +187,24 @@ uint64_t MPEG_GetPTS(bool is_video);
 bool MPEG_RunFrame(void) MDFN_HOT;
 
 /*
+   Clock the card.  Called from the CD block's event handler with the
+   same 32.32 fixed-point CD block clocks (11289600 Hz) that Drive_Run()
+   takes, so the card runs on the disc's clock domain rather than the
+   host frame rate -- which is what SET_MODE's PTS-synced decode timing
+   will need, and what keeps decode rate independent of how fast the
+   frontend is calling retro_run().
+*/
+void MPEG_Update(int64_t clocks) MDFN_HOT;
+
+/*
+   True when sectors passing CD block filter fnum should be handed to
+   the card.  MPEG_SetConnection names the filter whose output feeds the
+   decoders; before any SET_CONNECTION this is false for every filter,
+   so a disc that never touches the card never pays for it.
+*/
+bool MPEG_WantsFilter(uint8_t fnum);
+
+/*
    Drain decoded audio.  Writes up to frames interleaved stereo s16
    sample pairs and returns how many were actually available.  Output is
    at the stream's own rate -- 44.1 kHz for Video CD -- and needs

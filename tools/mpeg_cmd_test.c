@@ -480,7 +480,85 @@ int main(void)
       }
    }
 
-   /* --- 13. Double init must not leak ----------------------------- */
+   /* --- 13. Filter routing gate ----------------------------------- */
+   printf("[filter routing]\n");
+   {
+      unsigned f;
+
+      MPEG_Reset(true);
+
+      /* Before any SET_CONNECTION no filter routes here, even though
+         the connection fields read back as 0 -- otherwise enabling the
+         option would hand the card every sector on any disc. */
+      for(f = 0; f < 0x18; f++)
+         expect_true("no routing before SET_CONNECTION", !MPEG_WantsFilter((uint8_t)f));
+
+      /* audcon = 5 (CR1 low), vidcon = 7 (CR3 low), current bank. */
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0005, 0x0000, 0x0007, 0x0000);
+
+      expect_true("vidcon filter routes",   MPEG_WantsFilter(7));
+      expect_true("audcon filter routes",   MPEG_WantsFilter(5));
+      expect_true("other filter does not",  !MPEG_WantsFilter(6));
+      expect_true("out-of-range rejected",  !MPEG_WantsFilter(0x18));
+      expect_true("0xFF rejected",          !MPEG_WantsFilter(0xFF));
+
+      /* The "next" bank must not affect routing, which follows the
+         current connection only. */
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0009, 0x0000, 0x010B, 0x0000);
+      expect_true("next bank does not route", !MPEG_WantsFilter(0x0B));
+      expect_true("current bank still routes", MPEG_WantsFilter(7));
+
+      MPEG_Reset(true);
+      expect_true("reset clears routing", !MPEG_WantsFilter(7));
+   }
+
+   /* --- 14. Decode clock ------------------------------------------ */
+   printf("[decode clock]\n");
+   {
+      /* CD block clocks are 32.32 fixed point at 11289600 Hz. One NTSC
+         frame period is 11289600 * 1001 / 30000 clocks. */
+      const int64_t frame_ntsc = ((int64_t)((11289600ULL * 1001) / 30000)) << 32;
+      uint16_t vc0, vc1;
+
+      MPEG_Reset(true);
+
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      vc0 = Out[1];
+
+      /* Just under a frame: nothing should tick. */
+      MPEG_Update(frame_ntsc - 1);
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      expect_eq("vcounter idle below one frame", Out[1], vc0);
+
+      /* Cross the boundary. */
+      MPEG_Update(2);
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      expect_eq("vcounter ticks at one frame", Out[1], (uint16_t)(vc0 + 1));
+
+      /* Three frames in one call, below the catch-up cap. */
+      MPEG_Update(frame_ntsc * 3);
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      vc1 = Out[1];
+      expect_eq("three frames tick three times", vc1, (uint16_t)(vc0 + 4));
+
+      /* A long stall must be capped, not replayed as a burst.  The cap
+         is MPEG_CATCHUP_FRAMES (4), plus at most one more for whatever
+         was already accumulated. */
+      MPEG_Update(frame_ntsc * 1000);
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      expect_true("stall capped, not replayed",
+                  (uint16_t)(Out[1] - vc1) <= 5);
+      expect_true("stall still advances", (uint16_t)(Out[1] - vc1) > 0);
+
+      /* Negative and zero deltas are inert. */
+      vc1 = Out[1];
+      MPEG_Update(0);
+      MPEG_Update(-frame_ntsc);
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      expect_eq("non-positive delta inert", Out[1], vc1);
+   }
+
+   /* --- 15. Double init must not leak ----------------------------- */
    printf("[double init]\n");
    expect_true("re-init", MPEG_Init(NULL));
    expect_true("still present", MPEG_IsPresent());

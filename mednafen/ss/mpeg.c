@@ -184,6 +184,24 @@ static uint64_t LastSCR;
 static uint32_t VDropped;
 static uint32_t ADropped;
 
+/* Set by SET_CONNECTION.  Until software has actually named a filter,
+   no sector is routed here: Con[].vidcon defaults to 0, and treating
+   that as "filter 0" would hand the card every sector on any disc the
+   moment the option is enabled. */
+static bool ConValid;
+
+/* Decode clock.  Accumulates the 32.32 fixed-point CD block clocks
+   MPEG_Update() is handed and fires one decode per frame period.  The
+   period follows the sequence header once one has been parsed; until
+   then it runs at NTSC rate, which is what a Video CD without a
+   readable header would have been anyway. */
+#define MPEG_CDB_CLOCK 11289600
+#define MPEG_CATCHUP_FRAMES 4
+
+static int64_t  FrameAccum;
+static uint32_t FrameRateNum = 30000;
+static uint32_t FrameRateDen = 1001;
+
 /* Decoded picture, RGB555.  Untouched by stage 1. */
 static uint16_t *FrameBuf;
 static uint32_t  FrameW, FrameH;
@@ -505,6 +523,11 @@ void MPEG_Reset(bool powering_up)
    AudioRate     = 0;
    AudioChannels = 0;
 
+   ConValid     = false;
+   FrameAccum   = 0;
+   FrameRateNum = 30000;
+   FrameRateDen = 1001;
+
    VideoPTS = RMPEG1_PS_NO_PTS;
    AudioPTS = RMPEG1_PS_NO_PTS;
    LastSCR  = RMPEG1_PS_NO_PTS;
@@ -685,6 +708,8 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          Con[which].vidcon    = cd[2] & 0xFF;
          Con[which].vidlay    = cd[3] >> 8;
          Con[which].vidbufnum = cd[3] & 0xFF;
+
+         ConValid = true;
 
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
@@ -1109,7 +1134,6 @@ bool MPEG_RunFrame(void)
          produced    = true;
          PictureInfo = frame.coding_type;
          VideoStatus = 1;
-         VCounter    = (uint16_t)(VCounter + 1);
 
          break;
       }
@@ -1132,6 +1156,73 @@ bool MPEG_RunFrame(void)
    }
 
    return produced;
+}
+
+bool MPEG_WantsFilter(uint8_t fnum)
+{
+   if(!Present || !ConValid || fnum >= 0x18)
+      return false;
+
+   /* Either connection matching is enough, and the sector is fed once
+      rather than per-connection: on a Video CD both elementary streams
+      arrive interleaved in one Program Stream through a single filter,
+      and it is the card that splits them.  Feeding twice because
+      audcon and vidcon happen to name the same filter would duplicate
+      every byte into the demuxer. */
+   return (Con[0].vidcon == fnum) || (Con[0].audcon == fnum);
+}
+
+void MPEG_Update(int64_t clocks)
+{
+   int64_t period;
+
+   if(!Present || clocks <= 0)
+      return;
+
+   /* Follow the sequence header once the decoder has one.  11172-2
+      codes exact rationals -- 30000/1001 and friends -- so this stays
+      integer and the accumulated drift is zero rather than merely
+      small. */
+   if(Video && rmpeg1_video_has_sequence(Video))
+   {
+      unsigned num = 0, den = 0;
+
+      rmpeg1_video_framerate(Video, &num, &den);
+
+      if(num && den)
+      {
+         FrameRateNum = num;
+         FrameRateDen = den;
+      }
+   }
+
+   period = (int64_t)(((uint64_t)MPEG_CDB_CLOCK * FrameRateDen) / FrameRateNum) << 32;
+
+   if(period <= 0)
+      return;
+
+   FrameAccum += clocks;
+
+   /* A long stall -- a savestate load, or a large timestamp jump --
+      must not turn into thousands of decodes in one call.  Cap the
+      backlog and drop the excess: real hardware that fell this far
+      behind would have dropped those frames too, and catching up
+      instantly would be worse than not catching up at all.
+
+      MPEG_CATCHUP_FRAMES is well above anything normal operation
+      produces -- the CD block's event handler runs far more often than
+      once every four frames -- so this only bites on a genuine stall. */
+   if(FrameAccum > period * MPEG_CATCHUP_FRAMES)
+      FrameAccum = period * MPEG_CATCHUP_FRAMES;
+
+   while(FrameAccum >= period)
+   {
+      FrameAccum -= period;
+
+      VCounter = (uint16_t)(VCounter + 1);
+
+      MPEG_RunFrame();
+   }
 }
 
 const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height)
@@ -1209,6 +1300,11 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(Display.src_y),
       SFVAR(Display.border_color),
       SFVAR(Display.fade),
+
+      SFVAR(ConValid),
+      SFVAR(FrameAccum),
+      SFVAR(FrameRateNum),
+      SFVAR(FrameRateDen),
 
       SFVAR(VideoPTS),
       SFVAR(AudioPTS),
