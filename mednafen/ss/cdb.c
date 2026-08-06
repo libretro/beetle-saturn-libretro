@@ -2355,6 +2355,15 @@ void CDB_GetCDDA(uint16_t* outbuf)
 {
  outbuf[0] = outbuf[1] = 0;
 
+ // The MPEG card's audio reaches the SCSP through the same external
+ // input CD-DA does -- there is one analogue path off the CD block, not
+ // two -- so decoded MPEG audio substitutes for the CD-DA sample rather
+ // than mixing with it.  Falls through to CD-DA whenever the card is
+ // absent or not producing, which is what keeps enabling the option
+ // from muting ordinary CD audio.
+ if(MPEG_GetAudioSample(outbuf))
+  return;
+
  if(CDDABuf_Count)
  {
   outbuf[0] = CDDABuf[CDDABuf_RP][0];

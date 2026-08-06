@@ -174,6 +174,16 @@ static uint32_t  AudioRate, AudioChannels;
 /* Scratch for one rmp3 frame before it is folded into the ring. */
 static int16_t   APCM[RMP3_MAX_SAMPLES_PER_FRAME];
 
+/* SCSP-side pull state.  ARatePhase is 16.16; one output sample
+   consumes ARateStep input samples.  At the Video CD's 44.1 kHz that is
+   exactly 1.0 and the accumulator degenerates to a straight pull. */
+#define MPEG_SCSP_RATE 44100
+
+static uint32_t ARatePhase;
+static uint32_t ARateStep = 1U << 16;
+static int16_t  ACur[2];
+static bool     ACurValid;
+
 static uint64_t VideoPTS;
 static uint64_t AudioPTS;
 static uint64_t LastSCR;
@@ -526,6 +536,11 @@ void MPEG_Reset(bool powering_up)
    ARing_Count   = 0;
    AudioRate     = 0;
    AudioChannels = 0;
+   ARatePhase    = 0;
+   ARateStep     = 1U << 16;
+   ACur[0]       = 0;
+   ACur[1]       = 0;
+   ACurValid     = false;
 
    ConValid      = false;
    WindowSizeSet = false;
@@ -1070,6 +1085,51 @@ void MPEG_GetAudioFormat(uint32_t *rate, uint32_t *channels)
    if(channels) *channels = AudioChannels;
 }
 
+bool MPEG_GetAudioSample(uint16_t *out)
+{
+   if(!Present || !ARing || !out)
+      return false;
+
+   /* Nothing decoded yet: leave the SCSP's external input to CD-DA
+      rather than muting it.  Substituting silence here would cut CD
+      audio the moment the card was enabled. */
+   if(!ACurValid && !ARing_Count)
+      return false;
+
+   ARatePhase += ARateStep;
+
+   while(ARatePhase >= (1U << 16))
+   {
+      if(!ARing_Count)
+      {
+         /* Underrun.  Hold the last sample rather than emitting a zero:
+            a dropout in the middle of a decoded stream is a click, and
+            holding is both quieter and a better signal that the decoder
+            fell behind than silence is. */
+         break;
+      }
+
+      ACur[0] = ARing[ARing_RP * 2 + 0];
+      ACur[1] = ARing[ARing_RP * 2 + 1];
+
+      ARing_RP = (ARing_RP + 1) % MPEG_ARING_FRAMES;
+      ARing_Count--;
+
+      ACurValid   = true;
+      ARatePhase -= (1U << 16);
+   }
+
+   /* An underrun leaves phase above unity; clear it so the backlog does
+      not turn into a burst of consumption once audio resumes. */
+   if(ARatePhase >= (1U << 16))
+      ARatePhase = 0;
+
+   out[0] = (uint16_t)ACur[0];
+   out[1] = (uint16_t)ACur[1];
+
+   return true;
+}
+
 /*
  *
  * Decode
@@ -1114,6 +1174,13 @@ static void RunAudio(void)
 
          AudioChannels = ch ? ch : 2;
          AudioRate     = rate ? rate : 44100;
+
+         /* Rounded rather than truncated: at 32000 Hz truncation would
+            accumulate a sample of drift every few seconds. */
+         ARateStep = (uint32_t)((((uint64_t)AudioRate << 16) + (MPEG_SCSP_RATE / 2))
+                                / MPEG_SCSP_RATE);
+         if(!ARateStep)
+            ARateStep = 1U << 16;
 
          ARing_Push(APCM, (uint32_t)wrote, AudioChannels);
          AudioStatus = 1;
@@ -1323,6 +1390,11 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(Display.src_y),
       SFVAR(Display.border_color),
       SFVAR(Display.fade),
+
+      SFVAR(ARatePhase),
+      SFVAR(ARateStep),
+      SFVAR(AudioRate),
+      SFVAR(AudioChannels),
 
       SFVAR(ConValid),
       SFVAR(WindowSizeSet),

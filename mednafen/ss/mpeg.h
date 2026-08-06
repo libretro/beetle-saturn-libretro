@@ -216,6 +216,20 @@ uint32_t MPEG_ReadAudio(int16_t *out, uint32_t frames) MDFN_HOT;
 void MPEG_GetAudioFormat(uint32_t *rate, uint32_t *channels);
 
 /*
+   Pull exactly one stereo sample pair for the SCSP's external audio
+   input, the same input CD-DA feeds.  Returns false when the card is
+   not producing audio, in which case the caller should fall back to
+   CD-DA and out[] is untouched.
+
+   Called once per SCSP sample, i.e. at 44100 Hz.  Video CD audio is
+   44.1 kHz by specification, so the common path is a straight 1:1 pull;
+   the rate conversion below it exists only for the other MPEG-1 rates
+   and is a zero-order hold, chosen because it is exactly reproducible
+   rather than because it sounds good.
+*/
+bool MPEG_GetAudioSample(uint16_t *out) MDFN_HOT;
+
+/*
    Most recently decoded picture, as packed 16bpp RGB555 in the Saturn's
    native component order, ready for VDP2 external-background
    compositing.  Returns NULL when no picture has been decoded.

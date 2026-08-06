@@ -569,7 +569,78 @@ int main(void)
       expect_eq("non-positive delta inert", Out[1], vc1);
    }
 
-   /* --- 15. Double init must not leak ----------------------------- */
+   /* --- 15. SCSP audio pull --------------------------------------- */
+   printf("[scsp pull]\n");
+   {
+      uint16_t smp[2];
+      unsigned i;
+
+      MPEG_Reset(true);
+
+      /* Nothing decoded: the card must decline so CD-DA keeps the
+         SCSP's external input. */
+      smp[0] = 0xDEAD; smp[1] = 0xBEEF;
+      expect_true("declines with no audio", !MPEG_GetAudioSample(smp));
+      expect_eq  ("output untouched on decline", smp[0], 0xDEAD);
+
+      /* Feed the real stream so the ring fills at 44.1 kHz. */
+      if(getenv("MPEG_TEST_STREAM"))
+      {
+         FILE *fp = fopen(getenv("MPEG_TEST_STREAM"), "rb");
+
+         if(fp)
+         {
+            static uint8_t sec[2324];
+            size_t got;
+            unsigned pulled = 0, nonzero = 0;
+            uint32_t rate = 0, ch = 0;
+
+            Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+
+            /* Enough sectors to get well past the first audio frame. */
+            for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
+            {
+               MPEG_FeedSector(sec, (uint32_t)got);
+               MPEG_RunFrame();
+            }
+
+            fclose(fp);
+
+            MPEG_GetAudioFormat(&rate, &ch);
+            expect_eq("stream is 44.1 kHz", rate, 44100);
+
+            /* At 44.1 kHz the pull is 1:1, so a thousand calls must
+               all succeed off a ring this full. */
+            for(i = 0; i < 1000; i++)
+            {
+               if(!MPEG_GetAudioSample(smp))
+                  break;
+
+               pulled++;
+
+               if(smp[0] || smp[1])
+                  nonzero++;
+            }
+
+            expect_eq  ("1000 pulls at 44.1 kHz", pulled, 1000);
+            expect_true("audio is not silence",   nonzero > 0);
+
+            /* Drain to underrun: the card must keep answering (holding
+               the last sample) rather than declining mid-stream, which
+               would hand the SCSP back to a stopped CD-DA path. */
+            for(i = 0; i < 200000; i++)
+               if(!MPEG_GetAudioSample(smp))
+                  break;
+
+            expect_true("holds through underrun", MPEG_GetAudioSample(smp));
+         }
+      }
+
+      MPEG_Reset(true);
+      expect_true("reset returns input to CD-DA", !MPEG_GetAudioSample(smp));
+   }
+
+   /* --- 16. Double init must not leak ----------------------------- */
    printf("[double init]\n");
    expect_true("re-init", MPEG_Init(NULL));
    expect_true("still present", MPEG_IsPresent());
