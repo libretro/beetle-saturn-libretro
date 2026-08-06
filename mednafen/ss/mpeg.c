@@ -159,6 +159,10 @@ static uint8_t  AudioStatus;
 static uint16_t VideoStatus;
 
 static uint8_t  DecodeMethod;
+
+/* temporal_reference of the last decoded picture, reported by
+   GET_TIMECODE alongside the picture type. */
+static uint8_t  TemporalRef;
 static uint8_t  VideoEffects[6];
 static uint32_t LSIRegs[2];
 
@@ -519,6 +523,7 @@ void MPEG_Reset(bool powering_up)
    VideoStatus  = MPEG_STV_BEMPTY;
 
    DecodeMethod = 0;
+   TemporalRef  = 0;
 
    memset(VideoEffects, 0, sizeof(VideoEffects));
    memset(LSIRegs, 0, sizeof(LSIRegs));
@@ -922,6 +927,56 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
+
+      case MPEG_CMD_GET_PTS:
+         /* CDC_MpGetPts(pts_a) reads a single 32-bit value out of the
+            response at offset 4, i.e. CR3:CR4.  The 90 kHz system clock
+            timestamp is 33 bits on the wire; the low 32 are what fits
+            here and what the library hands back. */
+      {
+         const uint64_t pts = (AudioPTS != RMPEG1_PS_NO_PTS) ? AudioPTS : 0;
+
+         out[0] = (uint16_t)base_status << 8;
+         out[1] = 0;
+         out[2] = (uint16_t)(pts >> 16);
+         out[3] = (uint16_t)pts;
+
+         *hirq |= MPEG_HIRQ_MPCM;
+      }
+      break;
+
+      case MPEG_CMD_GET_TIMECODE:
+      {
+         /* CDC_MpGetTc(bnk, pictyp, tr, mptc) unpacks:
+              CR1 low byte  bit7 clear, bank number
+              CR2           picture type, temporal reference
+              CR3           hour, minute
+              CR4           second, picture
+
+            The hour/minute/second/picture group is a GOP timecode,
+            which rmpeg1_video does not expose, so it is derived from
+            the video PTS instead.  For Video CD the two agree; an
+            authored stream whose GOP timecode starts at a non-zero
+            offset would not be reproduced faithfully here.  Deriving is
+            still better than reporting zeros, which a title using this
+            to drive a seek would act on. */
+         const uint64_t pts   = (VideoPTS != RMPEG1_PS_NO_PTS) ? VideoPTS : 0;
+         const uint32_t total = (uint32_t)(pts / 90000);
+         const uint32_t rem   = (uint32_t)(pts % 90000);
+         uint32_t pic = 0;
+
+         if(FrameRateDen)
+            pic = (uint32_t)(((uint64_t)rem * FrameRateNum)
+                             / ((uint64_t)FrameRateDen * 90000));
+
+         out[0] = ((uint16_t)base_status << 8) | 0x00;   /* bank 0 */
+         out[1] = ((uint16_t)PictureInfo << 8) | TemporalRef;
+         out[2] = (uint16_t)((((total / 3600) % 24) << 8) | ((total / 60) % 60));
+         out[3] = (uint16_t)(((total % 60) << 8) | (pic & 0xFF));
+
+         *hirq |= MPEG_HIRQ_MPCM;
+      }
+      break;
 
       case MPEG_CMD_GET_PICT_SIZE:
          /* CDC_MpGetPictSiz reads the horizontal size from CR3 and the
@@ -1460,9 +1515,10 @@ bool MPEG_RunFrame(void)
       {
          ConvertFrame(&frame);
 
-         FrameValid  = true;
-         produced    = true;
-         PictureInfo = frame.coding_type;
+         FrameValid   = true;
+         produced     = true;
+         PictureInfo  = frame.coding_type;
+         TemporalRef  = (uint8_t)frame.temporal_ref;
 
          VideoStatus = MPEG_STV_DEC | MPEG_STV_UPDPIC | MPEG_STV_RDY
                      | (Display.enabled ? MPEG_STV_DISP : 0);
@@ -1661,6 +1717,7 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(VideoStatus),
 
       SFVAR(DecodeMethod),
+      SFVAR(TemporalRef),
       SFPTR8N(VideoEffects, sizeof(VideoEffects), "VideoEffects"),
       SFVAR(LSIRegs[0]),
       SFVAR(LSIRegs[1]),

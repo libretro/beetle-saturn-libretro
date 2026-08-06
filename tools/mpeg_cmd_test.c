@@ -795,6 +795,72 @@ int main(void)
       }
    }
 
+   /* --- 15c. Timestamp queries ------------------------------------ */
+   printf("[timestamps]\n");
+   {
+      static uint8_t ps[8192];
+      size_t len;
+      unsigned i;
+
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+
+      /* Nothing decoded: both must answer zero rather than garbage. */
+      Cmd(MPEG_CMD_GET_PTS, 0, 0, 0, 0);
+      expect_eq("no PTS yet (hi)", Out[2], 0);
+      expect_eq("no PTS yet (lo)", Out[3], 0);
+
+      len = build_ps(ps, sizeof(ps));
+
+      for(i = 0; i < len; i += 2324)
+      {
+         size_t chunk = len - i;
+         if(chunk > 2324)
+            chunk = 2324;
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+      }
+
+      /* CDC_MpGetPts returns the audio PTS as one 32-bit value across
+         CR3:CR4. */
+      Cmd(MPEG_CMD_GET_PTS, 0, 0, 0, 0);
+      expect_eq("audio PTS high half", Out[2], (uint16_t)(PS_AUDIO_PTS >> 16));
+      expect_eq("audio PTS low half",  Out[3], (uint16_t)PS_AUDIO_PTS);
+
+      /* Timecode is derived from the video PTS: 0x12345 / 90000 is 0
+         seconds, so h:m:s must all be zero and only the picture index
+         can be non-zero. */
+      Cmd(MPEG_CMD_GET_TIMECODE, 0, 0, 0, 0);
+      expect_eq("bank",        Out[0] & 0xFF, 0);
+      expect_eq("hour",        Out[2] >> 8,   0);
+      expect_eq("minute",      Out[2] & 0xFF, 0);
+      expect_eq("second",      Out[3] >> 8,   0);
+
+      /* A PTS an exact number of seconds in must come back as that
+         many seconds with picture 0.  Build a stream whose video PTS
+         is 90000 * 3661 -- one hour, one minute, one second. */
+      {
+         static uint8_t ps2[8192];
+         uint8_t *p = ps2;
+         const uint64_t pts = (uint64_t)90000 * 3661;
+
+         MPEG_Reset(true);
+         Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+
+         p = put_startcode(p, 0xBA);
+         p = put_ts(p, 0x02, 0);
+         *p++ = 0x80; *p++ = 0x00; *p++ = 0x01;
+         p = put_packet(p, 0xE0, pts, 64, 0x11);
+
+         MPEG_FeedSector(ps2, (uint32_t)(p - ps2), 0x00);
+
+         Cmd(MPEG_CMD_GET_TIMECODE, 0, 0, 0, 0);
+         expect_eq("hour 1",    Out[2] >> 8,   1);
+         expect_eq("minute 1",  Out[2] & 0xFF, 1);
+         expect_eq("second 1",  Out[3] >> 8,   1);
+         expect_eq("picture 0", Out[3] & 0xFF, 0);
+      }
+   }
+
    /* --- 16. Interrupt factors ------------------------------------- */
    printf("[interrupts]\n");
    {
