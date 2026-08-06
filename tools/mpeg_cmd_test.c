@@ -1178,6 +1178,121 @@ int main(void)
       }
    }
 
+   /* --- 15g. Mode fields, decode strobe, connection switch --------- */
+   printf("[mode / decsync / chgcon]\n");
+   {
+      const int64_t frame_ntsc = ((int64_t)((11289600ULL * 1001) / 30000)) << 32;
+      const int64_t frame_pal  = ((int64_t)(11289600ULL / 25)) << 32;
+
+      MPEG_Reset(true);
+
+      /* Output mode gates the compositor. */
+      expect_true("VDP2 output by default", MPEG_DirectOutput());
+
+      Cmd(MPEG_CMD_SET_MODE, 0x00FF, (0x00FF << 8) | MPEG_OUT_HOST, 0xFF00, 0);
+      expect_true("host output stands the compositor down", !MPEG_DirectOutput());
+
+      Cmd(MPEG_CMD_SET_MODE, 0x00FF, (0x00FF << 8) | MPEG_OUT_VDP2, 0xFF00, 0);
+      expect_true("VDP2 output restored", MPEG_DirectOutput());
+
+      /* Scan mode sets the pre-sequence-header decode period.  Check it
+         through VCounter, which ticks once per period. */
+      {
+         uint16_t vc0;
+
+         MPEG_Reset(true);
+         Cmd(MPEG_CMD_SET_MODE, 0x00FF, 0xFFFF, MPEG_SCN_PAL_NI << 8, 0);
+
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         vc0 = Out[1];
+
+         MPEG_Update(frame_pal - 1);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_eq("PAL period not yet elapsed", Out[1], vc0);
+
+         MPEG_Update(2);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_eq("PAL period elapsed", Out[1], (uint16_t)(vc0 + 1));
+
+         /* An NTSC period must not tick twice at PAL rate. */
+         MPEG_Reset(true);
+         Cmd(MPEG_CMD_SET_MODE, 0x00FF, 0xFFFF, MPEG_SCN_NTSC_NI << 8, 0);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         vc0 = Out[1];
+         MPEG_Update(frame_ntsc);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_eq("NTSC period elapsed once", Out[1], (uint16_t)(vc0 + 1));
+      }
+
+      /* Host-synced decode: the clock must not decode on its own. */
+      if(getenv("MPEG_TEST_STREAM"))
+      {
+         FILE *fp = fopen(getenv("MPEG_TEST_STREAM"), "rb");
+
+         if(fp)
+         {
+            static uint8_t sec[2324];
+            size_t got;
+            unsigned i;
+
+            MPEG_Reset(true);
+            Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+            Cmd(MPEG_CMD_SET_MODE, 0x00FF, (MPEG_DEC_HOST << 8) | 0x00FF, 0xFF00, 0);
+
+            for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+            fclose(fp);
+
+            for(i = 0; i < 30; i++)
+               MPEG_Update(frame_ntsc);
+
+            expect_true("host-sync: clock does not decode",
+                        MPEG_GetFrame(NULL, NULL) == NULL);
+
+            /* The strobe does. */
+            for(i = 0; i < 8; i++)
+               Cmd(MPEG_CMD_OUT_DECSYNC, 0, 0x0002, 0, 0);
+
+            expect_true("OUT_DECSYNC decodes", MPEG_GetFrame(NULL, NULL) != NULL);
+            expect_eq  ("frame buffer selected",
+                        MPEG_GetDisplayState()->fbn, 0x02);
+
+            /* In VSYNC mode the strobe must be inert -- the clock is
+               already driving the decoder. */
+            MPEG_Reset(true);
+            Cmd(MPEG_CMD_SET_MODE, 0x00FF, (MPEG_DEC_VSYNC << 8) | 0x00FF, 0xFF00, 0);
+            Cmd(MPEG_CMD_OUT_DECSYNC, 0, 0x0003, 0, 0);
+            expect_eq("VSYNC mode: strobe inert",
+                      MPEG_GetDisplayState()->fbn, 0);
+         }
+      }
+
+      /* CHANGE_CONN promotes the next bank to current. */
+      MPEG_Reset(true);
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0x0005, 0x0000, 0x0007);
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0x0009, 0x0100, 0x000B);
+
+      expect_true("next bank inactive before switch", !MPEG_WantsPartition(0x0B));
+
+      Cmd(MPEG_CMD_CHANGE_CONN, 0,
+          (MPEG_COF_CHG << 8) | MPEG_COF_CHG,
+          (MPEG_CLA_OFF << 8) | MPEG_CLV_FRM, 0);
+
+      expect_true("next video partition now active",  MPEG_WantsPartition(0x0B));
+      expect_true("next audio partition now active",  MPEG_WantsPartition(0x09));
+      expect_true("old video partition inactive",    !MPEG_WantsPartition(0x07));
+
+      /* Abort disconnects instead of switching. */
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0000, 0x000D, 0x0100, 0x000E);
+      Cmd(MPEG_CMD_CHANGE_CONN, 0,
+          (MPEG_COF_ABT << 8) | MPEG_COF_ABT,
+          (MPEG_CLA_ON << 8) | MPEG_CLV_FRM, 0);
+
+      expect_true("abort disconnects video", !MPEG_WantsPartition(0x0E));
+      expect_true("abort disconnects audio", !MPEG_WantsPartition(0x0D));
+      expect_eq  ("buffers cleared", MPEG_GetESFill(true), 0);
+   }
+
    /* --- 16. Interrupt factors ------------------------------------- */
    printf("[interrupts]\n");
    {

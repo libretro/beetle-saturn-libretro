@@ -803,7 +803,35 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          if(vidplaymode   != 0xFF) Mode.vidplaymode   = vidplaymode;
          if(dectimingmode != 0xFF) Mode.dectimingmode = dectimingmode;
          if(outmode       != 0xFF) Mode.outmode       = outmode;
-         if(slmode        != 0xFF) Mode.slmode        = slmode;
+
+         if(slmode != 0xFF)
+         {
+            Mode.slmode = slmode;
+
+            /* The scan mode gives the display standard before any
+               sequence header has been parsed.  Once one has, the
+               header's own exact rational wins -- it describes the
+               stream, while this describes the output.
+
+               Gated on SeqSeen rather than asking the decoder, because
+               rmpeg1_video_reset() keeps the parsed sequence geometry:
+               after a card reset the decoder would still claim to have
+               one and a stale stream's rate would override the scan
+               mode just set. */
+            if(!SeqSeen)
+            {
+               if(slmode == MPEG_SCN_PAL_NI || slmode == MPEG_SCN_PAL_I)
+               {
+                  FrameRateNum = 25;
+                  FrameRateDen = 1;
+               }
+               else
+               {
+                  FrameRateNum = 30000;
+                  FrameRateDen = 1001;
+               }
+            }
+         }
 
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
@@ -1070,6 +1098,91 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          out[2] = 0;
          out[3] = 0;
 
+         *hirq |= MPEG_HIRQ_MPCM;
+      }
+      break;
+
+      case MPEG_CMD_OUT_DECSYNC:
+         /* CDC_MpOutDsync(fbn) puts the frame buffer number in CR2's
+            low byte.  It is the host-side decode strobe: with
+            CDC_MPDEC_HOST selected the card waits for this instead of
+            decoding on its own VSYNC, which is how software paces a
+            still-picture sequence.  Decoding one picture here rather
+            than merely acknowledging is the whole point of the command;
+            in VSYNC mode it is a no-op, since the clock is already
+            driving the decoder. */
+         if(Mode.dectimingmode == MPEG_DEC_HOST)
+         {
+            Display.fbn = cd[1] & 0xFF;
+            MPEG_RunFrame();
+         }
+
+         MPEGReport(base_status, out);
+         *hirq |= MPEG_HIRQ_MPCM;
+         break;
+
+      case MPEG_CMD_CHANGE_CONN:
+      {
+         /* CDC_MpChgCon(chg_a, chg_v, clr_a, clr_v): the two change
+            flags in CR2 and the two clear modes in CR3.  Without this
+            the "next" connection bank could be written but never took
+            effect, so double-buffered stream switching silently did
+            nothing. */
+         const uint8_t chg_a = cd[1] >> 8;
+         const uint8_t chg_v = cd[1] & 0xFF;
+         const uint8_t clr_a = cd[2] >> 8;
+         const uint8_t clr_v = cd[2] & 0xFF;
+
+         if(chg_a == MPEG_COF_CHG)
+         {
+            Con[0].audcon    = Con[1].audcon;
+            Con[0].audlay    = Con[1].audlay;
+            Con[0].audbufnum = Con[1].audbufnum;
+            Stm[0].audstm     = Stm[1].audstm;
+            Stm[0].audstmid   = Stm[1].audstmid;
+            Stm[0].audchannum = Stm[1].audchannum;
+
+            RaiseInt(MPEG_INT_ASCHG);
+         }
+         else
+            Con[0].audbufnum = MPEG_NUL_SEL;   /* MPEG_COF_ABT */
+
+         if(chg_v == MPEG_COF_CHG)
+         {
+            Con[0].vidcon    = Con[1].vidcon;
+            Con[0].vidlay    = Con[1].vidlay;
+            Con[0].vidbufnum = Con[1].vidbufnum;
+            Stm[0].vidstm     = Stm[1].vidstm;
+            Stm[0].vidstmid   = Stm[1].vidstmid;
+            Stm[0].vidchannum = Stm[1].vidchannum;
+
+            RaiseInt(MPEG_INT_VSCHG);
+         }
+         else
+            Con[0].vidbufnum = MPEG_NUL_SEL;
+
+         if(clr_a == MPEG_CLA_ON)
+         {
+            FIFO_Clear(&AFIFO);
+            AudioStatus |= MPEG_STA_BEMPTY;
+         }
+
+         /* MPEG_CLV_VBV defers the clear to the next I or P picture.
+            Nothing here tracks a pending clear across pictures, so it
+            is treated as immediate; the difference is a frame of stale
+            data at a switch point. */
+         FIFO_Clear(&VFIFO);
+         VideoStatus |= MPEG_STV_BEMPTY;
+
+         if(clr_v == MPEG_CLV_FRM)
+         {
+            FrameValid = false;
+
+            if(Video)
+               rmpeg1_video_reset(Video);
+         }
+
+         MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
       }
       break;
@@ -1853,7 +1966,7 @@ void MPEG_Update(int64_t clocks)
       codes exact rationals -- 30000/1001 and friends -- so this stays
       integer and the accumulated drift is zero rather than merely
       small. */
-   if(Video && rmpeg1_video_has_sequence(Video))
+   if(SeqSeen && Video)
    {
       unsigned num = 0, den = 0;
 
@@ -1890,6 +2003,12 @@ void MPEG_Update(int64_t clocks)
       FrameAccum -= period;
 
       VCounter = (uint16_t)(VCounter + 1);
+
+      /* Host-synced decode: the card waits for OUT_DECSYNC rather than
+         decoding on its own VSYNC.  VCounter still advances, since it
+         counts display intervals and not pictures. */
+      if(Mode.dectimingmode == MPEG_DEC_HOST)
+         continue;
 
       /* Pause holds the decoder; VCounter keeps running because it is
          the card's vertical counter, not a picture counter, and
@@ -1934,6 +2053,15 @@ const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height)
 const MPEG_DisplayState *MPEG_GetDisplayState(void)
 {
    return &Display;
+}
+
+bool MPEG_DirectOutput(void)
+{
+   /* CDC_MPOUT_HOST routes the picture to host transfer rather than to
+      VDP2's external background, so the compositor must stand down --
+      otherwise a title that pulls frames into its own VRAM would also
+      get them drawn underneath, which is not what it asked for. */
+   return Present && (Mode.outmode == MPEG_OUT_VDP2);
 }
 
 /*

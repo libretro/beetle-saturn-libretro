@@ -4786,7 +4786,8 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
      // set.  Gated on the card being present and enabled as well, so a
      // game that sets the bit with nothing plugged in gets NBG1 as
      // before rather than a screenful of border colour.
-     if(n == 1 && ExBGEnable && MPEG_IsPresent() && MPEG_GetDisplayState()->enabled)
+     if(n == 1 && ExBGEnable && MPEG_IsPresent() && MPEG_DirectOutput()
+        && MPEG_GetDisplayState()->enabled)
       DrawEXBG(LB.nbg[n] + 8, w, pix_base_or | (1U << PIX_ISRGB_SHIFT), vdp2_line);
      else if(n < 2)
       DrawNBG[bmen][colornum][igntp][priomode % 3][ccmode](n, LB.nbg[n] + 8, w, pix_base_or);

@@ -313,6 +313,48 @@ enum
  MPEG_SOFT_ON = 0x01  /* soften along this axis */
 };
 
+/*
+   SET_MODE fields.  SBL CdcMpAct / CdcMpDec / CdcMpOut, plus the scan
+   mode from MPG_DSCN_*.
+*/
+enum
+{
+ MPEG_ACT_NMOV = 0, /* moving picture                      */
+ MPEG_ACT_NSTL = 1, /* still picture                       */
+ MPEG_ACT_HMOV = 2, /* high-definition moving (unsupported
+                       on the hardware itself)             */
+ MPEG_ACT_HSTL = 3, /* high-definition still               */
+ MPEG_ACT_SBUF = 4, /* MPEG sector buffer mode             */
+
+ MPEG_DEC_VSYNC = 0, /* decode on VSYNC        */
+ MPEG_DEC_HOST  = 1, /* decode when the host says so, via
+                        OUT_DECSYNC                       */
+
+ MPEG_OUT_VDP2 = 0, /* output to VDP2         */
+ MPEG_OUT_HOST = 1, /* output to the host     */
+
+ MPEG_SCN_NTSC_NI = 0, /* NTSC non-interlaced */
+ MPEG_SCN_NTSC_I  = 1, /* NTSC interlaced     */
+ MPEG_SCN_PAL_NI  = 2, /* PAL non-interlaced  */
+ MPEG_SCN_PAL_I   = 3  /* PAL interlaced      */
+};
+
+/*
+   CHANGE_CONN's four fields.  SBL CdcMpCof for the two change flags and
+   CdcMpCla / CdcMpClv for the two clear modes.
+*/
+enum
+{
+ MPEG_COF_ABT = 0, /* disconnect, forcing the stream to end */
+ MPEG_COF_CHG = 1, /* force the switch to the next connection */
+
+ MPEG_CLA_OFF = 0, /* do not clear the audio buffer        */
+ MPEG_CLA_ON  = 1, /* clear one sector of it immediately   */
+
+ MPEG_CLV_FRM = 0, /* clear the VBV and frame buffers now  */
+ MPEG_CLV_VBV = 2  /* clear the VBV at the next I or P     */
+};
+
 /* CDC_NUL_SEL: no selector / no partition. */
 #define MPEG_NUL_SEL 0xFF
 
@@ -530,6 +572,13 @@ typedef struct
 } MPEG_DisplayState;
 
 const MPEG_DisplayState *MPEG_GetDisplayState(void);
+
+/*
+   True when SET_MODE has the card driving VDP2's external background
+   rather than transferring pictures to the host.  The compositor must
+   check this as well as the display switch.
+*/
+bool MPEG_DirectOutput(void);
 
 #ifdef __cplusplus
 }
