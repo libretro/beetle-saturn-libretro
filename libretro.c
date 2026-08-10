@@ -1663,8 +1663,19 @@ void retro_set_environment(retro_environment_t cb)
       and sandboxed-platform fallback plus dirent/stat coverage the
       old wiring lacked. Compiled out for statically linked frontends,
       which share one libretro-common with the core.
+
+      Fetch the log interface here rather than passing NULL: most
+      frontends answer GET_LOG_INTERFACE at set_environment time, and
+      the hybrid's dispatch/fallback diagnostics are exactly the kind
+      of thing that is invisible without it.  retro_init refreshes
+      log_cb again later as before.
    */
-   vfs_hybrid_init(environ_cb, NULL);
+   {
+      struct retro_log_callback hybrid_log;
+      if (environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &hybrid_log))
+         log_cb = hybrid_log.log;
+      vfs_hybrid_init(environ_cb, log_cb);
+   }
 #endif
 
    if(environ_cb(RETRO_ENVIRONMENT_GET_LED_INTERFACE, &led_interface))
