@@ -35,7 +35,7 @@
 ** C -> JIT -> C -> JIT, bounded by the cycle budget.
 **
 ** Frame (established by the prelude stub, seen by every body):
-**   x86-64: push rbx ; sub rsp,16 ; mov rbx,arg ; call body
+**   x86-64: push rbx,r12,r13,r14 ; sub rsp,24 ; mov rbx,arg ; load pins ; call body
 **           body: rsp = 8 mod 16, scratch qwords at [rsp+8], [rsp+16]
 **   x86-32: push ebx,esi,edi,ebp ; sub esp,28 ; mov ebx,[esp+48] ; call body
 **           body: esp = 12 mod 16, [esp+4] = outgoing C argument slot,
@@ -127,12 +127,114 @@ static void (*g_entry_stub)(struct DSPS*) = NULL;
 static bool g_chain_live     = false;
 static bool g_rewind_pending = false;
 static bool g_in_rewind      = false;
+static bool g_in_rewind_slots = false;
+static const void* g_exit_stub = NULL;        /* flush pins ; ret */
+static const void* g_dispatch_nijump = NULL;  /* dispatch stub past its CC/State checks */
+
+/* --- Block linking -----------------------------------------------------
+ * A slot entered with PC == pc+1 has just fetched NI = ProgRAM[pc+1], so
+ * if it cannot replace NI itself (is_linkable_slot) its tail can JMP
+ * straight to slot pc+1's hot entry instead of dispatching on NI.  The
+ * static filter (predecessor cannot perturb PC) picks the slots where
+ * that is the common case; a runtime guard at the hot entry (PC == pc+1,
+ * else bail to the fallback thunk, which flushes and runs the same
+ * instruction through its C handler) makes it correct for the rest: a
+ * branch executing in another branch's delay slot lands here with PC
+ * elsewhere, and BTM's TOP is dynamic.  Successor addresses are known
+ * only once every slot is compiled and move on each rewind, so linked
+ * tails emit a placeholder JMP recorded here for rewind_locked's second
+ * pass.  Any compile while a chain is live re-points every site at the
+ * dispatch stub's NI jump (unlink_all), because a PRAM DMA finishing
+ * mid-chain may have replaced a linked successor. */
+static void*   g_link_site[256];
+static bool    g_link_this_slot = false;
+static uint8_t g_link_this_pc   = 0;
+
+static bool may_perturb_pc(uint32_t instr)
+{
+ const unsigned top = (instr >> 28) & 0xF;
+ if(top <= 0x3) return false;                 /* gen */
+ if(top >= 0x8 && top <= 0xB)                 /* MVI: only dest 6/7/C move PC */
+ {
+  const unsigned dest = (instr >> 26) & 0xF;
+  return dest == 0x6 || dest == 0x7 || dest == 0xC;
+ }
+ return true;                                 /* JMP / DMA / MISC / reserved */
+}
+
+static bool is_linkable_slot(uint32_t instr)
+{
+ const unsigned top = (instr >> 28) & 0xF;
+ if(top <= 0x3)               return true;    /* gen */
+ if(top == 0xD)               return true;    /* JMP (delayed branch) */
+ if(top == 0xE || top == 0xF) return ((instr >> 27) & 0x3) == 0x0;   /* BTM only */
+ if(top >= 0x8 && top <= 0xB)
+ {
+  const unsigned dest = (instr >> 26) & 0xF;
+  return !(dest == 0x6 || dest == 0x7 || dest == 0xC);
+ }
+ return false;
+}
+
+static void unlink_all(void)
+{
+ unsigned i;
+ for(i = 0; i < 256; i++)
+  if(g_link_site[i])
+  {
+   x86_patch_jmp_abs(g_link_site[i], g_dispatch_nijump);
+   g_link_site[i] = NULL;
+  }
+}
 
 typedef struct {
  void (*entry)(struct DSPS*);
  uint32_t instr;
 } LoopedSlot;
 static LoopedSlot g_looped_cache[256];
+
+/* --- register pins ---------------------------------------------------------
+ * x86-64: R12 = NextInstr (64), R13D = PC (0..255), R14D = CycleCounter.
+ * x86-32: EBP = CycleCounter only.
+ * Every pin is callee-saved under cdecl, SysV and Win64, so C helpers
+ * preserve the register; what a helper may change is the memory copy,
+ * hence flush before / reload after every crossing into C, and a load
+ * in the prelude for every entry from C.  Measured on the transform
+ * kernel in tests/scu_dsp_difftest.c --bench: the three x86-64 pins take
+ * the JIT from 1.22x to 1.53x over the interpreter, block linking to
+ * 2.0x; on x86-32 the CC pin is worth 13%, linking nothing (the indirect
+ * jump was already well predicted), and pinning PC as well would cost
+ * the 48-bit add its scratch registers for a few percent at best. */
+#if X86EMIT_64
+ #define PIN_NI X86_R12
+ #define PIN_PC X86_R13
+ #define PIN_CC X86_R14
+#else
+ #define PIN_CC X86_EBP     /* x86-32: CycleCounter only; EBP is saved by the prelude */
+#endif
+
+static void emit_flush_pins(void)
+{
+#ifdef PIN_NI
+ x86_mov_mr64(g_cg, X86_EBX, X86_NOIDX, 0, (int32_t)offsetof(struct DSPS, NextInstr), PIN_NI);
+ x86_mov_m8r8(g_cg, X86_EBX, X86_NOIDX, 0, (int32_t)offsetof(struct DSPS, PC), PIN_PC);
+#endif
+#ifdef PIN_CC
+ x86_mov_mr  (g_cg, X86_EBX, X86_NOIDX, 0, (int32_t)offsetof(struct DSPS, CycleCounter), PIN_CC);
+#endif
+}
+
+static void emit_load_pins(void)
+{
+#ifdef PIN_NI
+ x86_mov_rm64 (g_cg, PIN_NI, X86_EBX, X86_NOIDX, 0, (int32_t)offsetof(struct DSPS, NextInstr));
+ x86_movzx_rm8(g_cg, PIN_PC, X86_EBX, X86_NOIDX, 0, (int32_t)offsetof(struct DSPS, PC));
+#endif
+#ifdef PIN_CC
+ x86_mov_rm   (g_cg, PIN_CC, X86_EBX, X86_NOIDX, 0, (int32_t)offsetof(struct DSPS, CycleCounter));
+#endif
+}
+
 
 /* --- labels ------------------------------------------------------------ */
 
@@ -240,12 +342,14 @@ static void misc_end_helper(struct DSPS* dsp, uint32_t is_endi)
  * register is clobbered. */
 static void emit_call_helper(const void* fn, bool two_args, uint32_t arg1)
 {
+ emit_flush_pins();
 #if X86EMIT_64
  x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  x86_mov_rr64(g_cg, ARG0, EBX);
  if(two_args) x86_mov_ri(g_cg, ARG1, arg1);
  x86_call_abs(g_cg, fn);
  x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
+ emit_load_pins();
 #else
  if(two_args)
  {
@@ -258,20 +362,24 @@ static void emit_call_helper(const void* fn, bool two_args, uint32_t arg1)
  x86_push(g_cg, EBX);
  x86_call_abs(g_cg, fn);
  x86_alu_ri(g_cg, X86_ADD, ESP, 12);
+ emit_load_pins();
 #endif
 }
 
 /* call helper(void). */
 static void emit_call_void(const void* fn)
 {
+ emit_flush_pins();
 #if X86EMIT_64
  x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  x86_call_abs(g_cg, fn);
  x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
+ emit_load_pins();
 #else
  x86_alu_ri(g_cg, X86_SUB, ESP, 12);
  x86_call_abs(g_cg, fn);
  x86_alu_ri(g_cg, X86_ADD, ESP, 12);
+ emit_load_pins();
 #endif
 }
 
@@ -280,6 +388,7 @@ static void emit_call_void(const void* fn)
  * the prelude's return address. */
 static void emit_tailjump_c(const void* fn)
 {
+ emit_flush_pins();
 #if X86EMIT_64
  x86_mov_rr64(g_cg, ARG0, EBX);
  x86_mov_ri64(g_cg, EAX, (uint64_t)(uintptr_t)fn);
@@ -309,11 +418,20 @@ static void emit_cold_entry(void)
 static void emit_prelude_stub(void)
 {
 #if X86EMIT_64
+ /* entry rsp = 8 mod 16; four pushes keep it at 8; sub 24 -> 0; the CALL
+  * leaves the body at 8 with 24 bytes of scratch above its return slot. */
  x86_push(g_cg, EBX);
- x86_alu_ri64(g_cg, X86_SUB, ESP, 16);
+ x86_push(g_cg, PIN_NI);
+ x86_push(g_cg, PIN_PC);
+ x86_push(g_cg, PIN_CC);
+ x86_alu_ri64(g_cg, X86_SUB, ESP, 24);
  x86_mov_rr64(g_cg, EBX, ARG0);
+ emit_load_pins();
  x86_call_r(g_cg, EAX);
- x86_alu_ri64(g_cg, X86_ADD, ESP, 16);
+ x86_alu_ri64(g_cg, X86_ADD, ESP, 24);
+ x86_pop(g_cg, PIN_CC);
+ x86_pop(g_cg, PIN_PC);
+ x86_pop(g_cg, PIN_NI);
  x86_pop(g_cg, EBX);
  x86_ret(g_cg);
 #else
@@ -323,6 +441,7 @@ static void emit_prelude_stub(void)
  x86_push(g_cg, EBP);
  x86_alu_ri(g_cg, X86_SUB, ESP, 28);
  x86_mov_rm(g_cg, EBX, X86_ESP, X86_NOIDX, 0, 48);
+ emit_load_pins();
  x86_call_r(g_cg, EAX);
  x86_alu_ri(g_cg, X86_ADD, ESP, 28);
  x86_pop(g_cg, EBP);
@@ -336,27 +455,40 @@ static void emit_prelude_stub(void)
 /* Jump to DSP_INSTR_BASE + sext(NextInstr.low32) + PRELUDE (hot entry). */
 static void emit_ni_jump(void)
 {
- x86_mov_rm(g_cg, EAX, M_D(O(NextInstr)));          /* low32 on LSB-first hosts */
 #if X86EMIT_64
- x86_movsxd(g_cg, EAX, EAX);
+ x86_movsxd(g_cg, EAX, PIN_NI);
  x86_lea_rip(g_cg, ECX, (const void*)(DSP_INSTR_BASE_UIPT + SCU_JIT_SLOT_PRELUDE_BYTES));
  x86_alu_rr64(g_cg, X86_ADD, EAX, ECX);
 #else
+ x86_mov_rm(g_cg, EAX, M_D(O(NextInstr)));          /* low32 on LSB-first hosts */
  x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(DSP_INSTR_BASE_UIPT + SCU_JIT_SLOT_PRELUDE_BYTES));
 #endif
  x86_jmp_r(g_cg, EAX);
+}
+
+/* CycleCounter -= 2 ; jle out ; State <= 0 ; jle out */
+static void emit_cc_state_check(x86_label* out)
+{
+#ifdef PIN_CC
+ x86_alu_ri(g_cg, X86_SUB, PIN_CC, 2);
+#else
+ x86_alu_mi32(g_cg, X86_SUB, M_D(O(CycleCounter)), 2);
+#endif
+ x86_jcc(g_cg, X86_CC_LE, out);
+ x86_cmp_mi32(g_cg, M_D(O(State)), 0);
+ x86_jcc(g_cg, X86_CC_LE, out);
 }
 
 /* Shared tail: CycleCounter -= 2; stop if <= 0 or !running; else NI jump. */
 static void emit_dispatch_stub(void)
 {
  x86_label* out = label_new();
- x86_alu_mi32(g_cg, X86_SUB, M_D(O(CycleCounter)), 2);
- x86_jcc(g_cg, X86_CC_LE, out);
- x86_cmp_mi32(g_cg, M_D(O(State)), 0);
- x86_jcc(g_cg, X86_CC_LE, out);
+ emit_cc_state_check(out);
+ g_dispatch_nijump = x86_codegen_wptr(g_cg);
  emit_ni_jump();
  x86_label_bind(g_cg, out);
+ g_exit_stub = x86_codegen_wptr(g_cg);
+ emit_flush_pins();
  x86_ret(g_cg);
 }
 
@@ -368,7 +500,33 @@ static void emit_entry_dispatch(void)
 
 static void emit_tail_dispatch(void)
 {
+ if(g_link_this_slot)
+ {
+#ifdef PIN_CC
+  x86_alu_ri(g_cg, X86_SUB, PIN_CC, 2);
+#else
+  x86_alu_mi32(g_cg, X86_SUB, M_D(O(CycleCounter)), 2);
+#endif
+  x86_jcc_abs(g_cg, X86_CC_LE, g_exit_stub);
+  x86_cmp_mi32(g_cg, M_D(O(State)), 0);
+  x86_jcc_abs(g_cg, X86_CC_LE, g_exit_stub);
+  g_link_site[g_link_this_pc] = x86_codegen_wptr(g_cg);
+  x86_jmp_abs(g_cg, g_dispatch_nijump);      /* placeholder; patched by rewind pass 2 */
+  return;
+ }
  x86_jmp_abs(g_cg, g_dispatch_stub);
+}
+
+/* Linear-entry guard at the hot entry of a linked slot. */
+static void emit_link_guard(void)
+{
+ if(!g_link_this_slot) return;
+#if X86EMIT_64
+ x86_alu_ri(g_cg, X86_CMP, PIN_PC, (int32_t)((g_link_this_pc + 1u) & 0xFFu));
+#else
+ x86_cmp_mi8(g_cg, M_D(O_PC), (uint8_t)(g_link_this_pc + 1u));
+#endif
+ x86_jcc_abs(g_cg, X86_CC_NE, (const char*)g_fallback_thunk[0] + SCU_JIT_SLOT_PRELUDE_BYTES);
 }
 
 /* Fallback thunk: slot-shaped, hot entry tail-jumps into the shim that
@@ -392,17 +550,18 @@ static void emit_instr_pre(bool looped)
   x86_test_rr(g_cg, EAX, EAX);
   x86_jcc(g_cg, X86_CC_NE, skip);
  }
- x86_movzx_rm8(g_cg, ECX, M_D(O_PC));
 #if X86EMIT_64
- x86_mov_rm64(g_cg, EDX, M_DIDX(ECX, 3, O(ProgRAM)));
- x86_mov_mr64(g_cg, M_D(O(NextInstr)), EDX);
+ x86_mov_rm64(g_cg, PIN_NI, M_DIDX(PIN_PC, 3, O(ProgRAM)));
+ x86_alu_ri(g_cg, X86_ADD, PIN_PC, 1);
+ x86_alu_ri(g_cg, X86_AND, PIN_PC, 0xFF);
 #else
+ x86_movzx_rm8(g_cg, ECX, M_D(O_PC));
  x86_mov_rm(g_cg, EDX, M_DIDX(ECX, 3, O(ProgRAM)));
  x86_mov_mr(g_cg, M_D(O(NextInstr)), EDX);
  x86_mov_rm(g_cg, EDX, M_DIDX(ECX, 3, O(ProgRAM) + 4));
  x86_mov_mr(g_cg, M_D(O(NextInstr) + 4), EDX);
-#endif
  x86_inc_m8(g_cg, M_D(O_PC));
+#endif
  if(looped)
  {
   x86_mov_mi8(g_cg, M_D(O_NIL), 0);
@@ -435,8 +594,12 @@ static void emit_test_cond(unsigned cond, x86_label* skip)
  if(cond & 0x8)
  {
   /* (T0_Until < CycleCounter) */
+#ifdef PIN_CC
+  x86_cmp_mr(g_cg, M_D(O(T0_Until)), PIN_CC);
+#else
   x86_mov_rm(g_cg, ECX, M_D(O(CycleCounter)));
   x86_cmp_mr(g_cg, M_D(O(T0_Until)), ECX);
+#endif
   x86_setcc_r8(g_cg, X86_CC_L, ECX);
   x86_movzx_rr8(g_cg, ECX, ECX);
   if(!have) { x86_mov_rr(g_cg, EAX, ECX); have = true; }
@@ -567,6 +730,7 @@ static void emit_gen(bool looped, uint32_t instr)
  const bool need_alu_l = need_alu_t || ((d1_op & 3) == 3 && (instr & 0xF) == 0x9);
 
  emit_cold_entry();
+ emit_link_guard();
  emit_instr_pre(looped);
 
  /* --- ALU: ALU = AC; op; leaves ALU.L in EAX, ALU.high32 in S1 (x86-32)
@@ -826,6 +990,7 @@ static void emit_mvi(bool looped, uint32_t instr)
  x86_label* skip = label_new();
 
  emit_cold_entry();
+ emit_link_guard();
  emit_instr_pre(looped);
  emit_test_cond(cond, skip);
 
@@ -834,7 +999,12 @@ static void emit_mvi(bool looped, uint32_t instr)
   x86_label* nodma = label_new();
   x86_cmp_mi32(g_cg, M_D(O(PRAMDMABufCount)), 0);
   x86_jcc(g_cg, X86_CC_E, nodma);
+#if X86EMIT_64
+  x86_alu_ri(g_cg, X86_SUB, PIN_PC, 1);
+  x86_alu_ri(g_cg, X86_AND, PIN_PC, 0xFF);
+#else
   x86_dec_m8(g_cg, M_D(O_PC));
+#endif
   emit_call_void((const void*)&DSP_FinishPRAMDMA);
   x86_label_bind(g_cg, nodma);
  }
@@ -872,10 +1042,16 @@ static void emit_mvi(bool looped, uint32_t instr)
   case 0xC:
   {
    x86_label* nodma = label_new();
+#if X86EMIT_64
+   x86_lea(g_cg, EAX, PIN_PC, X86_NOIDX, 0, -1);
+   x86_mov_m8r8(g_cg, M_D(O_TOP), EAX);
+   x86_mov_ri(g_cg, PIN_PC, imm & 0xFFu);
+#else
    x86_movzx_rm8(g_cg, EAX, M_D(O_PC));
    x86_alu_ri(g_cg, X86_SUB, EAX, 1);
    x86_mov_m8r8(g_cg, M_D(O_TOP), EAX);
    x86_mov_mi8(g_cg, M_D(O_PC), (uint8_t)imm);
+#endif
    x86_cmp_mi32(g_cg, M_D(O(PRAMDMABufCount)), 0);
    x86_jcc(g_cg, X86_CC_E, nodma);
    emit_call_void((const void*)&DSP_FinishPRAMDMA);
@@ -897,9 +1073,14 @@ static void emit_jmp(bool looped, uint32_t instr)
  x86_label* skip = label_new();
 
  emit_cold_entry();
+ emit_link_guard();
  emit_instr_pre(looped);
  emit_test_cond(cond, skip);
+#if X86EMIT_64
+ x86_mov_ri(g_cg, PIN_PC, (uint32_t)(uint8_t)instr);
+#else
  x86_mov_mi8(g_cg, M_D(O_PC), (uint8_t)instr);
+#endif
  x86_label_bind(g_cg, skip);
  emit_tail_dispatch();
 }
@@ -911,6 +1092,7 @@ static void emit_misc(bool looped, uint32_t instr)
  const unsigned op = (instr >> 27) & 0x3;
 
  emit_cold_entry();
+ emit_link_guard();
  emit_instr_pre(looped);
 
  if(op == 2 || op == 3)
@@ -921,8 +1103,12 @@ static void emit_misc(bool looped, uint32_t instr)
   x86_movzx_rm16(g_cg, EAX, M_D(O_LOP));
   x86_test_rr(g_cg, EAX, EAX);
   x86_jcc(g_cg, X86_CC_E, nolop);
+#if X86EMIT_64
+  x86_movzx_rm8(g_cg, PIN_PC, M_D(O_TOP));
+#else
   x86_movzx_rm8(g_cg, ECX, M_D(O_TOP));
   x86_mov_m8r8(g_cg, M_D(O_PC), ECX);
+#endif
   x86_label_bind(g_cg, nolop);
   x86_alu_ri(g_cg, X86_SUB, EAX, 1);
   x86_alu_ri(g_cg, X86_AND, EAX, 0xFFF);
@@ -945,12 +1131,28 @@ static void rewind_locked(void)
  x86_codegen_set_wptr(g_cg, (char*)g_seg_start + g_post_stub_byte_offset);
  labels_reset();
  for(i = 0; i < 256; ++i)
+ {
   g_looped_cache[i].entry = NULL;
+  g_link_site[i] = NULL;
+ }
 
+ g_in_rewind_slots = true;
  for(i = 0; i < 256; ++i)
  {
   const uint32_t instr = (uint32_t)(DSP.ProgRAM[i] >> 32);
   DSP.ProgRAM[i] = DSP_DecodeSlotInstruction((uint8_t)i, instr, false);
+ }
+ g_in_rewind_slots = false;
+
+ /* Pass 2: every slot exists now; point each linked tail at its
+  * successor's hot entry. */
+ for(i = 0; i < 256; ++i)
+ {
+  const unsigned succ = (i + 1u) & 0xFFu;
+  const int32_t  succ_off = (int32_t)(uint32_t)(DSP.ProgRAM[succ] & 0xFFFFFFFFu);
+  if(!g_link_site[i]) continue;
+  x86_patch_jmp_abs(g_link_site[i],
+                    (const char*)DSP_INSTR_BASE_UIPT + succ_off + (int)SCU_JIT_SLOT_PRELUDE_BYTES);
  }
  {
   const uint32_t instr = (uint32_t)(DSP.NextInstr >> 32);
@@ -1053,7 +1255,6 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
  typedef void (*EmitFn)(bool, uint32_t);
  EmitFn emit_inline;
 
- (void)pc;
  if(!g_cg)
   SCU_DSP_JIT_Init();
  if(!g_cg)
@@ -1072,6 +1273,26 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
  start = x86_codegen_wptr(g_cg);
  labels_reset();
 
+ g_link_this_slot = false;
+ if(g_in_rewind_slots && !looped
+    && !may_perturb_pc((uint32_t)(DSP.ProgRAM[(uint8_t)(pc - 1u)] >> 32))
+    && is_linkable_slot(instr))
+ {
+  g_link_this_slot = true;
+  g_link_this_pc   = pc;
+ }
+
+ if(!g_in_rewind && !looped)
+ {
+  /* This normal slot replaces one that linked tails may still target
+   * (looped variants never are: links go to ProgRAM[pc+1]'s normal
+   * slot).  Unlink now if a chain is running, and rewind at the next
+   * entry to re-establish links through the new slot. */
+  if(g_chain_live)
+   unlink_all();
+  g_rewind_pending = true;
+ }
+
  emit_inline = is_general_instr(instr) ? &emit_gen  :
                is_mvi_instr(instr)     ? &emit_mvi  :
                is_jmp_instr(instr)     ? &emit_jmp  :
@@ -1089,6 +1310,7 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
  if(MDFN_UNLIKELY(x86_codegen_overflowed(g_cg)))
  {
   x86_codegen_set_wptr(g_cg, start);
+  g_link_site[pc] = NULL;
   return NULL;
  }
 

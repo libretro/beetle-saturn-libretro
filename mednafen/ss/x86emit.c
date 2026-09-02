@@ -739,6 +739,18 @@ void x86_int3(x86_codegen* cg)
  emit_b(cg, 0xCC);
 }
 
+void x86_patch_jmp_abs(void* site, const void* target)
+{
+ uint8_t* p = (uint8_t*)site;
+ const intptr_t delta = (intptr_t)((const uint8_t*)target - (p + 5));
+ assert(p[0] == 0xE9);
+ assert(fits_s32(delta));
+ p[1] = (uint8_t)delta;
+ p[2] = (uint8_t)(delta >> 8);
+ p[3] = (uint8_t)(delta >> 16);
+ p[4] = (uint8_t)(delta >> 24);
+}
+
 /* --- near placement ------------------------------------------------------ */
 
 #if X86EMIT_64

@@ -167,6 +167,8 @@ void x86_jmp_abs  (x86_codegen*, const void* target);    /* E9 rel32; asserts if
 void x86_call_abs (x86_codegen*, const void* target);    /* E8 rel32 (x86-32) / MOV RAX,imm64; CALL RAX (x86-64) */
 void x86_jcc_abs  (x86_codegen*, unsigned cc, const void* target);
 void x86_int3     (x86_codegen*);
+/* Re-target an E9 rel32 JMP whose opcode byte is at `site`. */
+void x86_patch_jmp_abs(void* site, const void* target);
 
 /* Like x86_codegen_create, but places the segment within +/-2 GiB of
  * `nearp` (probing hint addresses on both mmap and VirtualAlloc); NULL if

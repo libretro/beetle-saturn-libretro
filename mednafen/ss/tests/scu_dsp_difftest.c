@@ -152,8 +152,74 @@ static void run_slice(bool jit)
   DSP.CycleCounter += DSP_EndCCSubVal;
 }
 
+/* --- benchmark mode ------------------------------------------------------
+ * scu_dsp_difftest --bench [slices]
+ * Times the interpreter and the JIT on (a) a hand-assembled transform
+ * kernel -- MOV MC0,X / MOV MC1,Y ; MUL AD2 MOV ALU,A ; MOV ALU,MC2 --
+ * looping under BTM, and (b) the mean over random programs, at the
+ * core's 64-cycle slice, reporting ns per DSP instruction. */
+#include <time.h>
+static double now_ns(void)
+{
+ return (double)clock() * (1e9 / (double)CLOCKS_PER_SEC);   /* portable; ms resolution suffices at these run lengths */
+}
+
+static void kernel_program(void)
+{
+ unsigned i;
+ for(i = 0; i < 256; i++) prog[i] = 0;
+ for(i = 0; i < 48; i += 3)
+ {
+  prog[i + 0] = (4u << 23) | (4u << 20) | (4u << 17) | (5u << 14);          /* MOV MC0,X  MOV MC1,Y (inc both) */
+  prog[i + 1] = (6u << 26) | (2u << 23) | (2u << 17);                       /* AD2  MUL  MOV ALU,A */
+  prog[i + 2] = (3u << 12) | (2u << 8) | 0x9u;                               /* MOV ALU,MC2 */
+ }
+ prog[48] = 0xE0000000u;                                                     /* BTM */
+}
+
+static double bench_one(bool jit, unsigned nslice)
+{
+ struct DSPS init; unsigned s; double t0, t1;
+ memset(&init, 0, sizeof init);
+ init.State = STATE_MASK_EXECUTE; init.PC = 0; init.TOP = 0; init.LOP = 0xFFF;
+ init.CT32 = 0;
+ DSP = init; load_program(jit);
+ t0 = now_ns();
+ for(s = 0; s < nslice; s++)
+ {
+  run_slice(jit);
+  if(!DSPS_IsRunning(&DSP)) { DSP.State = STATE_MASK_EXECUTE; DSP.LOP = 0xFFF; DSP.CycleCounter = 0; }
+ }
+ t1 = now_ns();
+ return (t1 - t0) / ((double)nslice * 32.0);
+}
+
+static int bench(unsigned nslice)
+{
+ unsigned p; double ki, kj, ri = 0, rj = 0;
+ setting_jit_scu = true; SCU_DSP_JIT_Init();
+ if(!SCU_DSP_JIT_Entry) { printf("JIT unavailable\n"); return 2; }
+ g_budget = 64;
+ kernel_program();
+ ki = bench_one(false, nslice); kj = bench_one(true, nslice);
+ ki = bench_one(false, nslice); kj = bench_one(true, nslice);   /* warm */
+ printf("kernel : interp %6.2f ns/instr   jit %6.2f ns/instr   speedup %.2fx\n", ki, kj, ki / kj);
+ for(p = 0; p < 20; p++)
+ {
+  unsigned i;
+  for(i = 0; i < 256; i++) prog[i] = rand_instr();
+  prog[rnd() & 0xFF] = 0xE8000000u | (rnd() & 0xFFF);
+  ri += bench_one(false, nslice / 20); rj += bench_one(true, nslice / 20);
+ }
+ printf("random : interp %6.2f ns/instr   jit %6.2f ns/instr   speedup %.2fx\n", ri / 20, rj / 20, ri / rj);
+ return 0;
+}
+
 int main(int argc, char** argv)
 {
+ if(argc > 1 && !strcmp(argv[1], "--bench"))
+  return bench(argc > 2 ? (unsigned)atoi(argv[2]) : 2000000u);
+
  unsigned nprog = argc > 1 ? (unsigned)atoi(argv[1]) : 200;
  unsigned nslice = argc > 2 ? (unsigned)atoi(argv[2]) : 400;
  unsigned p, i, s;
