@@ -27,7 +27,8 @@ void SCSP_DSP_JIT_Reset(struct SS_SCSP* scsp);
  * NULL when the JIT isn't available on this platform. */
 void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp);
 
-/* NULL on non-aarch64 builds or before the first compile. */
+/* NULL on targets without a backend (aarch64, x86, x86-64 have one) or
+ * before the first compile. */
 extern void (*SCSP_DSP_JIT_Entry)(struct SS_SCSP*);
 
 #ifdef __cplusplus

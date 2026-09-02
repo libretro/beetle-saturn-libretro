@@ -957,7 +957,9 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
  SCSP_DSP_JIT_Entry = (void(*)(struct SS_SCSP*))entry_addr;
 }
 
-#else /* non-aarch64 or JIT not requested: stub everything */
+#elif !(defined(WANT_JIT) && (defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)))
+/* No backend for this target (the x86 / x86-64 one lives in
+ * scsp_dsp_jit_x86.c): stub everything. */
 
 void SCSP_DSP_JIT_Init   (struct SS_SCSP* z) { (void)z; }
 void SCSP_DSP_JIT_Reset  (struct SS_SCSP* z) { (void)z; }

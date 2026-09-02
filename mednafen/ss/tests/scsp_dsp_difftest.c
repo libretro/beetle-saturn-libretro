@@ -58,6 +58,23 @@ static SS_SCSP* SA;   /* interpreter instance */
 static SS_SCSP* SB;   /* JIT instance */
 static SS_SCSP* S0;   /* snapshot before the sample */
 
+/* One JIT pass.  SCSP_JIT_X86_MSABI builds the x86-64 backend with the
+ * Win64 prologue so it can be checked on a SysV host; the entry must
+ * then be called with the Microsoft convention. */
+static void run_jit(SS_SCSP* z)
+{
+#if defined(SCSP_JIT_X86_MSABI)
+ if(z->DSP.MPROG_Dirty)
+ {
+  SS_SCSP_DecodeMPROG(z);
+  SCSP_DSP_JIT_Compile(z);
+ }
+ ((void (__attribute__((ms_abi)) *)(SS_SCSP*))SCSP_DSP_JIT_Entry)(z);
+#else
+ SS_SCSP_RunDSP(z);
+#endif
+}
+
 static void randomize(SS_SCSP* z)
 {
  unsigned i;
@@ -135,7 +152,7 @@ int main(int argc, char** argv)
 
   setting_jit_scsp = true;
   SCSP_DSP_JIT_Reset(SB);
-  SS_SCSP_RunDSP(SB);            /* decodes + compiles */
+  run_jit(SB);                   /* decodes + compiles */
   if(!SCSP_DSP_JIT_Entry) { printf("JIT unavailable\n"); return 2; }
   bad |= compare(0);
 
@@ -143,7 +160,7 @@ int main(int argc, char** argv)
   {
    memcpy(S0, SA, sizeof *SA);
    setting_jit_scsp = false; SS_SCSP_RunDSP(SA);
-   setting_jit_scsp = true;  SS_SCSP_RunDSP(SB);
+   setting_jit_scsp = true;  run_jit(SB);
    bad |= compare(s);
   }
   if(bad)

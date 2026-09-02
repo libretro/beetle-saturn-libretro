@@ -174,7 +174,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "beetle_saturn_jit_scsp",
       "SCSP DSP JIT Binary Translator",
       NULL,
-      "Use the native aarch64 JIT binary translator for the SCSP DSP (MPROG). Only effective on Linux/Android aarch64 builds; elsewhere the interpreter is always used. Restart required.",
+      "Use the native JIT binary translator for the SCSP DSP (MPROG). Available on x86, x86-64 and Linux/Android aarch64 builds; elsewhere the interpreter is always used. Restart required.",
       NULL,
       "system",
       {
