@@ -16,6 +16,7 @@
 **   F="-O2 -DHAVE_MMAP -D__LIBRETRO__ -DWANT_JIT -fno-strict-aliasing -DLSB_FIRST
 **      -I. -Imednafen -Imednafen/include -Ilibretro-common/include -Imednafen/ss"
 **   for f in scsp_dsp_jit a64emit jitdump; do $CC $F -c mednafen/ss/$f.c -o /tmp/$f.o; done
+**   (x86 / x86-64 hosts: scsp_dsp_jit scsp_dsp_jit_x86 x86emit jitdump)
 **   $CC $F -c mednafen/ss/tests/scsp_dsp_difftest.c -o /tmp/scspdiff.o
 **   $CC -static /tmp/scsp_dsp_jit.o /tmp/a64emit.o /tmp/jitdump.o /tmp/scspdiff.o -o scsp_dsp_difftest
 **

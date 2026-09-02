@@ -109,6 +109,8 @@ void x86_movsx_rr16(x86_codegen*, unsigned dst, unsigned src);
 void x86_lea      (x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
 
 void x86_alu_rr   (x86_codegen*, unsigned op, unsigned dst, unsigned src);
+void x86_alu_rr16 (x86_codegen*, unsigned op, unsigned dst, unsigned src);   /* 16-bit operand size */
+void x86_movzx_rr16(x86_codegen*, unsigned dst, unsigned src);
 void x86_alu_ri   (x86_codegen*, unsigned op, unsigned dst, int32_t imm);
 void x86_alu_ri64 (x86_codegen*, unsigned op, unsigned dst, int32_t imm);
 void x86_alu_rm   (x86_codegen*, unsigned op, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
@@ -123,6 +125,53 @@ void x86_test_rr  (x86_codegen*, unsigned a, unsigned b);
 void x86_test_ri  (x86_codegen*, unsigned r, uint32_t imm);
 void x86_cmov     (x86_codegen*, unsigned cc, unsigned dst, unsigned src);
 void x86_bsr      (x86_codegen*, unsigned dst, unsigned src);
+
+/* --- additions for the SCU DSP backend ---------------------------------- */
+
+/* 64-bit (REX.W) forms; on x86-32 these assert. */
+void x86_mov_mr64 (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, unsigned src);
+void x86_mov_ri64 (x86_codegen*, unsigned dst, uint64_t imm);
+void x86_movabs   (x86_codegen*, unsigned dst, uint64_t imm);   /* always the 10-byte REX.W B8 form */
+void x86_alu_rr64 (x86_codegen*, unsigned op, unsigned dst, unsigned src);
+void x86_alu_rm64 (x86_codegen*, unsigned op, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
+void x86_shift_ri64(x86_codegen*, unsigned kind, unsigned r, unsigned imm);
+void x86_imul_rr64(x86_codegen*, unsigned dst, unsigned src);
+void x86_movsxd   (x86_codegen*, unsigned dst, unsigned src);         /* dst64 = sext(src32) */
+void x86_movsxd_rm(x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
+void x86_lea64    (x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
+void x86_lea_rip  (x86_codegen*, unsigned dst, const void* target);     /* dst = target (RIP-relative, +/-2 GiB) */
+
+/* Byte / flag forms.  Byte registers are AL/CL/DL only (0..2) plus
+ * R8B..R15B on x86-64; the encoder asserts on anything else. */
+void x86_setcc_r8 (x86_codegen*, unsigned cc, unsigned r);
+void x86_setcc_m8 (x86_codegen*, unsigned cc, unsigned base, int index, unsigned scale_log2, int32_t disp);
+void x86_mov_m8r8 (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, unsigned src);
+void x86_or_m8r8  (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, unsigned src);
+void x86_movzx_rr8(x86_codegen*, unsigned dst, unsigned src);
+void x86_movsx_rr8(x86_codegen*, unsigned dst, unsigned src);
+void x86_inc_m8   (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp);
+void x86_dec_m8   (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp);
+void x86_cmp_mi32 (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, int32_t imm);
+void x86_cmp_mr   (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, unsigned r);
+void x86_alu_mi32 (x86_codegen*, unsigned op, unsigned base, int index, unsigned scale_log2, int32_t disp, int32_t imm);
+void x86_alu_mr   (x86_codegen*, unsigned op, unsigned base, int index, unsigned scale_log2, int32_t disp, unsigned src);
+void x86_imul_m   (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp);  /* EDX:EAX = EAX * [m] */
+void x86_rol_ri   (x86_codegen*, unsigned r, unsigned imm);
+void x86_ror_ri   (x86_codegen*, unsigned r, unsigned imm);
+void x86_mov_mi16 (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, uint16_t imm);
+
+/* Control transfer to absolute addresses. */
+void x86_jmp_r    (x86_codegen*, unsigned r);
+void x86_call_r   (x86_codegen*, unsigned r);
+void x86_jmp_abs  (x86_codegen*, const void* target);    /* E9 rel32; asserts if out of range on x86-64 */
+void x86_call_abs (x86_codegen*, const void* target);    /* E8 rel32 (x86-32) / MOV RAX,imm64; CALL RAX (x86-64) */
+void x86_jcc_abs  (x86_codegen*, unsigned cc, const void* target);
+void x86_int3     (x86_codegen*);
+
+/* Like x86_codegen_create, but places the segment within +/-2 GiB of
+ * `nearp` (probing hint addresses on both mmap and VirtualAlloc); NULL if
+ * no such placement exists.  On x86-32 every address qualifies. */
+x86_codegen* x86_codegen_create_near(size_t bytes, const void* nearp);
 
 void x86_jcc      (x86_codegen*, unsigned cc, x86_label*);
 void x86_jmp      (x86_codegen*, x86_label*);

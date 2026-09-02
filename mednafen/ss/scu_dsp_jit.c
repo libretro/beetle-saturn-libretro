@@ -2009,7 +2009,8 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
  return (void (*)(struct DSPS*))start;
 }
 
-#else /* non-aarch64: stub everything */
+#elif !(defined(WANT_JIT) && (defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)))
+/* No backend for this target (x86 / x86-64 live in scu_dsp_jit_x86.c): stub everything. */
 
 void SCU_DSP_JIT_Init(void)  {}
 void SCU_DSP_JIT_Reset(void) {}

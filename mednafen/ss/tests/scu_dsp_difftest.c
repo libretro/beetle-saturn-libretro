@@ -17,6 +17,9 @@
 **      -I. -Imednafen -Imednafen/include -Ilibretro-common/include -Imednafen/ss"
 **   for f in scu_dsp_gen scu_dsp_mvi scu_dsp_jmp scu_dsp_misc scu_dsp_jit a64emit jitdump; do
 **     $CC $F -c mednafen/ss/$f.c -o /tmp/$f.o; done
+**   (x86 / x86-64 hosts: substitute scu_dsp_jit_x86 x86emit for a64emit;
+**    scu_dsp_jit.c still provides SCU_DSP_JIT_Entry.  MinGW builds run
+**    unchanged under Wine.)
 **   $CC $F -c mednafen/ss/tests/scu_dsp_difftest.c -o /tmp/difftest.o
 **   $CC -static /tmp/scu_dsp_*.o /tmp/a64emit.o /tmp/jitdump.o /tmp/difftest.o -o scu_dsp_difftest
 **

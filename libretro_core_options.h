@@ -160,7 +160,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "beetle_saturn_jit_scu",
       "SCU DSP JIT Binary Translator",
       NULL,
-      "Use the native aarch64 JIT binary translator for the SCU DSP. Only effective on Linux/Android aarch64 builds; elsewhere the interpreter is always used. Restart required.",
+      "Use the native JIT binary translator for the SCU DSP. Available on x86, x86-64 and Linux/Android aarch64 builds; elsewhere the interpreter is always used. Restart required.",
       NULL,
       "system",
       {
