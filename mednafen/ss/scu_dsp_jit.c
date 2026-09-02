@@ -282,6 +282,11 @@ static void (*g_entry_stub)(struct DSPS*) = NULL;
  * only during the rewind slot pass (g_in_rewind_slots), so every recorded
  * site is reached by the patch loop. */
 static void*   g_link_site[256];        /* placeholder-B address per pc, NULL = unlinked */
+/* Hot entry of each coalesced no-op-run head (emit_gen_coalesced), NULL
+ * otherwise.  A coalesced head executes its M no-ops as one PC += M and
+ * never re-reads the intermediate ProgRAM words, so a rewrite of any slot
+ * inside the run must neutralise the head; see unlink_all. */
+static void*   g_coalesced_site[256];
 static bool    g_link_this_slot = false;/* set by CompileSlot for a linkable slot */
 static uint8_t g_link_this_pc   = 0;    /* pc whose tail records into g_link_site */
 
@@ -461,6 +466,7 @@ static void rewind_locked(void)
   g_looped_cache[i].entry = NULL;
   g_link_site[i] = NULL;
   g_nic_site[i] = NULL;
+  g_coalesced_site[i] = NULL;
   g_pipe_delta[i] = 0;
  }
 
@@ -561,6 +567,20 @@ static void unlink_all(void)
    a64_codegen_set_wptr(g_cg, saved);
    g_nic_site[i] = NULL;
   }
+  if(g_coalesced_site[i])
+  {
+   /* The head's hot entry becomes a B to the fallback thunk's hot entry:
+    * X25 holds this slot's NI on every path that reaches it (tail
+    * dispatch, a re-pointed link, or the prelude on a cold entry), so
+    * the thunk flushes the pins and runs this one no-op through its C
+    * handler, whose TailDispatch then reads the fresh ProgRAM. */
+   void* saved = a64_codegen_wptr(g_cg);
+   a64_codegen_set_wptr(g_cg, g_coalesced_site[i]);
+   a64_b_addr(g_cg, (const char*)g_fallback_thunk[0] + SCU_JIT_SLOT_PRELUDE_BYTES);
+   a64_codegen_invalidate(g_cg, g_coalesced_site[i], sizeof(uint32_t));
+   a64_codegen_set_wptr(g_cg, saved);
+   g_coalesced_site[i] = NULL;
+  }
  }
 }
 
@@ -660,6 +680,18 @@ static void emit_instr_pre(bool looped)
    * X25 NI pin; NI/PC reach memory via emit_flush_pins() only.  No
    * NextInstrLooped clear: a normal slot only executes with the memory
    * byte already 0. */
+  /* Linear-entry guard.  Both specialisations below assume runtime
+   * PC == pc+1: the NI immediate obviously, and a linked tail too (its
+   * direct B goes to slot pc+1, i.e. to whatever NI would have been).
+   * Emit it for either, so linking stays guarded even if the NI
+   * immediate is ever disabled independently. */
+  if(g_nic_this_slot || g_link_this_slot)
+  {
+   const uint8_t gpc = g_nic_this_slot ? g_nic_this_pc : g_link_this_pc;
+   a64_cmp_w_imm(g_cg, W27, (uint32_t)((gpc + 1u) & 0xFFu));
+   a64_b_cond_addr(g_cg, A64_COND_NE,
+                   (const char*)g_fallback_thunk[0] + SCU_JIT_SLOT_PRELUDE_BYTES);
+  }
   if(g_nic_this_slot)
   {
    /* Linear entry: when runtime PC == pc+1 the fetch result is the
@@ -672,10 +704,7 @@ static void emit_instr_pre(bool looped)
     * which flushes the live pins (X25 still holds this slot's NI) and
     * re-dispatches this instruction through the C handler, whose
     * InstrPre reads the real PC.  Cost on the hot path is one CMP and
-    * one never-taken B.NE. */
-   a64_cmp_w_imm(g_cg, W27, (uint32_t)((g_nic_this_pc + 1u) & 0xFFu));
-   a64_b_cond_addr(g_cg, A64_COND_NE,
-                   (const char*)g_fallback_thunk[0] + SCU_JIT_SLOT_PRELUDE_BYTES);
+    * one never-taken B.NE (emitted above). */
    g_nic_site[g_nic_this_pc] = a64_codegen_wptr(g_cg);
    a64_mov_x_imm4(g_cg, X25, DSP.ProgRAM[(uint8_t)(g_nic_this_pc + 1u)]);
   }
@@ -1933,6 +1962,7 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
   {
    emit_gen_coalesced(pc, M);
    coalesced = true;
+   g_coalesced_site[pc] = (char*)start + SCU_JIT_SLOT_PRELUDE_BYTES;
   }
  }
 
