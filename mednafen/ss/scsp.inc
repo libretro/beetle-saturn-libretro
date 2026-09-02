@@ -2447,7 +2447,7 @@ static INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
  }
 
 #ifdef WANT_JIT
- if(MDFN_LIKELY(setting_jit_scsp && SCSP_DSP_JIT_Entry != nullptr))
+ if(MDFN_LIKELY(setting_jit_scsp && SCSP_DSP_JIT_Entry != NULL))
  {
   SCSP_DSP_JIT_Entry(z);
   return;

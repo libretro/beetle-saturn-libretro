@@ -337,24 +337,36 @@ static void check_variables(bool startup)
             cdimagecache = true;
       }
 
-      var.key = "beetle_saturn_jit_scu";
-      var.value = NULL;
-      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      /* The DSP JIT switches are startup-only.  Every decoded SCU
+       * ProgRAM[] / NextInstr entry encodes which dispatch scheme it
+       * belongs to (C-handler offset vs JIT slot entered at a bias),
+       * and DSP_DecodeInstruction picks the scheme from the live
+       * setting; flipping it mid-run leaves the two mixed and the next
+       * tail dispatch enters a C handler eight bytes in.  The SCSP side
+       * likewise folds RBL/RBP into compiled code keyed on the setting.
+       * Read them once at startup and ignore later changes; the option
+       * text already says "Restart required". */
+      if (startup)
       {
-         if (!strcmp(var.value, "disabled"))
-            setting_jit_scu = false;
-         else
-            setting_jit_scu = true;
-      }
+         var.key = "beetle_saturn_jit_scu";
+         var.value = NULL;
+         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+         {
+            if (!strcmp(var.value, "disabled"))
+               setting_jit_scu = false;
+            else
+               setting_jit_scu = true;
+         }
 
-      var.key = "beetle_saturn_jit_scsp";
-      var.value = NULL;
-      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-      {
-         if (!strcmp(var.value, "disabled"))
-            setting_jit_scsp = false;
-         else
-            setting_jit_scsp = true;
+         var.key = "beetle_saturn_jit_scsp";
+         var.value = NULL;
+         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+         {
+            if (!strcmp(var.value, "disabled"))
+               setting_jit_scsp = false;
+            else
+               setting_jit_scsp = true;
+         }
       }
 
       var.key = "beetle_saturn_shared_int";

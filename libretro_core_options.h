@@ -160,7 +160,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "beetle_saturn_jit_scu",
       "SCU DSP JIT Binary Translator",
       NULL,
-      "Use the native aarch64 JIT binary translator for the SCU DSP. Has no effect on non-aarch64 builds. Restart required.",
+      "Use the native aarch64 JIT binary translator for the SCU DSP. Only effective on Linux/Android aarch64 builds; elsewhere the interpreter is always used. Restart required.",
       NULL,
       "system",
       {
@@ -174,7 +174,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "beetle_saturn_jit_scsp",
       "SCSP DSP JIT Binary Translator",
       NULL,
-      "Use the native aarch64 JIT binary translator for the SCSP DSP (MPROG). Has no effect on non-aarch64 builds. Restart required.",
+      "Use the native aarch64 JIT binary translator for the SCSP DSP (MPROG). Only effective on Linux/Android aarch64 builds; elsewhere the interpreter is always used. Restart required.",
       NULL,
       "system",
       {
