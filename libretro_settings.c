@@ -16,3 +16,5 @@ bool setting_multitap_port2;
 bool opposite_directions;
 bool setting_midsync;
 bool setting_mpeg_card = false;
+bool setting_jit_scu = true;
+bool setting_jit_scsp = true;

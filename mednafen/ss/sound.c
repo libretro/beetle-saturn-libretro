@@ -41,6 +41,7 @@
 #include "scu.h"
 #include "cdb.h"
 #include "scsp.h"
+#include "scsp_dsp_jit.h"
 
 #include <string.h>
 #include "../state.h"
@@ -100,6 +101,20 @@ static INLINE void SCSP_MainIntChanged(bool state)
 }
 
 #include "scsp.inc"
+
+#ifdef WANT_JIT
+/* Trampolines into scsp.inc's INLINE bodies; placed here so LTO
+ * can inline the body straight into the trampoline. */
+void SCSP_DSP_run_step(SS_SCSP* scsp, unsigned step)
+{
+ SS_SCSP_RunDSPStep(scsp, step);
+}
+
+void SCSP_DSP_run_interpreter(SS_SCSP* scsp)
+{
+ SS_SCSP_RunDSPInterpreter(scsp);
+}
+#endif
 
 /* Forward decl: bus-callback bodies call RunSCSP, defined further
  * down (after the bus callbacks for source-order readability). */

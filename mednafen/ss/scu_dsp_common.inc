@@ -34,6 +34,11 @@
  * a C-future) and any other future C consumer say plain `DSPS*`. */
 typedef struct DSPS DSPS;
 
+#ifdef WANT_JIT
+ #include "scu_dsp_jit.h"
+extern bool setting_jit_scu;
+#endif
+
 // See loop in "SCU_UpdateDSP()" in scu.inc, and END/ENDI handling in scu_dsp_misc.c
 enum { DSP_EndCCSubVal = 1000000 };
 
@@ -88,6 +93,10 @@ struct DSPS
  int32_t State;
 
  uint64_t NextInstr;
+ /* The `looped` argument used to decode NextInstr's handler; saved and
+  * restored with the state.  Not inferable from NextInstr alone: the
+  * JIT swaps in its own compiled looped-slot pointer. */
+ bool NextInstrLooped;
 
  uint8_t PC;
  uint8_t RA;
@@ -184,6 +193,20 @@ static FORCE_INLINE uint64_t DSP_DecodeInstruction(const uint32_t instr, const b
 {
  void (*aal)(struct DSPS*);
 
+#ifdef WANT_JIT
+ /* JIT slot code dispatches NextInstr.low32 at a bias past the slot
+  * cold prelude, so a raw C-handler offset reaching that path would be
+  * entered mid-function.  Route every C-handler decode through the
+  * permanent fallback thunk, which is entry-compatible with both
+  * dispatch flavors and re-dispatches on NextInstr.high32. */
+ if(setting_jit_scu)
+ {
+  const uint64_t ni = SCU_DSP_JIT_FallbackNI(instr, looped);
+  if(ni)
+   return ni;
+ }
+#endif
+
  switch((instr >> 28) & 0xF)
  {
   default:
@@ -221,6 +244,23 @@ static FORCE_INLINE uint64_t DSP_DecodeInstruction(const uint32_t instr, const b
  return ((uint64_t)instr << 32) | (uint32_t)((uintptr_t)aal - DSP_INSTR_BASE_UIPT);
 }
 
+/* Same return format as DSP_DecodeInstruction; routes through the
+ * per-slot JIT cache and falls back to the C handler on miss. */
+static FORCE_INLINE uint64_t DSP_DecodeSlotInstruction(uint8_t pc, const uint32_t instr, const bool looped)
+{
+#ifdef WANT_JIT
+ if(setting_jit_scu)
+ {
+  void (* const jit_entry)(struct DSPS*) = SCU_DSP_JIT_CompileSlot(pc, looped, instr);
+  if(jit_entry)
+   return ((uint64_t)instr << 32) | (uint32_t)((uintptr_t)jit_entry - DSP_INSTR_BASE_UIPT);
+ }
+#else
+ (void)pc;
+#endif
+ return DSP_DecodeInstruction(instr, looped);
+}
+
 /* was `template<bool looped> static FORCE_INLINE uint32_t
  * DSP_InstrPre(DSPS* dsp)`.  Caller passes `looped` as a compile-time
  * constant (template arg of the surrounding instruction-handler in
@@ -233,6 +273,7 @@ static FORCE_INLINE uint32_t DSP_InstrPre(struct DSPS* dsp, const bool looped)
  if(!looped || !dsp->LOP)
  {
   dsp->NextInstr = dsp->ProgRAM[dsp->PC];
+  dsp->NextInstrLooped = false;
   dsp->PC++;
  }
 

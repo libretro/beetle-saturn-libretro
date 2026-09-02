@@ -64,6 +64,7 @@
  else if((OP) == 1)	/* LPS */                                                                  \
  {                                                                                                 \
   dsp->NextInstr = DSP_DecodeInstruction(dsp->NextInstr >> 32, true);                              \
+  dsp->NextInstrLooped = true;                                                                     \
  }                                                                                                 \
                                                                                                    \
  DSP_TailDispatch(dsp);                                                                            \

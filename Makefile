@@ -472,6 +472,23 @@ ifeq (,$(findstring msvc,$(platform)))
     CXXFLAGS += -MMD -MP
 endif
 
+# DSP JIT (SCU + SCSP MPROG): on by default.  Source-level guards keep
+# it a no-op on non-aarch64 builds, and the beetle_saturn_jit_scu /
+# beetle_saturn_jit_scsp libretro options gate dispatch at runtime.
+# Pass WANT_JIT=0 to drop it at compile time.
+WANT_JIT ?= 1
+ifeq ($(WANT_JIT), 1)
+    CFLAGS   += -DWANT_JIT
+    CXXFLAGS += -DWANT_JIT
+endif
+# DSP JIT perf jitdump emitter: writes /tmp/jit-<pid>.dump so `perf
+# inject --jit` can resolve [JIT] samples to per-slot symbols.
+# Diagnostic only, and the dump grows unbounded over long runs.
+# Requires WANT_JIT=1.
+ifeq ($(WANT_DSP_JIT_PERF_DUMP), 1)
+    CFLAGS += -DWANT_DSP_JIT_PERF_DUMP
+endif
+
 OBJOUT   = -o
 LINKOUT  = -o 
 

@@ -744,7 +744,12 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 	 {
 	  if(DSP.State == 0)
 	  {
-	   ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
+#ifdef WANT_JIT
+	   if(MDFN_LIKELY(setting_jit_scu && SCU_DSP_JIT_Entry != NULL))
+	    SCU_DSP_JIT_Entry(&DSP);
+	   else
+#endif
+	    ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
 	   if(DSP.CycleCounter < -(DSP_EndCCSubVal / 2))	// Ugh
 	    DSP.CycleCounter += DSP_EndCCSubVal;
 	  }
@@ -755,6 +760,7 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 	{
 	 DSP.PC = *DB;
 	 DSP.NextInstr = DSP_DecodeInstruction(0, false);
+	 DSP.NextInstrLooped = false;
 	 DSP.PRAMDMABufCount = 0;	// Kludgy~
 	}
 
@@ -763,7 +769,10 @@ static INLINE void SCU_RegRW_DB_u8_W1(uint32_t A, uint32_t* DB)
 
    case 0x84:
 	if(!DSPS_IsRunning(&DSP))
-	 DSP.ProgRAM[DSP.PC++] = DSP_DecodeInstruction(*DB, false);
+	{
+	 const uint8_t slot = DSP.PC++;
+	 DSP.ProgRAM[slot] = DSP_DecodeSlotInstruction(slot, *DB, false);
+	}
 	break;
 
    case 0x88:
@@ -1094,7 +1103,12 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 	 {
 	  if(DSP.State == 0)
 	  {
-	   ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
+#ifdef WANT_JIT
+	   if(MDFN_LIKELY(setting_jit_scu && SCU_DSP_JIT_Entry != NULL))
+	    SCU_DSP_JIT_Entry(&DSP);
+	   else
+#endif
+	    ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
 	   if(DSP.CycleCounter < -(DSP_EndCCSubVal / 2))	// Ugh
 	    DSP.CycleCounter += DSP_EndCCSubVal;
 	  }
@@ -1105,6 +1119,7 @@ static INLINE void SCU_RegRW_DB_u16_W1(uint32_t A, uint32_t* DB)
 	{
 	 DSP.PC = *DB;
 	 DSP.NextInstr = DSP_DecodeInstruction(0, false);
+	 DSP.NextInstrLooped = false;
 	 DSP.PRAMDMABufCount = 0;	// Kludgy~
 	}
 
@@ -1444,7 +1459,12 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
 	 {
 	  if(DSP.State == 0)
 	  {
-	   ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
+#ifdef WANT_JIT
+	   if(MDFN_LIKELY(setting_jit_scu && SCU_DSP_JIT_Entry != NULL))
+	    SCU_DSP_JIT_Entry(&DSP);
+	   else
+#endif
+	    ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)DSP.NextInstr))(&DSP);
 	   if(DSP.CycleCounter < -(DSP_EndCCSubVal / 2))	// Ugh
 	    DSP.CycleCounter += DSP_EndCCSubVal;
 	  }
@@ -1455,6 +1475,7 @@ static INLINE void SCU_RegRW_DB_u32_W1(uint32_t A, uint32_t* DB)
 	{
 	 DSP.PC = *DB;
 	 DSP.NextInstr = DSP_DecodeInstruction(0, false);
+	 DSP.NextInstrLooped = false;
 	 DSP.PRAMDMABufCount = 0;	// Kludgy~
 	}
 
@@ -3802,7 +3823,14 @@ sscpu_timestamp_t SCU_UpdateDSP(sscpu_timestamp_t timestamp)
   // remaining cycles via DSP_TailDispatch and only returns once the
   // budget is exhausted (or the DSP stopped).
   if(MDFN_LIKELY(dsp->CycleCounter > 0))
-   ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)dsp->NextInstr))(dsp);
+  {
+#ifdef WANT_JIT
+   if(MDFN_LIKELY(setting_jit_scu && SCU_DSP_JIT_Entry != NULL))
+    SCU_DSP_JIT_Entry(dsp);
+   else
+#endif
+    ((void (*)(DSPS*))(DSP_INSTR_BASE_UIPT + (uintptr_t)(DSP_INSTR_RECOVER_TCAST)dsp->NextInstr))(dsp);
+  }
  }
 
  if(MDFN_UNLIKELY(!DSPS_IsRunning(&DSP)))
@@ -3822,8 +3850,12 @@ static void DSP_Reset(bool powering_up)
 
  if(powering_up)
  {
+#ifdef WANT_JIT
+  if(setting_jit_scu)
+   SCU_DSP_JIT_Reset();
+#endif
   for(unsigned i = 0; i < 256; i++)
-   DSP.ProgRAM[i] = DSP_DecodeInstruction(0, false);
+   DSP.ProgRAM[i] = DSP_DecodeSlotInstruction(i, 0, false);
 
   for(unsigned i = 0; i < 256; i++)
    ((uint32_t*)DSP.DataRAM)[i] = 0;
@@ -3839,6 +3871,7 @@ static void DSP_Reset(bool powering_up)
  SCU_SetInt(SCU_INT_DSP, false);
 
  DSP.NextInstr = DSP_DecodeInstruction(0, false);
+ DSP.NextInstrLooped = false;
 
  DSP.TOP = 0;
  DSP.LOP = 0;
@@ -3870,6 +3903,10 @@ extern "C" {
 MDFN_COLD void DSP_Init(void)
 {
  DSP.LastTS = 0;
+#ifdef WANT_JIT
+ if(setting_jit_scu)
+  SCU_DSP_JIT_Init();
+#endif
 }
 
 void DSP_FinishPRAMDMA(void)
@@ -3879,12 +3916,16 @@ void DSP_FinishPRAMDMA(void)
  DSP.T0_Until = DSP.CycleCounter;
 
  for(uint32_t i = 0; i < DSP.PRAMDMABufCount; i++)
-  DSP.ProgRAM[DSP.PC++] = DSP_DecodeInstruction(DSP.PRAMDMABuf[i & 0xFF], false);
+ {
+  const uint8_t slot = DSP.PC++;
+  DSP.ProgRAM[slot] = DSP_DecodeSlotInstruction(slot, DSP.PRAMDMABuf[i & 0xFF], false);
+ }
 
  DSP.PRAMDMABufCount = 0;
  //
  DSP.PC = DSP.TOP;
  DSP.NextInstr = DSP_DecodeInstruction(0, false);
+ DSP.NextInstrLooped = false;
 }
 
 #ifdef __cplusplus
@@ -4348,7 +4389,7 @@ MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool dat
   DSP_ProgRAM[i] = DSP.ProgRAM[i] >> 32;
 
  DSP_NextInstr = DSP.NextInstr >> 32;
- DSP_NextInstrLooped = (DSP.NextInstr == DSP_DecodeInstruction(DSP.NextInstr >> 32, true));
+ DSP_NextInstrLooped = DSP.NextInstrLooped;
  //
  //
  const DMAWriteTabS* const dwt_ptrs[2] = { (const DMAWriteTabS*)dma_write_tab.acb, (const DMAWriteTabS*)dma_write_tab.aciv1 };
@@ -4406,13 +4447,18 @@ MDFN_COLD void SCU_StateAction(StateMem* sm, const unsigned load, const bool dat
   ILevel &= 0xF;
   //
   //
+#ifdef WANT_JIT
+  if(setting_jit_scu)
+   SCU_DSP_JIT_Reset();
+#endif
   for(unsigned i = 0; i < 256; i++)
-   DSP.ProgRAM[i] = DSP_DecodeInstruction(DSP_ProgRAM[i], false);
+   DSP.ProgRAM[i] = DSP_DecodeSlotInstruction(i, DSP_ProgRAM[i], false);
 
   if(DSP_NextInstrLooped)
    DSP.NextInstr = DSP_DecodeInstruction(DSP_NextInstr, true);
   else
    DSP.NextInstr = DSP_DecodeInstruction(DSP_NextInstr, false);
+  DSP.NextInstrLooped = DSP_NextInstrLooped;
 
   for(unsigned i = 0; i < 4; i++)
    DSP.CT[i] &= 0x3F;

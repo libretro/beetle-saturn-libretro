@@ -191,6 +191,15 @@ static INLINE void SS_SCSP_RecalcShortWaveMask(SS_SCSP_Slot* s)
 
 void SS_SCSP_Reset(SS_SCSP* z, bool powering_up)
 {
+#ifdef WANT_JIT
+ if(setting_jit_scsp)
+ {
+  if(powering_up)
+   SCSP_DSP_JIT_Init(z);
+  else
+   SCSP_DSP_JIT_Reset(z);
+ }
+#endif
  //
  // May need to add a DecodeSlotReg() function or something similar if we implement
  // more aggressive slot register value optimizations on writes in the future.
@@ -1138,8 +1147,13 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
 	{
 	 uint16_t tmp = z->RBP | (z->RBL << 7);
 	 tmp = (tmp &~ mask) | (((*DBV_p) << shift) & mask);
-	 z->RBP = tmp & 0x7F;
-	 z->RBL = (tmp >> 7) & 0x3;
+	 const uint8_t new_RBP = tmp & 0x7F;
+	 const uint8_t new_RBL = (tmp >> 7) & 0x3;
+	 // JIT folds RBL/RBP at emit time, so changes force a recompile.
+	 if(new_RBL != z->RBL || new_RBP != z->RBP)
+	  z->DSP.MPROG_Dirty = true;
+	 z->RBP = new_RBP;
+	 z->RBL = new_RBL;
 	}
 	break;
 
@@ -1371,7 +1385,8 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
   if(!(A & 2))
    mask &= 0xFF;
 
-  z->DSP.TEMP[index] = (z->DSP.TEMP[index] &~ mask) | (((*DBV_p) << shift) & mask & 0xFFFFFF);
+  /* Stored sign-extended to 32 bits; the insert can flip bit 23. */
+  z->DSP.TEMP[index] = sign_x_to_s32(24, (z->DSP.TEMP[index] &~ mask) | (((*DBV_p) << shift) & mask & 0xFFFFFF));
 
   return;
  }
@@ -1393,7 +1408,8 @@ INLINE void SS_SCSP_RW_u8_W1(SS_SCSP* z, uint32_t A, uint8_t* DBV_p)
   if(!(A & 2))
    mask &= 0xFF;
 
-  z->DSP.MEMS[index] = (z->DSP.MEMS[index] &~ mask) | (((*DBV_p) << shift) & mask & 0xFFFFFF);
+  /* Stored sign-extended to 32 bits; the insert can flip bit 23. */
+  z->DSP.MEMS[index] = sign_x_to_s32(24, (z->DSP.MEMS[index] &~ mask) | (((*DBV_p) << shift) & mask & 0xFFFFFF));
 
   return;
  }
@@ -1604,8 +1620,12 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
 	{
 	 uint16_t tmp = z->RBP | (z->RBL << 7);
 	 tmp = (tmp &~ mask) | (((*DBV_p) << shift) & mask);
-	 z->RBP = tmp & 0x7F;
-	 z->RBL = (tmp >> 7) & 0x3;
+	 const uint8_t new_RBP = tmp & 0x7F;
+	 const uint8_t new_RBL = (tmp >> 7) & 0x3;
+	 if(new_RBL != z->RBL || new_RBP != z->RBP)
+	  z->DSP.MPROG_Dirty = true;
+	 z->RBP = new_RBP;
+	 z->RBL = new_RBL;
 	}
 	break;
 
@@ -1829,7 +1849,8 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
   if(!(A & 2))
    mask &= 0xFF;
 
-  z->DSP.TEMP[index] = (z->DSP.TEMP[index] &~ mask) | (((*DBV_p) << shift) & mask & 0xFFFFFF);
+  /* Stored sign-extended to 32 bits; the insert can flip bit 23. */
+  z->DSP.TEMP[index] = sign_x_to_s32(24, (z->DSP.TEMP[index] &~ mask) | (((*DBV_p) << shift) & mask & 0xFFFFFF));
 
   return;
  }
@@ -1848,7 +1869,8 @@ INLINE void SS_SCSP_RW_u16_W1(SS_SCSP* z, uint32_t A, uint16_t* DBV_p)
   if(!(A & 2))
    mask &= 0xFF;
 
-  z->DSP.MEMS[index] = (z->DSP.MEMS[index] &~ mask) | (((*DBV_p) << shift) & mask & 0xFFFFFF);
+  /* Stored sign-extended to 32 bits; the insert can flip bit 23. */
+  z->DSP.MEMS[index] = sign_x_to_s32(24, (z->DSP.MEMS[index] &~ mask) | (((*DBV_p) << shift) & mask & 0xFFFFFF));
 
   return;
  }
@@ -2098,7 +2120,9 @@ static INLINE uint32_t dspfloat_to_int(const uint16_t inv)
  ret ^= sign_xor;
  ret = (int32_t)ret >> (8 + ((unsigned)(11) < (unsigned)(exp) ? (unsigned)(11) : (unsigned)(exp)));
 
- return ret & 0xFFFFFF;
+ /* |ret| < 2^23, so the value is its own 24-bit sign extension;
+  * returned unmasked, matching the DSP.ReadValue representation. */
+ return ret;
 }
 
 static INLINE uint32_t int_to_dspfloat(const uint32_t inv)
@@ -2237,15 +2261,12 @@ static void SS_SCSP_DecodeMPROG(SS_SCSP* z)
  z->DSP.MPROG_Dirty = false;
 }
 
-static NO_INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
+/* One MPROG step; the JIT BLs this per non-native step. */
+static INLINE void SS_SCSP_RunDSPStep(SS_SCSP* z, unsigned step)
 {
- if(z->DSP.MPROG_Dirty)
-  SS_SCSP_DecodeMPROG(z);
-
- for(unsigned step = 0; step < 128; step++)
  {
   const SS_SCSP_DSPStep* s = &z->DSP.MPROG_Decoded[step];
-  if(!s->live) continue;
+  if(!s->live) return;
   const uint32_t f = s->flags;
   const unsigned IRA = s->IRA;
   const unsigned TEMPWriteAddr = (s->TWA + z->DSP.MDEC_CT) & 0x7F;
@@ -2253,16 +2274,19 @@ static NO_INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
 
   //
   //
+  /* INPUTS, like TEMP/MEMS/ReadValue, holds its 24-bit value
+   * sign-extended to 32 bits.  MEMS already carries the extension; the
+   * EXTS (uint16) and MIXS (masked 20-bit) sources extend at insert. */
   if(IRA & 0x20)
   {
    if(IRA & 0x10)
    {
     if(!(IRA & 0xE))
-     z->DSP.INPUTS = z->EXTS[IRA & 0x1] << 8;
+     z->DSP.INPUTS = (uint32_t)(int16_t)z->EXTS[IRA & 0x1] << 8;
    }
    else
    {
-    z->DSP.INPUTS = z->DSP.MIXS[IRA & 0xF] << 4;
+    z->DSP.INPUTS = (uint32_t)sign_x_to_s32(20, z->DSP.MIXS[IRA & 0xF]) << 4;
    }
   }
   else
@@ -2270,7 +2294,7 @@ static NO_INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
    z->DSP.INPUTS = z->DSP.MEMS[IRA & 0x1F];
   }
 
-  const int32_t INPUTS = sign_x_to_s32(24, z->DSP.INPUTS);
+  const int32_t INPUTS = (int32_t)z->DSP.INPUTS;
   //
   // Y multiplicand selector.  YSEL is a 2-bit field; expressing it as a
   // runtime-indexed local array makes the compiler materialize a 4-entry
@@ -2305,19 +2329,19 @@ static NO_INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
    else if(ShifterOutput < -0x800000)
     ShifterOutput = 0x800000;
   }
-  ShifterOutput &= 0xFFFFFF;
+  ShifterOutput = sign_x_to_s32(24, ShifterOutput);
   //
   //
   if(f & DSPF_FRCL)
   {
    // F_SEL: shft0&shft1 picks low-12 vs high-13 bits of ShifterOutput.
    z->DSP.FRC_REG = (shft0 & shft1) ? (unsigned)(ShifterOutput & 0xFFF)
-                                 : (unsigned)(ShifterOutput >> 11);
+                                 : (unsigned)((ShifterOutput >> 11) & 0x1FFF);
   }
   //
   //
   {
-   const int32_t TEMP = sign_x_to_s32(24, z->DSP.TEMP[TEMPReadAddr]);
+   const int32_t TEMP = (int32_t)z->DSP.TEMP[TEMPReadAddr];
    // X_SEL: DSPF_XSEL picks INPUTS over TEMP for the multiplier's X side.
    const int32_t x_input = (f & DSPF_XSEL) ? INPUTS : TEMP;
    const uint32_t Product = ((int64_t)sign_x_to_s32(13, y_input) * x_input) >> 12;
@@ -2349,7 +2373,7 @@ static NO_INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
   if(z->DSP.ReadPending)
   {
    uint16_t tmp = z->RAM[z->DSP.RWAddr];
-   z->DSP.ReadValue = (z->DSP.ReadPending == 2) ? (tmp << 8) : dspfloat_to_int(tmp);
+   z->DSP.ReadValue = (z->DSP.ReadPending == 2) ? ((uint32_t)(int16_t)tmp << 8) : dspfloat_to_int(tmp);
    z->DSP.ReadPending = false;
   }
   else if(z->DSP.WritePending)
@@ -2395,14 +2419,42 @@ static NO_INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
   {
    // A_SEL: shft0&shft1 picks ShifterOutput>>12 vs INPUTS>>16. INPUTS is
    // sign-extended above; both branches truncate to 12 bits.
-   z->DSP.ADRS_REG = (shft0 & shft1) ? (uint16_t)(ShifterOutput >> 12)
+   z->DSP.ADRS_REG = (shft0 & shft1) ? (uint16_t)((ShifterOutput >> 12) & 0xFFF)
                                   : (uint16_t)((INPUTS >> 16) & 0xFFF);
   }
  }
+}
+
+static NO_INLINE void SS_SCSP_RunDSPInterpreter(SS_SCSP* z)
+{
+ for(unsigned step = 0; step < 128; step++)
+  SS_SCSP_RunDSPStep(z, step);
 
  if(!z->DSP.MDEC_CT)
   z->DSP.MDEC_CT = (0x2000 << z->RBL);
  z->DSP.MDEC_CT--;
+}
+
+static INLINE void SS_SCSP_RunDSP(SS_SCSP* z)
+{
+ if(z->DSP.MPROG_Dirty)
+ {
+  SS_SCSP_DecodeMPROG(z);
+#ifdef WANT_JIT
+  if(setting_jit_scsp)
+   SCSP_DSP_JIT_Compile(z);
+#endif
+ }
+
+#ifdef WANT_JIT
+ if(MDFN_LIKELY(setting_jit_scsp && SCSP_DSP_JIT_Entry != NULL))
+ {
+  SCSP_DSP_JIT_Entry(z);
+  return;
+ }
+#endif
+
+ SS_SCSP_RunDSPInterpreter(z);
 }
 #endif
 //
@@ -2846,6 +2898,19 @@ void SS_SCSP_StateAction(SS_SCSP* z, StateMem* sm, const unsigned load, const bo
   z->RBL &= 0x3;
 
   z->DSP.RWAddr &= 0x7FFFF;
+
+  /* TEMP/MEMS/INPUTS/ReadValue hold their 24-bit values sign-extended
+   * to 32 bits at runtime; the savestate carries whatever the writer
+   * had (older states: masked), so normalize on load. */
+  {
+   unsigned i;
+   for(i = 0; i < 0x80; i++)
+    z->DSP.TEMP[i] = sign_x_to_s32(24, z->DSP.TEMP[i]);
+   for(i = 0; i < 0x20; i++)
+    z->DSP.MEMS[i] = sign_x_to_s32(24, z->DSP.MEMS[i]);
+   z->DSP.INPUTS = sign_x_to_s32(24, z->DSP.INPUTS);
+   z->DSP.ReadValue = sign_x_to_s32(24, z->DSP.ReadValue);
+  }
 
   z->DSP.MPROG_Dirty = true;
 

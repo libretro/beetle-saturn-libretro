@@ -36,8 +36,9 @@
  *
  *   - CDIF_Queue was std::queue<CDIF_Message>.  In practice the
  *     in-flight depth is 1-3 messages (DIE + a handful of READ
- *     hints).  Replaced with a fixed-size 16-slot ring buffer with
- *     mutex+cond.  No heap alloc per push, no dynamic resizing.
+ *     hints).  Replaced with a mutex+cond ring buffer, 16 slots
+ *     initially, growing on demand; like the std::queue it never
+ *     drops a message.
  *
  *   - The CDIF_Open factory returned a heap-allocated polymorphic
  *     object; the destructor was a virtual function.  Now
@@ -80,32 +81,36 @@ typedef struct CDIF_Message
 } CDIF_Message;
 
 /* ------------------------------------------------------------------
- * CDIF_Queue - fixed-capacity SPSC ring buffer of CDIF_Message.
+ * CDIF_Queue - growable SPSC ring buffer of CDIF_Message.  Starts at
+ * CDIF_QUEUE_INIT_SIZE and doubles on overflow rather than dropping.
  * ------------------------------------------------------------------ */
 
-#define CDIF_QUEUE_SIZE 16
+#define CDIF_QUEUE_INIT_SIZE 16
 
 typedef struct CDIF_Queue
 {
-   CDIF_Message ring[CDIF_QUEUE_SIZE];
-   unsigned     head;     /* dequeue position */
-   unsigned     tail;     /* enqueue position */
-   unsigned     count;
-   slock_t     *mutex;
-   scond_t     *cond;
+   CDIF_Message *ring;    /* heap-allocated, `cap` entries */
+   unsigned      cap;     /* current capacity */
+   unsigned      head;    /* dequeue position */
+   unsigned      tail;    /* enqueue position */
+   unsigned      count;
+   slock_t      *mutex;
+   scond_t      *cond;
 } CDIF_Queue;
 
 static bool CDIF_Queue_Init(CDIF_Queue *q)
 {
+   q->cap   = CDIF_QUEUE_INIT_SIZE;
+   q->ring  = malloc(q->cap * sizeof(CDIF_Message));
    q->head  = 0;
    q->tail  = 0;
    q->count = 0;
    q->mutex = slock_new();
    q->cond  = scond_new();
-   /* slock_new / scond_new can return NULL on OOM.  Report up so
-    * CDIF_Open's MT-path init can roll back rather than deadlocking
+   /* malloc / slock_new / scond_new can return NULL on OOM.  Report up
+    * so CDIF_Open's MT-path init can roll back rather than deadlocking
     * later inside CDIF_Queue_Read on a half-initialised queue. */
-   return q->mutex && q->cond;
+   return q->ring && q->mutex && q->cond;
 }
 
 static void CDIF_Queue_Free(CDIF_Queue *q)
@@ -114,6 +119,8 @@ static void CDIF_Queue_Free(CDIF_Queue *q)
       slock_free(q->mutex);
    if (q->cond)
       scond_free(q->cond);
+   free(q->ring);
+   q->ring  = NULL;
    q->mutex = NULL;
    q->cond  = NULL;
 }
@@ -138,7 +145,7 @@ static bool CDIF_Queue_Read(CDIF_Queue *q, CDIF_Message *out, bool blocking)
    if (q->count != 0)
    {
       *out     = q->ring[q->head];
-      q->head  = (q->head + 1) % CDIF_QUEUE_SIZE;
+      q->head  = (q->head + 1) % q->cap;
       q->count--;
       ret      = true;
    }
@@ -151,16 +158,36 @@ static void CDIF_Queue_Write(CDIF_Queue *q, const CDIF_Message *msg)
 {
    slock_lock(q->mutex);
 
-   if (q->count < CDIF_QUEUE_SIZE)
+   /* Grow rather than drop when full.  A fast pre-buffered sequential
+    * read enqueues one READ_SECTOR per sector without ever blocking, so
+    * commands pile up faster than the read thread drains them.  If the
+    * dropped one is a later cache-missing request, the read thread never
+    * schedules that read and the emu thread waits on SBCond forever.  On
+    * overflow, linearise head..tail into a 2x buffer. */
+   if (q->count == q->cap)
+   {
+      unsigned      newcap = q->cap * 2;
+      CDIF_Message *nr     = malloc(newcap * sizeof(CDIF_Message));
+      if (nr)
+      {
+         unsigned i;
+         for (i = 0; i < q->count; i++)
+            nr[i] = q->ring[(q->head + i) % q->cap];
+         free(q->ring);
+         q->ring = nr;
+         q->cap  = newcap;
+         q->head = 0;
+         q->tail = q->count;
+      }
+   }
+
+   if (q->count < q->cap)
    {
       q->ring[q->tail] = *msg;
-      q->tail          = (q->tail + 1) % CDIF_QUEUE_SIZE;
+      q->tail          = (q->tail + 1) % q->cap;
       q->count++;
    }
-   /* If the ring is full the message is silently dropped.  In
-    * practice DIEDIEDIE (sent once) and READ_SECTOR (rate-limited
-    * by HintReadSector calls from the emu thread) can't fill a
-    * 16-slot ring in any realistic timing. */
+   /* Skipped only when the grow above failed (OOM). */
 
    scond_signal(q->cond);
    slock_unlock(q->mutex);
