@@ -234,6 +234,10 @@ static void emit_add_x_imm_safe(unsigned xd, unsigned xn, uint32_t imm)
 /* --- Stubs / globals --------------------------------------------- */
 
 static const void* g_exit_stub_addr = NULL;
+/* The dispatch stub past its CC/State checks: `add x16,x19,w25 ; br x16`.
+ * Target for unlink_all(): a linked tail re-pointed here dispatches on
+ * NI exactly as an unlinked one. */
+static const void* g_dispatch_nijump_addr = NULL;
 /* Shared CC-decrement/checks/indirect-dispatch stub (emit_dispatch_stub),
  * emitted once below g_post_stub_byte_offset, falling through into the exit
  * stub.  Every unlinked slot tail is a single B here. */
@@ -520,6 +524,46 @@ static void rewind_locked(void)
  * each contribute to dr_read/ct_inc.  The final d switch consults the
  * accumulated dr_read to skip duplicate DataRAM writes; d in C..F
  * folds a byte-clear into ct_inc. */
+/*
+ * A slot compiled while a chain is live (DSP_FinishPRAMDMA rewriting
+ * ProgRAM from a helper) replaces a slot that linked tails may still B
+ * into and NIC immediates may still name, and the deferred rewind only
+ * repairs that at the next chain entry -- so for the rest of this chain
+ * the old code would run.  Make every specialised site dynamic again in
+ * place: each link B is re-pointed at the dispatch stub's NI jump, and
+ * each NIC MOVZ/MOVK chain becomes the indexed ProgRAM load it stood in
+ * for (the guard already established W27 == pc+1, so the load fetches
+ * the fresh ProgRAM[pc+1]).  Both forms are what the unspecialised slot
+ * emits, and the icache is invalidated per site.  Cross-modifying code
+ * from the executing thread itself is fine on AArch64 once the DC/IC
+ * maintenance and ISB in a64_codegen_invalidate have run.
+ */
+static void unlink_all(void)
+{
+ unsigned i;
+ for(i = 0; i < 256; ++i)
+ {
+  if(g_link_site[i])
+  {
+   if(a64_patch_b(g_link_site[i], g_dispatch_nijump_addr))
+    a64_codegen_invalidate(g_cg, g_link_site[i], sizeof(uint32_t));
+   g_link_site[i] = NULL;
+  }
+  if(g_nic_site[i])
+  {
+   void* saved = a64_codegen_wptr(g_cg);
+   a64_codegen_set_wptr(g_cg, g_nic_site[i]);
+   emit_add_x_imm_safe(X4, X0, O_PRAM);
+   a64_ldr_x_idx_lsl(g_cg, X25, X4, X27, 3u);
+   while((char*)a64_codegen_wptr(g_cg) < (char*)g_nic_site[i] + 4u * sizeof(uint32_t))
+    a64_nop(g_cg);
+   a64_codegen_invalidate(g_cg, g_nic_site[i], 4u * sizeof(uint32_t));
+   a64_codegen_set_wptr(g_cg, saved);
+   g_nic_site[i] = NULL;
+  }
+ }
+}
+
 typedef struct {
  uint32_t dr_read;
  uint32_t ct_inc;
@@ -1691,6 +1735,7 @@ static void emit_dispatch_stub(void)
  a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
  a64_cmp_w_imm(g_cg, W22, 0u);
  a64_b_cond(g_cg, A64_COND_LE, exit_lbl);
+ g_dispatch_nijump_addr = a64_codegen_wptr(g_cg);
  a64_add_x_reg_sxtw(g_cg, X16, X19, W25);
  a64_br(g_cg, X16);
 
@@ -2004,7 +2049,11 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
   * whole program visible, replacing the plain slot emitted here before it
   * can execute a stale span. */
  if(!g_in_rewind && !looped)
+ {
+  if(g_chain_live)
+   unlink_all();
   g_rewind_pending = true;
+ }
 
  return (void (*)(struct DSPS*))start;
 }

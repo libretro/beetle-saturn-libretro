@@ -46,10 +46,32 @@ void SCU_SetInt(unsigned which, bool active) { (void)which; (void)active; }
 
 MDFN_COLD void DSP_Init(void) {}
 
+/* The real DSP_FinishPRAMDMA from scu.inc, so a program-RAM rewrite from
+ * inside a running chain (MVI to RAO/WAO/PC or END with a DMA pending)
+ * behaves identically on both sides.  run_slice() arms one periodically
+ * from a per-(program, slice) hash, so the rewrite-while-live paths --
+ * CompileSlot with a chain live, unlinking, the thunk -- are exercised. */
 void DSP_FinishPRAMDMA(void)
 {
- /* Never armed in this harness (PRAMDMABufCount stays 0). */
+ uint32_t i;
+ const uint8_t first = DSP.PC;
+ if(DSP.T0_Until < DSP.CycleCounter)
+  DSP.CycleCounter = DSP.T0_Until &~ 1;
+ DSP.T0_Until = DSP.CycleCounter;
+ for(i = 0; i < DSP.PRAMDMABufCount; i++)
+ {
+  const uint8_t slot = DSP.PC++;
+  DSP.ProgRAM[slot] = DSP_DecodeSlotInstruction(slot, DSP.PRAMDMABuf[i & 0xFF], false);
+ }
  DSP.PRAMDMABufCount = 0;
+ /* The core restarts at TOP.  Restart three slots before the rewritten
+  * range instead, so execution flows through the (old, possibly linked)
+  * predecessors into the replaced slots within this same chain -- the
+  * case a JIT with cached successor addresses must survive.  Identical
+  * on both sides, so still a valid oracle. */
+ DSP.PC = (uint8_t)(first - 3u);
+ DSP.NextInstr = DSP_DecodeInstruction(0, false);
+ DSP.NextInstrLooped = false;
 }
 
 static void dma_stub(struct DSPS* dsp)
@@ -138,8 +160,35 @@ static void load_program(bool jit)
  DSP.NextInstrLooped = false;
 }
 
+static unsigned g_prog_index, g_slice_index;
+static bool g_arm_pram = true;
+
 static void run_slice(bool jit)
 {
+ /* Deterministic PRAM DMA arming: identical on both sides. */
+ if(g_arm_pram)
+ {
+  uint32_t h = (g_prog_index * 2654435761u) ^ (g_slice_index * 40503u);
+  h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+  if((h & 7u) == 0u && DSP.PRAMDMABufCount == 0)
+  {
+   unsigned n = 1u + (h >> 3) % 6u, k;
+   DSP.PRAMDMABufCount = n;
+   for(k = 0; k < n; k++)
+   {
+    uint32_t w = h * (k + 7u) * 0x9E3779B1u;
+    w ^= w >> 11;
+    /* same instruction classes as rand_instr(), DMA excluded */
+    switch((w >> 28) & 0xF)
+    {
+     case 0x4: case 0x5: case 0x6: case 0x7: case 0xC: w &= 0x3FFFFFFFu; break;
+     default: break;
+    }
+    DSP.PRAMDMABuf[k] = w;
+   }
+  }
+  g_slice_index++;
+ }
  DSP.CycleCounter += g_budget;
  if(DSP.CycleCounter > DSP_UpdateTimingGran) DSP.CycleCounter = DSP_UpdateTimingGran;
  if(!DSPS_IsRunning(&DSP)) return;
@@ -183,7 +232,7 @@ static double bench_one(bool jit, unsigned nslice)
  memset(&init, 0, sizeof init);
  init.State = STATE_MASK_EXECUTE; init.PC = 0; init.TOP = 0; init.LOP = 0xFFF;
  init.CT32 = 0;
- DSP = init; load_program(jit);
+ DSP = init; load_program(jit); g_arm_pram = false;
  t0 = now_ns();
  for(s = 0; s < nslice; s++)
  {
@@ -215,8 +264,64 @@ static int bench(unsigned nslice)
  return 0;
 }
 
+/* --trace P S B [jit]: replay program P at budget B up to slice S on one
+ * side, then step slice S one instruction at a time, printing state. */
+static int trace(unsigned P, unsigned S, int B, bool jit)
+{
+ unsigned p, i, s;
+ for(p = 0; p <= P; p++)
+ {
+  struct DSPS init;
+  for(i = 0; i < 256; i++) prog[i] = rand_instr();
+  prog[rnd() & 0xFF] = 0xE8000000u | (rnd() & 0xFFF);
+  prog[rnd() & 0xFF] = 0xF0000000u;
+  memset(&init, 0, sizeof init);
+  init.State = STATE_MASK_EXECUTE;
+  init.T0_Until = 1 << 20;
+  init.PC = rnd() & 0xFF; init.LOP = rnd() & 0xFFF; init.TOP = rnd() & 0xFF;
+  init.CT32 = rnd() & 0x3F3F3F3F;
+  init.AC.T = ((uint64_t)rnd() << 32) | rnd(); init.P.T = ((uint64_t)rnd() << 32) | rnd();
+  init.RX = rnd(); init.RY = rnd();
+  for(i = 0; i < 256; i++) ((uint32_t*)init.DataRAM)[i] = rnd();
+  if(p < P) continue;
+  if(jit) { setting_jit_scu = true; SCU_DSP_JIT_Init(); }
+  DSP = init; load_program(jit); g_prog_index = p; g_slice_index = 0; g_budget = B < 0 ? -B : B;
+  for(s = 0; s < S; s++) run_slice(jit);
+  printf("slice %u start: pc=%02x ni=%08x lop=%03x cc=%d pram=%u top=%02x\n", S, DSP.PC, (unsigned)(DSP.NextInstr>>32), DSP.LOP, DSP.CycleCounter, DSP.PRAMDMABufCount, DSP.TOP);
+  if(B > 0)
+  {
+   run_slice(jit);
+   printf("slice %u end  : pc=%02x ni=%08x lop=%03x cc=%d pram=%u top=%02x\n", S, DSP.PC, (unsigned)(DSP.NextInstr>>32), DSP.LOP, DSP.CycleCounter, DSP.PRAMDMABufCount, DSP.TOP);
+  }
+  else
+  {
+   /* -B: replay at |B|, then single-step slice S (arming as the slice would) */
+   unsigned k; int cc_target;
+   g_budget = -B; g_arm_pram = true;
+   /* perform the slice's arming decision by running a zero-cycle slice */
+   { int save = g_budget; g_budget = 0; run_slice(jit); g_budget = save; }
+   cc_target = DSP.CycleCounter + (-B);
+   if(cc_target > 64) cc_target = 64;
+   g_arm_pram = false;
+   for(k = 0; k < 40 && DSP.CycleCounter < cc_target && DSPS_IsRunning(&DSP); k++)
+   {
+    DSP.CycleCounter += 2; g_budget = 0;
+    run_slice(jit);
+    printf("  step %2u: pc=%02x ni=%08x nil=%d lop=%03x cc=%d pram=%u top=%02x ac=%016llx\n", k, DSP.PC, (unsigned)(DSP.NextInstr>>32), DSP.NextInstrLooped, DSP.LOP, DSP.CycleCounter, DSP.PRAMDMABufCount, DSP.TOP, (unsigned long long)DSP.AC.T);
+   }
+  }
+  return 0;
+ }
+ return 0;
+}
+
 int main(int argc, char** argv)
 {
+ if(argc > 6 && !strcmp(argv[1], "--trace"))
+ {
+  rng_s = strtoull(argv[6], NULL, 0);
+  return trace((unsigned)atoi(argv[2]), (unsigned)atoi(argv[3]), atoi(argv[4]), atoi(argv[5]) != 0);
+ }
  if(argc > 1 && !strcmp(argv[1], "--bench"))
   return bench(argc > 2 ? (unsigned)atoi(argv[2]) : 2000000u);
 
@@ -245,6 +350,7 @@ int main(int argc, char** argv)
 
   memset(&init, 0, sizeof init);
   init.State = STATE_MASK_EXECUTE;
+  init.T0_Until = 1 << 20;          /* DMA completion far ahead: a chain survives a PRAM rewrite */
   init.PC = rnd() & 0xFF;
   init.LOP = rnd() & 0xFFF;
   init.TOP = rnd() & 0xFF;
@@ -255,7 +361,7 @@ int main(int argc, char** argv)
   for(i = 0; i < 256; i++) ((uint32_t*)init.DataRAM)[i] = rnd();
 
   /* --- interpreter --- */
-  DSP = init; load_program(false);
+  DSP = init; load_program(false); g_prog_index = p; g_slice_index = 0;
   for(s = 0; s < nslice; s++) { run_slice(false); snap(&snapA[s]); }
   a = DSP;
 
@@ -270,6 +376,7 @@ int main(int argc, char** argv)
     if(o1 > o0 && (size_t)(o1 - o0) > max_slot) max_slot = (size_t)(o1 - o0);
    }
   }
+  g_prog_index = p; g_slice_index = 0;
   for(s = 0; s < nslice; s++) { run_slice(true); snap(&snapB[s]); }
   b = DSP;
 
