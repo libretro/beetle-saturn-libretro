@@ -20,6 +20,8 @@
 #include <string.h>
 #include <assert.h>
 
+#include "../mednafen-types.h"   /* MDFN_UNLIKELY */
+
 /* ====================================================================
  * Section 1 -- non-aarch64 host: stub out every entry point.
  * ==================================================================== */
@@ -28,6 +30,7 @@
 struct a64_codegen { int dummy; };
 
 a64_codegen* a64_codegen_create(size_t bytes)                  { (void)bytes; return NULL; }
+a64_codegen* a64_codegen_create_near(size_t bytes, const void* near) { (void)bytes; (void)near; return NULL; }
 void         a64_codegen_destroy(a64_codegen* cg)              { (void)cg; }
 void*        a64_codegen_base    (const a64_codegen* cg)       { (void)cg; return NULL; }
 void*        a64_codegen_wptr    (const a64_codegen* cg)       { (void)cg; return NULL; }
@@ -35,6 +38,7 @@ size_t       a64_codegen_offset  (const a64_codegen* cg)       { (void)cg; retur
 size_t       a64_codegen_capacity(const a64_codegen* cg)       { (void)cg; return 0; }
 size_t       a64_codegen_remaining(const a64_codegen* cg)      { (void)cg; return 0; }
 void         a64_codegen_set_wptr(a64_codegen* cg, void* p)    { (void)cg; (void)p; }
+int          a64_codegen_overflowed(const a64_codegen* cg)     { (void)cg; return 1; }
 void*        a64_codegen_save   (const a64_codegen* cg)        { (void)cg; return NULL; }
 void         a64_codegen_restore(a64_codegen* cg, void* p)     { (void)cg; (void)p; }
 void         a64_codegen_invalidate(a64_codegen* cg, void* p, size_t b) { (void)cg; (void)p; (void)b; }
@@ -185,6 +189,7 @@ struct a64_codegen {
  uint32_t* base;    /* base of the mmap'd region */
  uint32_t* wp;      /* current write pointer (always within [base, end]) */
  size_t    size;    /* bytes in the region */
+ int       overflow; /* set once emit_w ran out of room; sticky until a64_codegen_set_wptr */
 
  /* Embedded 64-bit constant pool. */
  uint64_t  pool_values[A64_POOL_MAX_ENTRIES];
@@ -208,6 +213,80 @@ a64_codegen* a64_codegen_create(size_t bytes)
   return NULL;
  }
 
+ cg->base = (uint32_t*)mem;
+ cg->wp   = (uint32_t*)mem;
+ cg->size = bytes;
+ return cg;
+}
+
+/*
+ * Segment placement within +/-2 GiB of `near`.  Linux hands out
+ * mmap(NULL) addresses from the same top-down region shared libraries
+ * load into, so a plain mapping is usually close to the core's text --
+ * but nothing guarantees it (large heaps, 48-bit VA layouts, qemu-user
+ * all break it), and a caller that stores segment addresses as int32
+ * offsets from `near` would then silently truncate and jump into
+ * unmapped memory.  Probe hint addresses stepping outward from `near`
+ * (the kernel honours a free hint without MAP_FIXED and otherwise
+ * returns some other address), keep the first result that lands in
+ * range, and give up after a bounded number of probes.
+ */
+static int a64_within_2g(const void* near, const void* base, size_t bytes)
+{
+ const intptr_t lo = (intptr_t)((const char*)base - (const char*)near);
+ const intptr_t hi = (intptr_t)((const char*)base + bytes - (const char*)near);
+ return lo >= -(intptr_t)0x7FFFFFFF && hi <= (intptr_t)0x7FFFFFFF;
+}
+
+a64_codegen* a64_codegen_create_near(size_t bytes, const void* near)
+{
+ a64_codegen* cg;
+ void* mem = MAP_FAILED;
+ unsigned probe;
+ const size_t page = 0x10000u;   /* 64 KiB: covers any Linux/aarch64 page size */
+ const uintptr_t anchor = ((uintptr_t)near) & ~(uintptr_t)(page - 1u);
+ /* Step in 16 MiB increments up to ~1 GiB either side of `near`. */
+ const uintptr_t step = (uintptr_t)16u << 20;
+
+ if(!near)
+  return a64_codegen_create(bytes);
+
+ cg = (a64_codegen*)calloc(1, sizeof *cg);
+ if(!cg) return NULL;
+
+ for(probe = 1; probe <= 64u; probe++)
+ {
+  const uintptr_t delta = step * probe;
+  const uintptr_t cands[2] = { anchor + delta, (anchor > delta) ? anchor - delta : 0u };
+  unsigned k;
+  for(k = 0; k < 2; k++)
+  {
+   if(!cands[k]) continue;
+   mem = mmap((void*)cands[k], bytes, PROT_READ | PROT_WRITE | PROT_EXEC,
+              MAP_ANON | MAP_PRIVATE, -1, 0);
+   if(mem == MAP_FAILED) continue;
+   if(a64_within_2g(near, mem, bytes))
+    goto found;
+   munmap(mem, bytes);
+   mem = MAP_FAILED;
+  }
+ }
+
+ /* Last resort: whatever the kernel gives, checked. */
+ mem = mmap(NULL, bytes, PROT_READ | PROT_WRITE | PROT_EXEC,
+            MAP_ANON | MAP_PRIVATE, -1, 0);
+ if(mem != MAP_FAILED && !a64_within_2g(near, mem, bytes))
+ {
+  munmap(mem, bytes);
+  mem = MAP_FAILED;
+ }
+ if(mem == MAP_FAILED)
+ {
+  free(cg);
+  return NULL;
+ }
+
+found:
  cg->base = (uint32_t*)mem;
  cg->wp   = (uint32_t*)mem;
  cg->size = bytes;
@@ -241,7 +320,16 @@ size_t a64_codegen_remaining(const a64_codegen* cg)
 
 void a64_codegen_set_wptr(a64_codegen* cg, void* p)
 {
- if(cg) cg->wp = (uint32_t*)p;
+ if(cg)
+ {
+  cg->wp = (uint32_t*)p;
+  cg->overflow = 0;
+ }
+}
+
+int a64_codegen_overflowed(const a64_codegen* cg)
+{
+ return cg ? cg->overflow : 1;
 }
 
 void* a64_codegen_save(const a64_codegen* cg)
@@ -302,8 +390,23 @@ enum {
  A64_PATCH_TBNZ  = 2  /* imm14 at bits 18..5  (TBZ / TBNZ) */
 };
 
+/*
+ * Every emitted word goes through here.  The callers size their
+ * segments generously (SCU: 1 KiB per slot budget checked before each
+ * compile; SCSP: 64 KiB for a 128-step program), but neither bound is
+ * enforced by construction, so a miscounted emitter would otherwise
+ * scribble past the mapping into whatever the kernel placed next.  Fail
+ * loudly instead: assert() in debug builds, and in release builds drop
+ * the word and latch the overflow so the segment is never executed.
+ */
 static void emit_w(a64_codegen* cg, uint32_t w)
 {
+ assert((char*)cg->wp + sizeof(uint32_t) <= (char*)cg->base + cg->size);
+ if(MDFN_UNLIKELY((char*)cg->wp + sizeof(uint32_t) > (char*)cg->base + cg->size))
+ {
+  cg->overflow = 1;
+  return;
+ }
  *cg->wp++ = w;
 }
 

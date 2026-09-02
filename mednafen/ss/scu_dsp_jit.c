@@ -618,8 +618,20 @@ static void emit_instr_pre(bool looped)
    * byte already 0. */
   if(g_nic_this_slot)
   {
-   /* Linear entry: runtime PC == pc+1, so the fetch result is the
-    * compile-time constant ProgRAM[pc+1] (see g_nic_site). */
+   /* Linear entry: when runtime PC == pc+1 the fetch result is the
+    * compile-time constant ProgRAM[pc+1] (see g_nic_site).  The static
+    * predicate (predecessor can't perturb PC) is necessary but not
+    * sufficient: a branch executing in another branch's delay slot
+    * lands its own delay slot -- this very slot -- with PC equal to
+    * the second target, and BTM's TOP makes that unpredictable.  Guard
+    * at runtime: on a mismatch, bail to the fallback thunk's hot entry,
+    * which flushes the live pins (X25 still holds this slot's NI) and
+    * re-dispatches this instruction through the C handler, whose
+    * InstrPre reads the real PC.  Cost on the hot path is one CMP and
+    * one never-taken B.NE. */
+   a64_cmp_w_imm(g_cg, W27, (uint32_t)((g_nic_this_pc + 1u) & 0xFFu));
+   a64_b_cond_addr(g_cg, A64_COND_NE,
+                   (const char*)g_fallback_thunk[0] + SCU_JIT_SLOT_PRELUDE_BYTES);
    g_nic_site[g_nic_this_pc] = a64_codegen_wptr(g_cg);
    a64_mov_x_imm4(g_cg, X25, DSP.ProgRAM[(uint8_t)(g_nic_this_pc + 1u)]);
   }
@@ -1111,12 +1123,17 @@ static void emit_load_anchor_pin(void)
 
 /*
  * Shared cold-reconstruction prelude (see g_prelude_stub_addr).  Reloads
- * the eight cross-block pins from DSPS, then BR X16 back into the slot
- * body.  State (W22) and NI (X25) are not reloaded: the entry stub,
- * emit_instr_pre and the helper resync own them.
+ * every pin from DSPS, then BR X16 back into the slot body.  A cold
+ * entry arrives from C (the entry stub's BLR, or DSP_TailDispatch in a
+ * C handler) with memory current and every register stale, so the body
+ * must be able to rely on the whole pin set -- including NI (X25) and
+ * State (W22), which the linear-entry guard in emit_instr_pre reads
+ * before the body's own NI fetch replaces it.
  */
 static void emit_prelude_stub(void)
 {
+ a64_ldr_x_imm(g_cg, X25, X0, O_NI);
+ a64_ldr_w_imm(g_cg, W22, X0, O_State);
  emit_load_cc_pin();
  emit_load_ct32_pin();
  emit_load_flags_pin();
@@ -1742,7 +1759,11 @@ void SCU_DSP_JIT_Init(void)
 
  if(!g_cg)
  {
-  g_cg = a64_codegen_create(SCU_JIT_CODE_SEGMENT_SIZE);
+  /* Slot entries live in ProgRAM[].low32 / NextInstr.low32 as int32
+   * offsets from DSP_Init (DSP_INSTR_BASE_UIPT), so the segment must
+   * sit within +/-2 GiB of it; a64_codegen_create_near refuses any
+   * other placement and the JIT then stays off (Entry == NULL). */
+  g_cg = a64_codegen_create_near(SCU_JIT_CODE_SEGMENT_SIZE, (const void*)DSP_INSTR_BASE_UIPT);
   if(!g_cg) return;
   g_seg_start = a64_codegen_wptr(g_cg);
 
@@ -1948,6 +1969,17 @@ void (*SCU_DSP_JIT_CompileSlot(uint8_t pc, bool looped, uint32_t instr))(struct 
   * branch, or the DMA fallback's BR X16), so the pool data emitted
   * here is unreachable. */
  a64_pool_flush(g_cg);
+
+ /* A slot that outgrew SCU_JIT_SLOT_MAX_BYTES could only have been
+  * caught by the segment-end guard in emit_w; never publish such code.
+  * Rewinding wp discards it, and the C-decode fallback in
+  * DSP_DecodeSlotInstruction routes the slot through the thunk. */
+ if(MDFN_UNLIKELY(a64_codegen_overflowed(g_cg)))
+ {
+  a64_codegen_set_wptr(g_cg, start);
+  labels_reset();
+  return NULL;
+ }
 
  end = a64_codegen_wptr(g_cg);
  a64_codegen_invalidate(g_cg, start,

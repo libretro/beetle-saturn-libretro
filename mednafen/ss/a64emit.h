@@ -67,6 +67,13 @@ typedef struct a64_codegen a64_codegen;
 /* Allocate `bytes` of RWX memory and a code-generator pointing at its
  * base.  Returns NULL on failure (mmap returned MAP_FAILED). */
 a64_codegen* a64_codegen_create(size_t bytes);
+
+/* Like a64_codegen_create, but tries to place the segment within
+ * +/-2 GiB of `near` (a code address in the host binary).  Returns
+ * NULL if no such placement can be found, so a caller that encodes
+ * segment addresses as 32-bit offsets from `near` never gets a
+ * mapping it cannot reach. */
+a64_codegen* a64_codegen_create_near(size_t bytes, const void* near);
 void         a64_codegen_destroy(a64_codegen*);
 
 void*  a64_codegen_base    (const a64_codegen*);
@@ -80,6 +87,9 @@ size_t a64_codegen_remaining(const a64_codegen*);
 /* Move the write pointer to `p` (which must point inside the segment).
  * Outstanding labels are not reset. */
 void a64_codegen_set_wptr(a64_codegen*, void* p);
+/* Non-zero once an emit ran past the segment end (sticky until the
+ * next a64_codegen_set_wptr); callers must not publish such code. */
+int  a64_codegen_overflowed(const a64_codegen*);
 
 /* Save / restore the write pointer around an excursion to another
  * region of the segment. */

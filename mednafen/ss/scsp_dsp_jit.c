@@ -927,6 +927,15 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
   * end in RET, so the pool data emitted here is unreachable code. */
  a64_pool_flush(g_cg);
 
+ /* A program that outgrew SCSP_JIT_CODE_BYTES tripped the segment-end
+  * guard in emit_w; leave the interpreter in charge rather than run a
+  * truncated body. */
+ if(MDFN_UNLIKELY(a64_codegen_overflowed(g_cg)))
+ {
+  SCSP_DSP_JIT_Entry = NULL;
+  return;
+ }
+
  void* const end_addr = a64_codegen_wptr(g_cg);
  const size_t code_bytes = (size_t)((char*)end_addr - (char*)entry_addr);
  a64_codegen_invalidate(g_cg, entry_addr, code_bytes);
