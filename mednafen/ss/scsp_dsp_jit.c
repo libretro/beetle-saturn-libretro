@@ -842,8 +842,15 @@ void SCSP_DSP_JIT_Compile(struct SS_SCSP* scsp)
                           so a preloaded RAM word (W6) has a consumer */
  memset(reads_rwaddr, 0, sizeof(reads_rwaddr));
  memset(may_read, 0, sizeof(may_read));
- {
-  unsigned rp = 0, wp = 0;
+ /* The flags entering the first pass are not this program's to
+  * predict: a recompile happens on an MPROG or RBL/RBP write while the
+  * previous program's ReadPending/WritePending may still be latched,
+  * and a savestate carries arbitrary values.  Simulate from every one
+  * of the four entry states and union the results, so the RWAddr fold
+  * below can never elide an update that a carried-in pending write
+  * would consume at the next live step. */
+ for(unsigned init = 0; init < 4u; ++init) {
+  unsigned rp = init & 1u, wp = (init >> 1) & 1u;
   for(unsigned pass = 0; pass < 6u; ++pass) {
    for(unsigned i = 0; i < 128u; ++i) {
     const SS_SCSP_DSPStep* s = &scsp->DSP.MPROG_Decoded[i];
