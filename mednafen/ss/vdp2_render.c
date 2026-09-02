@@ -34,7 +34,6 @@
 
 #include <retro_timers.h>
 #include <rthreads/rthreads.h>
-#include <rthreads/rsemaphore.h>
 #include <string.h>
 #include <stdatomic.h>
 
@@ -5009,12 +5008,23 @@ struct __attribute__((aligned(64))) ConsumerState
 static struct ProducerState Prod;
 static struct ConsumerState Cons;
 static bool DoBusyWait;
-ssem_t* WakeupSem;
+
+/* Consumer wakeup.  The command queue itself is the lock-free SPSC ring
+ * above; this pair only parks the consumer while the ring is empty and
+ * busy-waiting is off.  It replaces a counting semaphore (rsemaphore,
+ * which libretro-common no longer carries): the semaphore's count was
+ * never load-bearing, because the consumer re-reads WQ_PushCount after
+ * every wait anyway, so a condvar with the predicate re-checked under
+ * WakeLock is the same protocol.  The producer publishes WQ_PushCount
+ * (release) before it signals, and the consumer checks it under the
+ * lock before it waits, which closes the missed-wakeup window. */
+static slock_t *WakeLock = NULL;
+static scond_t *WakeCond = NULL;
 
 // Drain coordination: when EndFrame is called the producer has to wait
 // for the consumer to finish this frame's DRAW_LINE commands -- i.e. for
 // DrawFinishCount to catch up to the producer's DrawPushLocal. The old
-// implementation spun: ssem_signal(WakeupSem) + retro_sleep repeatedly
+// implementation spun: wake the consumer + retro_sleep repeatedly
 // until the two were equal. That works but burns producer CPU on every
 // frame transition for as long as the consumer takes -- and on some
 // systems retro_sleep(0) is implemented as sched_yield(), which keeps
@@ -5030,6 +5040,13 @@ ssem_t* WakeupSem;
 static slock_t  *DrainLock = NULL;
 static scond_t  *DrainCond = NULL;
 static bool DoWakeupIfNecessary;
+
+static INLINE void WakeConsumer(void)
+{
+ slock_lock(WakeLock);
+ scond_signal(WakeCond);
+ slock_unlock(WakeLock);
+}
 
 static INLINE void WWQ(uint16_t command, uint32_t arg32, uint16_t arg16)
 {
@@ -5064,7 +5081,12 @@ static void/*int*/ RThreadEntry(void* data)
   while(MDFN_UNLIKELY(VDP2_ATOMIC_LOAD_ACQ(WQ_PushCount) == Cons.PopLocal))
   {
    if(!DoBusyWait)
-    ssem_wait(WakeupSem);
+   {
+    slock_lock(WakeLock);
+    while(VDP2_ATOMIC_LOAD_ACQ(WQ_PushCount) == Cons.PopLocal)
+     scond_wait(WakeCond, WakeLock);
+    slock_unlock(WakeLock);
+   }
    else
    {
 #ifdef MDFN_SS_BUSYWAIT_PAUSE
@@ -5156,6 +5178,14 @@ static void/*int*/ RThreadEntry(void* data)
   //
   Cons.ReadPos = (Cons.ReadPos + 1) % WQ_SIZE;
   VDP2_ATOMIC_STORE_REL(WQ_PopCount, ++Cons.PopLocal);
+  /* Queue drained: wake a producer parked in StateAction's full-drain
+   * wait.  Fires once per catch-up, not per command. */
+  if(Cons.PopLocal == VDP2_ATOMIC_LOAD_ACQ(WQ_PushCount))
+  {
+   slock_lock(DrainLock);
+   scond_signal(DrainCond);
+   slock_unlock(DrainLock);
+  }
  }
 
  // return 0; // Libretro fix
@@ -5182,7 +5212,8 @@ void VDP2REND_Init(const bool IsPAL, const uint64_t affinity)
  VDP2_ATOMIC_STORE_REL(DrawFinishCount, 0);
  VDP2_ATOMIC_STORE_REL(DrawPushCount, 0);
  VDP2_ATOMIC_STORE_REL(BurstPopCount, 0);
- WakeupSem = ssem_new(0);
+ WakeLock = slock_new();
+ WakeCond = scond_new();
  DrainLock = slock_new();
  DrainCond = scond_new();
  RThread = sthread_create(RThreadEntry, NULL);
@@ -5248,10 +5279,10 @@ void VDP2REND_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int
 
 void VDP2REND_Kill(void)
 {
- if(WakeupSem != NULL)
+ if(WakeCond != NULL)
  {
   WWQ(COMMAND_SET_BUSYWAIT, true, 0);
-  ssem_signal(WakeupSem);
+  WakeConsumer();
  }
 
  if(RThread != NULL)
@@ -5261,16 +5292,21 @@ void VDP2REND_Kill(void)
   /* sthread_join frees the handle (libretro-common's rthreads.c
      does `free(thread)` at the end of sthread_join), so RThread
      points to released memory after this point. NULL it to match
-     the post-free pattern used for WakeupSem / DrainCond /
+     the post-free pattern used for WakeCond / DrainCond /
      DrainLock below, so a re-entry of Kill (or any future code
      that NULL-checks RThread) sees a clean state. */
   RThread = NULL;
  }
 
- if(WakeupSem != NULL)
+ if(WakeCond != NULL)
  {
-  ssem_free(WakeupSem);
-  WakeupSem = NULL;
+  scond_free(WakeCond);
+  WakeCond = NULL;
+ }
+ if(WakeLock != NULL)
+ {
+  slock_free(WakeLock);
+  WakeLock = NULL;
  }
 
  // Drain primitives are freed after sthread_join above so we can't be
@@ -5318,7 +5354,7 @@ void VDP2REND_EndFrame(void)
  // Wait for the consumer thread to finish all queued DRAW_LINE
  // commands for this frame -- i.e. for DrawFinishCount to catch up
  // to the producer-local DrawPushLocal. Replaces an old spin-yield
- // loop (ssem_signal(WakeupSem) + retro_sleep repeatedly) with a
+ // loop (wake the consumer + retro_sleep repeatedly) with a
  // condvar wait. The consumer's DRAW_LINE handler signals DrainCond
  // on the completion that levels the two counters; see the case in
  // RThreadEntry. The slock around scond_wait is POSIX-required even
@@ -5326,12 +5362,12 @@ void VDP2REND_EndFrame(void)
  // lock is what closes the missed-wakeup race between checking the
  // counters and entering scond_wait.
  //
- // The initial WakeupSem signal is still needed: it kicks the
- // consumer out of any ssem_wait it might be in on an empty
- // command queue, so progress on DrawFinishCount can resume.
+ // The initial wakeup is still needed: it kicks the consumer out of
+ // any parked wait it might be in on an empty command queue, so
+ // progress on DrawFinishCount can resume.
  if (MDFN_UNLIKELY(VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount) != Prod.DrawPushLocal))
  {
-  ssem_signal(WakeupSem);
+  WakeConsumer();
   slock_lock(DrainLock);
   while (VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount) != Prod.DrawPushLocal)
    scond_wait(DrainCond, DrainLock);
@@ -5422,7 +5458,7 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool 
   if(crt_line == bwthresh)
   {
    WWQ(COMMAND_SET_BUSYWAIT, true, 0);
-   ssem_signal(WakeupSem);
+   WakeConsumer();
   }
   else if(crt_line < bwthresh)
   {
@@ -5431,7 +5467,7 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool 
    else if((wdcq + queued_lines) >= 64 && DoWakeupIfNecessary)
    {
     //printf("Post Wakeup: %3d --- crt_line=%3d\n", wdcq + queued_lines, crt_line);
-    ssem_signal(WakeupSem);
+    WakeConsumer();
     DoWakeupIfNecessary = false;
    }
   }
@@ -5513,10 +5549,18 @@ void VDP2REND_WriteBurst16_DB(uint32_t base, uint32_t n16, uint32_t add_mode, co
 
 void VDP2REND_StateAction(StateMem* sm, const unsigned load, const bool data_only, uint16_t* rr, uint16_t* cr, uint16_t* vr)
 {
- while(MDFN_UNLIKELY(VDP2_ATOMIC_LOAD_ACQ(WQ_PopCount) != Prod.PushLocal))
+ // Full drain: every queued command must have been consumed before the
+ // renderer state is serialised.  Wake the consumer once, then block on
+ // DrainCond, which the consumer signals each time it catches up with
+ // WQ_PushCount; the predicate is re-checked under DrainLock.  This
+ // replaces a wake + retro_sleep(1) poll.
+ if(MDFN_UNLIKELY(VDP2_ATOMIC_LOAD_ACQ(WQ_PopCount) != Prod.PushLocal))
  {
-  ssem_signal(WakeupSem);
-  retro_sleep(1);
+  WakeConsumer();
+  slock_lock(DrainLock);
+  while(VDP2_ATOMIC_LOAD_ACQ(WQ_PopCount) != Prod.PushLocal)
+   scond_wait(DrainCond, DrainLock);
+  slock_unlock(DrainLock);
  }
  //
  //

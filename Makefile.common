@@ -215,8 +215,7 @@ SOURCES_C += 	 $(LIBRETRO_COMM_DIR)/formats/mpeg1/rmpeg1_ps.c \
 endif
 
 ifeq ($(NEED_THREADING), 1)
-SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/rthreads/rthreads.c \
-		 $(LIBRETRO_COMM_DIR)/rthreads/rsemaphore.c
+SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/rthreads/rthreads.c
 endif
 
 # Dynamically loaded builds only: statically linked frontends share one
