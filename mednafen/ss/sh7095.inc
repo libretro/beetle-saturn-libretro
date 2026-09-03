@@ -136,7 +136,7 @@ static void SH7095_DoIDIF_INLINE_C0_I0(SH7095* z);
 static void SH7095_DoIDIF_INLINE_C0_I1(SH7095* z);
 static void SH7095_DoIDIF_INLINE_C1_I0(SH7095* z);
 static void SH7095_DoIDIF_INLINE_C1_I1(SH7095* z);
-static void SH7095_DoIDIF_NI_C0_I0(SH7095* z);
+MDFN_HIDE void SH7095_DoIDIF_NI_C0_I0(SH7095* z);   /* exported: sh7095_jit handlers call it */
 static void SH7095_DoIDIF_NI_C0_I1(SH7095* z);
 static void SH7095_DoIDIF_NI_C1_I0(SH7095* z);
 static void SH7095_DoIDIF_NI_C1_I1(SH7095* z);
@@ -4912,7 +4912,7 @@ static INLINE void SH7095_DoIDIF_INLINE_C1_I1(SH7095* z)
  DoIDIF_MACRO(true);
 }
 
-static NO_INLINE MDFN_HOT void SH7095_DoIDIF_NI_C0_I0(SH7095* z)
+MDFN_HIDE NO_INLINE MDFN_HOT void SH7095_DoIDIF_NI_C0_I0(SH7095* z)
 {
  SH7095_DoIDIF_INLINE_C0_I0(z);
 }
@@ -4957,6 +4957,59 @@ FORCE_INLINE void SH7095_Step_w0_C0(SH7095* z)
  //
  #include "sh7095_ops.inc"
  //
+}
+
+/* Out-of-line copy of the master's no-icache step, for the JIT's
+ * fallback: the inline one stays in its own RunLoop untouched. */
+static NO_INLINE MDFN_HOT void SH7095_Step_w0_C0_NI(SH7095* z)
+{
+ SH7095_Step_w0_C0(z);
+}
+
+/* Master step with the instruction JIT (see sh7095_jit.h).  Same
+ * FRT/WDT check as the interpreter; an ordinary instruction (op byte
+ * < 0x80: not a delay slot, no exception pending) with a native
+ * handler runs it, everything else runs the interpreter's switch. */
+static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
+{
+ if(MDFN_UNLIKELY(z->timestamp >= z->FRT_WDT_NextTS))
+ {
+  SH7095_FRT_WDT_Update(z);
+  SH7095_FRT_WDT_Recalc_NET(z);
+ }
+ if(MDFN_LIKELY((z->Pipe_ID >> 24) < 0x80))
+ {
+  void (*h)(struct SH7095*) = SH2JIT_Table[z->Pipe_ID & 0xFFFF];
+  if(MDFN_UNLIKELY(!h))
+   h = SH2JIT_Handler(z->Pipe_ID & 0xFFFF);
+  if(MDFN_LIKELY(h != NULL))
+  {
+#ifdef SH2JIT_VERIFY
+   /* Debug: run the handler on a copy and the interpreter on the real
+    * state, then compare.  Valid while no handler writes memory. */
+   {
+    static SH7095 tmp; static unsigned reported;
+    const uint32_t instr = z->Pipe_ID & 0xFFFF;
+    memcpy(&tmp, z, sizeof tmp);
+    h(&tmp);
+    SH7095_Step_w0_C0_NI(z);
+    if(memcmp(&tmp, z, sizeof tmp) && reported < 8)
+    {
+     const unsigned char* a = (const unsigned char*)&tmp; const unsigned char* b = (const unsigned char*)z;
+     size_t i; reported++;
+     for(i = 0; i < sizeof tmp; i++) if(a[i] != b[i]) break;
+     fprintf(stderr, "SH2JIT mismatch instr=%04x first byte off=%zu (R=%zu PC=%zu SR=%zu ts=%zu MA=%zu WB=%zu Pipe_ID=%zu) jit=%08x interp=%08x\n",
+      instr, i, offsetof(SH7095, R), offsetof(SH7095, PC), offsetof(SH7095, SR), offsetof(SH7095, timestamp), offsetof(SH7095, MA_until), offsetof(SH7095, WB_until), offsetof(SH7095, Pipe_ID),
+      *(const uint32_t*)(a + (i & ~3u)), *(const uint32_t*)(b + (i & ~3u)));
+    }
+    return;
+   }
+#endif
+   h(z);
+   return;
+  }
+ }
+ SH7095_Step_w0_C0_NI(z);
 }
 
 FORCE_INLINE void SH7095_Step_w0_C1(SH7095* z)

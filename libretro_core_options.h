@@ -171,6 +171,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "enabled"
    },
    {
+      "beetle_saturn_sh2_jit",
+      "SH-2 Instruction JIT (experimental)",
+      NULL,
+      "Run the master SH-2's ordinary instructions through natively compiled per-instruction handlers, keeping the interpreter's exact timing. Only with CPU cache emulation off ('Data only'), x86/x86-64 only. Restart required.",
+      NULL,
+      "system",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled"
+   },
+   {
       "beetle_saturn_jit_scsp",
       "SCSP DSP JIT Binary Translator",
       NULL,

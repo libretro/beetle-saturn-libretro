@@ -49,6 +49,7 @@
 
 #include "libretro_core_options.h"
 #include "libretro_settings.h"
+#include "mednafen/ss/sh7095_jit.h"
 #include "input.h"
 #include "disc.h"
 
@@ -357,6 +358,13 @@ static void check_variables(bool startup)
             else
                setting_jit_scu = true;
          }
+
+         var.key = "beetle_saturn_sh2_jit";
+         var.value = NULL;
+         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+            setting_sh2_jit = !strcmp(var.value, "enabled");
+         if (setting_sh2_jit)
+            SH2JIT_Init();
 
          var.key = "beetle_saturn_jit_scsp";
          var.value = NULL;

@@ -18,3 +18,4 @@ bool setting_midsync;
 bool setting_mpeg_card = false;
 bool setting_jit_scu = true;
 bool setting_jit_scsp = true;
+bool setting_sh2_jit = false;

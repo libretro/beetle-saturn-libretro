@@ -89,6 +89,7 @@ bool NeedEmuICache;
 #include "ss_state.h"
 
 #include "sh7095.h"
+#include "sh7095_jit.h"
 
 static uint8_t SCU_MSH2VectorFetch(void);
 static uint8_t SCU_SSH2VectorFetch(void);
@@ -1144,6 +1145,48 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
  return eff_ts;
 }
 
+/* Same loop with the master on the instruction JIT. */
+static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache_JIT(EmulateSpecStruct* espec)
+{
+
+ sscpu_timestamp_t eff_ts = 0;
+
+ do
+ {
+  SMPC_ProcessSlaveOffOn();
+  //
+  //
+  Running = true;
+  ForceEventUpdates(eff_ts);
+  do
+  {
+   do
+   {
+    /* master Step dispatch.  RunLoop is templated on
+     * EmulateICache so this folds to one direct call per
+     * instantiation. */
+    SH7095_Step_JIT_w0_C0(&CPU[0]);
+    SH7095_DMA_BusTimingKludge(&CPU[0]);
+
+    {
+     while(MDFN_LIKELY(CPU[0].timestamp > CPU[1].timestamp))
+     {
+      SH7095_Step_w1_C0(&CPU[1]);
+     }
+    }
+
+    eff_ts = CPU[0].timestamp;
+    if(SH7095_mem_timestamp > eff_ts)
+     eff_ts = SH7095_mem_timestamp;
+    else
+     SH7095_mem_timestamp = eff_ts;
+   } while(MDFN_LIKELY(eff_ts < next_event_ts));
+  } while(MDFN_LIKELY(EventHandler(eff_ts)));
+ } while(MDFN_LIKELY(Running != 0));
+
+ return eff_ts;
+}
+
 #if defined(__GNUC__) && !defined(__clang__)
  #pragma GCC pop_options
 #endif
@@ -1511,7 +1554,12 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
  if (NeedEmuICache)
   end_ts = RunLoop_ICache(espec);
  else
-  end_ts = RunLoop_NoICache(espec);
+  {
+   if(setting_sh2_jit && SH2JIT_Available())
+    end_ts = RunLoop_NoICache_JIT(espec);
+   else
+    end_ts = RunLoop_NoICache(espec);
+  }
  assert(end_ts >= 0);
 
  ForceEventUpdates(end_ts);

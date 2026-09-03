@@ -105,6 +105,7 @@ void x86_mov_mi32 (x86_codegen*, unsigned base, int index, unsigned scale_log2, 
 void x86_movzx_rm16(x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
 void x86_movsx_rm16(x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
 void x86_movzx_rm8 (x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
+void x86_movsx_rm8 (x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
 void x86_movsx_rr16(x86_codegen*, unsigned dst, unsigned src);
 void x86_lea      (x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
 

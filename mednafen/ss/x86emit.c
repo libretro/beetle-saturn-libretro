@@ -270,6 +270,13 @@ void x86_movzx_rm8(x86_codegen* cg, unsigned dst, unsigned base, int index, unsi
  emit_mem(cg, dst, base, index, scale, disp);
 }
 
+void x86_movsx_rm8(x86_codegen* cg, unsigned dst, unsigned base, int index, unsigned scale, int32_t disp)
+{
+ emit_rex(cg, 0, dst, index, base);
+ emit_b(cg, 0x0F); emit_b(cg, 0xBE);
+ emit_mem(cg, dst, base, index, scale, disp);
+}
+
 void x86_movsx_rr16(x86_codegen* cg, unsigned dst, unsigned src)
 {
  emit_rex(cg, 0, dst, -1, src);
