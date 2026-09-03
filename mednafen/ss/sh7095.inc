@@ -4959,6 +4959,21 @@ FORCE_INLINE void SH7095_Step_w0_C0(SH7095* z)
  //
 }
 
+/* The tail of FUSE_COND_BRANCH for the JIT: called by a handler for a
+ * fusion-source op (TST, CMP/GT, DT, CMP/EQ #imm, TST #imm) once it has
+ * set T and found the next op byte to be BF or BT.  Same statements as
+ * the macro: consume the branch word, fetch the one after, branch. */
+MDFN_HIDE void SH7095_JIT_FusedCondBranch_C0(SH7095* z, bool cond)
+{
+ const unsigned which = 0;
+ const bool EmulateICache = false;
+ const uint16_t br_instr = (uint16_t)z->Pipe_ID;
+ (void)which;
+ z->PC += 2;
+ DoIDIF(false);
+ CondRelBranch(cond, (uint32_t)(int8_t)br_instr << 1);
+}
+
 /* Out-of-line copy of the master's no-icache step, for the JIT's
  * fallback: the inline one stays in its own RunLoop untouched. */
 static NO_INLINE MDFN_HOT void SH7095_Step_w0_C0_NI(SH7095* z)

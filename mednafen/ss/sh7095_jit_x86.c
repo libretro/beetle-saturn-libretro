@@ -131,6 +131,39 @@ static void emit_set_t_edx(void)
  x86_mov_mr(g_cg, M_Z(O(SR)), EAX);
 }
 
+/* FUSE_COND_BRANCH(op_id, cond): if the next op byte is op_id, call the
+ * fusion tail with cond = T (cond_is_t) or !T.  Emitted after SetT. */
+#define OP_BF_ID 0x64
+#define OP_BT_ID 0x66
+static void emit_fuse_cond_branch(unsigned op_id, bool cond_is_t)
+{
+ x86_label skip; x86_label_init(&skip);
+ x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
+ x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+ x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)op_id);
+ x86_jcc(g_cg, X86_CC_NE, &skip);
+ x86_mov_rm(g_cg, EDX, M_Z(O(SR)));
+ x86_alu_ri(g_cg, X86_AND, EDX, 1);
+ if(!cond_is_t) x86_alu_ri(g_cg, X86_XOR, EDX, 1);
+#if X86EMIT_64
+ if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
+ x86_mov_rr64(g_cg, ARG0, EBX);
+ #if defined(_WIN32)
+ x86_mov_rr(g_cg, X86_EDX, EDX);
+ #else
+ x86_mov_rr(g_cg, X86_ESI, EDX);
+ #endif
+ x86_call_abs(g_cg, (const void*)&SH7095_JIT_FusedCondBranch_C0);
+ if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
+#else
+ x86_push(g_cg, EDX);
+ x86_push(g_cg, EBX);
+ x86_call_abs(g_cg, (const void*)&SH7095_JIT_FusedCondBranch_C0);
+ x86_alu_ri(g_cg, X86_ADD, ESP, 8);
+#endif
+ x86_label_bind(g_cg, &skip);
+}
+
 static void emit_pc_advance(void)
 {
  x86_alu_mi32(g_cg, X86_ADD, M_Z(O(PC)), 2);
@@ -188,34 +221,23 @@ static void emit_reg_reg(RegOp op, unsigned n, unsigned m)
    x86_alu_rm(g_cg, X86_CMP, EAX, M_Z(O_R(m)));
    emit_set_t_cc(op == B_CMPEQ ? X86_CC_E : op == B_CMPHS ? X86_CC_AE : op == B_CMPGE ? X86_CC_GE :
                  op == B_CMPHI ? X86_CC_A : X86_CC_G);
+   if(op == B_CMPGT) emit_fuse_cond_branch(OP_BT_ID, true);
    return;
   case B_TST:
    x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
    x86_alu_rm(g_cg, X86_AND, EAX, M_Z(O_R(m)));
    emit_set_t_cc(X86_CC_E);
+   emit_fuse_cond_branch(OP_BF_ID, false);
+   emit_fuse_cond_branch(OP_BT_ID, true);
    return;
  }
  x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
 }
 
 /* Compile one instruction word; returns false for words without a body. */
-/* Fusion sources (see FUSE_COND_BRANCH in sh7095_ops.inc): the
- * interpreter runs these together with a following BF/BT in one step.
- * Excluded until the JIT reproduces that pairing. */
-static bool is_fusion_source(uint32_t instr)
-{
- const unsigned top = instr >> 12, low = instr & 0xF;
- if(top == 0x2 && low == 0x8) return true;               /* TST Rn,Rm */
- if(top == 0x3 && low == 0x7) return true;               /* CMP/GT */
- if(top == 0x4 && (instr & 0xFF) == 0x10) return true;   /* DT */
- if((instr & 0xFF00) == 0x8800) return true;             /* CMP/EQ #imm,R0 */
- if((instr & 0xFF00) == 0xC800) return true;             /* TST #imm,R0 */
- return false;
-}
-
 static bool compile_body(uint32_t instr)
 {
- if(is_fusion_source(instr)) return false;
+
  const unsigned n = (instr >> 8) & 0xF;
  const unsigned m = (instr >> 4) & 0xF;
  const unsigned top = instr >> 12;
@@ -304,6 +326,7 @@ static bool compile_body(uint32_t instr)
      x86_alu_ri(g_cg, X86_SUB, EAX, 1);
      x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
      emit_set_t_cc(X86_CC_E);
+     emit_fuse_cond_branch(OP_BF_ID, false);
      return true;
     case 0x11:                                                         /* CMP/PZ */
      emit_wb_check(n);
@@ -344,6 +367,7 @@ static bool compile_body(uint32_t instr)
     emit_wb_check(0);
     x86_cmp_mi32(g_cg, M_Z(O_R(0)), (int32_t)imm8s);
     emit_set_t_cc(X86_CC_E);
+    emit_fuse_cond_branch(OP_BF_ID, false);
     return true;
    }
    return false;
@@ -356,6 +380,7 @@ static bool compile_body(uint32_t instr)
      x86_mov_rm(g_cg, EAX, M_Z(O_R(0)));
      x86_alu_ri(g_cg, X86_AND, EAX, (int32_t)imm8u);
      emit_set_t_cc(X86_CC_E);
+     emit_fuse_cond_branch(OP_BT_ID, true);
      return true;
     case 0x9: emit_wb_check(0); x86_alu_mi32(g_cg, X86_AND, M_Z(O_R(0)), (int32_t)imm8u); return true;   /* AND #imm, R0 */
     case 0xA: emit_wb_check(0); x86_alu_mi32(g_cg, X86_XOR, M_Z(O_R(0)), (int32_t)imm8u); return true;   /* XOR #imm, R0 */

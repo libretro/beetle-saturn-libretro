@@ -47,6 +47,9 @@ struct SH7095;
 /* Fetch/decode helper the handlers call; the interpreter's own. */
 void SH7095_DoIDIF_NI_C0_I0(struct SH7095* z);
 
+/* Tail of the interpreter's conditional-branch pair fusion (sh7095.inc). */
+void SH7095_JIT_FusedCondBranch_C0(struct SH7095* z, bool cond);
+
 /* Handler for instruction word `instr` (normal variant), compiling it
  * on first use.  NULL when the word has no native body; the caller
  * then runs the interpreter.  Cheap enough to call per instruction:
