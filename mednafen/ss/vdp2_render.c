@@ -36,6 +36,14 @@
 #include <rthreads/rthreads.h>
 #include <string.h>
 #include <stdatomic.h>
+#if defined(_WIN32)
+ #include <windows.h>
+#else
+ #include <unistd.h>
+#endif
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+ #include <emmintrin.h>
+#endif
 
 #if defined(__aarch64__)
 #include <arm_neon.h>
@@ -5009,6 +5017,29 @@ static struct ProducerState Prod;
 static struct ConsumerState Cons;
 static bool DoBusyWait;
 
+/* Busy-waiting exists to shave wakeup latency off the frame-end drain,
+ * and it only helps when the producer keeps running while the consumer
+ * spins.  On a single hardware thread the spin merely delays the
+ * producer it is waiting for; measured on such a box, 92% of the render
+ * thread's samples were the spin and it cost the emulation thread about
+ * a third of the CPU.  So the producer never requests busy-waiting
+ * unless at least two hardware threads are online. */
+static bool BusyWaitAllowed = true;
+
+static unsigned online_cpu_count(void)
+{
+#if defined(_WIN32)
+ SYSTEM_INFO si;
+ GetSystemInfo(&si);
+ return si.dwNumberOfProcessors ? (unsigned)si.dwNumberOfProcessors : 1u;
+#elif defined(_SC_NPROCESSORS_ONLN)
+ long n = sysconf(_SC_NPROCESSORS_ONLN);
+ return n > 0 ? (unsigned)n : 1u;
+#else
+ return 2u;   /* unknown platform: keep the historical behaviour */
+#endif
+}
+
 /* Consumer wakeup.  The command queue itself is the lock-free SPSC ring
  * above; this pair only parks the consumer while the ring is empty and
  * busy-waiting is off.  It replaces a counting semaphore (rsemaphore,
@@ -5089,8 +5120,16 @@ static void/*int*/ RThreadEntry(void* data)
    }
    else
    {
-#ifdef MDFN_SS_BUSYWAIT_PAUSE
-    asm volatile("pause\n\tpause\n\tpause\n\tpause\n\tpause\n\tpause\n\tpause\n\t");
+#if defined(MDFN_SS_BUSYWAIT_PAUSE) || defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+    /* PAUSE: the spin-wait hint every x86 since P4 honours.  It yields
+     * the core's front end to a hyperthread sibling and avoids the
+     * memory-order-violation pipeline flush a tight load loop provokes
+     * when the awaited store lands; a NOP loop does neither. */
+ #ifdef _MSC_VER
+    _mm_pause(); _mm_pause(); _mm_pause(); _mm_pause();
+ #else
+    asm volatile("pause\n\tpause\n\tpause\n\tpause\n\t");
+ #endif
 #elif defined(__aarch64__) || defined(__arm__)
     asm volatile("yield\n\tyield\n\tyield\n\tyield\n\tyield\n\tyield\n\tyield\n\t");
 #else
@@ -5212,6 +5251,8 @@ void VDP2REND_Init(const bool IsPAL, const uint64_t affinity)
  VDP2_ATOMIC_STORE_REL(DrawFinishCount, 0);
  VDP2_ATOMIC_STORE_REL(DrawPushCount, 0);
  VDP2_ATOMIC_STORE_REL(BurstPopCount, 0);
+ BusyWaitAllowed = online_cpu_count() >= 2u;
+
  WakeLock = slock_new();
  WakeCond = scond_new();
  DrainLock = slock_new();
@@ -5457,7 +5498,8 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool 
   //
   if(crt_line == bwthresh)
   {
-   WWQ(COMMAND_SET_BUSYWAIT, true, 0);
+   if(BusyWaitAllowed)
+    WWQ(COMMAND_SET_BUSYWAIT, true, 0);
    WakeConsumer();
   }
   else if(crt_line < bwthresh)
