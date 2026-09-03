@@ -4959,6 +4959,15 @@ FORCE_INLINE void SH7095_Step_w0_C0(SH7095* z)
  //
 }
 
+/* Flat copy of the decoder for the JIT's inlined fetch: op id per
+ * 16-bit word, exactly InstrDecodeTab_Lookup. */
+MDFN_HIDE void SH7095_JIT_BuildOpIDTable(uint8_t* tab)
+{
+ unsigned i;
+ for(i = 0; i < 65536; i++)
+  tab[i] = (uint8_t)InstrDecodeTab_Lookup(i);
+}
+
 /* The tail of FUSE_COND_BRANCH for the JIT: called by a handler for a
  * fusion-source op (TST, CMP/GT, DT, CMP/EQ #imm, TST #imm) once it has
  * set T and found the next op byte to be BF or BT.  Same statements as

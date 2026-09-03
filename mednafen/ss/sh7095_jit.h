@@ -47,6 +47,9 @@ struct SH7095;
 /* Fetch/decode helper the handlers call; the interpreter's own. */
 void SH7095_DoIDIF_NI_C0_I0(struct SH7095* z);
 
+/* Fills tab[65536] with the decoder's op id for each word (sh7095.inc). */
+void SH7095_JIT_BuildOpIDTable(uint8_t* tab);
+
 /* Tail of the interpreter's conditional-branch pair fusion (sh7095.inc). */
 void SH7095_JIT_FusedCondBranch_C0(struct SH7095* z, bool cond);
 

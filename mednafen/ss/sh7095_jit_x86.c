@@ -34,6 +34,7 @@
 #include "sh7095.h"
 #include "sh7095_jit.h"
 #include "x86emit.h"
+#include "ss_init.h"   /* SH7095_FastMap, SH7095_EXT_MAP_GRAN_BITS */
 
 void (*SH2JIT_Table[65536])(struct SH7095*);
 
@@ -43,6 +44,7 @@ void (*SH2JIT_Table[65536])(struct SH7095*);
 
 static x86_codegen* g_cg = NULL;
 static uint8_t g_status[65536];    /* 0 = unknown, 1 = compiled, 2 = unsupported */
+static uint8_t g_opid[65536];      /* decoder's op id per word, for the inlined fetch */
 
 #define O(field) ((int32_t)offsetof(SH7095, field))
 #define O_R(n)   (O(R) + 4 * (int32_t)(n))
@@ -50,6 +52,14 @@ static uint8_t g_status[65536];    /* 0 = unknown, 1 = compiled, 2 = unsupported
 #define M_Z(d)   X86_EBX, X86_NOIDX, 0, (d)
 
 enum { EAX = X86_EAX, ECX = X86_ECX, EDX = X86_EDX, EBX = X86_EBX, ESP = X86_ESP };
+/* Extra scratch: caller-saved on x86-64; on x86-32 ESI/EDI are saved by the prologue. */
+#if X86EMIT_64
+ #define S0 X86_R9
+ #define S1 X86_R10
+#else
+ #define S0 X86_ESI
+ #define S1 X86_EDI
+#endif
 
 #if X86EMIT_64
  #if defined(_WIN32)
@@ -73,12 +83,18 @@ static void emit_prologue(void)
 #if X86EMIT_64
  x86_mov_rr64(g_cg, EBX, ARG0);
 #else
- x86_mov_rm(g_cg, EBX, X86_ESP, X86_NOIDX, 0, 8);
+ x86_push(g_cg, X86_ESI);
+ x86_push(g_cg, X86_EDI);                       /* esp = 12 - 12 = 0 mod 16 */
+ x86_mov_rm(g_cg, EBX, X86_ESP, X86_NOIDX, 0, 16);
 #endif
 }
 
 static void emit_epilogue(void)
 {
+#if !X86EMIT_64
+ x86_pop(g_cg, X86_EDI);
+ x86_pop(g_cg, X86_ESI);
+#endif
  x86_pop(g_cg, EBX);
  x86_ret(g_cg);
 }
@@ -91,10 +107,10 @@ static void emit_call_z(const void* fn)
  x86_call_abs(g_cg, fn);
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
 #else
- x86_alu_ri(g_cg, X86_SUB, ESP, 4);
+ x86_alu_ri(g_cg, X86_SUB, ESP, 12);
  x86_push(g_cg, EBX);
  x86_call_abs(g_cg, fn);
- x86_alu_ri(g_cg, X86_ADD, ESP, 8);
+ x86_alu_ri(g_cg, X86_ADD, ESP, 16);
 #endif
 }
 
@@ -156,12 +172,78 @@ static void emit_fuse_cond_branch(unsigned op_id, bool cond_is_t)
  x86_call_abs(g_cg, (const void*)&SH7095_JIT_FusedCondBranch_C0);
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
 #else
+ x86_alu_ri(g_cg, X86_SUB, ESP, 8);
  x86_push(g_cg, EDX);
  x86_push(g_cg, EBX);
  x86_call_abs(g_cg, (const void*)&SH7095_JIT_FusedCondBranch_C0);
- x86_alu_ri(g_cg, X86_ADD, ESP, 8);
+ x86_alu_ri(g_cg, X86_ADD, ESP, 16);
 #endif
  x86_label_bind(g_cg, &skip);
+}
+
+/*
+ * The interpreter's DoIDIF(false) for the master with cache emulation
+ * off, inlined (SH7095_DoIDIF_NI_C0_I0 is the reference):
+ *
+ *   DoID:    Pipe_ID = Pipe_IF | (opid[Pipe_IF] << 24) | EPending
+ *   FetchIF: if(timestamp < MA_until - ((int32_t)(PC & 2) << 28)) timestamp = MA_until
+ *            (the wait applies to the even halfword of each longword fetch)
+ *            Pipe_IF = *(uint16_t*)(FastMap[PC >> 16] + PC)
+ *            if((int32_t)PC < 0) Pipe_IF = Cache_ReadDataArray_u16(PC)
+ *            timestamp++
+ *
+ * The negative-PC case (cache address/data array space) is rare and is
+ * routed whole through the C function before any state is touched, so
+ * the two paths are identical statement for statement.
+ */
+static void emit_fetch_inline(void)
+{
+ x86_label slow, done; x86_label_init(&slow); x86_label_init(&done);
+ x86_mov_rm(g_cg, EDX, M_Z(O(PC)));
+ x86_test_rr(g_cg, EDX, EDX);
+ x86_jcc(g_cg, X86_CC_S, &slow);
+ /* DoID */
+ x86_movzx_rm16(g_cg, EAX, M_Z(O(Pipe_IF)));
+#if X86EMIT_64
+ x86_mov_ri64(g_cg, X86_R8, (uint64_t)(uintptr_t)g_opid);
+ x86_movzx_rm8(g_cg, ECX, X86_R8, EAX, 0, 0);
+#else
+ x86_mov_ri(g_cg, ECX, (uint32_t)(uintptr_t)g_opid);
+ x86_movzx_rm8(g_cg, ECX, ECX, EAX, 0, 0);
+#endif
+ x86_shift_ri(g_cg, X86_SHL, ECX, 24);
+ x86_alu_rr(g_cg, X86_OR, EAX, ECX);
+ x86_alu_rm(g_cg, X86_OR, EAX, M_Z(O(EPending)));
+ x86_mov_mr(g_cg, M_Z(O(Pipe_ID)), EAX);
+ /* FetchIF */
+ x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ x86_mov_rm(g_cg, ECX, M_Z(O(MA_until)));
+ /* threshold = MA_until - ((PC & 2) << 28) */
+ x86_mov_rr(g_cg, S0, EDX);
+ x86_alu_ri(g_cg, X86_AND, S0, 2);
+ x86_shift_ri(g_cg, X86_SHL, S0, 28);
+ x86_mov_rr(g_cg, S1, ECX);
+ x86_alu_rr(g_cg, X86_SUB, S1, S0);
+ x86_alu_rr(g_cg, X86_CMP, EAX, S1);
+ x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ x86_alu_ri(g_cg, X86_ADD, EAX, 1);
+ x86_mov_mr(g_cg, M_Z(O(timestamp)), EAX);
+ x86_mov_rr(g_cg, ECX, EDX);
+ x86_shift_ri(g_cg, X86_SHR, ECX, SH7095_EXT_MAP_GRAN_BITS);
+#if X86EMIT_64
+ x86_mov_ri64(g_cg, X86_R8, (uint64_t)(uintptr_t)SH7095_FastMap);
+ x86_mov_rm64(g_cg, ECX, X86_R8, ECX, 3, 0);
+ x86_movzx_rm16(g_cg, EAX, ECX, EDX, 0, 0);
+#else
+ x86_mov_ri(g_cg, EAX, (uint32_t)(uintptr_t)SH7095_FastMap);
+ x86_mov_rm(g_cg, ECX, EAX, ECX, 2, 0);
+ x86_movzx_rm16(g_cg, EAX, ECX, EDX, 0, 0);
+#endif
+ x86_mov_mr(g_cg, M_Z(O(Pipe_IF)), EAX);
+ x86_jmp(g_cg, &done);
+ x86_label_bind(g_cg, &slow);
+ emit_call_z((const void*)&SH7095_DoIDIF_NI_C0_I0);
+ x86_label_bind(g_cg, &done);
 }
 
 static void emit_pc_advance(void)
@@ -405,7 +487,7 @@ static void (*compile(uint32_t instr))(struct SH7095*)
  if(x86_codegen_offset(g_cg) + 512 > x86_codegen_capacity(g_cg)) return NULL;
  start = x86_codegen_wptr(g_cg);
  emit_prologue();
- emit_call_z((const void*)&SH7095_DoIDIF_NI_C0_I0);
+ emit_fetch_inline();
  if(!compile_body(instr))
  {
   x86_codegen_set_wptr(g_cg, start);
@@ -427,6 +509,7 @@ void SH2JIT_Init(void)
   g_cg = x86_codegen_create(SH2JIT_CODE_BYTES);
  memset(SH2JIT_Table, 0, sizeof SH2JIT_Table);
  memset(g_status, 0, sizeof g_status);
+ SH7095_JIT_BuildOpIDTable(g_opid);
 }
 
 bool SH2JIT_Available(void)
