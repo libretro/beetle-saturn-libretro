@@ -63,6 +63,10 @@ void (*SH2JIT_Handler(uint32_t instr))(struct SH7095*);
  * unsupported (SH2JIT_Handler distinguishes via a second byte table). */
 extern void (*SH2JIT_Table[65536])(struct SH7095*);
 
+/* 1 for compiled words whose handler touches no memory (the SH2JIT_VERIFY
+ * self-check may run such a handler on a copy of the CPU). */
+extern uint8_t SH2JIT_Pure[65536];
+
 void SH2JIT_Init(void);
 bool SH2JIT_Available(void);
 

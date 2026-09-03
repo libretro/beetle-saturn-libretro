@@ -5014,6 +5014,7 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
    {
     static SH7095 tmp; static unsigned reported;
     const uint32_t instr = z->Pipe_ID & 0xFFFF;
+    if(!SH2JIT_Pure[instr]) { h(z); return; }   /* memory ops can't be run twice */
     memcpy(&tmp, z, sizeof tmp);
     h(&tmp);
     SH7095_Step_w0_C0_NI(z);

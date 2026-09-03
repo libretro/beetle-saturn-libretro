@@ -37,6 +37,7 @@
 #include "ss_init.h"   /* SH7095_FastMap, SH7095_EXT_MAP_GRAN_BITS */
 
 void (*SH2JIT_Table[65536])(struct SH7095*);
+uint8_t SH2JIT_Pure[65536];
 
 #if defined(WANT_JIT) && X86EMIT_HOST
 
@@ -251,6 +252,198 @@ static void emit_pc_advance(void)
  x86_alu_mi32(g_cg, X86_ADD, M_Z(O(PC)), 2);
 }
 
+/* --- memory access through the CPU's region tables ------------------------
+ * MemRead32(A, v): v = z->MRFP32[A >> 29](A); the entries are the
+ * out-of-line C_MemReadRT_* functions with every timing side effect
+ * inside.  MDFN_FASTCALL on x86-32: A in ECX, V in EDX. */
+typedef enum { MEM_8 = 0, MEM_16 = 1, MEM_32 = 2 } MemSize;
+
+static int32_t read_table_off(MemSize sz, bool instr_space)
+{
+ if(instr_space) return sz == MEM_16 ? O(MRFP16_I) : O(MRFP32_I);
+ return sz == MEM_8 ? O(MRFP8) : sz == MEM_16 ? O(MRFP16) : O(MRFP32);
+}
+static int32_t write_table_off(MemSize sz)
+{
+ return sz == MEM_8 ? O(MWFP8) : sz == MEM_16 ? O(MWFP16) : O(MWFP32);
+}
+
+/* EAX = address in -> EAX = value read (zero-extended to 32). */
+static void emit_mem_read(MemSize sz, bool instr_space)
+{
+ const int32_t tab = read_table_off(sz, instr_space);
+#if X86EMIT_64
+ x86_mov_rr(g_cg, ECX, EAX);
+ x86_shift_ri(g_cg, X86_SHR, ECX, 29);
+ x86_mov_rm64(g_cg, ECX, EBX, ECX, 3, tab);
+ if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
+ x86_mov_rr(g_cg, ARG0, EAX);
+ x86_call_r(g_cg, ECX);
+ if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
+#else
+ x86_mov_rr(g_cg, EDX, EAX);
+ x86_shift_ri(g_cg, X86_SHR, EDX, 29);
+ x86_mov_rm(g_cg, EDX, EBX, EDX, 2, tab);
+ x86_mov_rr(g_cg, ECX, EAX);                    /* fastcall arg0 */
+ x86_call_r(g_cg, EDX);
+#endif
+ if(sz == MEM_8)  x86_movzx_rr8(g_cg, EAX, EAX);
+ if(sz == MEM_16) x86_movzx_rr16(g_cg, EAX, EAX);
+}
+
+/* EAX = address, EDX = value: z->MWFP##sz[A >> 29](A, V). */
+static void emit_mem_write(MemSize sz)
+{
+ const int32_t tab = write_table_off(sz);
+#if X86EMIT_64
+ x86_mov_rr(g_cg, ECX, EAX);
+ x86_shift_ri(g_cg, X86_SHR, ECX, 29);
+ x86_mov_rm64(g_cg, ECX, EBX, ECX, 3, tab);
+ if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
+ #if defined(_WIN32)
+ x86_mov_rr(g_cg, X86_EDX, EDX);                /* already in place */
+ x86_mov_rr(g_cg, ARG0, EAX);
+ #else
+ x86_mov_rr(g_cg, X86_ESI, EDX);
+ x86_mov_rr(g_cg, ARG0, EAX);
+ #endif
+ x86_call_r(g_cg, ECX);
+ if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
+#else
+ x86_mov_rr(g_cg, S0, EAX);
+ x86_shift_ri(g_cg, X86_SHR, S0, 29);
+ x86_mov_rm(g_cg, S0, EBX, S0, 2, tab);
+ x86_mov_rr(g_cg, ECX, EAX);                    /* fastcall: ECX = A, EDX = V */
+ x86_call_r(g_cg, S0);
+#endif
+}
+
+/* WB_READ{8,16,32}(r, ea) with ea in EAX: read, sign-extend for 8/16,
+ * R[r] = v; WB_until[r] = MA_until + 1. */
+static void emit_wb_read(unsigned r, MemSize sz, bool instr_space)
+{
+ emit_mem_read(sz, instr_space);
+ if(sz == MEM_8)  x86_movsx_rr8(g_cg, EAX, EAX);
+ if(sz == MEM_16) x86_movsx_rr16(g_cg, EAX, EAX);
+ x86_mov_mr(g_cg, M_Z(O_R(r)), EAX);
+ x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
+ x86_alu_ri(g_cg, X86_ADD, EAX, 1);
+ x86_mov_mr(g_cg, M_Z(O_WB(r)), EAX);
+}
+
+/* Memory-op bodies, transcribed from sh7095_ops.inc.  Loads and stores
+ * check no WB hazards in the interpreter.  The two ops with triplet
+ * fusion (MOV.B @Rm,Rn and MOV.B @(disp,Rm),R0) are left to the
+ * interpreter. */
+static bool compile_mem(uint32_t instr)
+{
+ const unsigned n = (instr >> 8) & 0xF;
+ const unsigned m = (instr >> 4) & 0xF;
+ const unsigned top = instr >> 12;
+ const unsigned low = instr & 0xF;
+ const unsigned d8 = instr & 0xFF;
+
+ switch(top)
+ {
+  case 0x0:
+   if(low >= 0x4 && low <= 0x6)                                       /* MOV.x Rm,@(R0,Rn) */
+   {
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(0))); x86_alu_rm(g_cg, X86_ADD, EAX, M_Z(O_R(n)));
+    x86_mov_rm(g_cg, EDX, M_Z(O_R(m)));
+    emit_mem_write((MemSize)(low - 0x4)); return true;
+   }
+   if(low >= 0xC && low <= 0xE)                                       /* MOV.x @(R0,Rm),Rn */
+   {
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(0))); x86_alu_rm(g_cg, X86_ADD, EAX, M_Z(O_R(m)));
+    emit_wb_read(n, (MemSize)(low - 0xC), false); return true;
+   }
+   return false;
+  case 0x1:                                                            /* MOV.L Rm,@(disp*4,Rn) */
+   x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(low << 2));
+   x86_mov_rm(g_cg, EDX, M_Z(O_R(m)));
+   emit_mem_write(MEM_32); return true;
+  case 0x2:
+   if(low <= 0x2)                                                      /* MOV.x Rm,@Rn */
+   {
+    x86_mov_rm(g_cg, EDX, M_Z(O_R(m)));
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
+    emit_mem_write((MemSize)low); return true;
+   }
+   if(low >= 0x4 && low <= 0x6)                                       /* MOV.x Rm,@-Rn */
+   {
+    const unsigned sz = low - 0x4;
+    x86_mov_rm(g_cg, EDX, M_Z(O_R(m)));                                /* val before the decrement */
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
+    x86_alu_ri(g_cg, X86_SUB, EAX, 1 << sz);
+    x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
+    emit_mem_write((MemSize)sz); return true;
+   }
+   return false;
+  case 0x5:                                                            /* MOV.L @(disp*4,Rm),Rn */
+   x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(low << 2));
+   emit_wb_read(n, MEM_32, false); return true;
+  case 0x6:
+   if(low == 0x1 || low == 0x2)                                       /* MOV.W/L @Rm,Rn (MOV.B has triplet fusion) */
+   {
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(m)));
+    emit_wb_read(n, (MemSize)low, false); return true;
+   }
+   if(low >= 0x4 && low <= 0x6)                                       /* MOV.x @Rm+,Rn */
+   {
+    const unsigned sz = low - 0x4;
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(m)));
+    x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(m)), 1 << sz);
+    emit_wb_read(n, (MemSize)sz, false); return true;
+   }
+   return false;
+  case 0x8:
+   switch((instr >> 8) & 0xF)
+   {
+    case 0x0: case 0x1:                                                /* MOV.B/W R0,@(disp,Rn) -- n is nyb1 here */
+    {
+     const unsigned sz = (instr >> 8) & 1;
+     x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(low << sz));
+     x86_mov_rm(g_cg, EDX, M_Z(O_R(0)));
+     emit_mem_write((MemSize)sz); return true;
+    }
+    case 0x5:                                                          /* MOV.W @(disp*2,Rm),R0 (MOV.B has triplet fusion) */
+     x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(low << 1));
+     emit_wb_read(0, MEM_16, false); return true;
+    default: return false;
+   }
+  case 0x9:                                                            /* MOV.W @(disp*2,PC),Rn */
+   x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << 1));
+   emit_wb_read(n, MEM_16, true); return true;
+  case 0xC:
+   switch((instr >> 8) & 0xF)
+   {
+    case 0x0: case 0x1: case 0x2:                                      /* MOV.x R0,@(disp,GBR) */
+    {
+     const unsigned sz = (instr >> 8) & 0xF;
+     x86_mov_rm(g_cg, EAX, M_Z(O(GBR))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << sz));
+     x86_mov_rm(g_cg, EDX, M_Z(O_R(0)));
+     emit_mem_write((MemSize)sz); return true;
+    }
+    case 0x4: case 0x5: case 0x6:                                      /* MOV.x @(disp,GBR),R0 */
+    {
+     const unsigned sz = ((instr >> 8) & 0xF) - 4;
+     x86_mov_rm(g_cg, EAX, M_Z(O(GBR))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << sz));
+     emit_wb_read(0, (MemSize)sz, false); return true;
+    }
+    case 0x7:                                                          /* MOVA @(disp*4,PC),R0 */
+     emit_wb_check(0);
+     x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_AND, EAX, ~3); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << 2));
+     x86_mov_mr(g_cg, M_Z(O_R(0)), EAX); return true;
+    default: return false;
+   }
+  case 0xD:                                                            /* MOV.L @(disp*4,PC),Rn */
+   x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_AND, EAX, ~3); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << 2));
+   emit_wb_read(n, MEM_32, true); return true;
+  default:
+   return false;
+ }
+}
+
 /* --- per-instruction bodies ----------------------------------------------- */
 
 typedef enum { B_MOV, B_ADD, B_SUB, B_AND, B_OR, B_XOR, B_NEG, B_NOT,
@@ -317,8 +510,11 @@ static void emit_reg_reg(RegOp op, unsigned n, unsigned m)
 }
 
 /* Compile one instruction word; returns false for words without a body. */
+static bool g_body_touches_memory;
+
 static bool compile_body(uint32_t instr)
 {
+ if(compile_mem(instr)) { g_body_touches_memory = true; return true; }
 
  const unsigned n = (instr >> 8) & 0xF;
  const unsigned m = (instr >> 4) & 0xF;
@@ -486,6 +682,7 @@ static void (*compile(uint32_t instr))(struct SH7095*)
  if(!g_cg) return NULL;
  if(x86_codegen_offset(g_cg) + 512 > x86_codegen_capacity(g_cg)) return NULL;
  start = x86_codegen_wptr(g_cg);
+ g_body_touches_memory = false;
  emit_prologue();
  emit_fetch_inline();
  if(!compile_body(instr))
@@ -509,6 +706,7 @@ void SH2JIT_Init(void)
   g_cg = x86_codegen_create(SH2JIT_CODE_BYTES);
  memset(SH2JIT_Table, 0, sizeof SH2JIT_Table);
  memset(g_status, 0, sizeof g_status);
+ memset(SH2JIT_Pure, 0, sizeof SH2JIT_Pure);
  SH7095_JIT_BuildOpIDTable(g_opid);
 }
 
@@ -525,7 +723,7 @@ void (*SH2JIT_Handler(uint32_t instr))(struct SH7095*)
  if(h) return h;
  if(g_status[instr]) return NULL;               /* known unsupported */
  h = compile(instr);
- if(h) { SH2JIT_Table[instr] = h; g_status[instr] = 1; }
+ if(h) { SH2JIT_Table[instr] = h; g_status[instr] = 1; SH2JIT_Pure[instr] = !g_body_touches_memory; }
  else  g_status[instr] = 2;
  return h;
 }
