@@ -4144,9 +4144,9 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 	   unsigned di = (A + 4 + i) & 0xC; { uint32_t vtmp__ = ExtBusRead(uint32_t,  true, (A &~ 0xF) + di); *(uint32_t*)&z->CacheData[cset][way_match][di] = vtmp__; }	\
 	  }													\
 	  if(IsInstr <= 0)											\
-	  { if((SH7095_mem_timestamp - z->BusLag + 1) > z->MA_until) z->MA_until = (SH7095_mem_timestamp - z->BusLag + 1); }				\
+	  { if((SH7095_mem_timestamp + 1) > z->MA_until) z->MA_until = (SH7095_mem_timestamp + 1); }				\
 	  else													\
-	   z->timestamp = SH7095_mem_timestamp - z->BusLag;									\
+	   z->timestamp = SH7095_mem_timestamp;									\
 	 }													\
 														\
 	 									\
@@ -4171,10 +4171,10 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 	 retval = ExtBusRead(T, false, A);								\
 														\
 	 if(IsInstr <= 0)											\
-	 { if((SH7095_mem_timestamp - z->BusLag + 1) > z->MA_until) z->MA_until = (SH7095_mem_timestamp - z->BusLag + 1); }				\
+	 { if((SH7095_mem_timestamp + 1) > z->MA_until) z->MA_until = (SH7095_mem_timestamp + 1); }				\
 	 else													\
 	 {													\
-	  z->timestamp = SH7095_mem_timestamp - z->BusLag;									\
+	  z->timestamp = SH7095_mem_timestamp;									\
 	  z->UCRead_IF_Kludge = true;										\
 	 }													\
 														\
@@ -4243,7 +4243,7 @@ static INLINE uint32_t SH7095_Cache_ReadAddressArray(SH7095* z, uint32_t A)
 	}									\
 	/* Fall-through, no break */						\
   case 1:									\
-  	if((z->write_finish_timestamp - z->BusLag + 1) > z->MA_until) z->MA_until = (z->write_finish_timestamp - z->BusLag + 1);	\
+  	if((z->write_finish_timestamp + 1) > z->MA_until) z->MA_until = (z->write_finish_timestamp + 1);	\
 										\
 	if(!SH7095_BusLock) { CHECK_EXIT_RESUME(); }				\
 	ExtBusWrite(T, A, V);							\

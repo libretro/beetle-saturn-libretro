@@ -189,7 +189,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "beetle_saturn_sh2_interleave",
       "SH-2 CPU Sync Mode (Restart)",
       NULL,
-      "How closely the two SH-2 CPUs are kept in step. 'Exact' alternates them every instruction and reproduces the previous behaviour byte for byte. The 'Fast' modes let the master run up to the given number of cycles ahead of the slave before the slave catches up, and schedule idle DMA controllers by event instead of polling: each CPU's own timing stays cycle-accurate, only the order of the two CPUs' bus accesses within that window can differ. Within that window the slave does not wait for bus time the master already used. Measured gain: about 25% on Daytona USA, a few percent on Virtua Fighter 2; it depends on how the game divides work between the two CPUs. Use Exact if a game hangs, desyncs or has audio problems in a Fast mode. Restart required.",
+      "How closely the two SH-2 CPUs are kept in step. 'Exact' alternates them every instruction and reproduces the previous behaviour byte for byte. The 'Fast' modes let the master run up to the given number of cycles ahead of the slave before the slave catches up, and schedule idle DMA controllers by event instead of polling: each CPU's own timing stays cycle-accurate, only the order of the two CPUs' bus accesses within that window can differ. The gain is largest when the master SH-2 is the bottleneck (Daytona USA is about 1.5x faster). On titles whose slave SH-2 does most of the work -- many 3D games -- the reported frame rate rises but the game does not truly run faster, so prefer Exact there. Use Exact if a game hangs, desyncs, has audio problems or renders incorrectly in a Fast mode. Restart required.",
       NULL,
       "system",
       {

@@ -176,31 +176,6 @@ bool SH2_FastDMAEvents = false;
 uint64_t SS_DiagSteps[2];
 #endif
 
-/* Quantised mode: the slave's catch-up burst.  SH7095_mem_timestamp is
- * the single "bus busy until" clock; a CPU's external access raises it
- * to the CPU's own time and then takes MA_until from it.  Interleaved
- * per instruction both CPUs stay within an instruction of it, but once
- * the master has run a quantum ahead it has dragged the clock with it,
- * and the slave's first access would stall it forward to the master's
- * time: the slave would catch up by waiting, executing a fraction of
- * its instructions (measured: 44% fewer on Virtua Fighter 2, seen as
- * the game running in slow motion at a high frame rate).  BusLag holds
- * the master's lead for the duration of the burst; the bus-to-CPU time
- * conversions in the memory paths subtract it.  The bus clock itself
- * stays shared and monotonic, which the peripherals' timestamps need.
- * Within a quantum the slave therefore does not pay for the master's
- * bus time; the master pays for the slave's at the next quantum. */
-static INLINE void SlaveBurstBegin(void)
-{
- if(!SH2_InterleaveQuantum) return;
- CPU[1].BusLag = (SH7095_mem_timestamp > CPU[1].timestamp) ? (SH7095_mem_timestamp - CPU[1].timestamp) : 0;
-}
-
-static INLINE void SlaveBurstEnd(void)
-{
- CPU[1].BusLag = 0;
-}
-
 void SH7095_DMAEventRearm(SH7095* z)
 {
  if(SH2_FastDMAEvents)
@@ -1132,9 +1107,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_ICache(EmulateSpecStruct* espec)
      * same, so it then catches up fully. */
     if(!SH2_InterleaveQuantum || CPU[0].timestamp - SH2_InterleaveQuantum > CPU[1].timestamp)
     {
-      SlaveBurstBegin();
       SH7095_RunSlaveUntil(&CPU[1], CPU[0].timestamp);
-      SlaveBurstEnd();
     }
 
     eff_ts = CPU[0].timestamp;
@@ -1177,10 +1150,8 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
       * it then catches up fully, as before. */
      if(MDFN_LIKELY(CPU[0].timestamp - SH2_InterleaveQuantum > CPU[1].timestamp))   /* an idle slave parks near INT32_MAX: never add to its side */
      {
-      SlaveBurstBegin();
       while(CPU[0].timestamp > CPU[1].timestamp)
       { SH7095_Step_w1_C0(&CPU[1]); SS_DIAG_STEP(1); }
-      SlaveBurstEnd();
      }
     }
 
@@ -1234,10 +1205,8 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache_JIT(EmulateSpecStruct* espec)
       * it then catches up fully, as before. */
      if(MDFN_LIKELY(CPU[0].timestamp - SH2_InterleaveQuantum > CPU[1].timestamp))   /* an idle slave parks near INT32_MAX: never add to its side */
      {
-      SlaveBurstBegin();
       while(CPU[0].timestamp > CPU[1].timestamp)
       { SH7095_Step_w1_C0(&CPU[1]); SS_DIAG_STEP(1); }
-      SlaveBurstEnd();
      }
     }
 
