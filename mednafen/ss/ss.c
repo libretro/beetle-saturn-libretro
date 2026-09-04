@@ -172,6 +172,9 @@ sscpu_timestamp_t SH2_InterleaveQuantum = 0;   /* 0 = exact per-instruction inte
  * event instead of polling.  Off in exact mode, where the poll phase is
  * part of the reproduced timing. */
 bool SH2_FastDMAEvents = false;
+#ifdef SS_DIAG_COUNTERS
+uint64_t SS_DiagSteps[2];
+#endif
 
 /* Quantised mode: the slave's catch-up burst.  SH7095_mem_timestamp is
  * the single "bus busy until" clock; a CPU's external access raises it
@@ -1121,7 +1124,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_ICache(EmulateSpecStruct* espec)
     /* master Step dispatch.  RunLoop is templated on
      * EmulateICache so this folds to one direct call per
      * instantiation. */
-    SH7095_Step_w0_C1(&CPU[0]);
+    SH7095_Step_w0_C1(&CPU[0]); SS_DIAG_STEP(0);
     SH7095_DMA_BusTimingKludge(&CPU[0]);
     /* Exact: the slave catches up after every master instruction (the
      * mid-instruction yields are inside RunSlaveUntil).  Quantised: only
@@ -1165,7 +1168,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
     /* master Step dispatch.  RunLoop is templated on
      * EmulateICache so this folds to one direct call per
      * instantiation. */
-    SH7095_Step_w0_C0(&CPU[0]);
+    SH7095_Step_w0_C0(&CPU[0]); SS_DIAG_STEP(0);
     SH7095_DMA_BusTimingKludge(&CPU[0]);
 
     {
@@ -1176,7 +1179,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
      {
       SlaveBurstBegin();
       while(CPU[0].timestamp > CPU[1].timestamp)
-       SH7095_Step_w1_C0(&CPU[1]);
+      { SH7095_Step_w1_C0(&CPU[1]); SS_DIAG_STEP(1); }
       SlaveBurstEnd();
      }
     }
@@ -1233,7 +1236,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache_JIT(EmulateSpecStruct* espec)
      {
       SlaveBurstBegin();
       while(CPU[0].timestamp > CPU[1].timestamp)
-       SH7095_Step_w1_C0(&CPU[1]);
+      { SH7095_Step_w1_C0(&CPU[1]); SS_DIAG_STEP(1); }
       SlaveBurstEnd();
      }
     }

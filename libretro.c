@@ -1347,6 +1347,14 @@ bool retro_load_game(const struct retro_game_info *info)
 
 void retro_unload_game(void)
 {
+#ifdef SS_DIAG_COUNTERS
+   if (getenv("SS_DIAG"))
+   {
+      extern uint64_t SS_DiagSteps[2];
+      fprintf(stderr, "SS_DIAG: master steps=%llu slave steps=%llu\n",
+         (unsigned long long)SS_DiagSteps[0], (unsigned long long)SS_DiagSteps[1]);
+   }
+#endif
    if (getenv("SH2JIT_COUNT"))
       fprintf(stderr, "SH2JIT: native=%llu chains=%llu fallback=%llu (native/instr=%.1f%%, avg chain=%.2f)\n",
          (unsigned long long)SH2JIT_NativeCount, (unsigned long long)SH2JIT_ChainCount, (unsigned long long)SH2JIT_FallbackCount,

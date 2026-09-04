@@ -163,6 +163,20 @@ extern "C" {
 
  MDFN_HIDE extern event_list_entry events[SS_EVENT__SIMD_COUNT];
 
+/* Build with -DSS_DIAG_COUNTERS to count master and slave SH-2 steps
+ * (SS_DiagSteps[0], [1]); the libretro frontend prints them at unload
+ * when the SS_DIAG environment variable is set.  Comparing the slave's
+ * count between sync modes over the same frames is the test that any
+ * change to CPU scheduling or bus timing must pass: the quantised
+ * interleave first shipped with the slave executing 44% fewer
+ * instructions, invisible in the frame rate. */
+#ifdef SS_DIAG_COUNTERS
+ MDFN_HIDE extern uint64_t SS_DiagSteps[2];
+ #define SS_DIAG_STEP(cpu) (SS_DiagSteps[cpu]++)
+#else
+ #define SS_DIAG_STEP(cpu) ((void)0)
+#endif
+
  /* Sentinel "no event scheduled" timestamp.  Savestate-visible, so the
   * value is fixed. */
  enum { SS_EVENT_DISABLED_TS = 0x7FFFFFFF };
