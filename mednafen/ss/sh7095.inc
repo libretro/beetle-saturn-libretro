@@ -5037,6 +5037,9 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
 #ifndef SH2JIT_VERIFY
    /* One or more instructions natively; the C loop's checks below are
     * idempotent for whatever the chain already applied. */
+#ifdef SH2JIT_COUNT
+   SH2JIT_ChainCount++;
+#endif
    SH2JIT_RunChain(z);
    return;
 #else
@@ -5069,6 +5072,9 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
   }
  }
  SH7095_Step_w0_C0_NI(z);
+#ifdef SH2JIT_COUNT
+ SH2JIT_FallbackCount++;
+#endif
 }
 
 FORCE_INLINE void SH7095_Step_w0_C1(SH7095* z)

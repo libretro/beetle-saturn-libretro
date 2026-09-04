@@ -161,6 +161,8 @@ static void emit_rel32_to(x86_codegen* cg, x86_label* l)
   assert(l->patch_count < X86_LABEL_MAX_PATCHES);
   if(l->patch_count < X86_LABEL_MAX_PATCHES)
    l->patches[l->patch_count++] = cg->wp;
+  else
+   cg->overflow = 1;      /* a dropped patch is an unresolved jump: never publish this code */
   emit_d(cg, 0);
  }
 }

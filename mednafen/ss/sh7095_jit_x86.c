@@ -40,6 +40,8 @@
 void (*SH2JIT_Table[65536])(struct SH7095*);
 uint8_t SH2JIT_Pure[65536];
 uint8_t SH2JIT_OpID[65536];
+uint64_t SH2JIT_NativeCount, SH2JIT_ChainCount, SH2JIT_FallbackCount;
+static uint8_t g_counting;
 
 #if defined(WANT_JIT) && X86EMIT_HOST
 
@@ -50,6 +52,30 @@ static const void* g_dispatch_stub = NULL;
 static const void* g_exit_stub = NULL;
 static void (*g_entry_stub)(struct SH7095*) = NULL;
 static const int32_t* g_slave_ts = NULL;      /* &CPU[1].timestamp */
+static struct SH7095* g_master = NULL;        /* &CPU[0] */
+static struct SH7095* g_slave  = NULL;        /* &CPU[1] */
+
+/* Everything the emitted code needs that is not in the SH7095 block,
+ * gathered so one register can reach it.  On x86-64 the entry stub pins
+ * R12 = &g_env, R13 = SH2JIT_Table, R14 = SH7095_FastMap, R15 = opid
+ * table (all callee-saved, all constant: nothing to flush at C calls). */
+typedef struct
+{
+ struct SH7095* master;
+ struct SH7095* slave;
+ int32_t* mem_ts;
+ const int32_t* next_event_ts;
+ uint8_t single_step;
+ uint8_t counting;
+} SH2JitEnv;
+static SH2JitEnv g_env;
+#define E(field) ((int32_t)offsetof(SH2JitEnv, field))
+#if X86EMIT_64
+ #define PIN_ENV   X86_R12
+ #define PIN_TABLE X86_R13
+ #define PIN_FMAP  X86_R14
+ #define PIN_OPID  X86_R15
+#endif
 static int32_t* g_mem_ts = NULL;              /* &SH7095_mem_timestamp */
 static const int32_t* g_next_event_ts = NULL; /* &next_event_ts */
 static uint8_t g_status[65536];    /* 0 = unknown, 1 = compiled, 2 = unsupported */
@@ -93,7 +119,12 @@ static void emit_entry_frame(void)
 {
  x86_push(g_cg, EBX);
 #if X86EMIT_64
+ x86_push(g_cg, PIN_ENV); x86_push(g_cg, PIN_TABLE); x86_push(g_cg, PIN_FMAP); x86_push(g_cg, PIN_OPID);   /* rsp: 8 - 40 = 0 mod 16 */
  x86_mov_rr64(g_cg, EBX, ARG0);
+ x86_mov_ri64(g_cg, PIN_ENV,   (uint64_t)(uintptr_t)&g_env);
+ x86_mov_ri64(g_cg, PIN_TABLE, (uint64_t)(uintptr_t)SH2JIT_Table);
+ x86_mov_ri64(g_cg, PIN_FMAP,  (uint64_t)(uintptr_t)SH7095_FastMap);
+ x86_mov_ri64(g_cg, PIN_OPID,  (uint64_t)(uintptr_t)g_opid);
 #else
  x86_push(g_cg, X86_ESI);
  x86_push(g_cg, X86_EDI);                       /* esp = 12 - 12 = 0 mod 16 */
@@ -103,12 +134,34 @@ static void emit_entry_frame(void)
 
 static void emit_exit_frame(void)
 {
-#if !X86EMIT_64
+#if X86EMIT_64
+ x86_pop(g_cg, PIN_OPID); x86_pop(g_cg, PIN_FMAP); x86_pop(g_cg, PIN_TABLE); x86_pop(g_cg, PIN_ENV);
+#else
  x86_pop(g_cg, X86_EDI);
  x86_pop(g_cg, X86_ESI);
 #endif
  x86_pop(g_cg, EBX);
  x86_ret(g_cg);
+}
+
+/* Reach a g_env field / a table by pinned register on x86-64, by
+ * absolute address in a scratch register on x86-32. */
+static void emit_env_ptr(unsigned r, int32_t field)      /* r = *(void**)&g_env.field */
+{
+#if X86EMIT_64
+ x86_mov_rm64(g_cg, r, PIN_ENV, X86_NOIDX, 0, field);
+#else
+ x86_mov_ri(g_cg, r, (uint32_t)(uintptr_t)&g_env);
+ x86_mov_rm(g_cg, r, r, X86_NOIDX, 0, field);
+#endif
+}
+static void emit_env_base(unsigned r)                    /* r = &g_env */
+{
+#if X86EMIT_64
+ x86_mov_rr64(g_cg, r, PIN_ENV);
+#else
+ x86_mov_ri(g_cg, r, (uint32_t)(uintptr_t)&g_env);
+#endif
 }
 
 /* Load an absolute address into a register (for the loop's globals). */
@@ -139,54 +192,124 @@ static uint8_t g_single_step = 0;   /* SH2JIT_SetSingleStep: exit after every in
 static const void* g_dispatch_next = NULL;   /* the lookup-and-jump tail of the dispatch stub: the entry stub's target */
 static x86_label g_dispatch_next_lbl;
 
+/* Shared lookup-and-jump for whichever CPU EBX points at. */
+static void emit_dispatch_lookup(x86_label* exit)
+{
+ x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
+ x86_mov_rr(g_cg, EDX, EAX);
+ x86_alu_ri(g_cg, X86_AND, EDX, 0xFFFF);
+ x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+ x86_alu_ri(g_cg, X86_AND, EAX, 0x7F);
+#if X86EMIT_64
+ x86_movzx_rm8(g_cg, ECX, PIN_OPID, EDX, 0, 0);
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX);
+ x86_jcc(g_cg, X86_CC_NE, exit);
+ x86_mov_rm64(g_cg, EAX, PIN_TABLE, EDX, 3, 0);
+ x86_alu_rr64(g_cg, X86_OR, EAX, EAX);
+#else
+ emit_abs(S0, g_opid);
+ x86_movzx_rm8(g_cg, ECX, S0, EDX, 0, 0);
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX);
+ x86_jcc(g_cg, X86_CC_NE, exit);
+ emit_abs(S0, SH2JIT_Table);
+ x86_mov_rm(g_cg, EAX, S0, EDX, 2, 0);
+ x86_test_rr(g_cg, EAX, EAX);
+#endif
+ x86_jcc(g_cg, X86_CC_E, exit);
+ x86_jmp_r(g_cg, EAX);
+}
+
+/*
+ * Two-CPU dispatch stub: the C loop's whole per-iteration body in
+ * emitted code, with EBX switching between the master and the slave.
+ * Every handler ends by jumping here with EBX = the CPU it ran on;
+ * the master and slave phases are told apart by comparing EBX.
+ *
+ *   after a master instruction:
+ *     DMA bus-timing kludge; FRT due -> exit; single-step -> exit
+ *     while(master.ts > slave.ts): run slave instructions (below)
+ *     eff_ts = max(master.ts, mem_ts); mem_ts = eff_ts if it was <=
+ *     eff_ts >= next_event_ts -> exit
+ *     next master instruction (lookup) or exit
+ *   after a slave instruction:
+ *     FRT due -> exit; single-step -> exit
+ *     master.ts > slave.ts ? next slave instruction : back to master
+ *
+ * Any exit returns to the C loop with the frame restored; the loop's
+ * own kludge, slave while-loop and event check are idempotent for what
+ * the chain already did, and a slave-phase exit resumes the slave in C.
+ */
 static void emit_dispatch_stub(void)
 {
- x86_label exit, memts_ahead; x86_label_init(&exit); x86_label_init(&memts_ahead); x86_label_init(&g_dispatch_next_lbl);
+ x86_label exit, memts_ahead, slave_after, master_events, slave_enter, slave_done;
+ x86_label_init(&exit); x86_label_init(&memts_ahead); x86_label_init(&slave_after);
+ x86_label_init(&master_events); x86_label_init(&slave_enter); x86_label_init(&slave_done); x86_label_init(&g_dispatch_next_lbl);
+
+ if(g_counting)
+ {
+  emit_abs(S0, &SH2JIT_NativeCount);
+  x86_alu_mi32(g_cg, X86_ADD, S0, X86_NOIDX, 0, 0, 1);
+ }
+ /* which CPU just ran? */
+ emit_env_ptr(S0, E(slave));
+#if X86EMIT_64
+ x86_alu_rr64(g_cg, X86_CMP, EBX, S0);
+#else
+ x86_alu_rr(g_cg, X86_CMP, EBX, S0);
+#endif
+ x86_jcc(g_cg, X86_CC_E, &slave_after);
+
+ /* --- master phase --- */
  x86_mov_rm(g_cg, EAX, M_Z(O(DMA_PenaltyKludgeAccum)));
  x86_alu_mr(g_cg, X86_ADD, M_Z(O(timestamp)), EAX);
  x86_mov_mi32(g_cg, M_Z(O(DMA_PenaltyKludgeAccum)), 0);
  x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
  x86_alu_rm(g_cg, X86_CMP, EAX, M_Z(O(FRT_WDT_NextTS)));
  x86_jcc(g_cg, X86_CC_GE, &exit);
- emit_abs(S0, &g_single_step);
- x86_cmp_mi8(g_cg, S0, X86_NOIDX, 0, 0, 0);
+ emit_env_base(S0);
+ x86_cmp_mi8(g_cg, S0, X86_NOIDX, 0, E(single_step), 0);
  x86_jcc(g_cg, X86_CC_NE, &exit);
- emit_abs(S0, g_slave_ts);
- x86_alu_rm(g_cg, X86_CMP, EAX, S0, X86_NOIDX, 0, 0);
- x86_jcc(g_cg, X86_CC_G, &exit);
- emit_abs(S0, g_mem_ts);
+ emit_env_ptr(S0, E(slave));
+ x86_alu_rm(g_cg, X86_CMP, EAX, S0, X86_NOIDX, 0, O(timestamp));
+ x86_jcc(g_cg, X86_CC_G, &slave_enter);
+
+ x86_label_bind(g_cg, &master_events);         /* EBX = master */
+ x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ emit_env_ptr(S0, E(mem_ts));
  x86_mov_rm(g_cg, ECX, S0, X86_NOIDX, 0, 0);
  x86_alu_rr(g_cg, X86_CMP, ECX, EAX);
  x86_jcc(g_cg, X86_CC_G, &memts_ahead);
- x86_mov_mr(g_cg, S0, X86_NOIDX, 0, 0, EAX);   /* mem_ts = timestamp */
+ x86_mov_mr(g_cg, S0, X86_NOIDX, 0, 0, EAX);
  x86_mov_rr(g_cg, ECX, EAX);
- x86_label_bind(g_cg, &memts_ahead);            /* ECX = eff_ts */
- emit_abs(S0, g_next_event_ts);
+ x86_label_bind(g_cg, &memts_ahead);
+ emit_env_ptr(S0, E(next_event_ts));
  x86_alu_rm(g_cg, X86_CMP, ECX, S0, X86_NOIDX, 0, 0);
  x86_jcc(g_cg, X86_CC_GE, &exit);
  x86_label_bind(g_cg, &g_dispatch_next_lbl);
  g_dispatch_next = x86_codegen_wptr(g_cg);
- /* next instruction */
- x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
- x86_mov_rr(g_cg, EDX, EAX);
- x86_alu_ri(g_cg, X86_AND, EDX, 0xFFFF);
- x86_shift_ri(g_cg, X86_SHR, EAX, 24);
- x86_alu_ri(g_cg, X86_AND, EAX, 0x7F);
- emit_abs(S0, g_opid);
- x86_movzx_rm8(g_cg, ECX, S0, EDX, 0, 0);
- x86_alu_rr(g_cg, X86_CMP, EAX, ECX);
+ emit_dispatch_lookup(&exit);
+
+ /* --- slave phase --- */
+ x86_label_bind(g_cg, &slave_enter);
+ emit_env_ptr(EBX, E(slave));
+ emit_dispatch_lookup(&exit);                  /* first slave instruction */
+
+ x86_label_bind(g_cg, &slave_after);           /* EBX = slave */
+ x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ x86_alu_rm(g_cg, X86_CMP, EAX, M_Z(O(FRT_WDT_NextTS)));
+ x86_jcc(g_cg, X86_CC_GE, &exit);
+ emit_env_base(S0);
+ x86_cmp_mi8(g_cg, S0, X86_NOIDX, 0, E(single_step), 0);
  x86_jcc(g_cg, X86_CC_NE, &exit);
- emit_abs(S0, SH2JIT_Table);
-#if X86EMIT_64
- x86_mov_rm64(g_cg, EAX, S0, EDX, 3, 0);
- x86_test_rr(g_cg, EAX, EAX);                   /* 32-bit test is enough: a mapping never sits in the low 4 GiB and is NULL, but be exact */
- x86_alu_rr64(g_cg, X86_OR, EAX, EAX);
-#else
- x86_mov_rm(g_cg, EAX, S0, EDX, 2, 0);
- x86_test_rr(g_cg, EAX, EAX);
-#endif
- x86_jcc(g_cg, X86_CC_E, &exit);
- x86_jmp_r(g_cg, EAX);
+ emit_env_ptr(S0, E(master));
+ x86_mov_rm(g_cg, ECX, S0, X86_NOIDX, 0, O(timestamp));   /* master.ts */
+ x86_alu_rr(g_cg, X86_CMP, ECX, EAX);
+ x86_jcc(g_cg, X86_CC_LE, &slave_done);
+ emit_dispatch_lookup(&exit);                  /* next slave instruction */
+ x86_label_bind(g_cg, &slave_done);
+ emit_env_ptr(EBX, E(master));
+ x86_jmp(g_cg, &master_events);
+
  x86_label_bind(g_cg, &exit);
  x86_jmp_abs(g_cg, g_exit_stub);
 }
@@ -297,8 +420,7 @@ static void emit_fetch_inline(void)
  /* DoID */
  x86_movzx_rm16(g_cg, EAX, M_Z(O(Pipe_IF)));
 #if X86EMIT_64
- x86_mov_ri64(g_cg, X86_R8, (uint64_t)(uintptr_t)g_opid);
- x86_movzx_rm8(g_cg, ECX, X86_R8, EAX, 0, 0);
+ x86_movzx_rm8(g_cg, ECX, PIN_OPID, EAX, 0, 0);
 #else
  x86_mov_ri(g_cg, ECX, (uint32_t)(uintptr_t)g_opid);
  x86_movzx_rm8(g_cg, ECX, ECX, EAX, 0, 0);
@@ -323,8 +445,7 @@ static void emit_fetch_inline(void)
  x86_mov_rr(g_cg, ECX, EDX);
  x86_shift_ri(g_cg, X86_SHR, ECX, SH7095_EXT_MAP_GRAN_BITS);
 #if X86EMIT_64
- x86_mov_ri64(g_cg, X86_R8, (uint64_t)(uintptr_t)SH7095_FastMap);
- x86_mov_rm64(g_cg, ECX, X86_R8, ECX, 3, 0);
+ x86_mov_rm64(g_cg, ECX, PIN_FMAP, ECX, 3, 0);
  x86_movzx_rm16(g_cg, EAX, ECX, EDX, 0, 0);
 #else
  x86_mov_ri(g_cg, EAX, (uint32_t)(uintptr_t)SH7095_FastMap);
@@ -909,9 +1030,10 @@ static void (*compile(uint32_t instr))(struct SH7095*)
  return (void (*)(struct SH7095*))start;
 }
 
-void SH2JIT_Init(const int32_t* slave_ts, int32_t* mem_ts, const int32_t* next_event_ts)
+void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, const int32_t* next_event_ts)
 {
- g_slave_ts = slave_ts; g_mem_ts = mem_ts; g_next_event_ts = next_event_ts;
+ g_master = master; g_slave = slave; g_slave_ts = &slave->timestamp; g_mem_ts = mem_ts; g_next_event_ts = next_event_ts;
+ g_env.master = master; g_env.slave = slave; g_env.mem_ts = mem_ts; g_env.next_event_ts = next_event_ts;
  memset(SH2JIT_Table, 0, sizeof SH2JIT_Table);
  memset(g_status, 0, sizeof g_status);
  memset(SH2JIT_Pure, 0, sizeof SH2JIT_Pure);
@@ -943,6 +1065,12 @@ void SH2JIT_RunChain(struct SH7095* z)
 void SH2JIT_SetSingleStep(bool on)
 {
  g_single_step = on;
+ g_env.single_step = on;
+}
+
+void SH2JIT_SetCounting(bool on)
+{
+ g_counting = on;   /* must precede SH2JIT_Init: the stub is emitted once */
 }
 
 bool SH2JIT_Available(void)
@@ -965,10 +1093,12 @@ void (*SH2JIT_Handler(uint32_t instr))(struct SH7095*)
 
 #else
 
-void SH2JIT_Init(const int32_t* a, int32_t* b, const int32_t* c) { (void)a; (void)b; (void)c; }
+void SH2JIT_Init(struct SH7095* a, struct SH7095* d, int32_t* b, const int32_t* c) { (void)a; (void)d; (void)b; (void)c; }
 bool SH2JIT_Available(void) { return false; }
 void SH2JIT_RunChain(struct SH7095* z) { (void)z; }
 void SH2JIT_SetSingleStep(bool on) { (void)on; }
+void SH2JIT_SetCounting(bool on) { (void)on; }
+uint64_t SH2JIT_NativeCount, SH2JIT_ChainCount, SH2JIT_FallbackCount;
 void (*SH2JIT_Handler(uint32_t instr))(struct SH7095*) { (void)instr; return NULL; }
 
 #endif

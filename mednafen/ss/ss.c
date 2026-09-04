@@ -1150,7 +1150,7 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
 extern sscpu_timestamp_t next_event_ts;   /* defined further down in this TU */
 void SS_SH2JIT_Init(void)
 {
- SH2JIT_Init(&CPU[1].timestamp, &SH7095_mem_timestamp, &next_event_ts);
+ SH2JIT_Init(&CPU[0], &CPU[1], &SH7095_mem_timestamp, &next_event_ts);
 }
 
 /* Same loop with the master on the instruction JIT. */

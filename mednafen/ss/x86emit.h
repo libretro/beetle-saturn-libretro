@@ -64,7 +64,7 @@ enum
 
 typedef struct x86_codegen x86_codegen;
 
-#define X86_LABEL_MAX_PATCHES 8
+#define X86_LABEL_MAX_PATCHES 32
 typedef struct
 {
  uint8_t* bound;                          /* NULL until x86_label_bind */
