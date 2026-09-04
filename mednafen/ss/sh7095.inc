@@ -716,6 +716,8 @@ sscpu_timestamp_t SH7095_DMA_Update(SH7095* z, sscpu_timestamp_t et)
  else if(MDFN_UNLIKELY(z->ExtHaltDMA))
  {
   z->DMA_Timestamp = et;
+  if(SH2_FastDMAEvents)
+   return SS_EVENT_DISABLED_TS;     /* SH7095_DMAEventRearm on the halt transitions */
   return z->DMA_Timestamp + 128;
  }
  else
@@ -766,6 +768,8 @@ sscpu_timestamp_t SH7095_DMA_Update(SH7095* z, sscpu_timestamp_t et)
   SH7095_RecalcPendingIntPEX(z);	// TODO: conditionalize(or make SH7095_RecalcPendingIntPEX(z) less expensive).
  }
 
+ if(SH2_FastDMAEvents && et >= z->DMA_SGEndTimestamp && !SH7095_DMA_RunCond(z, 0) && !SH7095_DMA_RunCond(z, 1))
+  return SS_EVENT_DISABLED_TS;      /* nothing to do until a DMAC register write (DMA_StartSG re-arms) */
  return et + ((et < z->DMA_SGEndTimestamp) ? 32 : 128);
 }
 

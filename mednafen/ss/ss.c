@@ -168,6 +168,16 @@ int64_t UpdateInputLastBigTS;
 
 int32_t SH7095_mem_timestamp;
 sscpu_timestamp_t SH2_InterleaveQuantum = 0;   /* 0 = exact per-instruction interleave */
+/* Quantised-interleave mode only: idle DMA event handlers disable their
+ * event instead of polling.  Off in exact mode, where the poll phase is
+ * part of the reproduced timing. */
+bool SH2_FastDMAEvents = false;
+
+void SH7095_DMAEventRearm(SH7095* z)
+{
+ if(SH2_FastDMAEvents)
+  SS_SetEventNT(&events[z->event_id_dma], SH7095_mem_timestamp + 32);
+}
 /* SH7095_BusLock is read from ss.c's SH_DMA_EventHandler -- promoted
  * from file-static to TU-external in phase 7c. */
 uint32_t SH7095_BusLock;
@@ -1574,6 +1584,7 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
  else
   {
    SH2_InterleaveQuantum = setting_sh2_interleave;
+   SH2_FastDMAEvents = (setting_sh2_interleave != 0);
    if(setting_sh2_jit && SH2JIT_Available())
     end_ts = RunLoop_NoICache_JIT(espec);
    else

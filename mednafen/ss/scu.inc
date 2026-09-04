@@ -3339,6 +3339,7 @@ static void CheckDMAStart(DMALevelS* d)
     {
      d->Active = true;
      RecalcDMAHalt();
+     if(SH2_FastDMAEvents) SS_SetEventNT(&events[SS_EVENT_SCU_DMA], SH7095_mem_timestamp);
     }
    }
   }
@@ -3353,6 +3354,7 @@ static void CheckDMAStart(DMALevelS* d)
    {
     d->Active = true;
     RecalcDMAHalt();
+    if(SH2_FastDMAEvents) SS_SetEventNT(&events[SS_EVENT_SCU_DMA], SH7095_mem_timestamp);
    }
   }
  }
@@ -3747,6 +3749,14 @@ sscpu_timestamp_t SCU_UpdateDMA(sscpu_timestamp_t timestamp)
   }
  }
 
+ if(SH2_FastDMAEvents && !DMALevel[0].Active && !DMALevel[1].Active && !DMALevel[2].Active)
+ {
+  /* Idle: disable the event.  CheckDMAStart re-arms it when a level
+   * becomes active; RunUntil parked at the maximum makes the first
+   * visit start the time counter at that visit's time, as a poll would. */
+  SCU_DMA_RunUntil = 0x7FFFFFFF;
+  return SS_EVENT_DISABLED_TS;
+ }
  return SCU_DMA_RunUntil;
 }
 

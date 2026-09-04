@@ -388,6 +388,12 @@ void SH7095_Step_w0_C0                 (SH7095* z);
 void SH7095_Step_w0_C1                 (SH7095* z);
 void SH7095_Step_w1_C0                 (SH7095* z);
 void SH7095_DMA_BusTimingKludge        (SH7095* z);
+/* Re-arm the CPU's DMA event (ss.c).  With SH2_FastDMAEvents the idle
+ * DMA handler disables its event instead of polling every 128 cycles,
+ * so anything that can make a channel runnable again must re-arm it:
+ * the DMAC register writes do so through DMA_StartSG, the ExtHalt
+ * transitions through this. */
+void SH7095_DMAEventRearm              (SH7095* z);
 void SH7095_RunSlaveUntil              (SH7095* z, sscpu_timestamp_t ts);
 void SH7095_StateAction                (SH7095* z, StateMem* sm, unsigned load, bool data_only, const char* sname) MDFN_COLD;
 void SH7095_PostStateLoad              (SH7095* z, unsigned state_version, bool recorded_ni, bool ni) MDFN_COLD;
@@ -422,10 +428,12 @@ static FORCE_INLINE void SH7095_SetExtHalt(SH7095* z, bool state)
  if(z->ExtHalt)
   SH7095_SetPEX(z, SH7095_PEX_PSEUDO_EXTHALT);
  z->ExtHaltDMA = (z->ExtHaltDMA & ~1) | state;
+ SH7095_DMAEventRearm(z);
 }
 static FORCE_INLINE void SH7095_SetExtHaltDMAKludgeFromVDP2(SH7095* z, bool state)
 {
  z->ExtHaltDMA = (z->ExtHaltDMA & ~2) | (state << 1);
+ SH7095_DMAEventRearm(z);
 }
 /* SH7095_GetPendingInt is defined in sh7095.inc; call sites in
  * sh7095_ops.inc (which is itself included inside sh7095.inc)
