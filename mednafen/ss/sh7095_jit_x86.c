@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "ss.h"
 #include "sh7095.h"
@@ -534,6 +535,106 @@ static bool compile_mem(uint32_t instr)
  }
 }
 
+/* --- branches ------------------------------------------------------------- */
+
+/* call fn(z, EAX) */
+static void emit_call_z_eax(const void* fn)
+{
+#if X86EMIT_64
+ if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
+ #if defined(_WIN32)
+ x86_mov_rr(g_cg, X86_EDX, EAX);
+ #else
+ x86_mov_rr(g_cg, X86_ESI, EAX);
+ #endif
+ x86_mov_rr64(g_cg, ARG0, EBX);
+ x86_call_abs(g_cg, fn);
+ if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
+#else
+ x86_alu_ri(g_cg, X86_SUB, ESP, 8);
+ x86_push(g_cg, EAX);
+ x86_push(g_cg, EBX);
+ x86_call_abs(g_cg, fn);
+ x86_alu_ri(g_cg, X86_ADD, ESP, 16);
+#endif
+}
+
+/* FUSE_DELAY_SLOT_NOP: if the slot is a NOP, consume it now. */
+#define OP_NOP_ID 0x75
+static void emit_fuse_delay_slot_nop(void)
+{
+ x86_label skip; x86_label_init(&skip);
+ x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
+ x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+ x86_alu_ri(g_cg, X86_CMP, EAX, OP_NOP_ID | 0x80);
+ x86_jcc(g_cg, X86_CC_NE, &skip);
+ x86_alu_mi32(g_cg, X86_ADD, M_Z(O(PC)), 2);
+ emit_fetch_inline();
+ x86_label_bind(g_cg, &skip);
+}
+
+/* Returns 1 if compiled; sets *prefetch = whether BEGIN_OP's DoIDIF
+ * precedes the body (DLYIDIF ops have none). */
+static bool compile_branch(uint32_t instr, bool* prefetch)
+{
+ const unsigned n = (instr >> 8) & 0xF;
+ const uint32_t d12 = (uint32_t)(((int32_t)(instr << 20)) >> 20) << 1;   /* sign_x_to_s32(12) << 1 */
+ const uint32_t d8  = (uint32_t)(int32_t)(int8_t)instr << 1;
+
+ *prefetch = false;
+ switch(instr >> 12)
+ {
+  case 0xA: case 0xB:                                                  /* BRA / BSR */
+   if((instr >> 12) == 0xB) { x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_mov_mr(g_cg, M_Z(O(PR)), EAX); }
+   x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)d12);
+   emit_call_z_eax((const void*)&SH7095_JIT_UCDelayBranch_C0);
+   emit_fuse_delay_slot_nop();
+   return true;
+  case 0x4:
+   if((instr & 0xFF) == 0x2B || (instr & 0xFF) == 0x0B)                /* JMP @Rn / JSR @Rn */
+   {
+     if((instr & 0xFF) == 0x0B) { x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_mov_mr(g_cg, M_Z(O(PR)), EAX); }
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
+    emit_call_z_eax((const void*)&SH7095_JIT_UCDelayBranch_C0);
+    emit_fuse_delay_slot_nop();
+    return true;
+   }
+   return false;
+  case 0x0:
+   if(instr == 0x000B)                                                 /* RTS */
+   {
+     x86_mov_rm(g_cg, EAX, M_Z(O(PR)));
+    emit_call_z_eax((const void*)&SH7095_JIT_UCDelayBranch_C0);
+    emit_fuse_delay_slot_nop();
+    return true;
+   }
+   return false;
+  case 0x8:
+  {
+   const unsigned sub = (instr >> 8) & 0xF;
+   x86_label skip; x86_label_init(&skip);
+   if(sub != 0x9 && sub != 0xB && sub != 0xD && sub != 0xF) return false;
+   *prefetch = true;                                                   /* BEGIN_OP_FUDGEIF: DoIDIF, no icache kludge here */
+   /* cond: T for BT/BT/S (9, D), !T for BF/BF/S (B, F) */
+   x86_mov_rm(g_cg, EAX, M_Z(O(SR)));
+   x86_alu_ri(g_cg, X86_AND, EAX, 1);
+   x86_alu_ri(g_cg, X86_CMP, EAX, (sub == 0x9 || sub == 0xD) ? 1 : 0);
+   x86_jcc(g_cg, X86_CC_NE, &skip);
+   x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)d8);
+   if(sub == 0x9 || sub == 0xB)                                        /* BT / BF */
+    emit_call_z_eax((const void*)&SH7095_JIT_Branch_C0);
+   else                                                                /* BT/S / BF/S */
+    emit_call_z_eax((const void*)&SH7095_JIT_DelayBranch_C0);
+   x86_label_bind(g_cg, &skip);
+   if(sub == 0xD || sub == 0xF)
+    emit_fuse_delay_slot_nop();
+   return true;
+  }
+  default:
+   return false;
+ }
+}
+
 /* --- per-instruction bodies ----------------------------------------------- */
 
 typedef enum { B_MOV, B_ADD, B_SUB, B_AND, B_OR, B_XOR, B_NEG, B_NOT,
@@ -773,11 +874,30 @@ static void (*compile(uint32_t instr))(struct SH7095*)
  if(x86_codegen_offset(g_cg) + 512 > x86_codegen_capacity(g_cg)) return NULL;
  start = x86_codegen_wptr(g_cg);
  g_body_touches_memory = false;
- emit_fetch_inline();
- if(!compile_body(instr))
  {
-  x86_codegen_set_wptr(g_cg, start);
-  return NULL;
+  bool prefetch;
+  void* probe = x86_codegen_wptr(g_cg);
+  /* Branches choose their own prefetch; compile speculatively, undo if
+   * the word is not a branch. */
+  x86_codegen_set_wptr(g_cg, probe);
+  if(compile_branch(instr, &prefetch))
+  {
+   /* re-emit in the right order: prefetch (if any), then the body */
+   x86_codegen_set_wptr(g_cg, start);
+   if(prefetch) emit_fetch_inline();
+   compile_branch(instr, &prefetch);
+   g_body_touches_memory = false;               /* branches only read memory: the self-check may run them on a copy */
+  }
+  else
+  {
+   x86_codegen_set_wptr(g_cg, start);
+   emit_fetch_inline();
+   if(!compile_body(instr))
+   {
+    x86_codegen_set_wptr(g_cg, start);
+    return NULL;
+   }
+  }
  }
  emit_pc_advance();
  x86_jmp_abs(g_cg, g_dispatch_stub);

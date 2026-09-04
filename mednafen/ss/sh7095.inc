@@ -4968,6 +4968,28 @@ MDFN_HIDE void SH7095_JIT_BuildOpIDTable(uint8_t* tab)
   tab[i] = (uint8_t)InstrDecodeTab_Lookup(i);
 }
 
+/* Branch primitives for the JIT, the macros under the master /
+ * no-icache constants.  UCDelayBranch is for ops that do not prefetch
+ * (BEGIN_OP_DLYIDIF: BRA/BSR/JMP/JSR/RTS...), DelayBranch for ones that
+ * do (BF/S, BT/S), Branch for the non-delayed conditionals (BF, BT). */
+MDFN_HIDE void SH7095_JIT_UCDelayBranch_C0(SH7095* z, uint32_t target)
+{
+ const unsigned which = 0; const bool EmulateICache = false; (void)which;
+ UCDelayBranch(target);
+}
+/* (Parameter deliberately not named `target`: DelayBranch/Branch declare
+ * a local of that name from their argument.) */
+MDFN_HIDE void SH7095_JIT_DelayBranch_C0(SH7095* z, uint32_t tgt)
+{
+ const unsigned which = 0; const bool EmulateICache = false; (void)which;
+ DelayBranch(tgt);
+}
+MDFN_HIDE void SH7095_JIT_Branch_C0(SH7095* z, uint32_t tgt)
+{
+ const unsigned which = 0; const bool EmulateICache = false; (void)which;
+ Branch(tgt);
+}
+
 /* The tail of FUSE_COND_BRANCH for the JIT: called by a handler for a
  * fusion-source op (TST, CMP/GT, DT, CMP/EQ #imm, TST #imm) once it has
  * set T and found the next op byte to be BF or BT.  Same statements as
