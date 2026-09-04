@@ -359,12 +359,21 @@ static void check_variables(bool startup)
                setting_jit_scu = true;
          }
 
+         var.key = "beetle_saturn_sh2_interleave";
+         var.value = NULL;
+         setting_sh2_interleave = 0;
+         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value && strcmp(var.value, "exact"))
+            setting_sh2_interleave = atoi(var.value);
+
          var.key = "beetle_saturn_sh2_jit";
          var.value = NULL;
          if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
             setting_sh2_jit = !strcmp(var.value, "enabled");
          if (setting_sh2_jit)
+         {
+            if (getenv("SH2JIT_COUNT")) SH2JIT_SetCounting(true);
             SS_SH2JIT_Init();
+         }
 
          var.key = "beetle_saturn_jit_scsp";
          var.value = NULL;
@@ -1319,6 +1328,11 @@ bool retro_load_game(const struct retro_game_info *info)
 
 void retro_unload_game(void)
 {
+   if (getenv("SH2JIT_COUNT"))
+      fprintf(stderr, "SH2JIT: native=%llu chains=%llu fallback=%llu (native/instr=%.1f%%, avg chain=%.2f)\n",
+         (unsigned long long)SH2JIT_NativeCount, (unsigned long long)SH2JIT_ChainCount, (unsigned long long)SH2JIT_FallbackCount,
+         100.0 * SH2JIT_NativeCount / (double)(SH2JIT_NativeCount + SH2JIT_FallbackCount + 1),
+         SH2JIT_NativeCount / (double)(SH2JIT_ChainCount + 1));
    if(!MDFNGameInfo)
       return;
 

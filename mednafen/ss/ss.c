@@ -167,6 +167,7 @@ bool CartNV_Dirty;
 int64_t UpdateInputLastBigTS;
 
 int32_t SH7095_mem_timestamp;
+sscpu_timestamp_t SH2_InterleaveQuantum = 0;   /* 0 = exact per-instruction interleave */
 /* SH7095_BusLock is read from ss.c's SH_DMA_EventHandler -- promoted
  * from file-static to TU-external in phase 7c. */
 uint32_t SH7095_BusLock;
@@ -1127,9 +1128,13 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
     SH7095_DMA_BusTimingKludge(&CPU[0]);
 
     {
-     while(MDFN_LIKELY(CPU[0].timestamp > CPU[1].timestamp))
+     /* Exact: the slave catches up after every master instruction.
+      * Quantised: only once the master is more than the quantum ahead;
+      * it then catches up fully, as before. */
+     while(MDFN_LIKELY(CPU[0].timestamp - SH2_InterleaveQuantum > CPU[1].timestamp))   /* an idle slave parks near INT32_MAX: never add to its side */
      {
-      SH7095_Step_w1_C0(&CPU[1]);
+      while(CPU[0].timestamp > CPU[1].timestamp)
+       SH7095_Step_w1_C0(&CPU[1]);
      }
     }
 
@@ -1150,7 +1155,8 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache(EmulateSpecStruct* espec)
 extern sscpu_timestamp_t next_event_ts;   /* defined further down in this TU */
 void SS_SH2JIT_Init(void)
 {
- SH2JIT_Init(&CPU[0], &CPU[1], &SH7095_mem_timestamp, &next_event_ts);
+ SH2_InterleaveQuantum = setting_sh2_interleave;
+ SH2JIT_Init(&CPU[0], &CPU[1], &SH7095_mem_timestamp, &next_event_ts, SH2_InterleaveQuantum);
 }
 
 /* Same loop with the master on the instruction JIT. */
@@ -1177,9 +1183,13 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_NoICache_JIT(EmulateSpecStruct* espec)
     SH7095_DMA_BusTimingKludge(&CPU[0]);
 
     {
-     while(MDFN_LIKELY(CPU[0].timestamp > CPU[1].timestamp))
+     /* Exact: the slave catches up after every master instruction.
+      * Quantised: only once the master is more than the quantum ahead;
+      * it then catches up fully, as before. */
+     while(MDFN_LIKELY(CPU[0].timestamp - SH2_InterleaveQuantum > CPU[1].timestamp))   /* an idle slave parks near INT32_MAX: never add to its side */
      {
-      SH7095_Step_w1_C0(&CPU[1]);
+      while(CPU[0].timestamp > CPU[1].timestamp)
+       SH7095_Step_w1_C0(&CPU[1]);
      }
     }
 
@@ -1563,6 +1573,7 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
   end_ts = RunLoop_ICache(espec);
  else
   {
+   SH2_InterleaveQuantum = setting_sh2_interleave;
    if(setting_sh2_jit && SH2JIT_Available())
     end_ts = RunLoop_NoICache_JIT(espec);
    else

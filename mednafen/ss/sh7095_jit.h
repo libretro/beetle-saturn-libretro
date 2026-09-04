@@ -78,7 +78,7 @@ extern uint8_t SH2JIT_OpID[65536];
 
 /* master/slave = &CPU[0]/&CPU[1], mem_ts = &SH7095_mem_timestamp,
  * next_event_ts = &next_event_ts: the loop state the dispatch stub reads. */
-void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, const int32_t* next_event_ts);
+void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, const int32_t* next_event_ts, int32_t quantum);
 
 /* Run a chain of master instructions from the current Pipe_ID: at least
  * the current one, then more while the dispatch stub's checks pass.

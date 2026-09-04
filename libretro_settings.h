@@ -37,5 +37,6 @@ extern bool setting_mpeg_card;
 extern bool setting_jit_scu;
 extern bool setting_jit_scsp;
 extern bool setting_sh2_jit;
+extern int  setting_sh2_interleave;   /* 0 = exact (per instruction); else cycles the master may run ahead of the slave */
 
 #endif

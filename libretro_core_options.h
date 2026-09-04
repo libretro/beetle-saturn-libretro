@@ -171,6 +171,22 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "enabled"
    },
    {
+      "beetle_saturn_sh2_interleave",
+      "SH-2 CPU Sync Mode",
+      NULL,
+      "How closely the two SH-2 CPUs are kept in step. 'Exact' alternates them every instruction and reproduces the previous behaviour byte for byte. The 'Fast' modes let the master run up to the given number of cycles ahead of the slave before the slave catches up, and schedule idle DMA controllers by event instead of polling: each CPU's own timing stays cycle-accurate, only the order of the two CPUs' bus accesses within that window can differ. Fast (256) runs Daytona USA about 1.6x faster than Exact on the same hardware. Use Exact if a game hangs, desyncs or has audio problems in a Fast mode. Has no effect when CPU Cache Emulation is 'Full'. Restart required.",
+      NULL,
+      "system",
+      {
+         { "exact", "Exact (Accurate)" },
+         { "64",    "Fast (64 cycles)" },
+         { "256",   "Fast (256 cycles, recommended)" },
+         { "1024",  "Fastest (1024 cycles)" },
+         { NULL, NULL },
+      },
+      "exact"
+   },
+   {
       "beetle_saturn_sh2_jit",
       "SH-2 Instruction JIT (experimental)",
       NULL,

@@ -67,6 +67,7 @@ typedef struct
  const int32_t* next_event_ts;
  uint8_t single_step;
  uint8_t counting;
+ int32_t quantum;       /* master may run this far ahead of the slave */
 } SH2JitEnv;
 static SH2JitEnv g_env;
 #define E(field) ((int32_t)offsetof(SH2JitEnv, field))
@@ -269,8 +270,11 @@ static void emit_dispatch_stub(void)
  emit_env_base(S0);
  x86_cmp_mi8(g_cg, S0, X86_NOIDX, 0, E(single_step), 0);
  x86_jcc(g_cg, X86_CC_NE, &exit);
+ x86_mov_rr(g_cg, ECX, EAX);
+ emit_env_base(S0);
+ x86_alu_rm(g_cg, X86_SUB, ECX, S0, X86_NOIDX, 0, E(quantum));   /* master.ts - quantum (the slave side may sit near INT32_MAX) */
  emit_env_ptr(S0, E(slave));
- x86_alu_rm(g_cg, X86_CMP, EAX, S0, X86_NOIDX, 0, O(timestamp));
+ x86_alu_rm(g_cg, X86_CMP, ECX, S0, X86_NOIDX, 0, O(timestamp));
  x86_jcc(g_cg, X86_CC_G, &slave_enter);
 
  x86_label_bind(g_cg, &master_events);         /* EBX = master */
@@ -1030,8 +1034,9 @@ static void (*compile(uint32_t instr))(struct SH7095*)
  return (void (*)(struct SH7095*))start;
 }
 
-void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, const int32_t* next_event_ts)
+void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, const int32_t* next_event_ts, int32_t quantum)
 {
+ g_env.quantum = quantum;
  g_master = master; g_slave = slave; g_slave_ts = &slave->timestamp; g_mem_ts = mem_ts; g_next_event_ts = next_event_ts;
  g_env.master = master; g_env.slave = slave; g_env.mem_ts = mem_ts; g_env.next_event_ts = next_event_ts;
  memset(SH2JIT_Table, 0, sizeof SH2JIT_Table);
@@ -1093,7 +1098,7 @@ void (*SH2JIT_Handler(uint32_t instr))(struct SH7095*)
 
 #else
 
-void SH2JIT_Init(struct SH7095* a, struct SH7095* d, int32_t* b, const int32_t* c) { (void)a; (void)d; (void)b; (void)c; }
+void SH2JIT_Init(struct SH7095* a, struct SH7095* d, int32_t* b, const int32_t* c, int32_t q) { (void)a; (void)d; (void)b; (void)c; (void)q; }
 bool SH2JIT_Available(void) { return false; }
 void SH2JIT_RunChain(struct SH7095* z) { (void)z; }
 void SH2JIT_SetSingleStep(bool on) { (void)on; }
