@@ -489,12 +489,16 @@ static void emit_mem_read(MemSize sz, bool instr_space)
 {
  const int32_t tab = read_table_off(sz, instr_space);
 #if X86EMIT_64
- x86_mov_rr(g_cg, ECX, EAX);
- x86_shift_ri(g_cg, X86_SHR, ECX, 29);
- x86_mov_rm64(g_cg, ECX, EBX, ECX, 3, tab);
+ /* The function pointer must not sit in an argument register: on Win64
+  * ARG0 is RCX, and loading the argument would overwrite it (this was
+  * a crash in the wild: CALL into the guest address being read).  R11
+  * is caller-saved and never an argument under SysV or Win64. */
+ x86_mov_rr(g_cg, X86_R11, EAX);
+ x86_shift_ri(g_cg, X86_SHR, X86_R11, 29);
+ x86_mov_rm64(g_cg, X86_R11, EBX, X86_R11, 3, tab);
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  x86_mov_rr(g_cg, ARG0, EAX);
- x86_call_r(g_cg, ECX);
+ x86_call_r(g_cg, X86_R11);
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
 #else
  x86_mov_rr(g_cg, EDX, EAX);
@@ -512,18 +516,17 @@ static void emit_mem_write(MemSize sz)
 {
  const int32_t tab = write_table_off(sz);
 #if X86EMIT_64
- x86_mov_rr(g_cg, ECX, EAX);
- x86_shift_ri(g_cg, X86_SHR, ECX, 29);
- x86_mov_rm64(g_cg, ECX, EBX, ECX, 3, tab);
+ x86_mov_rr(g_cg, X86_R11, EAX);                /* see emit_mem_read: never RCX */
+ x86_shift_ri(g_cg, X86_SHR, X86_R11, 29);
+ x86_mov_rm64(g_cg, X86_R11, EBX, X86_R11, 3, tab);
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  #if defined(_WIN32)
- x86_mov_rr(g_cg, X86_EDX, EDX);                /* already in place */
- x86_mov_rr(g_cg, ARG0, EAX);
+ x86_mov_rr(g_cg, ARG0, EAX);                   /* RCX = A; V already in RDX */
  #else
  x86_mov_rr(g_cg, X86_ESI, EDX);
  x86_mov_rr(g_cg, ARG0, EAX);
  #endif
- x86_call_r(g_cg, ECX);
+ x86_call_r(g_cg, X86_R11);
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_ADD, ESP, CALL_SHADOW);
 #else
  x86_mov_rr(g_cg, S0, EAX);

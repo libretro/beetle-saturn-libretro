@@ -25,13 +25,33 @@
 ** Profiling: perf record -F 499 -D 40000 -- ./runner ... 7200 skips the
 ** BIOS boot and records the attract mode.
 */
-#include <dlfcn.h>
+#if defined(_WIN32)
+ #include <windows.h>
+ #define dlopen(p, f)  ((void*)LoadLibraryA(p))
+ #define dlsym(h, n)   ((void*)GetProcAddress((HMODULE)(h), (n)))
+ #define dlclose(h)    FreeLibrary((HMODULE)(h))
+ #define dlerror()     "LoadLibrary failed"
+ #define RTLD_NOW 0
+ #define RTLD_LOCAL 0
+#else
+ #include <dlfcn.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 #include <time.h>
 #include "libretro.h"
+
+/* Monotonic clock; MinGW lacks clock_gettime, clock() is fine at these lengths. */
+static void now_mono(struct timespec* ts)
+{
+#if defined(_WIN32)
+ clock_t c = clock(); ts->tv_sec = c / CLOCKS_PER_SEC; ts->tv_nsec = (long)((c % CLOCKS_PER_SEC) * (1000000000L / CLOCKS_PER_SEC));
+#else
+ clock_gettime(CLOCK_MONOTONIC, ts);
+#endif
+}
 
 static const char* sysdir = "/home/claude/sys";   /* BIOS directory; override with RUNNER_SYSDIR */
 static struct { const char* k; const char* v; } vars[32]; static int nvars;
@@ -165,6 +185,9 @@ int main(int argc, char** argv)
  }
  if(getenv("RUNNER_VERBOSE")) quiet = 0;
  if(getenv("RUNNER_SYSDIR")) sysdir = getenv("RUNNER_SYSDIR");
+#if defined(_WIN32)
+ if(!getenv("RUNNER_SYSDIR")) sysdir = "Z:\\home\\claude\\sys";
+#endif
  dump_path = getenv("RUNNER_DUMP");
  h = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
  if(!h) { fprintf(stderr, "dlopen: %s\n", dlerror()); return 1; }
@@ -182,7 +205,7 @@ int main(int argc, char** argv)
  if(!p_retro_load_game(&gi)) { fprintf(stderr, "load_game failed\n"); return 2; }
  p_retro_get_system_av_info(&av);
  frames = atoi(argv[3]);
- clock_gettime(CLOCK_MONOTONIC, &t0);
+ now_mono(&t0);
  {
   const char* he = getenv("RUNNER_HASH_EVERY"); int every = he ? atoi(he) : 0;
   void* sbuf = NULL; size_t scap = 0;
@@ -194,7 +217,7 @@ int main(int argc, char** argv)
   }
   free(sbuf);
  }
- clock_gettime(CLOCK_MONOTONIC, &t1);
+ now_mono(&t1);
  {
   double s = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9;
   fprintf(stderr, "%d frames in %.2f s = %.1f fps (%.2fx realtime at %.2f fps)\n", frames, s, frames / s, (frames / s) / av.timing.fps, av.timing.fps);
