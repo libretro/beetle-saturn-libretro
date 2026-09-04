@@ -5001,7 +5001,11 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
   SH7095_FRT_WDT_Update(z);
   SH7095_FRT_WDT_Recalc_NET(z);
  }
- if(MDFN_LIKELY((z->Pipe_ID >> 24) < 0x80))
+ /* Dispatch when the op byte is the word's own decode, with or without
+  * the delay-slot flag: every word with a handler is a non-branch op
+  * whose delay-slot case shares the body verbatim.  Pseudo-ops and the
+  * exception pseudo-op carry other op bytes and go to the interpreter. */
+ if(MDFN_LIKELY(((z->Pipe_ID >> 24) & 0x7F) == SH2JIT_OpID[z->Pipe_ID & 0xFFFF]))
  {
   void (*h)(struct SH7095*) = SH2JIT_Table[z->Pipe_ID & 0xFFFF];
   if(MDFN_UNLIKELY(!h))
@@ -5014,6 +5018,7 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
    {
     static SH7095 tmp; static unsigned reported;
     const uint32_t instr = z->Pipe_ID & 0xFFFF;
+    const unsigned opb = z->Pipe_ID >> 24;
     if(!SH2JIT_Pure[instr]) { h(z); return; }   /* memory ops can't be run twice */
     memcpy(&tmp, z, sizeof tmp);
     h(&tmp);
@@ -5023,8 +5028,8 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
      const unsigned char* a = (const unsigned char*)&tmp; const unsigned char* b = (const unsigned char*)z;
      size_t i; reported++;
      for(i = 0; i < sizeof tmp; i++) if(a[i] != b[i]) break;
-     fprintf(stderr, "SH2JIT mismatch instr=%04x first byte off=%zu (R=%zu PC=%zu SR=%zu ts=%zu MA=%zu WB=%zu Pipe_ID=%zu) jit=%08x interp=%08x\n",
-      instr, i, offsetof(SH7095, R), offsetof(SH7095, PC), offsetof(SH7095, SR), offsetof(SH7095, timestamp), offsetof(SH7095, MA_until), offsetof(SH7095, WB_until), offsetof(SH7095, Pipe_ID),
+     fprintf(stderr, "SH2JIT mismatch instr=%04x opbyte=%02x first byte off=%zu (R=%zu PC=%zu SR=%zu ts=%zu MA=%zu WB=%zu Pipe_ID=%zu) jit=%08x interp=%08x\n",
+      instr, opb, i, offsetof(SH7095, R), offsetof(SH7095, PC), offsetof(SH7095, SR), offsetof(SH7095, timestamp), offsetof(SH7095, MA_until), offsetof(SH7095, WB_until), offsetof(SH7095, Pipe_ID),
       *(const uint32_t*)(a + (i & ~3u)), *(const uint32_t*)(b + (i & ~3u)));
     }
     return;

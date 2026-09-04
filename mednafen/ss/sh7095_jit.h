@@ -18,10 +18,10 @@
 ** So this is a template JIT keyed on the 16-bit instruction word: one
 ** specialised handler per word (register numbers and immediates folded
 ** to constants), compiled on first use, dispatched by the C-side step
-** when the op byte says "ordinary instruction" (< 0x80: not a delay
-** slot, no exception pending) and a handler exists.  Anything else --
-** delay slots, pending exceptions, and every instruction without a
-** native body yet -- runs the interpreter's own switch unchanged.  The
+** unless the op byte is the exception pseudo-op (0xFF), when a handler
+** exists.  Delay-slot variants share a non-branch op's body verbatim,
+** so they dispatch too; pending exceptions and every instruction
+** without a native body run the interpreter's own switch unchanged.  The
 ** handler fetches through the interpreter's out-of-line DoIDIF, so
 ** Pipe_ID/Pipe_IF/IBuffer and the timing side effects are exactly the
 ** interpreter's, and the two dispatch paths can alternate freely at any
@@ -66,6 +66,10 @@ extern void (*SH2JIT_Table[65536])(struct SH7095*);
 /* 1 for compiled words whose handler touches no memory (the SH2JIT_VERIFY
  * self-check may run such a handler on a copy of the CPU). */
 extern uint8_t SH2JIT_Pure[65536];
+
+/* The decoder's op id per word (filled by SH2JIT_Init); the step checks
+ * the op byte against it before dispatching. */
+extern uint8_t SH2JIT_OpID[65536];
 
 void SH2JIT_Init(void);
 bool SH2JIT_Available(void);

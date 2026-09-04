@@ -38,6 +38,7 @@
 
 void (*SH2JIT_Table[65536])(struct SH7095*);
 uint8_t SH2JIT_Pure[65536];
+uint8_t SH2JIT_OpID[65536];
 
 #if defined(WANT_JIT) && X86EMIT_HOST
 
@@ -45,7 +46,7 @@ uint8_t SH2JIT_Pure[65536];
 
 static x86_codegen* g_cg = NULL;
 static uint8_t g_status[65536];    /* 0 = unknown, 1 = compiled, 2 = unsupported */
-static uint8_t g_opid[65536];      /* decoder's op id per word, for the inlined fetch */
+#define g_opid SH2JIT_OpID
 
 #define O(field) ((int32_t)offsetof(SH7095, field))
 #define O_R(n)   (O(R) + 4 * (int32_t)(n))
