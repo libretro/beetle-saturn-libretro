@@ -1098,10 +1098,12 @@ static NO_INLINE MDFN_HOT int32_t RunLoop_ICache(EmulateSpecStruct* espec)
      * instantiation. */
     SH7095_Step_w0_C1(&CPU[0]);
     SH7095_DMA_BusTimingKludge(&CPU[0]);
-
-    {
+    /* Exact: the slave catches up after every master instruction (the
+     * mid-instruction yields are inside RunSlaveUntil).  Quantised: only
+     * once the master is more than the quantum ahead; the bound is the
+     * same, so it then catches up fully. */
+    if(!SH2_InterleaveQuantum || CPU[0].timestamp - SH2_InterleaveQuantum > CPU[1].timestamp)
       SH7095_RunSlaveUntil(&CPU[1], CPU[0].timestamp);
-    }
 
     eff_ts = CPU[0].timestamp;
     if(SH7095_mem_timestamp > eff_ts)
@@ -1579,12 +1581,12 @@ void Emulate(struct EmulateSpecStruct* espec_arg)
  espec->SoundBufSize = 0;
  espec->MasterCycles = 0;
 
+ SH2_InterleaveQuantum = setting_sh2_interleave;
+ SH2_FastDMAEvents = (setting_sh2_interleave != 0);
  if (NeedEmuICache)
   end_ts = RunLoop_ICache(espec);
  else
   {
-   SH2_InterleaveQuantum = setting_sh2_interleave;
-   SH2_FastDMAEvents = (setting_sh2_interleave != 0);
    if(setting_sh2_jit && SH2JIT_Available())
     end_ts = RunLoop_NoICache_JIT(espec);
    else

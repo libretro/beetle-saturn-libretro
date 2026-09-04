@@ -20,3 +20,4 @@ bool setting_jit_scu = true;
 bool setting_jit_scsp = true;
 bool setting_sh2_jit = false;
 int  setting_sh2_interleave = 0;
+int  setting_cpucache_override = -1;

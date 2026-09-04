@@ -359,6 +359,15 @@ static void check_variables(bool startup)
                setting_jit_scu = true;
          }
 
+         var.key = "beetle_saturn_cpucache_emumode";
+         var.value = NULL;
+         setting_cpucache_override = -1;
+         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+         {
+            if (!strcmp(var.value, "data")) setting_cpucache_override = CPUCACHE_EMUMODE_DATA;
+            else if (!strcmp(var.value, "full")) setting_cpucache_override = CPUCACHE_EMUMODE_FULL;
+         }
+
          var.key = "beetle_saturn_sh2_interleave";
          var.value = NULL;
          setting_sh2_interleave = 0;
@@ -1021,6 +1030,16 @@ static const struct STVGameInfo* prepare_stv_zip_content(
    return sgi;
 }
 
+/* beetle_saturn_cpucache_emumode: a user override of the per-game
+ * database's cache emulation mode, applied at every InitCommon path. */
+static unsigned apply_cpucache_override(unsigned db_mode)
+{
+   if (setting_cpucache_override < 0)
+      return db_mode;
+   log_cb(RETRO_LOG_INFO, "CPU cache emulation mode overridden by core option.\n");
+   return (unsigned)setting_cpucache_override;
+}
+
 static bool MDFNI_LoadGame(const char *name)
 {
    unsigned horrible_hacks   = 0;
@@ -1083,7 +1102,7 @@ static bool MDFNI_LoadGame(const char *name)
                   cart_type = setting_cart;
 
                // GO!
-               if (InitCommon(cpucache_emumode,
+               if (InitCommon(apply_cpucache_override(cpucache_emumode),
                     horrible_hacks, cart_type, region,
                     NULL, NULL, NULL))
                {
@@ -1148,7 +1167,7 @@ static bool MDFNI_LoadGame(const char *name)
              * uses it for log/error context only (cart/stv.c walks
              * rom_layout independently); pass rom_layout[0].fname
              * as the natural "lead" file the cache dir contains. */
-            if (InitCommon(cpucache_emumode, horrible_hacks, cart_type,
+            if (InitCommon(apply_cpucache_override(cpucache_emumode), horrible_hacks, cart_type,
                            region, cache_dir, sgi->rom_layout[0].fname, sgi))
             {
                MDFN_LoadGameCheats();
@@ -1202,7 +1221,7 @@ static bool MDFNI_LoadGame(const char *name)
                cpucache_emumode  = CPUCACHE_EMUMODE_FULL;
                horrible_hacks    = 0; // HORRIBLEHACK_VDP1RWDRAWSLOWDOWN if exposed
 
-               if (InitCommon(cpucache_emumode, horrible_hacks, cart_type,
+               if (InitCommon(apply_cpucache_override(cpucache_emumode), horrible_hacks, cart_type,
                               region, dir_buf, base, sgi))
                {
                   MDFN_LoadGameCheats();
@@ -1230,7 +1249,7 @@ static bool MDFNI_LoadGame(const char *name)
       cart_type = setting_cart;
 
    // Initialise with safe parameters
-   if (!InitCommon(cpucache_emumode, horrible_hacks, cart_type, region, NULL, NULL, NULL))
+   if (!InitCommon(apply_cpucache_override(cpucache_emumode), horrible_hacks, cart_type, region, NULL, NULL, NULL))
       return false;
 
    MDFN_LoadGameCheats();
