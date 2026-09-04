@@ -5012,16 +5012,23 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
    h = SH2JIT_Handler(z->Pipe_ID & 0xFFFF);
   if(MDFN_LIKELY(h != NULL))
   {
-#ifdef SH2JIT_VERIFY
+#ifndef SH2JIT_VERIFY
+   /* One or more instructions natively; the C loop's checks below are
+    * idempotent for whatever the chain already applied. */
+   SH2JIT_RunChain(z);
+   return;
+#else
    /* Debug: run the handler on a copy and the interpreter on the real
     * state, then compare.  Valid while no handler writes memory. */
    {
     static SH7095 tmp; static unsigned reported;
     const uint32_t instr = z->Pipe_ID & 0xFFFF;
     const unsigned opb = z->Pipe_ID >> 24;
-    if(!SH2JIT_Pure[instr]) { h(z); return; }   /* memory ops can't be run twice */
+    if(!SH2JIT_Pure[instr]) { SH2JIT_SetSingleStep(true); SH2JIT_RunChain(z); return; }   /* memory ops can't be run twice */
     memcpy(&tmp, z, sizeof tmp);
-    h(&tmp);
+    (void)h;
+    SH2JIT_SetSingleStep(true);
+    SH2JIT_RunChain(&tmp);
     SH7095_Step_w0_C0_NI(z);
     if(memcmp(&tmp, z, sizeof tmp) && reported < 8)
     {

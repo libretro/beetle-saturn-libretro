@@ -71,7 +71,20 @@ extern uint8_t SH2JIT_Pure[65536];
  * the op byte against it before dispatching. */
 extern uint8_t SH2JIT_OpID[65536];
 
-void SH2JIT_Init(void);
+/* slave_ts = &CPU[1].timestamp, mem_ts = &SH7095_mem_timestamp,
+ * next_event_ts = &next_event_ts: the loop state the dispatch stub reads. */
+void SH2JIT_Init(const int32_t* slave_ts, int32_t* mem_ts, const int32_t* next_event_ts);
+
+/* Run a chain of master instructions from the current Pipe_ID: at least
+ * the current one, then more while the dispatch stub's checks pass.
+ * The caller has verified the first instruction dispatches. */
+void SH2JIT_RunChain(struct SH7095* z);
+
+/* Make every chain exit after one instruction (SH2JIT_VERIFY builds). */
+void SH2JIT_SetSingleStep(bool on);
+
+/* ss.c: SH2JIT_Init with this TU's CPU[1], SH7095_mem_timestamp, next_event_ts. */
+void SS_SH2JIT_Init(void);
 bool SH2JIT_Available(void);
 
 #ifdef __cplusplus

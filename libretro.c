@@ -364,7 +364,7 @@ static void check_variables(bool startup)
          if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
             setting_sh2_jit = !strcmp(var.value, "enabled");
          if (setting_sh2_jit)
-            SH2JIT_Init();
+            SS_SH2JIT_Init();
 
          var.key = "beetle_saturn_jit_scsp";
          var.value = NULL;
