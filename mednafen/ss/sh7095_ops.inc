@@ -1257,7 +1257,7 @@ switch(z->Pipe_ID >> 24)
 
 	SH7095_BusLock++;
 	tmp = ExtBusRead(uint8_t, false, opexec_ea);	// FIXME: Address error on invalid address(>= 0x40000000 ?).
-	z->timestamp = SH7095_mem_timestamp;
+	z->timestamp = SH7095_mem_timestamp - z->BusLag;
 
 	SH7095_SetT(z, !tmp);
 

@@ -120,6 +120,12 @@ struct SH7095
  sscpu_timestamp_t timestamp;
  sscpu_timestamp_t MM_until;
  sscpu_timestamp_t MA_until;
+ /* Quantised-interleave mode only: while the slave runs its catch-up
+  * burst this holds the master's lead over it, and every conversion of
+  * shared bus time into this CPU's time subtracts it, so the slave does
+  * not pay for bus time the master consumed while running ahead.  Zero
+  * for the master and in exact mode. */
+ sscpu_timestamp_t BusLag;
  sscpu_timestamp_t write_finish_timestamp;
 
  // System registers

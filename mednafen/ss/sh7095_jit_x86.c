@@ -275,7 +275,7 @@ static void emit_dispatch_stub(void)
  x86_alu_rm(g_cg, X86_SUB, ECX, S0, X86_NOIDX, 0, E(quantum));   /* master.ts - quantum (the slave side may sit near INT32_MAX) */
  emit_env_ptr(S0, E(slave));
  x86_alu_rm(g_cg, X86_CMP, ECX, S0, X86_NOIDX, 0, O(timestamp));
- x86_jcc(g_cg, X86_CC_G, &slave_enter);
+ x86_jcc(g_cg, X86_CC_G, g_env.quantum ? &exit : &slave_enter);   /* quantised: the slave burst needs the C loop's BusLag bracket */
 
  x86_label_bind(g_cg, &master_events);         /* EBX = master */
  x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
