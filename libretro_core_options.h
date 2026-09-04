@@ -158,7 +158,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_jit_scu",
-      "SCU DSP JIT Binary Translator",
+      "SCU DSP JIT Binary Translator (Restart)",
       NULL,
       "Use the native JIT binary translator for the SCU DSP. Available on x86, x86-64 and Linux/Android aarch64 builds; elsewhere the interpreter is always used. Restart required.",
       NULL,
@@ -172,7 +172,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_cpucache_emumode",
-      "CPU Cache Emulation",
+      "CPU Cache Emulation (Restart)",
       NULL,
       "Which SH-2 cache emulation mode to use. 'Auto' takes it from the per-game database: 'Data only' for most titles, 'Full' (instruction cache emulated, slower) for the games known to need it and for all ST-V games. Override only to test; 'Data only' on a game that needs 'Full' can glitch or hang. Restart required.",
       NULL,
@@ -187,7 +187,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_sh2_interleave",
-      "SH-2 CPU Sync Mode",
+      "SH-2 CPU Sync Mode (Restart)",
       NULL,
       "How closely the two SH-2 CPUs are kept in step. 'Exact' alternates them every instruction and reproduces the previous behaviour byte for byte. The 'Fast' modes let the master run up to the given number of cycles ahead of the slave before the slave catches up, and schedule idle DMA controllers by event instead of polling: each CPU's own timing stays cycle-accurate, only the order of the two CPUs' bus accesses within that window can differ. Fast (256) runs Daytona USA about 1.6x faster than Exact on the same hardware. Use Exact if a game hangs, desyncs or has audio problems in a Fast mode. Restart required.",
       NULL,
@@ -203,7 +203,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_sh2_jit",
-      "SH-2 Instruction JIT (experimental)",
+      "SH-2 Instruction JIT (Experimental, Restart)",
       NULL,
       "Run the master SH-2's ordinary instructions through natively compiled per-instruction handlers, keeping the interpreter's exact timing. Only with CPU cache emulation off ('Data only'), x86/x86-64 only. Restart required.",
       NULL,
@@ -217,7 +217,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "beetle_saturn_jit_scsp",
-      "SCSP DSP JIT Binary Translator",
+      "SCSP DSP JIT Binary Translator (Restart)",
       NULL,
       "Use the native JIT binary translator for the SCSP DSP (MPROG). Available on x86, x86-64 and Linux/Android aarch64 builds; elsewhere the interpreter is always used. Restart required.",
       NULL,
