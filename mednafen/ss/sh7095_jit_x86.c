@@ -87,7 +87,7 @@ static uint32_t g_blk_lo, g_blk_hi;
 static bool     g_blk_self_write_check;
 static bool     g_body_wrote_memory;       /* the body emitted a store (self-write check needed) */
 static bool     g_blk_allow_movb;      /* block compiler: next word is not CMP/EQ #imm / TST #imm (no triplet fusion possible) */
-static bool     g_in_block;            /* compiling for the block compiler (master, slave off), not the chain */
+
 static int      g_probe_placement;
 static uint32_t g_fold_pc; static uint16_t g_fold_nw, g_fold_nnw;
 static void emit_folded_fetch(uint32_t pc_at_body, uint16_t next_w, uint16_t nextnext_w);
@@ -118,6 +118,26 @@ enum { EAX = X86_EAX, ECX = X86_ECX, EDX = X86_EDX, EBX = X86_EBX, ESP = X86_ESP
   #define CALL_SHADOW 0
  #endif
 #endif
+
+static bool g_in_block;                /* compiling for the block compiler (master, slave off), not the chain */
+/* In blocks on x86-64, z->timestamp lives in EBP for the block's life:
+ * every fold, stall check and event check touches it, and through
+ * memory those formed store-to-load chains.  It is flushed before and
+ * reloaded after every C call (helpers read and write z->timestamp),
+ * and flushed at the block's exit.  Chain handlers keep the memory form. */
+#if X86EMIT_64
+ #define PIN_TS X86_EBP
+ #define TS_PINNED (g_in_block)
+#else
+ #define PIN_TS 0
+ #define TS_PINNED 0
+#endif
+static void ts_load(unsigned r)   { if(TS_PINNED) x86_mov_rr(g_cg, r, PIN_TS); else x86_mov_rm(g_cg, r, M_Z(O(timestamp))); }
+static void ts_store(unsigned r)  { if(TS_PINNED) x86_mov_rr(g_cg, PIN_TS, r); else x86_mov_mr(g_cg, M_Z(O(timestamp)), r); }
+static void ts_add_imm(int32_t v) { if(TS_PINNED) x86_alu_ri(g_cg, X86_ADD, PIN_TS, v); else x86_alu_mi32(g_cg, X86_ADD, M_Z(O(timestamp)), v); }
+static void ts_add_reg(unsigned r){ if(TS_PINNED) x86_alu_rr(g_cg, X86_ADD, PIN_TS, r); else x86_alu_mr(g_cg, X86_ADD, M_Z(O(timestamp)), r); }
+static void ts_flush(void)        { if(TS_PINNED) x86_mov_mr(g_cg, M_Z(O(timestamp)), PIN_TS); }
+static void ts_reload(void)       { if(TS_PINNED) x86_mov_rm(g_cg, PIN_TS, M_Z(O(timestamp))); }
 
 /* --- frame ------------------------------------------------------------- */
 
@@ -332,6 +352,7 @@ static void emit_dispatch_stub(void)
 
 static void emit_call_z(const void* fn)
 {
+ ts_flush();
 #if X86EMIT_64
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  x86_mov_rr64(g_cg, ARG0, EBX);
@@ -343,6 +364,7 @@ static void emit_call_z(const void* fn)
  x86_call_abs(g_cg, fn);
  x86_alu_ri(g_cg, X86_ADD, ESP, 16);
 #endif
+ ts_reload();
 }
 
 /* --- pieces ------------------------------------------------------------- */
@@ -350,11 +372,11 @@ static void emit_call_z(const void* fn)
 /* WB_EX_CHECK(r): timestamp = max(timestamp, WB_until[r]) */
 static void emit_wb_check(unsigned r)
 {
- x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ ts_load(EAX);
  x86_mov_rm(g_cg, ECX, M_Z(O_WB(r)));
  x86_alu_rr(g_cg, X86_CMP, EAX, ECX);
  x86_cmov(g_cg, X86_CC_L, EAX, ECX);
- x86_mov_mr(g_cg, M_Z(O(timestamp)), EAX);
+ ts_store(EAX);
 }
 
 /* SetT(cc): SR = (SR & ~1) | cc, with cc the condition currently in flags. */
@@ -392,6 +414,7 @@ static void emit_fuse_cond_branch(unsigned op_id, bool cond_is_t)
  x86_mov_rm(g_cg, EDX, M_Z(O(SR)));
  x86_alu_ri(g_cg, X86_AND, EDX, 1);
  if(!cond_is_t) x86_alu_ri(g_cg, X86_XOR, EDX, 1);
+ ts_flush();
 #if X86EMIT_64
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  x86_mov_rr64(g_cg, ARG0, EBX);
@@ -409,6 +432,7 @@ static void emit_fuse_cond_branch(unsigned op_id, bool cond_is_t)
  x86_call_abs(g_cg, (const void*)&SH7095_JIT_FusedCondBranch_C0);
  x86_alu_ri(g_cg, X86_ADD, ESP, 16);
 #endif
+ ts_reload();
  x86_label_bind(g_cg, &skip);
 }
 
@@ -459,7 +483,7 @@ static void emit_fetch_inline(void)
  x86_alu_rr(g_cg, X86_OR, EAX, ECX);
  x86_mov_mr(g_cg, M_Z(O(Pipe_ID)), EAX);
  /* FetchIF */
- x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ ts_load(EAX);
  x86_mov_rm(g_cg, ECX, M_Z(O(MA_until)));
  /* threshold = MA_until - ((PC & 2) << 28) */
  x86_mov_rr(g_cg, S0, EDX);
@@ -470,7 +494,7 @@ static void emit_fetch_inline(void)
  x86_alu_rr(g_cg, X86_CMP, EAX, S1);
  x86_cmov(g_cg, X86_CC_L, EAX, ECX);
  x86_alu_ri(g_cg, X86_ADD, EAX, 1);
- x86_mov_mr(g_cg, M_Z(O(timestamp)), EAX);
+ ts_store(EAX);
  x86_mov_rr(g_cg, ECX, EDX);
  x86_shift_ri(g_cg, X86_SHR, ECX, SH7095_EXT_MAP_GRAN_BITS);
 #if X86EMIT_64
@@ -513,6 +537,7 @@ static int32_t write_table_off(MemSize sz)
 static void emit_mem_read(MemSize sz, bool instr_space)
 {
  const int32_t tab = read_table_off(sz, instr_space);
+ ts_flush();
 #if X86EMIT_64
  /* The function pointer must not sit in an argument register: on Win64
   * ARG0 is RCX, and loading the argument would overwrite it (this was
@@ -534,6 +559,7 @@ static void emit_mem_read(MemSize sz, bool instr_space)
 #endif
  if(sz == MEM_8)  x86_movzx_rr8(g_cg, EAX, EAX);
  if(sz == MEM_16) x86_movzx_rr16(g_cg, EAX, EAX);
+ ts_reload();
 }
 
 /* EAX = address, EDX = value: z->MWFP##sz[A >> 29](A, V). */
@@ -541,6 +567,7 @@ static void emit_mem_write(MemSize sz)
 {
  const int32_t tab = write_table_off(sz);
  g_body_wrote_memory = true;
+ ts_flush();
  if(g_blk_self_write_check)
  {
   /* (A & 0x0FFFFFFF) in [lo, hi) -> env.self_write = 1 */
@@ -574,6 +601,7 @@ static void emit_mem_write(MemSize sz)
  x86_mov_rr(g_cg, ECX, EAX);                    /* fastcall: ECX = A, EDX = V */
  x86_call_r(g_cg, S0);
 #endif
+ ts_reload();
 }
 
 /* WB_READ{8,16,32}(r, ea) with ea in EAX: read, sign-extend for 8/16,
@@ -716,6 +744,7 @@ static bool compile_mem(uint32_t instr)
 /* call fn(z, EAX) */
 static void emit_call_z_eax(const void* fn)
 {
+ ts_flush();
 #if X86EMIT_64
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  #if defined(_WIN32)
@@ -733,6 +762,7 @@ static void emit_call_z_eax(const void* fn)
  x86_call_abs(g_cg, fn);
  x86_alu_ri(g_cg, X86_ADD, ESP, 16);
 #endif
+ ts_reload();
 }
 
 /* FUSE_DELAY_SLOT_NOP: if the slot is a NOP, consume it now. */
@@ -898,11 +928,11 @@ static void (*g_fetch_emitter)(void);          /* used by FETCH_EMITTED_BY_BODY 
  *   timestamp++; MA_until = max(MA_until, MM_until, timestamp + 1); MM_until = MA_until + 4 */
 static void emit_mul32_timing_then_fetch(void)
 {
- x86_alu_mi32(g_cg, X86_ADD, M_Z(O(timestamp)), 1);
+ ts_add_imm(1);
  x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
  x86_mov_rm(g_cg, ECX, M_Z(O(MM_until)));
  x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
- x86_mov_rm(g_cg, ECX, M_Z(O(timestamp))); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
+ ts_load(ECX); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
  x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
  x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
  x86_alu_ri(g_cg, X86_ADD, EAX, 4);
@@ -916,7 +946,7 @@ static void emit_mul16_timing(void)
  x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
  x86_mov_rm(g_cg, ECX, M_Z(O(MM_until)));
  x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
- x86_mov_rm(g_cg, ECX, M_Z(O(timestamp))); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
+ ts_load(ECX); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
  x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
  x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
  x86_alu_ri(g_cg, X86_ADD, EAX, 2);
@@ -957,7 +987,7 @@ static bool compile_sys(uint32_t instr)
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); emit_mem_read(MEM_32, false); x86_mov_mr(g_cg, M_Z(O(Resume_MAC_L_m1)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 4);
     emit_call_z((const void*)&SH7095_JIT_MACL_Arith);
-    x86_alu_mi32(g_cg, X86_ADD, M_Z(O(timestamp)), 1);
+    ts_add_imm(1);
     g_body_touches_memory = true; return true;
    }
    if(instr == 0x0028) { x86_mov_mi32(g_cg, M_Z(O(MACH)), 0); x86_mov_mi32(g_cg, M_Z(O(MACL)), 0); return true; }   /* CLRMAC */
@@ -1075,7 +1105,7 @@ static bool compile_sys(uint32_t instr)
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); emit_mem_read(MEM_16, false); x86_mov_mr16(g_cg, M_Z(O(Resume_MAC_W_m1)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 2);
     emit_call_z((const void*)&SH7095_JIT_MACW_Arith);
-    x86_alu_mi32(g_cg, X86_ADD, M_Z(O(timestamp)), 1);
+    ts_add_imm(1);
     g_body_touches_memory = true; return true;
    }
    if((instr & 0xFF) == 0x0A || (instr & 0xFF) == 0x1A || (instr & 0xFF) == 0x2A)                                     /* LDS Rm,MACH/MACL/PR */
@@ -1360,7 +1390,7 @@ static void emit_folded_fetch(uint32_t pc_at_body, uint16_t next_w, uint16_t nex
  x86_mov_mr(g_cg, M_Z(O(Pipe_ID)), EAX);
  x86_mov_mi32(g_cg, M_Z(O(Pipe_IF)), nextnext_w);
  /* if(timestamp < MA_until - ((PC & 2) << 28)) timestamp = MA_until;  timestamp++ */
- x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ ts_load(EAX);
  x86_mov_rm(g_cg, ECX, M_Z(O(MA_until)));
  if(pc_at_body & 2)
  {
@@ -1376,7 +1406,7 @@ static void emit_folded_fetch(uint32_t pc_at_body, uint16_t next_w, uint16_t nex
   x86_cmov(g_cg, X86_CC_L, EAX, ECX);
  }
  x86_alu_ri(g_cg, X86_ADD, EAX, 1);
- x86_mov_mr(g_cg, M_Z(O(timestamp)), EAX);
+ ts_store(EAX);
 }
 
 /* The C loop's post-instruction work: DMA kludge, then exit if an event
@@ -1394,10 +1424,10 @@ static void emit_post_instr(x86_label* exit, bool touched_memory)
  if(touched_memory)
  {
   x86_mov_rm(g_cg, EAX, M_Z(O(DMA_PenaltyKludgeAccum)));
-  x86_alu_mr(g_cg, X86_ADD, M_Z(O(timestamp)), EAX);
+  ts_add_reg(EAX);
   x86_mov_mi32(g_cg, M_Z(O(DMA_PenaltyKludgeAccum)), 0);
  }
- x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ ts_load(EAX);
  /* The C loop stores mem_timestamp = max(mem_timestamp, timestamp) after
   * every instruction, and peripherals' event handlers catch up to the
   * stored value at exits: it must be exact at every exit, so it is kept
@@ -1450,7 +1480,7 @@ static void emit_pre_instr(x86_label* exit)
  x86_shift_ri(g_cg, X86_SHR, EAX, 24);
  x86_alu_ri(g_cg, X86_CMP, EAX, 0xFF);
  x86_jcc(g_cg, X86_CC_E, exit);
- x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ ts_load(EAX);
  x86_alu_rm(g_cg, X86_CMP, EAX, M_Z(O(FRT_WDT_NextTS)));
  x86_jcc(g_cg, X86_CC_GE, exit);
 }
@@ -1496,8 +1526,10 @@ static bool compile_block(Block* b)
  start = x86_codegen_wptr(g_cg);
  emit_entry_frame();
 #if X86EMIT_64
+ x86_push(g_cg, PIN_TS); x86_alu_ri64(g_cg, X86_SUB, ESP, 8);   /* keep 16-byte alignment */
  emit_env_ptr(S0, E(next_event_ts));
  x86_mov_rm(g_cg, PIN_TABLE, S0, X86_NOIDX, 0, 0);   /* R13 = next_event_ts for the block's life */
+ x86_mov_rm(g_cg, PIN_TS, M_Z(O(timestamp)));         /* EBP = timestamp for the block's life */
 #endif
  x86_label_bind(g_cg, &head);
  g_blk_lo = b->addr; g_blk_hi = b->addr + b->nwords * 2;
@@ -1613,6 +1645,10 @@ static bool compile_block(Block* b)
   b->nvalid = b->nwords + 2;
  }
  x86_label_bind(g_cg, &exit);
+#if X86EMIT_64
+ x86_mov_mr(g_cg, M_Z(O(timestamp)), PIN_TS);
+ x86_alu_ri64(g_cg, X86_ADD, ESP, 8); x86_pop(g_cg, PIN_TS);
+#endif
  x86_jmp_abs(g_cg, g_exit_stub);
  if(!ok || x86_codegen_overflowed(g_cg))
  {
