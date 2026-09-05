@@ -70,6 +70,8 @@ typedef struct
  uint8_t single_step;
  uint8_t counting;
  int32_t quantum;       /* master may run this far ahead of the slave */
+ const uintptr_t* fmap;  /* SH7095_FastMap, for blocks' live fetch */
+ const uint8_t* opid;    /* op-id table, for blocks' live fetch (R15 carries the op byte in blocks) */
  uint8_t self_write;    /* a block stored into its own address range */
 } SH2JitEnv;
 static SH2JitEnv g_env;
@@ -121,6 +123,7 @@ enum { EAX = X86_EAX, ECX = X86_ECX, EDX = X86_EDX, EBX = X86_EBX, ESP = X86_ESP
 #endif
 
 static bool g_in_block;                /* compiling for the block compiler (master, slave off), not the chain */
+static void emit_env_ptr(unsigned r, int32_t field);
 /* In blocks on x86-64, z->timestamp lives in EBP for the block's life:
  * every fold, stall check and event check touches it, and through
  * memory those formed store-to-load chains.  It is flushed before and
@@ -139,6 +142,27 @@ static void ts_add_imm(int32_t v) { if(TS_PINNED) x86_alu_ri(g_cg, X86_ADD, PIN_
 static void ts_add_reg(unsigned r){ if(TS_PINNED) x86_alu_rr(g_cg, X86_ADD, PIN_TS, r); else x86_alu_mr(g_cg, X86_ADD, M_Z(O(timestamp)), r); }
 static void ts_flush(void)        { if(TS_PINNED) x86_mov_mr(g_cg, M_Z(O(timestamp)), PIN_TS); }
 static void ts_reload(void)       { if(TS_PINNED) x86_mov_rm(g_cg, PIN_TS, M_Z(O(timestamp))); }
+
+/* In blocks PC is a compile-time constant at every use: pc_to() yields
+ * it as an immediate and pc_set() stores it; the chain loads/RMWs. */
+static bool     g_pc_known;
+static uint32_t g_pc_value;
+static void pc_to(unsigned r)        { if(g_pc_known) x86_mov_ri(g_cg, r, g_pc_value); else x86_mov_rm(g_cg, r, M_Z(O(PC))); }
+static void pc_advance2(void)        { if(g_pc_known) { g_pc_value += 2; x86_mov_mi32(g_cg, M_Z(O(PC)), g_pc_value); } else x86_alu_mi32(g_cg, X86_ADD, M_Z(O(PC)), 2); }
+static void pc_set(uint32_t v)       { g_pc_known = true; g_pc_value = v; x86_mov_mi32(g_cg, M_Z(O(PC)), v); }
+static void pc_unknown(void)         { g_pc_known = false; }
+
+/* mem_timestamp pinned in R14 for a block's life (blocks reach the
+ * FastMap through the env instead); flushed/reloaded around C calls. */
+#if X86EMIT_64
+ #define PIN_MEMTS X86_R14
+ #define MEMTS_PINNED (g_in_block)
+#else
+ #define PIN_MEMTS 0
+ #define MEMTS_PINNED 0
+#endif
+static void memts_flush(void)  { if(MEMTS_PINNED) { emit_env_ptr(S0, E(mem_ts)); x86_mov_mr(g_cg, S0, X86_NOIDX, 0, 0, PIN_MEMTS); } }
+static void memts_reload(void) { if(MEMTS_PINNED) { emit_env_ptr(S0, E(mem_ts)); x86_mov_rm(g_cg, PIN_MEMTS, S0, X86_NOIDX, 0, 0); } }
 
 /* --- frame ------------------------------------------------------------- */
 
@@ -354,6 +378,7 @@ static void emit_dispatch_stub(void)
 static void emit_call_z(const void* fn)
 {
  ts_flush();
+ memts_flush();
 #if X86EMIT_64
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  x86_mov_rr64(g_cg, ARG0, EBX);
@@ -366,6 +391,7 @@ static void emit_call_z(const void* fn)
  x86_alu_ri(g_cg, X86_ADD, ESP, 16);
 #endif
  ts_reload();
+ memts_reload();
 }
 
 /* --- pieces ------------------------------------------------------------- */
@@ -418,7 +444,9 @@ static void emit_fuse_cond_branch(unsigned op_id, bool cond_is_t)
  x86_mov_rm(g_cg, EDX, M_Z(O(SR)));
  x86_alu_ri(g_cg, X86_AND, EDX, 1);
  if(!cond_is_t) x86_alu_ri(g_cg, X86_XOR, EDX, 1);
+ pc_unknown();          /* the fusion helper may branch */
  ts_flush();
+ memts_flush();
 #if X86EMIT_64
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  x86_mov_rr64(g_cg, ARG0, EBX);
@@ -437,6 +465,7 @@ static void emit_fuse_cond_branch(unsigned op_id, bool cond_is_t)
  x86_alu_ri(g_cg, X86_ADD, ESP, 16);
 #endif
  ts_reload();
+ memts_reload();
  x86_label_bind(g_cg, &skip);
 }
 
@@ -460,13 +489,13 @@ static bool g_fetch_int_prevent;   /* emit the DoID with IntPreventNext (PART_OP
 static void emit_fetch_inline(void)
 {
  x86_label slow, done; x86_label_init(&slow); x86_label_init(&done);
- x86_mov_rm(g_cg, EDX, M_Z(O(PC)));
- x86_test_rr(g_cg, EDX, EDX);
- x86_jcc(g_cg, X86_CC_S, &slow);
+ pc_to(EDX);
+ if(!g_pc_known) { x86_test_rr(g_cg, EDX, EDX); x86_jcc(g_cg, X86_CC_S, &slow); }   /* blocks never start at a negative PC */
  /* DoID */
  x86_movzx_rm16(g_cg, EAX, M_Z(O(Pipe_IF)));
 #if X86EMIT_64
- x86_movzx_rm8(g_cg, ECX, PIN_OPID, EAX, 0, 0);
+ if(g_in_block) { emit_env_ptr(X86_R8, E(opid)); x86_movzx_rm8(g_cg, ECX, X86_R8, EAX, 0, 0); }
+ else x86_movzx_rm8(g_cg, ECX, PIN_OPID, EAX, 0, 0);
 #else
  x86_mov_ri(g_cg, ECX, (uint32_t)(uintptr_t)g_opid);
  x86_movzx_rm8(g_cg, ECX, ECX, EAX, 0, 0);
@@ -486,6 +515,9 @@ static void emit_fetch_inline(void)
  }
  x86_alu_rr(g_cg, X86_OR, EAX, ECX);
  x86_mov_mr(g_cg, M_Z(O(Pipe_ID)), EAX);
+#if X86EMIT_64
+ if(g_in_block) { x86_mov_rr(g_cg, PIN_OPID, EAX); x86_shift_ri(g_cg, X86_SHR, PIN_OPID, 24); }   /* R15 = next op byte */
+#endif
  /* FetchIF */
  ts_load(EAX);
  x86_mov_rm(g_cg, ECX, M_Z(O(MA_until)));
@@ -502,7 +534,8 @@ static void emit_fetch_inline(void)
  x86_mov_rr(g_cg, ECX, EDX);
  x86_shift_ri(g_cg, X86_SHR, ECX, SH7095_EXT_MAP_GRAN_BITS);
 #if X86EMIT_64
- x86_mov_rm64(g_cg, ECX, PIN_FMAP, ECX, 3, 0);
+ if(g_in_block) { emit_env_ptr(X86_R8, E(fmap)); x86_mov_rm64(g_cg, ECX, X86_R8, ECX, 3, 0); }
+ else x86_mov_rm64(g_cg, ECX, PIN_FMAP, ECX, 3, 0);
  x86_movzx_rm16(g_cg, EAX, ECX, EDX, 0, 0);
 #else
  x86_mov_ri(g_cg, EAX, (uint32_t)(uintptr_t)SH7095_FastMap);
@@ -510,15 +543,18 @@ static void emit_fetch_inline(void)
  x86_movzx_rm16(g_cg, EAX, ECX, EDX, 0, 0);
 #endif
  x86_mov_mr(g_cg, M_Z(O(Pipe_IF)), EAX);
- x86_jmp(g_cg, &done);
- x86_label_bind(g_cg, &slow);
- emit_call_z((const void*)&SH7095_DoIDIF_NI_C0_I0);
+ if(!g_pc_known)
+ {
+  x86_jmp(g_cg, &done);
+  x86_label_bind(g_cg, &slow);
+  emit_call_z((const void*)&SH7095_DoIDIF_NI_C0_I0);
+ }
  x86_label_bind(g_cg, &done);
 }
 
 static void emit_pc_advance(void)
 {
- x86_alu_mi32(g_cg, X86_ADD, M_Z(O(PC)), 2);
+ pc_advance2();
 }
 
 /* --- memory access through the CPU's region tables ------------------------
@@ -542,6 +578,7 @@ static void emit_mem_read(MemSize sz, bool instr_space)
 {
  const int32_t tab = read_table_off(sz, instr_space);
  ts_flush();
+ memts_flush();
 #if X86EMIT_64
  /* The function pointer must not sit in an argument register: on Win64
   * ARG0 is RCX, and loading the argument would overwrite it (this was
@@ -564,6 +601,7 @@ static void emit_mem_read(MemSize sz, bool instr_space)
  if(sz == MEM_8)  x86_movzx_rr8(g_cg, EAX, EAX);
  if(sz == MEM_16) x86_movzx_rr16(g_cg, EAX, EAX);
  ts_reload();
+ memts_reload();
 }
 
 /* EAX = address, EDX = value: z->MWFP##sz[A >> 29](A, V). */
@@ -572,6 +610,7 @@ static void emit_mem_write(MemSize sz)
  const int32_t tab = write_table_off(sz);
  g_body_wrote_memory = true;
  ts_flush();
+ memts_flush();
  if(g_blk_self_write_check)
  {
   /* (A & 0x0FFFFFFF) in [lo, hi) -> env.self_write = 1 */
@@ -606,6 +645,7 @@ static void emit_mem_write(MemSize sz)
  x86_call_r(g_cg, S0);
 #endif
  ts_reload();
+ memts_reload();
 }
 
 /* WB_READ{8,16,32}(r, ea) with ea in EAX: read, sign-extend for 8/16,
@@ -711,7 +751,7 @@ static bool compile_mem(uint32_t instr)
     default: return false;
    }
   case 0x9:                                                            /* MOV.W @(disp*2,PC),Rn */
-   x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << 1));
+   pc_to(EAX); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << 1));
    emit_wb_read(n, MEM_16, true); return true;
   case 0xC:
    switch((instr >> 8) & 0xF)
@@ -731,12 +771,12 @@ static bool compile_mem(uint32_t instr)
     }
     case 0x7:                                                          /* MOVA @(disp*4,PC),R0 */
      emit_wb_check(0);
-     x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_AND, EAX, ~3); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << 2));
+     pc_to(EAX); x86_alu_ri(g_cg, X86_AND, EAX, ~3); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << 2));
      x86_mov_mr(g_cg, M_Z(O_R(0)), EAX); return true;
     default: return false;
    }
   case 0xD:                                                            /* MOV.L @(disp*4,PC),Rn */
-   x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_AND, EAX, ~3); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << 2));
+   pc_to(EAX); x86_alu_ri(g_cg, X86_AND, EAX, ~3); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(d8 << 2));
    emit_wb_read(n, MEM_32, true); return true;
   default:
    return false;
@@ -748,7 +788,9 @@ static bool compile_mem(uint32_t instr)
 /* call fn(z, EAX) */
 static void emit_call_z_eax(const void* fn)
 {
+ pc_unknown();          /* the branch helpers change PC */
  ts_flush();
+ memts_flush();
 #if X86EMIT_64
  if(CALL_SHADOW) x86_alu_ri64(g_cg, X86_SUB, ESP, CALL_SHADOW);
  #if defined(_WIN32)
@@ -767,6 +809,7 @@ static void emit_call_z_eax(const void* fn)
  x86_alu_ri(g_cg, X86_ADD, ESP, 16);
 #endif
  ts_reload();
+ memts_reload();
 }
 
 /* FUSE_DELAY_SLOT_NOP: if the slot is a NOP, consume it now. */
@@ -795,15 +838,15 @@ static bool compile_branch(uint32_t instr, bool* prefetch)
  switch(instr >> 12)
  {
   case 0xA: case 0xB:                                                  /* BRA / BSR */
-   if((instr >> 12) == 0xB) { x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_mov_mr(g_cg, M_Z(O(PR)), EAX); }
-   x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)d12);
+   if((instr >> 12) == 0xB) { pc_to(EAX); x86_mov_mr(g_cg, M_Z(O(PR)), EAX); }
+   pc_to(EAX); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)d12);
    emit_call_z_eax((const void*)&SH7095_JIT_UCDelayBranch_C0);
    emit_fuse_delay_slot_nop();
    return true;
   case 0x4:
    if((instr & 0xFF) == 0x2B || (instr & 0xFF) == 0x0B)                /* JMP @Rn / JSR @Rn */
    {
-     if((instr & 0xFF) == 0x0B) { x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_mov_mr(g_cg, M_Z(O(PR)), EAX); }
+     if((instr & 0xFF) == 0x0B) { pc_to(EAX); x86_mov_mr(g_cg, M_Z(O(PR)), EAX); }
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
     emit_call_z_eax((const void*)&SH7095_JIT_UCDelayBranch_C0);
     emit_fuse_delay_slot_nop();
@@ -830,7 +873,7 @@ static bool compile_branch(uint32_t instr, bool* prefetch)
    x86_alu_ri(g_cg, X86_AND, EAX, 1);
    x86_alu_ri(g_cg, X86_CMP, EAX, (sub == 0x9 || sub == 0xD) ? 1 : 0);
    x86_jcc(g_cg, X86_CC_NE, &skip);
-   x86_mov_rm(g_cg, EAX, M_Z(O(PC))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)d8);
+   pc_to(EAX); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)d8);
    if(sub == 0x9 || sub == 0xB)                                        /* BT / BF */
     emit_call_z_eax((const void*)&SH7095_JIT_Branch_C0);
    else                                                                /* BT/S / BF/S */
@@ -1392,6 +1435,9 @@ static void emit_folded_fetch(uint32_t pc_at_body, uint16_t next_w, uint16_t nex
  }
  x86_alu_ri(g_cg, X86_OR, EAX, (int32_t)id);
  x86_mov_mr(g_cg, M_Z(O(Pipe_ID)), EAX);
+#if X86EMIT_64
+ x86_mov_rr(g_cg, PIN_OPID, EAX); x86_shift_ri(g_cg, X86_SHR, PIN_OPID, 24);   /* R15 = next op byte, for the pre-check */
+#endif
  x86_mov_mi32(g_cg, M_Z(O(Pipe_IF)), nextnext_w);
  /* if(timestamp < MA_until - ((PC & 2) << 28)) timestamp = MA_until;  timestamp++ */
  ts_load(EAX);
@@ -1432,15 +1478,20 @@ static void emit_post_instr(x86_label* exit, bool touched_memory)
   x86_mov_mi32(g_cg, M_Z(O(DMA_PenaltyKludgeAccum)), 0);
  }
  ts_load(EAX);
- /* The C loop stores mem_timestamp = max(mem_timestamp, timestamp) after
-  * every instruction, and peripherals' event handlers catch up to the
-  * stored value at exits: it must be exact at every exit, so it is kept
-  * exact after every instruction (one load, one compare, one store). */
+ /* mem_timestamp = max(mem_timestamp, timestamp) after every instruction,
+  * as the C loop does (peripherals catch up to it at exits); pinned in
+  * R14 for the block, so this is compare + cmov. */
+#if X86EMIT_64
+ x86_alu_rr(g_cg, X86_CMP, PIN_MEMTS, EAX);
+ x86_cmov(g_cg, X86_CC_L, PIN_MEMTS, EAX);
+ x86_mov_rr(g_cg, ECX, PIN_MEMTS);             /* ECX = eff_ts */
+#else
  emit_env_ptr(S0, E(mem_ts));
  x86_mov_rm(g_cg, ECX, S0, X86_NOIDX, 0, 0);
  x86_alu_rr(g_cg, X86_CMP, ECX, EAX);
  x86_cmov(g_cg, X86_CC_L, ECX, EAX);
- x86_mov_mr(g_cg, S0, X86_NOIDX, 0, 0, ECX);     /* ECX = eff_ts = max(mem_ts, ts) */
+ x86_mov_mr(g_cg, S0, X86_NOIDX, 0, 0, ECX);
+#endif
 #if X86EMIT_64
  if(touched_memory)
  {
@@ -1471,6 +1522,9 @@ static void emit_loop_if_head(x86_label* head, x86_label* exit, uint32_t head_pc
  x86_jcc(g_cg, X86_CC_NE, exit);
  x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
  x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+#if X86EMIT_64
+ x86_mov_rr(g_cg, PIN_OPID, EAX);                    /* the head's pre-check reads R15 */
+#endif
  x86_alu_ri(g_cg, X86_CMP, EAX, 0x80);
  x86_jcc(g_cg, X86_CC_AE, exit);
  x86_jmp(g_cg, head);
@@ -1480,10 +1534,18 @@ static void emit_loop_if_head(x86_label* head, x86_label* exit, uint32_t head_pc
 /* Pre-instruction checks: exception pending (op byte 0xFF), FRT due. */
 static void emit_pre_instr(x86_label* exit)
 {
+ /* Exception pending: the op byte is 0xFF.  (Testing EPending instead is
+  * wrong: after an IntPreventNext fetch the op byte is normal while
+  * EPending is set, and exiting there re-enters forever.) */
+#if X86EMIT_64
+ x86_alu_ri(g_cg, X86_CMP, PIN_OPID, 0xFF);          /* R15 = this instruction's op byte, set by the fold that produced it */
+ x86_jcc(g_cg, X86_CC_E, exit);
+#else
  x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
  x86_shift_ri(g_cg, X86_SHR, EAX, 24);
  x86_alu_ri(g_cg, X86_CMP, EAX, 0xFF);
  x86_jcc(g_cg, X86_CC_E, exit);
+#endif
  ts_load(EAX);
  x86_alu_rm(g_cg, X86_CMP, EAX, M_Z(O(FRT_WDT_NextTS)));
  x86_jcc(g_cg, X86_CC_GE, exit);
@@ -1557,8 +1619,13 @@ static bool compile_block(Block* b)
  emit_env_ptr(S0, E(next_event_ts));
  x86_mov_rm(g_cg, PIN_TABLE, S0, X86_NOIDX, 0, 0);   /* R13 = next_event_ts for the block's life */
  x86_mov_rm(g_cg, PIN_TS, M_Z(O(timestamp)));         /* EBP = timestamp for the block's life */
+ emit_env_ptr(S0, E(mem_ts));
+ x86_mov_rm(g_cg, PIN_MEMTS, S0, X86_NOIDX, 0, 0);    /* R14 = mem_timestamp for the block's life */
+ x86_mov_rm(g_cg, PIN_OPID, M_Z(O(Pipe_ID)));
+ x86_shift_ri(g_cg, X86_SHR, PIN_OPID, 24);           /* R15 = the first instruction's op byte */
 #endif
  x86_label_bind(g_cg, &head);
+ g_pc_known = true; g_pc_value = b->addr + 4;   /* entry contract */
  g_blk_lo = b->addr; g_blk_hi = b->addr + b->nwords * 2;
  g_blk_self_write_check = true;
  for(i = 0; i < b->nwords; i++)
@@ -1596,7 +1663,7 @@ static bool compile_block(Block* b)
   {
    /* branches fetch through the helpers (their pipeline effects are
     * data-dependent), so use the live fetch when they prefetch */
-   x86_mov_mi32(g_cg, M_Z(O(PC)), pc_at_body);
+   if(!(g_pc_known && g_pc_value == pc_at_body)) pc_set(pc_at_body);
    if(prefetch) emit_fetch_inline();
    compile_branch(w, &prefetch);
    emit_pc_advance();
@@ -1617,6 +1684,10 @@ static bool compile_block(Block* b)
      x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
      x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)(b->addr + 2));
      x86_jcc(g_cg, X86_CC_NE, &not_loop);
+     g_pc_known = true; g_pc_value = b->addr + 2;
+#if X86EMIT_64
+     x86_mov_rm(g_cg, PIN_OPID, M_Z(O(Pipe_ID))); x86_shift_ri(g_cg, X86_SHR, PIN_OPID, 24);
+#endif
      emit_pre_instr(&exit);
      g_blk_allow_movb = !((b->words[0] & 0xFF00) == 0x8800 || (b->words[0] & 0xFF00) == 0xC800);
      emit_folded_fetch(b->addr + 2, b->words[0], b->words[1]);   /* PC at slot body = head + 2 */
@@ -1633,7 +1704,7 @@ static bool compile_block(Block* b)
   {
    const uint16_t nw  = b->words[i + 1];
    const uint16_t nnw = b->words[i + 2];
-   x86_mov_mi32(g_cg, M_Z(O(PC)), pc_at_body);
+   if(!(g_pc_known && g_pc_value == pc_at_body)) pc_set(pc_at_body);
    {
     const FetchPlacement fp = g_probe_placement;
     g_fold_pc = pc_at_body; g_fold_nw = nw; g_fold_nnw = nnw;
@@ -1654,7 +1725,7 @@ static bool compile_block(Block* b)
     x86_shift_ri(g_cg, X86_SHR, EAX, 24);
     x86_alu_ri(g_cg, X86_CMP, EAX, on_t ? OP_BT_ID : OP_BF_ID);
     x86_jcc(g_cg, X86_CC_NE, &not_fused);
-    x86_alu_mi32(g_cg, X86_ADD, M_Z(O(PC)), 2);                              /* consume the branch word */
+    pc_advance2();                                                             /* consume the branch word */
     emit_folded_fetch(b->addr + i * 2 + 6, b->words[i + 2], b->words[i + 3]); /* DoIDIF(false) */
     x86_mov_rm(g_cg, EAX, M_Z(O(SR)));
     x86_alu_ri(g_cg, X86_AND, EAX, 1);
@@ -1665,16 +1736,18 @@ static bool compile_block(Block* b)
     x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
     x86_alu_ri(g_cg, X86_ADD, EAX, 1); ts_store(EAX);                          /* ForceIBufferFill timing */
     x86_mov_mi32(g_cg, M_Z(O(Pipe_IF)), b->words[0]);
-    x86_mov_mi32(g_cg, M_Z(O(PC)), b->addr + 2);
+    pc_set(b->addr + 2);
     emit_folded_fetch(b->addr + 2, b->words[0], b->words[1]);                 /* DoIDIF(false) at head + 2 */
     emit_pc_advance();                                                         /* END_OP: head + 4 */
     emit_post_instr(&exit, false);
     x86_jmp(g_cg, &head);
     x86_label_bind(g_cg, &not_taken);
+    g_pc_known = true; g_pc_value = b->addr + i * 2 + 6;                       /* the not-taken path's PC (the taken path diverged above) */
     emit_pc_advance();                                                         /* END_OP: A_i + 8, state for words[i+2] */
     emit_post_instr(&exit, false);
     x86_jmp(g_cg, &cont);
     x86_label_bind(g_cg, &not_fused);                                          /* exception pending at the branch */
+    g_pc_known = true; g_pc_value = b->addr + i * 2 + 4;
     emit_pc_advance();
     emit_post_instr(&exit, false);
     x86_jmp(g_cg, &exit);
@@ -1708,6 +1781,7 @@ static bool compile_block(Block* b)
  g_in_block = false;
  g_suppress_fusion = false;
  g_folded_pair = false;
+ g_pc_known = false;
  if(ok && b->nvalid != b->nwords + 2)
  {
   /* truncated: lookahead is now the two words after the new end */
@@ -1718,6 +1792,8 @@ static bool compile_block(Block* b)
  x86_label_bind(g_cg, &exit);
 #if X86EMIT_64
  x86_mov_mr(g_cg, M_Z(O(timestamp)), PIN_TS);
+ emit_env_ptr(S0, E(mem_ts));
+ x86_mov_mr(g_cg, S0, X86_NOIDX, 0, 0, PIN_MEMTS);
  x86_alu_ri64(g_cg, X86_ADD, ESP, 8); x86_pop(g_cg, PIN_TS);
 #endif
  x86_jmp_abs(g_cg, g_exit_stub);
@@ -1898,6 +1974,8 @@ static void (*compile(uint32_t instr))(struct SH7095*)
 void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, const int32_t* next_event_ts, int32_t quantum)
 {
  g_env.quantum = quantum;
+ g_env.fmap = SH7095_FastMap;
+ g_env.opid = g_opid;
  { const char* e = getenv("SH2JIT_BLKMAX"); if(e && atoi(e) > 0 && atoi(e) <= BLK_MAX_INSTR) g_blk_max = atoi(e); }
  g_master = master; g_slave = slave; g_slave_ts = &slave->timestamp; g_mem_ts = mem_ts; g_next_event_ts = next_event_ts;
  g_env.master = master; g_env.slave = slave; g_env.mem_ts = mem_ts; g_env.next_event_ts = next_event_ts;
