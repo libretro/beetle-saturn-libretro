@@ -38,6 +38,7 @@
 #include "sh7095_jit.h"
 #include "x86emit.h"
 #include "ss_init.h"   /* SH7095_FastMap, SH7095_EXT_MAP_GRAN_BITS */
+#include "jitdump.h"
 
 void (*SH2JIT_Table[65536])(struct SH7095*);
 uint8_t SH2JIT_Pure[65536];
@@ -2016,6 +2017,10 @@ static bool compile_block(Block* b)
  g_cg = saved_cg;
  patch_links_to(b);
  {
+  char nm[40]; snprintf(nm, sizeof nm, "blk_%08x_n%u", b->addr, b->nwords);
+  SS_JitDump_Emit(nm, start, (size_t)((uint8_t*)x86_codegen_wptr(g_blk_cg) - (uint8_t*)start));
+ }
+ {
   /* perf: /tmp/perf-<pid>.map lines so JIT samples get names */
   static FILE* pm; static int pm_tried;
   if(!pm_tried) { pm_tried = 1; if(getenv("SH2JIT_PERFMAP")) { char n[64]; snprintf(n, sizeof n, "/tmp/perf-%d.map", (int)getpid()); pm = fopen(n, "a"); } }
@@ -2186,6 +2191,7 @@ void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, c
 {
  g_env.quantum = quantum;
  g_env.fmap = SH7095_FastMap;
+ SS_JitDump_Open();
  g_env.opid = g_opid;
  { const char* e = getenv("SH2JIT_BLKMAX"); if(e && atoi(e) > 0 && atoi(e) <= BLK_MAX_INSTR) g_blk_max = atoi(e); }
  g_master = master; g_slave = slave; g_slave_ts = &slave->timestamp; g_mem_ts = mem_ts; g_next_event_ts = next_event_ts;

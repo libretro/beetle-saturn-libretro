@@ -20,7 +20,7 @@ extern "C" {
  * other's header.  Compiled only under WANT_DSP_JIT_PERF_DUMP on
  * aarch64; elsewhere the stubs below are no-ops.
  */
-#if defined(WANT_DSP_JIT_PERF_DUMP) && (defined(__aarch64__) || defined(__arm64__))
+#if defined(WANT_DSP_JIT_PERF_DUMP) && (defined(__aarch64__) || defined(__arm64__) || defined(__x86_64__))
 
 void SS_JitDump_Open(void);
 void SS_JitDump_Emit(const char* name, const void* code_addr, size_t code_size);

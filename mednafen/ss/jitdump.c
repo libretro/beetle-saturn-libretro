@@ -7,7 +7,7 @@
 
 #include "jitdump.h"
 
-#if defined(WANT_DSP_JIT_PERF_DUMP) && (defined(__aarch64__) || defined(__arm64__))
+#if defined(WANT_DSP_JIT_PERF_DUMP) && (defined(__aarch64__) || defined(__arm64__) || defined(__x86_64__))
 
 /*
  * Produces /tmp/jit-<pid>.dump in the Linux perf jitdump v1 format.
@@ -36,6 +36,7 @@
 #define JIT_CODE_LOAD      0u
 #define JIT_CODE_CLOSE     3u
 #define ELF_MACH_AARCH64   183u
+#define ELF_MACH_X86_64    62u
 
 struct JitdumpHeader
 {
@@ -110,7 +111,11 @@ void SS_JitDump_Open(void)
  hdr.magic      = JITDUMP_MAGIC;
  hdr.version    = JITDUMP_VERSION;
  hdr.total_size = sizeof(hdr);
+#if defined(__x86_64__)
+ hdr.elf_mach   = ELF_MACH_X86_64;
+#else
  hdr.elf_mach   = ELF_MACH_AARCH64;
+#endif
  hdr.pid        = (uint32_t)getpid();
  hdr.timestamp  = jitdump_now_ns();
  if(write(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr))
