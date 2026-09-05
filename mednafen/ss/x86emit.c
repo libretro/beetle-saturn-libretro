@@ -344,6 +344,23 @@ void x86_alu_rm(x86_codegen* cg, unsigned op, unsigned dst, unsigned base, int i
  emit_mem(cg, dst, base, index, scale, disp);
 }
 
+void x86_mov_mr8(x86_codegen* cg, unsigned base, int index, unsigned scale, int32_t disp, unsigned src)   /* mov byte [m], r8 */
+{
+ /* REX needed for spl/bpl/sil/dil and for r8+; emit_rex handles the extension bits, force it for 4..7 */
+ if(src >= 4 && src < 8) emit_b(cg, 0x40 | ((base >= 8) ? 1 : 0) | ((index >= 8 && index != X86_NOIDX) ? 2 : 0));
+ else emit_rex(cg, 0, src, index, base);
+ emit_b(cg, 0x88);
+ emit_mem(cg, src, base, index, scale, disp);
+}
+
+void x86_test_mi8(x86_codegen* cg, unsigned base, int index, unsigned scale, int32_t disp, uint8_t imm)   /* test byte [m], imm8 */
+{
+ emit_rex(cg, 0, 0, index, base);
+ emit_b(cg, 0xF6);
+ emit_mem(cg, 0, base, index, scale, disp);
+ emit_b(cg, imm);
+}
+
 void x86_cmp_mi16(x86_codegen* cg, unsigned base, int index, unsigned scale, int32_t disp, uint16_t imm)
 {
  emit_b(cg, 0x66);

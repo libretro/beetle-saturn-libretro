@@ -124,6 +124,7 @@ enum { EAX = X86_EAX, ECX = X86_ECX, EDX = X86_EDX, EBX = X86_EBX, ESP = X86_ESP
 #endif
 
 static bool g_in_block;                /* compiling for the block compiler (master, slave off), not the chain */
+static bool g_cbh_setting;             /* cache bypass hack on either CPU: keep reads on the helper */
 static void emit_env_ptr(unsigned r, int32_t field);
 /* In blocks on x86-64, z->timestamp lives in EBP for the block's life:
  * every fold, stall check and event check touches it, and through
@@ -583,10 +584,74 @@ static int32_t write_table_off(MemSize sz)
  return sz == MEM_8 ? O(MWFP8) : sz == MEM_16 ? O(MWFP16) : O(MWFP32);
 }
 
+/* The interpreter's MemRead hit path for a data read in region 0 with the
+ * cache enabled (sh7095.inc, MemRead): alignment ok; MA_until =
+ * max(MA_until, timestamp + 1); ATM = A & (0x7FFFF << 10); set =
+ * (A >> 4) & 0x3F; the highest way whose tag equals ATM (FindWay's max);
+ * Cache_LRU[set] = (Cache_LRU[set] & AND[way]) | OR[way]; the value from
+ * CacheData[set][way] at the host-endian-adjusted index.  Everything
+ * else -- misalignment, other regions, cache off, a miss, the cache
+ * bypass hack -- takes the helper.  x86-64 only; A in EAX, result in EAX. */
+static const uint8_t LRU_AND[4] = { 0x07, 0x19, 0x2A, 0x34 };
+static const uint8_t LRU_OR[4]  = { 0x00, 0x20, 0x14, 0x0B };
+
+static void emit_mem_read_cached_hit(MemSize sz, x86_label* slow, x86_label* done)
+{
+#if X86EMIT_64
+ x86_label way[4]; int w;
+ for(w = 0; w < 4; w++) x86_label_init(&way[w]);
+ x86_mov_rr(g_cg, S1, EAX);                                    /* R10 = A, kept for the slow path */
+ if(sz != MEM_8) { x86_test_ri(g_cg, EAX, (uint32_t)(1u << sz) - 1); x86_jcc(g_cg, X86_CC_NE, slow); }
+ x86_mov_rr(g_cg, ECX, EAX); x86_shift_ri(g_cg, X86_SHR, ECX, 29); x86_jcc(g_cg, X86_CC_NE, slow);   /* region 0 only */
+ x86_test_mi8(g_cg, EBX, X86_NOIDX, 0, O(CCR), 1); x86_jcc(g_cg, X86_CC_E, slow);                   /* cache off */
+ /* MA_until = max(MA_until, ts + 1) */
+ ts_load(ECX); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
+ x86_mov_rm(g_cg, EDX, M_Z(O(MA_until))); x86_alu_rr(g_cg, X86_CMP, EDX, ECX); x86_cmov(g_cg, X86_CC_L, EDX, ECX);
+ x86_mov_mr(g_cg, M_Z(O(MA_until)), EDX);
+ /* ATM -> ECX, set -> EDX, tags -> R8 = &CacheTags[set] */
+ x86_mov_rr(g_cg, ECX, EAX); x86_alu_ri(g_cg, X86_AND, ECX, (int32_t)(0x7FFFFu << 10));
+ x86_mov_rr(g_cg, EDX, EAX); x86_shift_ri(g_cg, X86_SHR, EDX, 4); x86_alu_ri(g_cg, X86_AND, EDX, 0x3F);
+ x86_mov_rr(g_cg, X86_R8, EDX); x86_shift_ri(g_cg, X86_SHL, X86_R8, 4);   /* zero-extends into r8 */
+ x86_alu_rr64(g_cg, X86_ADD, X86_R8, EBX);
+ x86_alu_ri64(g_cg, X86_ADD, X86_R8, O(CacheTags));           /* &CacheTags[set] (64-bit) */
+ for(w = 3; w >= 0; w--) { x86_alu_rm(g_cg, X86_CMP, ECX, X86_R8, X86_NOIDX, 0, w * 4); x86_jcc(g_cg, X86_CC_E, &way[w]); }
+ x86_jmp(g_cg, slow);                                          /* miss */
+ for(w = 3; w >= 0; w--)
+ {
+  x86_label_bind(g_cg, &way[w]);
+  /* LRU */
+  x86_movzx_rm8(g_cg, ECX, EBX, EDX, 0, O(Cache_LRU));
+  x86_alu_ri(g_cg, X86_AND, ECX, LRU_AND[w]); x86_alu_ri(g_cg, X86_OR, ECX, LRU_OR[w]);
+  x86_mov_mr8(g_cg, EBX, EDX, 0, O(Cache_LRU), ECX);
+  /* value: CacheData[set][w][adj(A & 0xF)] */
+  x86_mov_rr(g_cg, ECX, EAX); x86_alu_ri(g_cg, X86_AND, ECX, 0xF);
+  if(sz == MEM_32) x86_alu_ri(g_cg, X86_AND, ECX, ~3);
+  if(sz == MEM_16) { x86_alu_ri(g_cg, X86_AND, ECX, ~1); x86_alu_ri(g_cg, X86_XOR, ECX, 2); }
+  if(sz == MEM_8)  x86_alu_ri(g_cg, X86_XOR, ECX, 3);
+  x86_shift_ri(g_cg, X86_SHL, EDX, 6);                          /* set * 64 */
+  x86_alu_rr(g_cg, X86_ADD, ECX, EDX);
+  if(sz == MEM_32) x86_mov_rm(g_cg, EAX, EBX, ECX, 0, O(CacheData) + w * 16);
+  if(sz == MEM_16) x86_movzx_rm16(g_cg, EAX, EBX, ECX, 0, O(CacheData) + w * 16);
+  if(sz == MEM_8)  x86_movzx_rm8(g_cg, EAX, EBX, ECX, 0, O(CacheData) + w * 16);
+  x86_jmp(g_cg, done);
+ }
+#else
+ (void)sz; (void)slow; (void)done;
+#endif
+}
+
 /* EAX = address in -> EAX = value read (zero-extended to 32). */
 static void emit_mem_read(MemSize sz, bool instr_space)
 {
  const int32_t tab = read_table_off(sz, instr_space);
+ x86_label slow, done; x86_label_init(&slow); x86_label_init(&done);
+ const bool inline_hit = X86EMIT_64 && !instr_space && !g_cbh_setting;
+ if(inline_hit)
+ {
+  emit_mem_read_cached_hit(sz, &slow, &done);
+  x86_label_bind(g_cg, &slow);
+  x86_mov_rr(g_cg, EAX, S1);                                   /* A back for the helper */
+ }
  ts_flush();
  memts_flush();
 #if X86EMIT_64
@@ -612,6 +677,7 @@ static void emit_mem_read(MemSize sz, bool instr_space)
  if(sz == MEM_16) x86_movzx_rr16(g_cg, EAX, EAX);
  ts_reload();
  memts_reload();
+ x86_label_bind(g_cg, &done);
 }
 
 /* EAX = address, EDX = value: z->MWFP##sz[A >> 29](A, V). */
@@ -2191,6 +2257,7 @@ void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, c
 {
  g_env.quantum = quantum;
  g_env.fmap = SH7095_FastMap;
+ g_cbh_setting = master->CBH_Setting || slave->CBH_Setting;
  SS_JitDump_Open();
  g_env.opid = g_opid;
  { const char* e = getenv("SH2JIT_BLKMAX"); if(e && atoi(e) > 0 && atoi(e) <= BLK_MAX_INSTR) g_blk_max = atoi(e); }
@@ -2253,6 +2320,7 @@ void (*SH2JIT_Handler(uint32_t instr))(struct SH7095*)
  if(g_status[instr]) return NULL;               /* known unsupported */
  g_compile_capacity_fail = false;
  h = compile(instr);
+ if(h) { const char* dh = getenv("SH2JIT_DUMPHND"); if(dh && strtoul(dh, NULL, 16) == instr) { FILE* f = fopen("/tmp/hnd.bin", "wb"); if(f) { fwrite(h, 1, (size_t)((uint8_t*)x86_codegen_wptr(g_cg) - (uint8_t*)h), f); fclose(f); } } }
  if(h) { SH2JIT_Table[instr] = h; g_status[instr] = 1; SH2JIT_Pure[instr] = !g_body_touches_memory;
   if(getenv("SH2JIT_PERFMAP")) { char n[64]; FILE* f; snprintf(n, sizeof n, "/tmp/perf-%d.map", (int)getpid()); f = fopen(n, "a");
    if(f) { fprintf(f, "%lx %lx hnd_%04x\n", (unsigned long)(uintptr_t)h, (unsigned long)((uint8_t*)x86_codegen_wptr(g_cg) - (uint8_t*)h), instr); fclose(f); } } }
