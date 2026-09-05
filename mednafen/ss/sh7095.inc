@@ -5031,6 +5031,10 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
   * the delay-slot flag: every word with a handler is a non-branch op
   * whose delay-slot case shares the body verbatim.  Pseudo-ops and the
   * exception pseudo-op carry other op bytes and go to the interpreter. */
+ /* Slave powered off, ordinary instruction (no delay flag, no exception):
+  * run a compiled block; it exits at an interpreter-exact step boundary. */
+ if((z->Pipe_ID >> 24) == SH2JIT_OpID[z->Pipe_ID & 0xFFFF] && CPU[1].timestamp == SS_EVENT_DISABLED_TS && SH2JIT_RunBlock(z))
+  return;
  if(MDFN_LIKELY(((z->Pipe_ID >> 24) & 0x7F) == SH2JIT_OpID[z->Pipe_ID & 0xFFFF]))
  {
   void (*h)(struct SH7095*) = SH2JIT_Table[z->Pipe_ID & 0xFFFF];
@@ -5075,6 +5079,7 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
    return;
   }
  }
+ { static int tr = -1; if(tr < 0) tr = getenv("SH2JIT_TRACEFB") != NULL; if(tr) fprintf(stderr, "F %04x %02x\n", z->Pipe_ID & 0xFFFF, z->Pipe_ID >> 24); }
  SH7095_Step_w0_C0_NI(z);
 #ifdef SH2JIT_COUNT
  SH2JIT_FallbackCount++;

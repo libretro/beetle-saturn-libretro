@@ -525,6 +525,27 @@ void x86_shift_ri64(x86_codegen* cg, unsigned kind, unsigned r, unsigned imm)
  emit_b(cg, (uint8_t)imm);
 }
 
+void x86_imul_rr(x86_codegen* cg, unsigned dst, unsigned src)
+{
+ emit_rex(cg, 0, dst, X86_NOIDX, src);
+ emit_b(cg, 0x0F); emit_b(cg, 0xAF);
+ emit_modrm_rr(cg, dst, src);
+}
+
+void x86_imul_rm(x86_codegen* cg, unsigned dst, unsigned base, int index, unsigned scale, int32_t disp)
+{
+ emit_rex(cg, 0, dst, index, base);
+ emit_b(cg, 0x0F); emit_b(cg, 0xAF);
+ emit_mem(cg, dst, base, index, scale, disp);
+}
+
+void x86_movsxd_rr(x86_codegen* cg, unsigned dst, unsigned src)
+{
+ emit_rex(cg, 1, dst, X86_NOIDX, src);
+ emit_b(cg, 0x63);
+ emit_modrm_rr(cg, dst, src);
+}
+
 void x86_imul_rr64(x86_codegen* cg, unsigned dst, unsigned src)
 {
  emit_rex(cg, 1, dst, -1, src);

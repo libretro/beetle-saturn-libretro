@@ -386,7 +386,10 @@ static void check_variables(bool startup)
             setting_sh2_jit = !strcmp(var.value, "enabled");
          if (setting_sh2_jit)
          {
-            if (getenv("SH2JIT_COUNT")) SH2JIT_SetCounting(true);
+            if (getenv("SH2JIT_BLKSTATS"))
+      fprintf(stderr, "SH2JIT blocks: entries=%llu compiles=%llu validation-misses=%llu uncompilable=%llu\n",
+         (unsigned long long)SH2JIT_BlockStats[0], (unsigned long long)SH2JIT_BlockStats[1], (unsigned long long)SH2JIT_BlockStats[2], (unsigned long long)SH2JIT_BlockStats[3]);
+   if (getenv("SH2JIT_COUNT")) SH2JIT_SetCounting(true);
             SS_SH2JIT_Init();
          }
 

@@ -30,6 +30,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include "ss.h"
 #include "sh7095.h"
@@ -45,7 +47,7 @@ static uint8_t g_counting;
 
 #if defined(WANT_JIT) && X86EMIT_HOST
 
-#define SH2JIT_CODE_BYTES ((size_t)4 << 20)
+#define SH2JIT_CODE_BYTES ((size_t)16 << 20)
 
 static x86_codegen* g_cg = NULL;
 static const void* g_dispatch_stub = NULL;
@@ -68,6 +70,7 @@ typedef struct
  uint8_t single_step;
  uint8_t counting;
  int32_t quantum;       /* master may run this far ahead of the slave */
+ uint8_t self_write;    /* a block stored into its own address range */
 } SH2JitEnv;
 static SH2JitEnv g_env;
 #define E(field) ((int32_t)offsetof(SH2JitEnv, field))
@@ -80,6 +83,14 @@ static SH2JitEnv g_env;
 static int32_t* g_mem_ts = NULL;              /* &SH7095_mem_timestamp */
 static const int32_t* g_next_event_ts = NULL; /* &next_event_ts */
 static uint8_t g_status[65536];    /* 0 = unknown, 1 = compiled, 2 = unsupported */
+static uint32_t g_blk_lo, g_blk_hi;
+static bool     g_blk_self_write_check;
+static bool     g_body_wrote_memory;       /* the body emitted a store (self-write check needed) */
+static bool     g_blk_allow_movb;      /* block compiler: next word is not CMP/EQ #imm / TST #imm (no triplet fusion possible) */
+static int      g_probe_placement;
+static uint32_t g_fold_pc; static uint16_t g_fold_nw, g_fold_nnw;
+static void emit_folded_fetch(uint32_t pc_at_body, uint16_t next_w, uint16_t nextnext_w);
+static void emit_folded_fetch_from_globals(void) { emit_folded_fetch(g_fold_pc, g_fold_nw, g_fold_nnw); }
 #define g_opid SH2JIT_OpID
 
 #define O(field) ((int32_t)offsetof(SH7095, field))
@@ -415,6 +426,8 @@ static void emit_fuse_cond_branch(unsigned op_id, bool cond_is_t)
  * routed whole through the C function before any state is touched, so
  * the two paths are identical statement for statement.
  */
+static bool g_fetch_int_prevent;   /* emit the DoID with IntPreventNext (PART_OP_INTDIS) */
+
 static void emit_fetch_inline(void)
 {
  x86_label slow, done; x86_label_init(&slow); x86_label_init(&done);
@@ -431,7 +444,18 @@ static void emit_fetch_inline(void)
 #endif
  x86_shift_ri(g_cg, X86_SHL, ECX, 24);
  x86_alu_rr(g_cg, X86_OR, EAX, ECX);
- x86_alu_rm(g_cg, X86_OR, EAX, M_Z(O(EPending)));
+ x86_mov_rm(g_cg, ECX, M_Z(O(EPending)));
+ if(g_fetch_int_prevent)
+ {
+  /* epo &= ~INT; if no PEX bits remain, epo = 0 (drops the 0xFF op-or) */
+  x86_label keep; x86_label_init(&keep);
+  x86_alu_ri(g_cg, X86_AND, ECX, ~(1 << (SH7095_PEX_INT + SH7095_EPENDING_PEXBITS_SHIFT)));
+  x86_test_ri(g_cg, ECX, 0xFF << SH7095_EPENDING_PEXBITS_SHIFT);
+  x86_jcc(g_cg, X86_CC_NE, &keep);
+  x86_alu_rr(g_cg, X86_XOR, ECX, ECX);
+  x86_label_bind(g_cg, &keep);
+ }
+ x86_alu_rr(g_cg, X86_OR, EAX, ECX);
  x86_mov_mr(g_cg, M_Z(O(Pipe_ID)), EAX);
  /* FetchIF */
  x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
@@ -515,6 +539,20 @@ static void emit_mem_read(MemSize sz, bool instr_space)
 static void emit_mem_write(MemSize sz)
 {
  const int32_t tab = write_table_off(sz);
+ g_body_wrote_memory = true;
+ if(g_blk_self_write_check)
+ {
+  /* (A & 0x0FFFFFFF) in [lo, hi) -> env.self_write = 1 */
+  x86_label no; x86_label_init(&no);
+  x86_mov_rr(g_cg, S1, EAX);
+  x86_alu_ri(g_cg, X86_AND, S1, 0x0FFFFFFF);
+  x86_alu_ri(g_cg, X86_SUB, S1, (int32_t)(g_blk_lo & 0x0FFFFFFF));
+  x86_alu_ri(g_cg, X86_CMP, S1, (int32_t)((g_blk_hi - g_blk_lo) + 4));
+  x86_jcc(g_cg, X86_CC_AE, &no);
+  emit_env_base(S1);
+  x86_mov_mi8(g_cg, S1, X86_NOIDX, 0, E(self_write), 1);
+  x86_label_bind(g_cg, &no);
+ }
 #if X86EMIT_64
  x86_mov_rr(g_cg, X86_R11, EAX);                /* see emit_mem_read: never RCX */
  x86_shift_ri(g_cg, X86_SHR, X86_R11, 29);
@@ -602,6 +640,11 @@ static bool compile_mem(uint32_t instr)
    x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(low << 2));
    emit_wb_read(n, MEM_32, false); return true;
   case 0x6:
+   if(low == 0x0 && g_blk_allow_movb)                                 /* MOV.B @Rm,Rn: blocks only, when no triplet follows */
+   {
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(m)));
+    emit_wb_read(n, MEM_8, false); return true;
+   }
    if(low == 0x1 || low == 0x2)                                       /* MOV.W/L @Rm,Rn (MOV.B has triplet fusion) */
    {
     x86_mov_rm(g_cg, EAX, M_Z(O_R(m)));
@@ -625,6 +668,10 @@ static bool compile_mem(uint32_t instr)
      x86_mov_rm(g_cg, EDX, M_Z(O_R(0)));
      emit_mem_write((MemSize)sz); return true;
     }
+    case 0x4:                                                          /* MOV.B @(disp,Rm),R0: blocks only, when no triplet follows */
+     if(!g_blk_allow_movb) return false;
+     x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)low);
+     emit_wb_read(0, MEM_8, false); return true;
     case 0x5:                                                          /* MOV.W @(disp*2,Rm),R0 (MOV.B has triplet fusion) */
      x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); x86_alu_ri(g_cg, X86_ADD, EAX, (int32_t)(low << 1));
      emit_wb_read(0, MEM_16, false); return true;
@@ -831,9 +878,224 @@ static void emit_reg_reg(RegOp op, unsigned n, unsigned m)
 /* Compile one instruction word; returns false for words without a body. */
 static bool g_body_touches_memory;
 
+/* Where the instruction's fetch goes relative to its body, set by
+ * compile_body for the caller: most ops prefetch (BEGIN_OP); the
+ * system/control register moves fetch afterwards with the interrupt bit
+ * masked (BEGIN_OP_DLYIDIF + PART_OP_INTDIS); the long multiplies adjust
+ * MA/MM before a normal prefetch, which compile_body emits itself. */
+typedef enum { FETCH_BEFORE = 0, FETCH_AFTER_INTDIS = 1, FETCH_EMITTED_BY_BODY = 2 } FetchPlacement;
+static FetchPlacement g_fetch_placement;
+static void (*g_fetch_emitter)(void);          /* used by FETCH_EMITTED_BY_BODY */
+
+#define SR_T 0x1
+#define SR_Q 0x100
+#define SR_M 0x200
+#define SYSREG_OFF(i) (O(SysRegs) + 4 * (int32_t)(i))
+#define CTRLREG_OFF(i) (O(CtrlRegs) + 4 * (int32_t)(i))
+
+/* MUL.L / DMULS / DMULU pre-fetch timing:
+ *   timestamp++; MA_until = max(MA_until, MM_until, timestamp + 1); MM_until = MA_until + 4 */
+static void emit_mul32_timing_then_fetch(void)
+{
+ x86_alu_mi32(g_cg, X86_ADD, M_Z(O(timestamp)), 1);
+ x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
+ x86_mov_rm(g_cg, ECX, M_Z(O(MM_until)));
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ x86_mov_rm(g_cg, ECX, M_Z(O(timestamp))); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
+ x86_alu_ri(g_cg, X86_ADD, EAX, 4);
+ x86_mov_mr(g_cg, M_Z(O(MM_until)), EAX);
+ g_fetch_emitter();
+}
+
+/* MULS.W / MULU.W post-fetch timing: MA_until = max(MA_until, MM_until, ts + 1); MM_until = MA_until + 2 */
+static void emit_mul16_timing(void)
+{
+ x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
+ x86_mov_rm(g_cg, ECX, M_Z(O(MM_until)));
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ x86_mov_rm(g_cg, ECX, M_Z(O(timestamp))); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
+ x86_alu_ri(g_cg, X86_ADD, EAX, 2);
+ x86_mov_mr(g_cg, M_Z(O(MM_until)), EAX);
+}
+
+/* SetT(bit0 of EDX) where EDX already holds 0/1 */
+static void emit_set_t_from_edx01(void)
+{
+ x86_mov_rm(g_cg, EAX, M_Z(O(SR)));
+ x86_alu_ri(g_cg, X86_AND, EAX, ~SR_T);
+ x86_alu_rr(g_cg, X86_OR, EAX, EDX);
+ x86_mov_mr(g_cg, M_Z(O(SR)), EAX);
+}
+
+static bool compile_sys(uint32_t instr)
+{
+ const unsigned n = (instr >> 8) & 0xF;
+ const unsigned m = (instr >> 4) & 0xF;
+ const unsigned top = instr >> 12;
+ const unsigned low = instr & 0xF;
+ const unsigned sri = (instr >> 4) & 0x3;
+
+ switch(top)
+ {
+  case 0x0:
+   if(instr == 0x0028) { x86_mov_mi32(g_cg, M_Z(O(MACH)), 0); x86_mov_mi32(g_cg, M_Z(O(MACL)), 0); return true; }   /* CLRMAC */
+   if(instr == 0x0019) { x86_alu_mi32(g_cg, X86_AND, M_Z(O(SR)), ~(SR_Q | SR_M | SR_T)); return true; }               /* DIV0U */
+   if((instr & 0xFF) == 0x0A || (instr & 0xFF) == 0x1A || (instr & 0xFF) == 0x2A)                                     /* STS MACH/MACL/PR,Rn */
+   {
+    x86_mov_rm(g_cg, EAX, M_Z(SYSREG_OFF(sri))); x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
+    g_fetch_placement = FETCH_AFTER_INTDIS; return true;
+   }
+   if((instr & 0xFF) == 0x02 || (instr & 0xFF) == 0x12 || (instr & 0xFF) == 0x22)                                     /* STC SR/GBR/VBR,Rn */
+   {
+    x86_mov_rm(g_cg, EAX, M_Z(CTRLREG_OFF(sri))); x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
+    g_fetch_placement = FETCH_AFTER_INTDIS; return true;
+   }
+   if(low == 0x7)                                                                                                       /* MUL.L Rm,Rn */
+   {
+    emit_mul32_timing_then_fetch();
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_imul_rm(g_cg, EAX, M_Z(O_R(m))); x86_mov_mr(g_cg, M_Z(O(MACL)), EAX);
+    g_fetch_placement = FETCH_EMITTED_BY_BODY; return true;
+   }
+   return false;
+  case 0x2:
+   if(low == 0x7)                                                                                                       /* DIV0S */
+   {
+    emit_wb_check(n); emit_wb_check(m);
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_shift_ri(g_cg, X86_SHR, EAX, 31);        /* new_Q */
+    x86_mov_rm(g_cg, ECX, M_Z(O_R(m))); x86_shift_ri(g_cg, X86_SHR, ECX, 31);        /* new_M */
+    x86_mov_rr(g_cg, EDX, EAX); x86_alu_rr(g_cg, X86_XOR, EDX, ECX);                 /* T = Q != M */
+    x86_shift_ri(g_cg, X86_SHL, EAX, 8); x86_shift_ri(g_cg, X86_SHL, ECX, 9);
+    x86_alu_rr(g_cg, X86_OR, EAX, ECX); x86_alu_rr(g_cg, X86_OR, EAX, EDX);
+    x86_mov_rm(g_cg, ECX, M_Z(O(SR))); x86_alu_ri(g_cg, X86_AND, ECX, ~(SR_Q | SR_M | SR_T)); x86_alu_rr(g_cg, X86_OR, ECX, EAX);
+    x86_mov_mr(g_cg, M_Z(O(SR)), ECX); return true;
+   }
+   if(low == 0xE || low == 0xF)                                                                                         /* MULU.W / MULS.W */
+   {
+    emit_mul16_timing();
+    if(low == 0xF) { x86_movsx_rm16(g_cg, EAX, M_Z(O_R(n))); x86_movsx_rm16(g_cg, ECX, M_Z(O_R(m))); }
+    else           { x86_movzx_rm16(g_cg, EAX, M_Z(O_R(n))); x86_movzx_rm16(g_cg, ECX, M_Z(O_R(m))); }
+    x86_imul_rr(g_cg, EAX, ECX); x86_mov_mr(g_cg, M_Z(O(MACL)), EAX); return true;
+   }
+   return false;
+  case 0x3:
+   switch(low)
+   {
+    case 0x4:                                                                                                          /* DIV1 */
+    {
+     x86_label sub_path, done; x86_label_init(&sub_path); x86_label_init(&done);
+     emit_wb_check(n); emit_wb_check(m);
+     /* S1 = new_Q = Rn >> 31; Rn = (Rn << 1) | T; ECX = tmp = Rn; new_Q ^= M */
+     x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
+     x86_mov_rr(g_cg, S1, EAX); x86_shift_ri(g_cg, X86_SHR, S1, 31);
+     x86_shift_ri(g_cg, X86_SHL, EAX, 1);
+     x86_mov_rm(g_cg, EDX, M_Z(O(SR))); x86_mov_rr(g_cg, S0, EDX);        /* S0 = SR */
+     x86_alu_ri(g_cg, X86_AND, EDX, SR_T); x86_alu_rr(g_cg, X86_OR, EAX, EDX);
+     x86_mov_rr(g_cg, ECX, EAX);                                            /* tmp */
+     x86_mov_rr(g_cg, EDX, S0); x86_shift_ri(g_cg, X86_SHR, EDX, 9); x86_alu_ri(g_cg, X86_AND, EDX, 1);   /* M */
+     x86_alu_rr(g_cg, X86_XOR, S1, EDX);
+     /* if(!(Q ^ M)) Rn -= Rm, new_Q ^= (Rn > tmp)  else Rn += Rm, new_Q ^= (Rn < tmp) */
+     x86_mov_rr(g_cg, EDX, S0); x86_shift_ri(g_cg, X86_SHR, EDX, 8); x86_alu_ri(g_cg, X86_AND, EDX, 3);   /* bits: Q | M<<1 */
+     x86_alu_ri(g_cg, X86_CMP, EDX, 1); x86_jcc(g_cg, X86_CC_E, &sub_path);       /* Q=1,M=0 -> Q^M -> add path? no: see below */
+     x86_alu_ri(g_cg, X86_CMP, EDX, 2); x86_jcc(g_cg, X86_CC_E, &sub_path);
+     /* Q == M: subtract */
+     x86_alu_rm(g_cg, X86_SUB, EAX, M_Z(O_R(m)));
+     x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
+     x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_setcc_r8(g_cg, X86_CC_A, EDX); x86_movzx_rr8(g_cg, EDX, EDX);
+     x86_alu_rr(g_cg, X86_XOR, S1, EDX);
+     x86_jmp(g_cg, &done);
+     x86_label_bind(g_cg, &sub_path);                                       /* Q != M: add */
+     x86_alu_rm(g_cg, X86_ADD, EAX, M_Z(O_R(m)));
+     x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
+     x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_setcc_r8(g_cg, X86_CC_B, EDX); x86_movzx_rr8(g_cg, EDX, EDX);
+     x86_alu_rr(g_cg, X86_XOR, S1, EDX);
+     x86_label_bind(g_cg, &done);
+     /* SetQ(new_Q); SetT(new_Q == M) */
+     x86_mov_rr(g_cg, EDX, S0); x86_shift_ri(g_cg, X86_SHR, EDX, 9); x86_alu_ri(g_cg, X86_AND, EDX, 1);   /* M */
+     x86_alu_rr(g_cg, X86_XOR, EDX, S1); x86_alu_ri(g_cg, X86_XOR, EDX, 1);                                 /* T = (new_Q == M) */
+     x86_mov_rr(g_cg, EAX, S0); x86_alu_ri(g_cg, X86_AND, EAX, ~(SR_Q | SR_T));
+     x86_alu_rr(g_cg, X86_OR, EAX, EDX);
+     x86_shift_ri(g_cg, X86_SHL, S1, 8); x86_alu_rr(g_cg, X86_OR, EAX, S1);
+     x86_mov_mr(g_cg, M_Z(O(SR)), EAX);
+     return true;
+    }
+    case 0x5: case 0xD:                                                                                                /* DMULU.L / DMULS.L */
+     emit_mul32_timing_then_fetch();
+     x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
+     if(low == 0xD) { x86_movsxd_rr(g_cg, EAX, EAX); x86_movsxd_rm(g_cg, ECX, M_Z(O_R(m))); x86_imul_rr64(g_cg, EAX, ECX); }
+     else           { x86_mov_rm(g_cg, ECX, M_Z(O_R(m))); x86_imul_rr64(g_cg, EAX, ECX); }   /* both zero-extended: unsigned product fits */
+     x86_mov_mr(g_cg, M_Z(O(MACL)), EAX);
+     x86_shift_ri64(g_cg, X86_SHR, EAX, 32);
+     x86_mov_mr(g_cg, M_Z(O(MACH)), EAX);
+     g_fetch_placement = FETCH_EMITTED_BY_BODY; return true;
+    case 0xA: case 0xE:                                                                                                /* SUBC / ADDC: 64-bit result, T = bit 32 */
+     emit_wb_check(n); emit_wb_check(m);
+     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_mov_rm(g_cg, ECX, M_Z(O_R(m)));
+     x86_mov_rm(g_cg, EDX, M_Z(O(SR))); x86_alu_ri(g_cg, X86_AND, EDX, SR_T);
+     if(low == 0xE) { x86_alu_rr64(g_cg, X86_ADD, EAX, ECX); x86_alu_rr64(g_cg, X86_ADD, EAX, EDX); }
+     else           { x86_alu_rr64(g_cg, X86_SUB, EAX, ECX); x86_alu_rr64(g_cg, X86_SUB, EAX, EDX); }
+     x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
+     x86_shift_ri64(g_cg, X86_SHR, EAX, 32); x86_alu_ri(g_cg, X86_AND, EAX, 1); x86_mov_rr(g_cg, EDX, EAX);
+     emit_set_t_from_edx01(); return true;
+    case 0xB: case 0xF:                                                                                                /* SUBV / ADDV: T = signed overflow */
+     emit_wb_check(n); emit_wb_check(m);
+     x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
+     if(low == 0xF) x86_alu_rm(g_cg, X86_ADD, EAX, M_Z(O_R(m))); else x86_alu_rm(g_cg, X86_SUB, EAX, M_Z(O_R(m)));
+     x86_setcc_r8(g_cg, X86_CC_O, EDX); x86_movzx_rr8(g_cg, EDX, EDX);
+     x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
+     emit_set_t_from_edx01(); return true;
+    default: return false;
+   }
+  case 0x4:
+   if((instr & 0xFF) == 0x0A || (instr & 0xFF) == 0x1A || (instr & 0xFF) == 0x2A)                                     /* LDS Rm,MACH/MACL/PR */
+   {
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_mov_mr(g_cg, M_Z(SYSREG_OFF(sri)), EAX);
+    g_fetch_placement = FETCH_AFTER_INTDIS; return true;
+   }
+   if((instr & 0xFF) == 0x02 || (instr & 0xFF) == 0x12 || (instr & 0xFF) == 0x22)                                     /* STS.L MACH/MACL/PR,@-Rn */
+   {
+    x86_mov_rm(g_cg, EDX, M_Z(SYSREG_OFF(sri)));
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_alu_ri(g_cg, X86_SUB, EAX, 4); x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
+    emit_mem_write(MEM_32);
+    g_fetch_placement = FETCH_AFTER_INTDIS; g_body_touches_memory = true; return true;
+   }
+   if((instr & 0xFF) == 0x06 || (instr & 0xFF) == 0x16 || (instr & 0xFF) == 0x26)                                     /* LDS.L @Rm+,MACH/MACL/PR */
+   {
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
+    x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 4);
+    emit_mem_read(MEM_32, false);
+    x86_mov_mr(g_cg, M_Z(SYSREG_OFF(sri)), EAX);
+    g_fetch_placement = FETCH_AFTER_INTDIS; g_body_touches_memory = true; return true;
+   }
+   return false;
+  case 0x6:
+   if(low == 0xA)                                                                                                       /* NEGC */
+   {
+    emit_wb_check(n); emit_wb_check(m);
+    x86_alu_rr(g_cg, X86_XOR, EAX, EAX);
+    x86_mov_rm(g_cg, ECX, M_Z(O_R(m)));
+    x86_mov_rm(g_cg, EDX, M_Z(O(SR))); x86_alu_ri(g_cg, X86_AND, EDX, SR_T);
+    x86_alu_rr64(g_cg, X86_SUB, EAX, ECX); x86_alu_rr64(g_cg, X86_SUB, EAX, EDX);
+    x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
+    x86_shift_ri64(g_cg, X86_SHR, EAX, 32); x86_alu_ri(g_cg, X86_AND, EAX, 1); x86_mov_rr(g_cg, EDX, EAX);
+    emit_set_t_from_edx01(); return true;
+   }
+   return false;
+  default:
+   return false;
+ }
+}
+
 static bool compile_body(uint32_t instr)
 {
+ g_fetch_placement = FETCH_BEFORE;
+ g_body_wrote_memory = false;
+ g_body_touches_memory = false;
  if(compile_mem(instr)) { g_body_touches_memory = true; return true; }
+ if(compile_sys(instr)) return true;
 
  const unsigned n = (instr >> 8) & 0xF;
  const unsigned m = (instr >> 4) & 0xF;
@@ -995,11 +1257,453 @@ static bool compile_body(uint32_t instr)
  }
 }
 
+
+/* ===========================================================================
+ * Block compiler: master SH-2 with the slave powered off.
+ *
+ * With the slave off there is no instruction-granular interleave to
+ * honour, so a run of instructions can be compiled as one unit.  Each
+ * instruction keeps every statement of the interpreter's step -- the
+ * pipeline words, the fetch timing, WB stalls, the op body, PC += 2,
+ * the DMA kludge and the event deadline -- but the fetch's memory read
+ * is folded (the words are known at compile time), the decode-table
+ * and handler-table lookups disappear, and there is no dispatch
+ * between instructions.  A block is validated against memory at entry
+ * (its words are stored), so code loaded by DMA or rewritten by the
+ * interpreter path is caught exactly; a store from inside the block
+ * into its own address range ends it after that instruction.
+ *
+ * Exits (all leave interpreter-exact state at a step boundary):
+ *   - Pipe_ID's op byte is 0xFF (exception pending) before an instruction
+ *   - FRT/WDT update due before an instruction
+ *   - event deadline reached after an instruction
+ *   - the block wrote into its own range
+ *   - a branch (block ends after it; the delay slot runs per-instruction)
+ *   - an instruction without a native body / block length limit
+ * ======================================================================== */
+
+#define BLK_MAX_INSTR   24
+#define BLK_TABLE_BITS  15
+#define BLK_TABLE_SIZE  (1u << BLK_TABLE_BITS)
+
+typedef struct
+{
+ uint32_t addr;            /* address of the first instruction; 0 = empty */
+ uint32_t nwords;          /* instructions in the block */
+ uint32_t nvalid;          /* words validated at entry: nwords, plus 2 lookahead unless it ends in a branch */
+ uint16_t words[BLK_MAX_INSTR + 2];
+ void (*code)(struct SH7095*);
+} Block;
+
+static Block g_blk[BLK_TABLE_SIZE];
+static x86_codegen* g_blk_cg = NULL;     /* blocks' own code segment; flushed wholesale when full */
+#define BLK_CODE_BYTES ((size_t)32 << 20)
+static unsigned g_blk_max = BLK_MAX_INSTR;   /* SH2JIT_BLKMAX env overrides (diagnostic) */
+uint64_t SH2JIT_BlockStats[4];   /* entries, compiles, validations failed, uncompilable */
+
+static uint32_t blk_hash(uint32_t addr)
+{
+ uint32_t h = addr >> 1;
+ h ^= h >> BLK_TABLE_BITS; h ^= h >> (2 * BLK_TABLE_BITS);
+ return h & (BLK_TABLE_SIZE - 1);
+}
+
+static uint16_t guest_word(uint32_t addr)
+{
+ return *(const uint16_t*)(SH7095_FastMap[addr >> SH7095_EXT_MAP_GRAN_BITS] + addr);
+}
+
+/* Per-instruction folded DoIDIF: Pipe_ID = next | opid << 24 | EPending,
+ * Pipe_IF = next-next, then the fetch timing with PC known. */
+static void emit_folded_fetch(uint32_t pc_at_body, uint16_t next_w, uint16_t nextnext_w)
+{
+ const uint32_t id = (uint32_t)next_w | ((uint32_t)g_opid[next_w] << 24);
+ x86_mov_rm(g_cg, EAX, M_Z(O(EPending)));
+ if(g_fetch_int_prevent)
+ {
+  x86_label keep; x86_label_init(&keep);
+  x86_alu_ri(g_cg, X86_AND, EAX, ~(1 << (SH7095_PEX_INT + SH7095_EPENDING_PEXBITS_SHIFT)));
+  x86_test_ri(g_cg, EAX, 0xFF << SH7095_EPENDING_PEXBITS_SHIFT);
+  x86_jcc(g_cg, X86_CC_NE, &keep);
+  x86_alu_rr(g_cg, X86_XOR, EAX, EAX);
+  x86_label_bind(g_cg, &keep);
+ }
+ x86_alu_ri(g_cg, X86_OR, EAX, (int32_t)id);
+ x86_mov_mr(g_cg, M_Z(O(Pipe_ID)), EAX);
+ x86_mov_mi32(g_cg, M_Z(O(Pipe_IF)), nextnext_w);
+ /* if(timestamp < MA_until - ((PC & 2) << 28)) timestamp = MA_until;  timestamp++ */
+ x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ x86_mov_rm(g_cg, ECX, M_Z(O(MA_until)));
+ if(pc_at_body & 2)
+ {
+  /* threshold is MA_until - 0x20000000: only a wildly negative timestamp qualifies */
+  x86_mov_rr(g_cg, EDX, ECX);
+  x86_alu_ri(g_cg, X86_SUB, EDX, 0x20000000);
+  x86_alu_rr(g_cg, X86_CMP, EAX, EDX);
+  x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ }
+ else
+ {
+  x86_alu_rr(g_cg, X86_CMP, EAX, ECX);
+  x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ }
+ x86_alu_ri(g_cg, X86_ADD, EAX, 1);
+ x86_mov_mr(g_cg, M_Z(O(timestamp)), EAX);
+}
+
+/* The C loop's post-instruction work: DMA kludge, then exit if an event
+ * is due.  (Slave check is moot: the slave is off.) */
+/* Block variant.  Inside a block, SH7095_mem_timestamp and the DMA
+ * penalty accumulator change only on bus accesses, and next_event_ts
+ * changes only at exits (it is pinned in R13 at entry), so after a
+ * non-memory instruction the event test is one compare of the
+ * timestamp.  The C loop's own eff_ts / mem_timestamp update runs at
+ * every exit and is idempotent, so the per-instruction store of
+ * mem_timestamp is not needed within the block. */
+static void emit_post_instr(x86_label* exit, bool touched_memory)
+{
+ { static int full = -1; if(full < 0) full = getenv("SH2JIT_FULLPOST") != NULL; if(full) touched_memory = true; }
+ if(touched_memory)
+ {
+  x86_mov_rm(g_cg, EAX, M_Z(O(DMA_PenaltyKludgeAccum)));
+  x86_alu_mr(g_cg, X86_ADD, M_Z(O(timestamp)), EAX);
+  x86_mov_mi32(g_cg, M_Z(O(DMA_PenaltyKludgeAccum)), 0);
+ }
+ x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ /* The C loop stores mem_timestamp = max(mem_timestamp, timestamp) after
+  * every instruction, and peripherals' event handlers catch up to the
+  * stored value at exits: it must be exact at every exit, so it is kept
+  * exact after every instruction (one load, one compare, one store). */
+ emit_env_ptr(S0, E(mem_ts));
+ x86_mov_rm(g_cg, ECX, S0, X86_NOIDX, 0, 0);
+ x86_alu_rr(g_cg, X86_CMP, ECX, EAX);
+ x86_cmov(g_cg, X86_CC_L, ECX, EAX);
+ x86_mov_mr(g_cg, S0, X86_NOIDX, 0, 0, ECX);     /* ECX = eff_ts = max(mem_ts, ts) */
+#if X86EMIT_64
+ if(touched_memory)
+ {
+  /* a register access may have scheduled an earlier event: refresh the pin */
+  emit_env_ptr(S0, E(next_event_ts));
+  x86_mov_rm(g_cg, PIN_TABLE, S0, X86_NOIDX, 0, 0);
+ }
+ x86_alu_rr(g_cg, X86_CMP, ECX, PIN_TABLE);
+ x86_jcc(g_cg, X86_CC_GE, exit);
+#else
+ emit_env_ptr(S0, E(next_event_ts));
+ x86_alu_rm(g_cg, X86_CMP, ECX, S0, X86_NOIDX, 0, 0);
+ x86_jcc(g_cg, X86_CC_GE, exit);
+#endif
+}
+
+/* After a branch or a fused pair in a block: if the branch landed on the
+ * block's own head (PC == head address + 4) and the next instruction is
+ * an ordinary one (no delay flag), loop natively.  The state after a
+ * taken branch to the head equals the entry state, and the block's own
+ * stores are already detected, so no revalidation is needed. */
+static void emit_loop_if_head(x86_label* head, x86_label* exit, uint32_t head_pc)
+{
+ x86_label no; x86_label_init(&no);
+ { static int noloop = -1; if(noloop < 0) noloop = getenv("SH2JIT_NOLOOP") != NULL; if(noloop) { x86_jmp(g_cg, exit); return; } }
+ x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
+ x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)head_pc);
+ x86_jcc(g_cg, X86_CC_NE, exit);
+ x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
+ x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+ x86_alu_ri(g_cg, X86_CMP, EAX, 0x80);
+ x86_jcc(g_cg, X86_CC_AE, exit);
+ x86_jmp(g_cg, head);
+ x86_label_bind(g_cg, &no);
+}
+
+/* Pre-instruction checks: exception pending (op byte 0xFF), FRT due. */
+static void emit_pre_instr(x86_label* exit)
+{
+ x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
+ x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+ x86_alu_ri(g_cg, X86_CMP, EAX, 0xFF);
+ x86_jcc(g_cg, X86_CC_E, exit);
+ x86_mov_rm(g_cg, EAX, M_Z(O(timestamp)));
+ x86_alu_rm(g_cg, X86_CMP, EAX, M_Z(O(FRT_WDT_NextTS)));
+ x86_jcc(g_cg, X86_CC_GE, exit);
+}
+
+
+/* Fusion sources (TST, CMP/GT, DT, CMP/EQ #imm, TST #imm) followed by
+ * BF/BT execute the pair inside one handler; a block must end there. */
+static bool is_fusion_pair(uint32_t w, uint32_t next)
+{
+ const unsigned top = w >> 12, low = w & 0xF;
+ bool src = (top == 0x2 && low == 0x8) || (top == 0x3 && low == 0x7) || (top == 0x4 && (w & 0xFF) == 0x10) ||
+            (w & 0xFF00) == 0x8800 || (w & 0xFF00) == 0xC800;
+ bool br = (next & 0xFF00) == 0x8B00 || (next & 0xFF00) == 0x8900;
+ return src && br;
+}
+
+static bool is_branch_word(uint32_t w)
+{
+ const unsigned top = w >> 12;
+ if(top == 0xA || top == 0xB) return true;
+ if(top == 0x4 && ((w & 0xFF) == 0x2B || (w & 0xFF) == 0x0B)) return true;
+ if(w == 0x000B) return true;
+ if(top == 0x8) { const unsigned sub = (w >> 8) & 0xF; return sub == 0x9 || sub == 0xB || sub == 0xD || sub == 0xF; }
+ return false;
+}
+
+static bool compile_block(Block* b)
+{
+ void* start; x86_label exit, head; uint32_t i; bool ok = true;
+ x86_codegen* saved_cg = g_cg;
+ if(!g_blk_cg) return false;
+ if(x86_codegen_offset(g_blk_cg) + 512 * (BLK_MAX_INSTR + 1) > x86_codegen_capacity(g_blk_cg))
+ {
+  /* segment full: drop every block and start over (the table entries
+   * point into the segment; none may survive the reset) */
+  SH2JIT_InvalidateBlocks();
+  x86_codegen_set_wptr(g_blk_cg, x86_codegen_base(g_blk_cg));
+  SH2JIT_BlockStats[3] += 1000000;   /* visible in the stats as a flush */
+ }
+ g_cg = g_blk_cg;
+ x86_label_init(&exit); x86_label_init(&head);
+ start = x86_codegen_wptr(g_cg);
+ emit_entry_frame();
+#if X86EMIT_64
+ emit_env_ptr(S0, E(next_event_ts));
+ x86_mov_rm(g_cg, PIN_TABLE, S0, X86_NOIDX, 0, 0);   /* R13 = next_event_ts for the block's life */
+#endif
+ x86_label_bind(g_cg, &head);
+ g_blk_lo = b->addr; g_blk_hi = b->addr + b->nwords * 2;
+ g_blk_self_write_check = true;
+ for(i = 0; i < b->nwords; i++)
+ {
+  const uint32_t w = b->words[i];
+  const uint32_t pc_at_body = b->addr + i * 2 + 4;
+  bool prefetch;
+  void* instr_start = x86_codegen_wptr(g_cg);
+  g_blk_allow_movb = !((b->words[i + 1] & 0xFF00) == 0x8800 || (b->words[i + 1] & 0xFF00) == 0xC800);
+  { static int nomovb = -1; if(nomovb < 0) nomovb = getenv("SH2JIT_NOMOVB") != NULL; if(nomovb) g_blk_allow_movb = false; }
+  /* Probe first: nothing that references the block's exit label may be
+   * emitted and then discarded (its patch sites would outlive it). */
+  {
+   bool supported;
+   g_blk_self_write_check = false;
+   g_fetch_emitter = emit_folded_fetch_from_globals;
+   g_fold_pc = pc_at_body; g_fold_nw = b->words[i + 1]; g_fold_nnw = b->words[i + 2];
+   supported = is_branch_word(w) ? compile_branch(w, &prefetch) : compile_body(w);
+   g_probe_placement = g_fetch_placement;
+   x86_codegen_set_wptr(g_cg, instr_start);
+   g_blk_self_write_check = true;
+   if(!supported)
+   {
+    { static int tr = -1; if(tr < 0) tr = getenv("SH2JIT_TRACEEND") != NULL; if(tr) fprintf(stderr, "E %04x\n", w); }
+    if(i == 0) ok = false;
+    else b->nwords = i;
+    break;
+   }
+  }
+  emit_pre_instr(&exit);
+  if(is_branch_word(w))
+  {
+   /* branches fetch through the helpers (their pipeline effects are
+    * data-dependent), so use the live fetch when they prefetch */
+   x86_mov_mi32(g_cg, M_Z(O(PC)), pc_at_body);
+   if(prefetch) emit_fetch_inline();
+   compile_branch(w, &prefetch);
+   emit_pc_advance();
+   emit_post_instr(&exit, true);        /* branch helpers fetch through the bus */
+   emit_loop_if_head(&head, &exit, b->addr + 4);
+   /* Delayed branch back to the head: PC == head + 2 and Pipe_ID holds
+    * the slot (words[i+1], validated as lookahead) with the delay flag.
+    * Run the slot here, folding the head's words, then loop. */
+   {
+    const uint16_t slot = b->words[i + 1];
+    bool sp; g_blk_self_write_check = false;
+    { void* pr = x86_codegen_wptr(g_cg); sp = !is_branch_word(slot) && compile_body(slot); x86_codegen_set_wptr(g_cg, pr); }
+    g_blk_self_write_check = true;
+    { static int noloop = -1; if(noloop < 0) noloop = getenv("SH2JIT_NOLOOP") != NULL; if(noloop) sp = false; }
+    if(sp && g_fetch_placement == FETCH_BEFORE)
+    {
+     x86_label not_loop; x86_label_init(&not_loop);
+     x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
+     x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)(b->addr + 2));
+     x86_jcc(g_cg, X86_CC_NE, &not_loop);
+     emit_pre_instr(&exit);
+     g_blk_allow_movb = !((b->words[0] & 0xFF00) == 0x8800 || (b->words[0] & 0xFF00) == 0xC800);
+     emit_folded_fetch(b->addr + 2, b->words[0], b->words[1]);   /* PC at slot body = head + 2 */
+     compile_body(slot);
+     emit_pc_advance();
+     emit_post_instr(&exit, g_body_touches_memory);
+     x86_jmp(g_cg, &head);
+     x86_label_bind(g_cg, &not_loop);
+    }
+   }
+   break;                               /* block ends at a branch (or loops to its head) */
+  }
+  else
+  {
+   const uint16_t nw  = b->words[i + 1];
+   const uint16_t nnw = b->words[i + 2];
+   x86_mov_mi32(g_cg, M_Z(O(PC)), pc_at_body);
+   {
+    const FetchPlacement fp = g_probe_placement;
+    g_fold_pc = pc_at_body; g_fold_nw = nw; g_fold_nnw = nnw;
+    g_fetch_emitter = emit_folded_fetch_from_globals;
+    g_fetch_int_prevent = false;
+    if(fp == FETCH_BEFORE) emit_folded_fetch(pc_at_body, nw, nnw);
+    compile_body(w);
+    if(fp == FETCH_AFTER_INTDIS) { g_fetch_int_prevent = true; emit_folded_fetch(pc_at_body, nw, nnw); g_fetch_int_prevent = false; }
+   }
+   emit_pc_advance();
+   /* a store into this block's own range: exit after this instruction */
+   { static int full = -1; if(full < 0) full = getenv("SH2JIT_FULLPOST") != NULL; if(full) g_body_wrote_memory = true; }
+   if(g_body_wrote_memory)
+   {
+    x86_label no; x86_label_init(&no);
+    emit_env_base(S0);
+    x86_cmp_mi8(g_cg, S0, X86_NOIDX, 0, E(self_write), 0);
+    x86_jcc(g_cg, X86_CC_E, &no);
+    x86_mov_mi8(g_cg, S0, X86_NOIDX, 0, E(self_write), 0);
+    x86_jmp(g_cg, &exit);
+    x86_label_bind(g_cg, &no);
+   }
+   emit_post_instr(&exit, g_body_touches_memory);
+   if(is_fusion_pair(w, b->words[i + 1]))
+   {
+    emit_loop_if_head(&head, &exit, b->addr + 4);
+    break;                              /* the handler may have consumed the branch */
+   }
+  }
+ }
+ g_blk_self_write_check = false;
+ g_blk_allow_movb = false;
+ if(ok && b->nvalid != b->nwords + 2)
+ {
+  /* truncated: lookahead is now the two words after the new end */
+  b->words[b->nwords]     = guest_word(b->addr + b->nwords * 2);
+  b->words[b->nwords + 1] = guest_word(b->addr + b->nwords * 2 + 2);
+  b->nvalid = b->nwords + 2;
+ }
+ x86_label_bind(g_cg, &exit);
+ x86_jmp_abs(g_cg, g_exit_stub);
+ if(!ok || x86_codegen_overflowed(g_cg))
+ {
+  x86_codegen_set_wptr(g_cg, start);
+  g_cg = saved_cg;
+  return false;
+ }
+ b->code = (void (*)(struct SH7095*))start;
+ g_cg = saved_cg;
+ {
+  /* perf: /tmp/perf-<pid>.map lines so JIT samples get names */
+  static FILE* pm; static int pm_tried;
+  if(!pm_tried) { pm_tried = 1; if(getenv("SH2JIT_PERFMAP")) { char n[64]; snprintf(n, sizeof n, "/tmp/perf-%d.map", (int)getpid()); pm = fopen(n, "a"); } }
+  if(pm) { fprintf(pm, "%lx %lx blk_%08x_n%u\n", (unsigned long)(uintptr_t)start, (unsigned long)((uint8_t*)x86_codegen_wptr(g_blk_cg) - (uint8_t*)start), b->addr, b->nwords); fflush(pm); }
+ }
+ {
+  static int dumped; const char* e = getenv("SH2JIT_DUMPBLK");
+  if(e && !dumped && b->nwords == 2)
+  {
+   FILE* f = fopen("/tmp/blk.bin", "wb"); size_t n = (size_t)((uint8_t*)x86_codegen_wptr(g_cg) - (uint8_t*)start);
+   if(f) { fwrite(start, 1, n, f); fclose(f); }
+   f = fopen("/tmp/blk.txt", "w");
+   if(f) { fprintf(f, "addr=%08x words=%04x %04x %04x %04x\n", b->addr, b->words[0], b->words[1], b->words[2], b->words[3]); fclose(f); }
+   dumped = 1;
+  }
+ }
+ return true;
+}
+
+/* Entry: called when the slave is off and Pipe_ID marks an ordinary
+ * instruction.  Runs a block from the current position; returns false
+ * when none can be compiled here (caller runs one step otherwise). */
+bool SH2JIT_RunBlock(struct SH7095* z)
+{
+ const uint32_t addr = z->PC - 4;
+ const uint16_t w0 = (uint16_t)z->Pipe_ID, w1 = (uint16_t)z->Pipe_IF;
+ Block* b;
+ uint32_t i;
+ if((int32_t)addr < 0) return false;
+ b = &g_blk[blk_hash(addr)];
+ SH2JIT_BlockStats[0]++;
+ if(b->addr == addr && !b->code && b->nvalid == 1 && b->words[0] == w0 && guest_word(addr) == w0)
+  return false;                                 /* known uncompilable here */
+ if(b->addr == addr && b->code)
+ {
+  /* validate against memory (code may have been rewritten or reloaded) */
+  for(i = 0; i < b->nvalid; i++)
+   if(guest_word(addr + i * 2) != b->words[i]) break;
+  if(i == b->nvalid && b->words[0] == w0 && (b->nvalid < 2 || b->words[1] == w1))
+  {
+   static int trb = -1; if(trb < 0) trb = getenv("SH2JIT_TRACEBLK") != NULL;
+   if(trb) fprintf(stderr, "B run  %08x n=%u R4=%08x R3=%08x PC=%08x ts=%d ->", addr, b->nwords, z->R[4], z->R[3], z->PC, z->timestamp);
+   b->code(z);
+   if(trb) fprintf(stderr, " R4=%08x R3=%08x PC=%08x ts=%d\n", z->R[4], z->R[3], z->PC, z->timestamp);
+   return true;
+  }
+  SH2JIT_BlockStats[2]++;
+  b->code = NULL;
+ }
+ /* compile: gather words up to a branch (inclusive) or the limit */
+ b->addr = addr; b->nwords = 0; b->code = NULL;
+ if(guest_word(addr) != w0) return false;       /* pipeline disagrees with memory: let the interpreter sort it out */
+ for(i = 0; i < g_blk_max; i++)
+ {
+  const uint16_t w = guest_word(addr + i * 2);
+  { static int nobr = -1; if(nobr < 0) nobr = getenv("SH2JIT_NOBRANCH") != NULL;
+    if(nobr && is_branch_word(w) && b->nwords > 0) break; }
+  b->words[b->nwords++] = w;
+  if(is_branch_word(w)) break;
+  if(is_fusion_pair(w, guest_word(addr + (i + 1) * 2))) break;
+  {
+   /* diagnostic: SH2JIT_BLKCLASS=1 stops before a memory op in slot >= 1, =2 before a non-memory op */
+   static int cls = -1; if(cls < 0) { const char* e = getenv("SH2JIT_BLKCLASS"); cls = e ? atoi(e) : 0; }
+   if(cls)
+   {
+    const uint16_t nw = guest_word(addr + (i + 1) * 2);
+    const unsigned t = nw >> 12, l = nw & 0xF, n1 = (nw >> 8) & 0xF;
+    bool mem = (t == 0 && (l >= 4 && l <= 6 || l >= 0xC && l <= 0xE)) || t == 1 || (t == 2 && (l <= 2 || (l >= 4 && l <= 6))) || t == 5 ||
+               (t == 6 && (l <= 2 || (l >= 4 && l <= 6))) || (t == 8 && (n1 <= 1 || n1 == 4 || n1 == 5)) || t == 9 || (t == 0xC && n1 <= 7) || t == 0xD;
+    if((cls == 1 && mem) || (cls == 2 && !mem && !is_branch_word(nw))) break;
+   }
+  }
+ }
+ /* Every instruction's folded fetch uses the two words after it, so the
+  * two words past the block are always gathered and validated; for a
+  * block ending in a branch they are its delay slot and the word after,
+  * which the instruction before the branch folds into Pipe_IF. */
+ b->words[b->nwords]     = guest_word(addr + b->nwords * 2);
+ b->words[b->nwords + 1] = guest_word(addr + b->nwords * 2 + 2);
+ b->nvalid = b->nwords + 2;
+ SH2JIT_BlockStats[1]++;
+ if(!compile_block(b))
+ {
+  /* remember the failure: entries with code == NULL and a matching
+   * first word return false without recompiling (re-tried once the
+   * word changes) */
+  SH2JIT_BlockStats[3]++;
+  b->code = NULL; b->nwords = 1; b->nvalid = 1; b->words[0] = w0;
+  return false;
+ }
+ {
+  static int trb = -1; if(trb < 0) trb = getenv("SH2JIT_TRACEBLK") != NULL;
+  if(trb) fprintf(stderr, "B new  %08x n=%u words=%04x %04x %04x %04x R4=%08x PC=%08x ts=%d ->", addr, b->nwords, b->words[0], b->words[1], b->words[2], b->words[3], z->R[4], z->PC, z->timestamp);
+  b->code(z);
+  if(trb) fprintf(stderr, " R4=%08x PC=%08x ts=%d\n", z->R[4], z->PC, z->timestamp);
+ }
+ return true;
+}
+
+void SH2JIT_InvalidateBlocks(void)
+{
+ memset(g_blk, 0, sizeof g_blk);
+}
+
+static bool g_compile_capacity_fail;   /* compile() refused for lack of space, not for lack of a body */
+
 static void (*compile(uint32_t instr))(struct SH7095*)
 {
  void* start;
  if(!g_cg) return NULL;
- if(x86_codegen_offset(g_cg) + 512 > x86_codegen_capacity(g_cg)) return NULL;
+ if(x86_codegen_offset(g_cg) + 512 > x86_codegen_capacity(g_cg)) { g_compile_capacity_fail = true; return NULL; }
  start = x86_codegen_wptr(g_cg);
  g_body_touches_memory = false;
  {
@@ -1018,12 +1722,17 @@ static void (*compile(uint32_t instr))(struct SH7095*)
   }
   else
   {
+   /* placement is known only after compile_body: probe, then emit */
    x86_codegen_set_wptr(g_cg, start);
-   emit_fetch_inline();
-   if(!compile_body(instr))
+   g_fetch_emitter = emit_fetch_inline;
+   if(!compile_body(instr)) { x86_codegen_set_wptr(g_cg, start); return NULL; }
    {
+    const FetchPlacement fp = g_fetch_placement;
     x86_codegen_set_wptr(g_cg, start);
-    return NULL;
+    g_fetch_int_prevent = false;
+    if(fp == FETCH_BEFORE) emit_fetch_inline();
+    compile_body(instr);
+    if(fp == FETCH_AFTER_INTDIS) { g_fetch_int_prevent = true; emit_fetch_inline(); g_fetch_int_prevent = false; }
    }
   }
  }
@@ -1040,12 +1749,15 @@ static void (*compile(uint32_t instr))(struct SH7095*)
 void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, const int32_t* next_event_ts, int32_t quantum)
 {
  g_env.quantum = quantum;
+ { const char* e = getenv("SH2JIT_BLKMAX"); if(e && atoi(e) > 0 && atoi(e) <= BLK_MAX_INSTR) g_blk_max = atoi(e); }
  g_master = master; g_slave = slave; g_slave_ts = &slave->timestamp; g_mem_ts = mem_ts; g_next_event_ts = next_event_ts;
  g_env.master = master; g_env.slave = slave; g_env.mem_ts = mem_ts; g_env.next_event_ts = next_event_ts;
  memset(SH2JIT_Table, 0, sizeof SH2JIT_Table);
  memset(g_status, 0, sizeof g_status);
  memset(SH2JIT_Pure, 0, sizeof SH2JIT_Pure);
  SH7095_JIT_BuildOpIDTable(g_opid);
+ if(!g_blk_cg)
+  g_blk_cg = x86_codegen_create(BLK_CODE_BYTES);
  if(!g_cg)
  {
   void* p;
@@ -1062,6 +1774,8 @@ void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, c
   emit_entry_frame();
   x86_jmp_abs(g_cg, g_dispatch_next);   /* first instruction runs unconditionally */
   g_entry_stub = (void (*)(struct SH7095*))p;
+  if(getenv("SH2JIT_PERFMAP")) { char n[64]; FILE* f; snprintf(n, sizeof n, "/tmp/perf-%d.map", (int)getpid()); f = fopen(n, "a");
+   if(f) { fprintf(f, "%lx %lx sh2jit_stubs\n", (unsigned long)(uintptr_t)g_exit_stub, (unsigned long)((uint8_t*)x86_codegen_wptr(g_cg) - (uint8_t*)g_exit_stub)); fclose(f); } }
  }
 }
 
@@ -1093,9 +1807,12 @@ void (*SH2JIT_Handler(uint32_t instr))(struct SH7095*)
  h = SH2JIT_Table[instr];
  if(h) return h;
  if(g_status[instr]) return NULL;               /* known unsupported */
+ g_compile_capacity_fail = false;
  h = compile(instr);
- if(h) { SH2JIT_Table[instr] = h; g_status[instr] = 1; SH2JIT_Pure[instr] = !g_body_touches_memory; }
- else  g_status[instr] = 2;
+ if(h) { SH2JIT_Table[instr] = h; g_status[instr] = 1; SH2JIT_Pure[instr] = !g_body_touches_memory;
+  if(getenv("SH2JIT_PERFMAP")) { char n[64]; FILE* f; snprintf(n, sizeof n, "/tmp/perf-%d.map", (int)getpid()); f = fopen(n, "a");
+   if(f) { fprintf(f, "%lx %lx hnd_%04x\n", (unsigned long)(uintptr_t)h, (unsigned long)((uint8_t*)x86_codegen_wptr(g_cg) - (uint8_t*)h), instr); fclose(f); } } }
+ else if(!g_compile_capacity_fail) g_status[instr] = 2;   /* a capacity failure is not 'unsupported' */
  return h;
 }
 
@@ -1106,6 +1823,9 @@ bool SH2JIT_Available(void) { return false; }
 void SH2JIT_RunChain(struct SH7095* z) { (void)z; }
 void SH2JIT_SetSingleStep(bool on) { (void)on; }
 void SH2JIT_SetCounting(bool on) { (void)on; }
+bool SH2JIT_RunBlock(struct SH7095* z) { (void)z; return false; }
+void SH2JIT_InvalidateBlocks(void) {}
+uint64_t SH2JIT_BlockStats[4];
 uint64_t SH2JIT_NativeCount, SH2JIT_ChainCount, SH2JIT_FallbackCount;
 void (*SH2JIT_Handler(uint32_t instr))(struct SH7095*) { (void)instr; return NULL; }
 

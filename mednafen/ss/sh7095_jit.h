@@ -85,6 +85,12 @@ void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, c
  * The caller has verified the first instruction dispatches. */
 void SH2JIT_RunChain(struct SH7095* z);
 
+/* Block compiler (master with the slave powered off): run a block from
+ * the current step boundary; false if none can be compiled here. */
+bool SH2JIT_RunBlock(struct SH7095* z);
+void SH2JIT_InvalidateBlocks(void);
+extern uint64_t SH2JIT_BlockStats[4];   /* entries, compiles, validation misses, uncompilable */
+
 /* Make every chain exit after one instruction (SH2JIT_VERIFY builds). */
 void SH2JIT_SetSingleStep(bool on);
 

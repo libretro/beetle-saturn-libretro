@@ -64,7 +64,7 @@ enum
 
 typedef struct x86_codegen x86_codegen;
 
-#define X86_LABEL_MAX_PATCHES 32
+#define X86_LABEL_MAX_PATCHES 128
 typedef struct
 {
  uint8_t* bound;                          /* NULL until x86_label_bind */
@@ -137,6 +137,9 @@ void x86_alu_rr64 (x86_codegen*, unsigned op, unsigned dst, unsigned src);
 void x86_alu_rm64 (x86_codegen*, unsigned op, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
 void x86_shift_ri64(x86_codegen*, unsigned kind, unsigned r, unsigned imm);
 void x86_imul_rr64(x86_codegen*, unsigned dst, unsigned src);
+void x86_imul_rr  (x86_codegen*, unsigned dst, unsigned src);                    /* imul r32, r32 */
+void x86_imul_rm  (x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
+void x86_movsxd_rr(x86_codegen*, unsigned dst, unsigned src);                    /* movsxd r64, r32 */
 void x86_movsxd   (x86_codegen*, unsigned dst, unsigned src);         /* dst64 = sext(src32) */
 void x86_movsxd_rm(x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
 void x86_lea64    (x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
