@@ -344,6 +344,16 @@ void x86_alu_rm(x86_codegen* cg, unsigned op, unsigned dst, unsigned base, int i
  emit_mem(cg, dst, base, index, scale, disp);
 }
 
+void x86_cmp_mi16(x86_codegen* cg, unsigned base, int index, unsigned scale, int32_t disp, uint16_t imm)
+{
+ emit_b(cg, 0x66);
+ emit_rex(cg, 0, 0, index, base);
+ emit_b(cg, 0x81);
+ emit_mem(cg, X86_CMP, base, index, scale, disp);
+ emit_b(cg, (uint8_t)imm);
+ emit_b(cg, (uint8_t)(imm >> 8));
+}
+
 void x86_cmp_mi8(x86_codegen* cg, unsigned base, int index, unsigned scale, int32_t disp, uint8_t imm)
 {
  emit_rex(cg, 0, 0, index, base);
@@ -523,6 +533,14 @@ void x86_shift_ri64(x86_codegen* cg, unsigned kind, unsigned r, unsigned imm)
  emit_b(cg, 0xC1);
  emit_modrm_rr(cg, kind, r);
  emit_b(cg, (uint8_t)imm);
+}
+
+void x86_imul_ri(x86_codegen* cg, unsigned dst, unsigned src, int32_t imm)   /* imul r32, r32, imm32 */
+{
+ emit_rex(cg, 0, dst, X86_NOIDX, src);
+ emit_b(cg, 0x69);
+ emit_modrm_rr(cg, dst, src);
+ emit_d(cg, (uint32_t)imm);
 }
 
 void x86_imul_rr(x86_codegen* cg, unsigned dst, unsigned src)

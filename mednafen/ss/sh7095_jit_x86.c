@@ -1407,7 +1407,16 @@ typedef struct
  uint32_t nvalid;          /* words validated at entry: nwords, plus 2 lookahead unless it ends in a branch */
  uint16_t words[BLK_MAX_INSTR + 2];
  void (*code)(struct SH7095*);
+ void* chain_entry;        /* validation stub + head, for direct jumps from other blocks (NULL: not chainable) */
 } Block;
+
+/* Pending direct jumps to blocks not compiled yet: rel32 sites that
+ * currently target the emitting block's exit; patched when the target
+ * compiles.  Reset with the segment. */
+#define LINK_MAX 65536
+typedef struct { uint32_t target; uint8_t* site; } LinkSite;
+static LinkSite g_links[LINK_MAX];
+static unsigned g_nlinks;
 
 static Block g_blk[BLK_TABLE_SIZE];
 static x86_codegen* g_blk_cg = NULL;     /* blocks' own code segment; flushed wholesale when full */
@@ -1420,6 +1429,76 @@ static uint32_t blk_hash(uint32_t addr)
  uint32_t h = addr >> 1;
  h ^= h >> BLK_TABLE_BITS; h ^= h >> (2 * BLK_TABLE_BITS);
  return h & (BLK_TABLE_SIZE - 1);
+}
+
+static Block* find_block(uint32_t addr)
+{
+ Block* b = &g_blk[blk_hash(addr)];
+ return (b->addr == addr && b->code) ? b : NULL;
+}
+
+/* Host pointer of a guest code word through the FastMap (static for the
+ * BIOS and work RAM); NULL if the block's words are not contiguous in
+ * host memory (a 64 KiB granule boundary). */
+static const uint16_t* host_words(uint32_t addr, uint32_t nwords)
+{
+ if((addr >> SH7095_EXT_MAP_GRAN_BITS) != ((addr + nwords * 2 - 1) >> SH7095_EXT_MAP_GRAN_BITS)) return NULL;
+ return (const uint16_t*)(SH7095_FastMap[addr >> SH7095_EXT_MAP_GRAN_BITS] + addr);
+}
+
+/* Direct jump to the block at `target`, or to `exit` until it compiles. */
+static void emit_link_or_exit(uint32_t target, x86_label* exit)
+{
+ Block* t = find_block(target);
+ if(t && t->chain_entry) { x86_jmp_abs(g_cg, t->chain_entry); return; }
+ if(g_nlinks < LINK_MAX)
+ {
+  uint8_t* site;
+  x86_jmp(g_cg, exit);                  /* E9 rel32, bound to exit when the label binds */
+  site = (uint8_t*)x86_codegen_wptr(g_cg) - 4;
+  g_links[g_nlinks].target = target; g_links[g_nlinks].site = site; g_nlinks++;
+ }
+ else
+  x86_jmp(g_cg, exit);
+}
+
+/* Dynamic target: block lookup by the live PC (addr = PC - 4), jump to
+ * its chain entry if compiled, else exit.  R15 must hold the op byte. */
+static void emit_dynamic_link(x86_label* exit)
+{
+#if X86EMIT_64
+ x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
+ x86_alu_ri(g_cg, X86_SUB, EAX, 4);                  /* addr */
+ x86_mov_rr(g_cg, EDX, EAX);
+ /* blk_hash: h = addr >> 1; h ^= h >> BITS; h ^= h >> 2*BITS; h &= mask */
+ x86_shift_ri(g_cg, X86_SHR, EDX, 1);
+ x86_mov_rr(g_cg, ECX, EDX); x86_shift_ri(g_cg, X86_SHR, ECX, BLK_TABLE_BITS); x86_alu_rr(g_cg, X86_XOR, EDX, ECX);
+ x86_mov_rr(g_cg, ECX, EDX); x86_shift_ri(g_cg, X86_SHR, ECX, 2 * BLK_TABLE_BITS); x86_alu_rr(g_cg, X86_XOR, EDX, ECX);
+ x86_alu_ri(g_cg, X86_AND, EDX, BLK_TABLE_SIZE - 1);
+ x86_mov_ri64(g_cg, X86_R8, (uint64_t)(uintptr_t)g_blk);
+ x86_imul_ri(g_cg, EDX, EDX, (int32_t)sizeof(Block));
+ x86_alu_rr64(g_cg, X86_ADD, X86_R8, EDX);           /* &g_blk[h] */
+ x86_alu_rm(g_cg, X86_CMP, EAX, X86_R8, X86_NOIDX, 0, (int32_t)offsetof(Block, addr));
+ x86_jcc(g_cg, X86_CC_NE, exit);
+ x86_mov_rm64(g_cg, EAX, X86_R8, X86_NOIDX, 0, (int32_t)offsetof(Block, chain_entry));
+ x86_alu_rr64(g_cg, X86_OR, EAX, EAX);
+ x86_jcc(g_cg, X86_CC_E, exit);
+ x86_jmp_r(g_cg, EAX);
+#else
+ x86_jmp(g_cg, exit);
+#endif
+}
+
+static void patch_links_to(Block* b)
+{
+ unsigned i;
+ if(!b->chain_entry) return;
+ for(i = 0; i < g_nlinks; i++)
+  if(g_links[i].target == b->addr && g_links[i].site)
+  {
+   int64_t rel = (int64_t)((uint8_t*)b->chain_entry - (g_links[i].site + 4));
+   if(rel >= INT32_MIN && rel <= INT32_MAX) { int32_t r32 = (int32_t)rel; memcpy(g_links[i].site, &r32, 4); g_links[i].site = NULL; }
+  }
 }
 
 static uint16_t guest_word(uint32_t addr)
@@ -1528,7 +1607,7 @@ static void emit_loop_if_head(x86_label* head, x86_label* exit, uint32_t head_pc
  { static int noloop = -1; if(noloop < 0) noloop = getenv("SH2JIT_NOLOOP") != NULL; if(noloop) { x86_jmp(g_cg, exit); return; } }
  x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
  x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)head_pc);
- x86_jcc(g_cg, X86_CC_NE, exit);
+ x86_jcc(g_cg, X86_CC_NE, &no);                      /* not the head: fall through (chaining or the exit follows) */
  x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
  x86_shift_ri(g_cg, X86_SHR, EAX, 24);
 #if X86EMIT_64
@@ -1633,6 +1712,26 @@ static bool compile_block(Block* b)
  x86_mov_rm(g_cg, PIN_OPID, M_Z(O(Pipe_ID)));
  x86_shift_ri(g_cg, X86_SHR, PIN_OPID, 24);           /* R15 = the first instruction's op byte */
 #endif
+ /* chain entry: validate the block's words against host memory in place
+  * (the pins are live: EBP, R13, R14, R15 come from the jumping block),
+  * then fall into the head; a mismatch exits with state that is already
+  * this block's entry state, so the C step revalidates and recompiles */
+ b->chain_entry = NULL;
+ {
+  const uint16_t* hw = host_words(b->addr, b->nvalid);
+  if(hw)
+  {
+   uint32_t k;
+   b->chain_entry = x86_codegen_wptr(g_cg);
+#if X86EMIT_64
+   x86_mov_ri64(g_cg, X86_R8, (uint64_t)(uintptr_t)hw);
+   for(k = 0; k < b->nvalid; k++) { x86_cmp_mi16(g_cg, X86_R8, X86_NOIDX, 0, (int32_t)(k * 2), b->words[k]); x86_jcc(g_cg, X86_CC_NE, &exit); }
+#else
+   x86_mov_ri(g_cg, X86_ESI, (uint32_t)(uintptr_t)hw);
+   for(k = 0; k < b->nvalid; k++) { x86_cmp_mi16(g_cg, X86_ESI, X86_NOIDX, 0, (int32_t)(k * 2), b->words[k]); x86_jcc(g_cg, X86_CC_NE, &exit); }
+#endif
+  }
+ }
  x86_label_bind(g_cg, &head);
  g_pc_known = true; g_pc_value = b->addr + 4;   /* entry contract */
  g_blk_lo = b->addr; g_blk_hi = b->addr + b->nwords * 2;
@@ -1678,6 +1777,45 @@ static bool compile_block(Block* b)
    emit_pc_advance();
    emit_post_instr(&exit, true);        /* branch helpers fetch through the bus */
    emit_loop_if_head(&head, &exit, b->addr + 4);
+   /* BT/BF taken (static target): Branch() left the target's entry state
+    * (PC = target + 4); chain to it. */
+   {
+    const unsigned top = w >> 12, sub = (w >> 8) & 0xF;
+    if(top == 0x8 && (sub == 0x9 || sub == 0xB))
+    {
+     const uint32_t target = (b->addr + i * 2 + 4) + ((uint32_t)(int32_t)(int8_t)w << 1);
+     x86_label no; x86_label_init(&no);
+     x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
+     x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)(target + 4));
+     x86_jcc(g_cg, X86_CC_NE, &no);
+     x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
+     x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+#if X86EMIT_64
+     x86_mov_rr(g_cg, PIN_OPID, EAX);
+#endif
+     x86_alu_ri(g_cg, X86_CMP, EAX, 0x80);
+     x86_jcc(g_cg, X86_CC_AE, &exit);
+     if((int32_t)target >= 0) emit_link_or_exit(target, &exit); else x86_jmp(g_cg, &exit);
+     x86_label_bind(g_cg, &no);
+     /* not taken: PC == A_i + 6, the state for the word after the branch */
+     {
+      const uint32_t fall = b->addr + i * 2 + 2;
+      x86_label no2; x86_label_init(&no2);
+      x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
+      x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)(fall + 4));
+      x86_jcc(g_cg, X86_CC_NE, &no2);
+      x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
+      x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+#if X86EMIT_64
+      x86_mov_rr(g_cg, PIN_OPID, EAX);
+#endif
+      x86_alu_ri(g_cg, X86_CMP, EAX, 0x80);
+      x86_jcc(g_cg, X86_CC_AE, &exit);
+      emit_link_or_exit(fall, &exit);
+      x86_label_bind(g_cg, &no2);
+     }
+    }
+   }
    /* Delayed branch back to the head: PC == head + 2 and Pipe_ID holds
     * the slot (words[i+1], validated as lookahead) with the delay flag.
     * Run the slot here, folding the head's words, then loop. */
@@ -1687,6 +1825,59 @@ static bool compile_block(Block* b)
     { void* pr = x86_codegen_wptr(g_cg); sp = !is_branch_word(slot) && compile_body(slot); x86_codegen_set_wptr(g_cg, pr); }
     g_blk_self_write_check = true;
     { static int noloop = -1; if(noloop < 0) noloop = getenv("SH2JIT_NOLOOP") != NULL; if(noloop) sp = false; }
+    if(sp && g_fetch_placement == FETCH_BEFORE && (((w >> 12) == 0x4 && ((w & 0xFF) == 0x2B || (w & 0xFF) == 0x0B)) || w == 0x000B))
+    {
+     /* JMP/JSR/RTS: dynamic target.  After the helper PC == target + 2 with
+      * the slot in Pipe_ID (delay flag).  Run the slot with a live fetch,
+      * then look the target block up by PC and chain. */
+     x86_label no; x86_label_init(&no);
+     x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
+     x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+     x86_alu_ri(g_cg, X86_CMP, EAX, 0x80);
+     x86_jcc(g_cg, X86_CC_B, &no);                    /* only from a delay-slot state */
+     x86_alu_ri(g_cg, X86_CMP, EAX, 0xFF);
+     x86_jcc(g_cg, X86_CC_E, &exit);
+     pc_unknown();
+     x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
+     x86_test_rr(g_cg, EAX, EAX);
+     x86_jcc(g_cg, X86_CC_S, &exit);                  /* cache-array space: not for blocks */
+     ts_load(EAX);
+     x86_alu_rm(g_cg, X86_CMP, EAX, M_Z(O(FRT_WDT_NextTS)));
+     x86_jcc(g_cg, X86_CC_GE, &exit);
+     g_blk_allow_movb = false;
+     emit_fetch_inline();
+     compile_body(slot);
+     emit_pc_advance();
+     emit_post_instr(&exit, g_body_touches_memory);
+     emit_dynamic_link(&exit);
+     x86_label_bind(g_cg, &no);
+    }
+    if(sp && g_fetch_placement == FETCH_BEFORE && ((w >> 12) == 0xA || (w >> 12) == 0xB))
+    {
+     /* BRA/BSR to a static target other than the head: PC == target + 2
+      * with the slot in Pipe_ID.  Run the slot with a live fetch (nothing
+      * of the target is baked in), then chain to the target block. */
+     const uint32_t target = (b->addr + i * 2 + 4) + ((uint32_t)(((int32_t)(w << 20)) >> 20) << 1);
+     if(target != b->addr && (int32_t)target >= 0)
+     {
+      x86_label no; x86_label_init(&no);
+      x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
+      x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)(target + 2));
+      x86_jcc(g_cg, X86_CC_NE, &no);
+      g_pc_known = true; g_pc_value = target + 2;
+#if X86EMIT_64
+      x86_mov_rm(g_cg, PIN_OPID, M_Z(O(Pipe_ID))); x86_shift_ri(g_cg, X86_SHR, PIN_OPID, 24);
+#endif
+      emit_pre_instr(&exit);
+      g_blk_allow_movb = false;
+      emit_fetch_inline();
+      compile_body(slot);
+      emit_pc_advance();
+      emit_post_instr(&exit, g_body_touches_memory);
+      emit_link_or_exit(target, &exit);
+      x86_label_bind(g_cg, &no);
+     }
+    }
     if(sp && g_fetch_placement == FETCH_BEFORE)
     {
      x86_label not_loop; x86_label_init(&not_loop);
@@ -1817,11 +2008,13 @@ static bool compile_block(Block* b)
  if(!ok || x86_codegen_overflowed(g_cg))
  {
   x86_codegen_set_wptr(g_cg, start);
+  b->chain_entry = NULL;
   g_cg = saved_cg;
   return false;
  }
  b->code = (void (*)(struct SH7095*))start;
  g_cg = saved_cg;
+ patch_links_to(b);
  {
   /* perf: /tmp/perf-<pid>.map lines so JIT samples get names */
   static FILE* pm; static int pm_tried;
@@ -1937,6 +2130,7 @@ bool SH2JIT_RunBlock(struct SH7095* z)
 void SH2JIT_InvalidateBlocks(void)
 {
  memset(g_blk, 0, sizeof g_blk);
+ g_nlinks = 0;
 }
 
 static bool g_compile_capacity_fail;   /* compile() refused for lack of space, not for lack of a body */

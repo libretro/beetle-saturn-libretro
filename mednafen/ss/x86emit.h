@@ -116,6 +116,7 @@ void x86_alu_ri   (x86_codegen*, unsigned op, unsigned dst, int32_t imm);
 void x86_alu_ri64 (x86_codegen*, unsigned op, unsigned dst, int32_t imm);
 void x86_alu_rm   (x86_codegen*, unsigned op, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
 void x86_cmp_mi8  (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, uint8_t imm);
+void x86_cmp_mi16 (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, uint16_t imm);
 
 void x86_shift_ri (x86_codegen*, unsigned kind, unsigned r, unsigned imm);
 void x86_sar_cl   (x86_codegen*, unsigned r);
@@ -138,6 +139,7 @@ void x86_alu_rm64 (x86_codegen*, unsigned op, unsigned dst, unsigned base, int i
 void x86_shift_ri64(x86_codegen*, unsigned kind, unsigned r, unsigned imm);
 void x86_imul_rr64(x86_codegen*, unsigned dst, unsigned src);
 void x86_imul_rr  (x86_codegen*, unsigned dst, unsigned src);                    /* imul r32, r32 */
+void x86_imul_ri  (x86_codegen*, unsigned dst, unsigned src, int32_t imm);       /* imul r32, r32, imm32 */
 void x86_imul_rm  (x86_codegen*, unsigned dst, unsigned base, int index, unsigned scale_log2, int32_t disp);
 void x86_movsxd_rr(x86_codegen*, unsigned dst, unsigned src);                    /* movsxd r64, r32 */
 void x86_movsxd   (x86_codegen*, unsigned dst, unsigned src);         /* dst64 = sext(src32) */
