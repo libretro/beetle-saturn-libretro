@@ -373,6 +373,12 @@ static void check_variables(bool startup)
          setting_sh2_interleave = 0;
          if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value && strcmp(var.value, "exact"))
             setting_sh2_interleave = atoi(var.value);
+         /* Windows above 16 cycles starve the slave SH-2 (it executes far
+          * fewer instructions and the game runs slow while the frame rate
+          * rises); those values were removed from the option.  Clamp so a
+          * stale config cannot reintroduce them. */
+         if (setting_sh2_interleave > 16)
+            setting_sh2_interleave = 16;
 
          var.key = "beetle_saturn_sh2_jit";
          var.value = NULL;
