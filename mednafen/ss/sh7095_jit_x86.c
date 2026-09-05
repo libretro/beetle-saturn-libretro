@@ -407,10 +407,16 @@ static void emit_wb_check(unsigned r)
 }
 
 /* SetT(cc): SR = (SR & ~1) | cc, with cc the condition currently in flags. */
+#if X86EMIT_64
+ #define PIN_T X86_R11   /* blocks: T as 0/1 after a setter, read by the folded pair's condition */
+#endif
 static void emit_set_t_cc(unsigned cc)
 {
  x86_setcc_r8(g_cg, cc, EDX);
  x86_movzx_rr8(g_cg, EDX, EDX);
+#if X86EMIT_64
+ if(g_in_block) x86_mov_rr(g_cg, PIN_T, EDX);
+#endif
  x86_mov_rm(g_cg, EAX, M_Z(O(SR)));
  x86_alu_ri(g_cg, X86_AND, EAX, ~1);
  x86_alu_rr(g_cg, X86_OR, EAX, EDX);
@@ -421,6 +427,9 @@ static void emit_set_t_cc(unsigned cc)
 static void emit_set_t_edx(void)
 {
  x86_alu_ri(g_cg, X86_AND, EDX, 1);
+#if X86EMIT_64
+ if(g_in_block) x86_mov_rr(g_cg, PIN_T, EDX);
+#endif
  x86_mov_rm(g_cg, EAX, M_Z(O(SR)));
  x86_alu_ri(g_cg, X86_AND, EAX, ~1);
  x86_alu_rr(g_cg, X86_OR, EAX, EDX);
@@ -1721,15 +1730,23 @@ static bool compile_block(Block* b)
     const uint16_t bw = b->words[i + 1];
     const bool on_t = fusion_branch_on_t(bw);
     x86_label not_fused, not_taken, cont; x86_label_init(&not_fused); x86_label_init(&not_taken); x86_label_init(&cont);
+#if X86EMIT_64
+    x86_alu_ri(g_cg, X86_CMP, PIN_OPID, on_t ? OP_BT_ID : OP_BF_ID);        /* R15 = the branch's op byte from the fold */
+#else
     x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
     x86_shift_ri(g_cg, X86_SHR, EAX, 24);
     x86_alu_ri(g_cg, X86_CMP, EAX, on_t ? OP_BT_ID : OP_BF_ID);
+#endif
     x86_jcc(g_cg, X86_CC_NE, &not_fused);
     pc_advance2();                                                             /* consume the branch word */
     emit_folded_fetch(b->addr + i * 2 + 6, b->words[i + 2], b->words[i + 3]); /* DoIDIF(false) */
+#if X86EMIT_64
+    x86_alu_ri(g_cg, X86_CMP, PIN_T, on_t ? 1 : 0);                            /* R11 = T from the source's setter */
+#else
     x86_mov_rm(g_cg, EAX, M_Z(O(SR)));
     x86_alu_ri(g_cg, X86_AND, EAX, 1);
     x86_alu_ri(g_cg, X86_CMP, EAX, on_t ? 1 : 0);
+#endif
     x86_jcc(g_cg, X86_CC_NE, &not_taken);
     /* taken, target == head: Branch(head) then END_OP -> the entry state */
     ts_load(EAX); x86_mov_rm(g_cg, ECX, M_Z(O(MA_until)));
