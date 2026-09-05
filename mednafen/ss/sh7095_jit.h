@@ -50,6 +50,10 @@ void SH7095_DoIDIF_NI_C0_I0(struct SH7095* z);
 /* Fills tab[65536] with the decoder's op id for each word (sh7095.inc). */
 void SH7095_JIT_BuildOpIDTable(uint8_t* tab);
 
+/* MAC.L / MAC.W arithmetic on z->Resume_MAC_* (sh7095.inc). */
+void SH7095_JIT_MACL_Arith(struct SH7095* z);
+void SH7095_JIT_MACW_Arith(struct SH7095* z);
+
 /* Branch primitives (sh7095.inc): the interpreter's macros. */
 void SH7095_JIT_UCDelayBranch_C0(struct SH7095* z, uint32_t target);
 void SH7095_JIT_DelayBranch_C0(struct SH7095* z, uint32_t target);

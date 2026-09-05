@@ -4972,6 +4972,47 @@ MDFN_HIDE void SH7095_JIT_BuildOpIDTable(uint8_t* tab)
   tab[i] = (uint8_t)InstrDecodeTab_Lookup(i);
 }
 
+/* MAC.L / MAC.W arithmetic for the JIT, on the operands the handler has
+ * stored in the interpreter's own resume fields: the same statements as
+ * the op bodies after their two reads. */
+MDFN_HIDE void SH7095_JIT_MACL_Arith(SH7095* z)
+{
+ const int32_t m0 = z->Resume_MAC_L_m0, m1 = z->Resume_MAC_L_m1;
+ uint64_t a, b, sum;
+ a = SH7095_GetMAC64(z);
+ b = (int64_t)m0 * m1;
+ sum = a + b;
+ if(SH7095_GetS(z) && sum > 0x00007FFFFFFFFFFFULL && sum < 0xFFFF800000000000ULL)
+ {
+  if((int32_t)(m0 ^ m1) < 0)
+   sum = 0xFFFF800000000000ULL;
+  else
+   sum = 0x00007FFFFFFFFFFFULL;
+ }
+ SH7095_SetMAC64(z, sum);
+}
+
+MDFN_HIDE void SH7095_JIT_MACW_Arith(SH7095* z)
+{
+ const int16_t m0 = z->Resume_MAC_W_m0, m1 = z->Resume_MAC_W_m1;
+ if(SH7095_GetS(z))
+ {
+  int32_t b = (int32_t)m0 * m1;
+  uint64_t sum = (int64_t)(int32_t)z->MACL + b;
+  if(sum > 0x000000007FFFFFFFULL && sum < 0xFFFFFFFF80000000ULL)
+  {
+   z->MACH |= 1;
+   if(b < 0)
+    sum = 0x80000000ULL;
+   else
+    sum = 0x7FFFFFFFULL;
+  }
+  z->MACL = sum;
+ }
+ else
+  SH7095_SetMAC64(z, SH7095_GetMAC64(z) + (int64_t)m0 * m1);
+}
+
 /* Branch primitives for the JIT, the macros under the master /
  * no-icache constants.  UCDelayBranch is for ops that do not prefetch
  * (BEGIN_OP_DLYIDIF: BRA/BSR/JMP/JSR/RTS...), DelayBranch for ones that

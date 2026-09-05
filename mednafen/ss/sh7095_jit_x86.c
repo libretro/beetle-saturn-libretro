@@ -87,6 +87,7 @@ static uint32_t g_blk_lo, g_blk_hi;
 static bool     g_blk_self_write_check;
 static bool     g_body_wrote_memory;       /* the body emitted a store (self-write check needed) */
 static bool     g_blk_allow_movb;      /* block compiler: next word is not CMP/EQ #imm / TST #imm (no triplet fusion possible) */
+static bool     g_in_block;            /* compiling for the block compiler (master, slave off), not the chain */
 static int      g_probe_placement;
 static uint32_t g_fold_pc; static uint16_t g_fold_nw, g_fold_nnw;
 static void emit_folded_fetch(uint32_t pc_at_body, uint16_t next_w, uint16_t nextnext_w);
@@ -942,6 +943,23 @@ static bool compile_sys(uint32_t instr)
  switch(top)
  {
   case 0x0:
+   if(low == 0xF && g_in_block)                                                                                         /* MAC.L @Rm+,@Rn+ */
+   {
+    /* Blocks only (master, slave off).  As a chain handler it is bit-exact
+     * on the master but diverges when the slave runs it (Daytona USA's
+     * race demo, frames 1221-1250); until that is traced the chain leaves
+     * MAC.L to the interpreter. */
+    /* read m0 from R[m], R[m] += 4, read m1 from R[n], R[n] += 4 -- in that
+     * order (n == m reads the incremented address); operands parked in the
+     * interpreter's own resume fields, arithmetic in the C helper. */
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); emit_mem_read(MEM_32, false); x86_mov_mr(g_cg, M_Z(O(Resume_MAC_L_m0)), EAX);
+    x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(m)), 4);
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); emit_mem_read(MEM_32, false); x86_mov_mr(g_cg, M_Z(O(Resume_MAC_L_m1)), EAX);
+    x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 4);
+    emit_call_z((const void*)&SH7095_JIT_MACL_Arith);
+    x86_alu_mi32(g_cg, X86_ADD, M_Z(O(timestamp)), 1);
+    g_body_touches_memory = true; return true;
+   }
    if(instr == 0x0028) { x86_mov_mi32(g_cg, M_Z(O(MACH)), 0); x86_mov_mi32(g_cg, M_Z(O(MACL)), 0); return true; }   /* CLRMAC */
    if(instr == 0x0019) { x86_alu_mi32(g_cg, X86_AND, M_Z(O(SR)), ~(SR_Q | SR_M | SR_T)); return true; }               /* DIV0U */
    if((instr & 0xFF) == 0x0A || (instr & 0xFF) == 0x1A || (instr & 0xFF) == 0x2A)                                     /* STS MACH/MACL/PR,Rn */
@@ -1050,6 +1068,16 @@ static bool compile_sys(uint32_t instr)
     default: return false;
    }
   case 0x4:
+   if(low == 0xF)                                                                                                       /* MAC.W @Rm+,@Rn+ */
+   {
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); emit_mem_read(MEM_16, false); x86_mov_mr16(g_cg, M_Z(O(Resume_MAC_W_m0)), EAX);
+    x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(m)), 2);
+    x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); emit_mem_read(MEM_16, false); x86_mov_mr16(g_cg, M_Z(O(Resume_MAC_W_m1)), EAX);
+    x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 2);
+    emit_call_z((const void*)&SH7095_JIT_MACW_Arith);
+    x86_alu_mi32(g_cg, X86_ADD, M_Z(O(timestamp)), 1);
+    g_body_touches_memory = true; return true;
+   }
    if((instr & 0xFF) == 0x0A || (instr & 0xFF) == 0x1A || (instr & 0xFF) == 0x2A)                                     /* LDS Rm,MACH/MACL/PR */
    {
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_mov_mr(g_cg, M_Z(SYSREG_OFF(sri)), EAX);
@@ -1463,6 +1491,7 @@ static bool compile_block(Block* b)
   SH2JIT_BlockStats[3] += 1000000;   /* visible in the stats as a flush */
  }
  g_cg = g_blk_cg;
+ g_in_block = true;
  x86_label_init(&exit); x86_label_init(&head);
  start = x86_codegen_wptr(g_cg);
  emit_entry_frame();
@@ -1575,6 +1604,7 @@ static bool compile_block(Block* b)
  }
  g_blk_self_write_check = false;
  g_blk_allow_movb = false;
+ g_in_block = false;
  if(ok && b->nvalid != b->nwords + 2)
  {
   /* truncated: lookahead is now the two words after the new end */
