@@ -86,6 +86,7 @@ static uint8_t g_status[65536];    /* 0 = unknown, 1 = compiled, 2 = unsupported
 static uint32_t g_blk_lo, g_blk_hi;
 static bool     g_blk_self_write_check;
 static bool     g_body_wrote_memory;       /* the body emitted a store (self-write check needed) */
+static bool     g_folded_pair;             /* current instruction is a fusion source whose BF/BT the block folds */
 static bool     g_blk_allow_movb;      /* block compiler: next word is not CMP/EQ #imm / TST #imm (no triplet fusion possible) */
 
 static int      g_probe_placement;
@@ -404,9 +405,12 @@ static void emit_set_t_edx(void)
  * fusion tail with cond = T (cond_is_t) or !T.  Emitted after SetT. */
 #define OP_BF_ID 0x64
 #define OP_BT_ID 0x66
+static bool g_suppress_fusion;   /* the block compiler folds the pair itself */
+
 static void emit_fuse_cond_branch(unsigned op_id, bool cond_is_t)
 {
  x86_label skip; x86_label_init(&skip);
+ if(g_suppress_fusion) return;
  x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
  x86_shift_ri(g_cg, X86_SHR, EAX, 24);
  x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)op_id);
@@ -1497,6 +1501,29 @@ static bool is_fusion_pair(uint32_t w, uint32_t next)
  return src && br;
 }
 
+/* For a fusion pair (source w at addr, BF/BT next): the branch's static
+ * target and whether the source branches on T (BT) or !T (BF). */
+static uint32_t fusion_target(uint32_t src_addr, uint32_t next)
+{
+ return (src_addr + 6) + ((uint32_t)(int32_t)(int8_t)next << 1);   /* PC at the fused CondRelBranch is A_i + 6 */
+}
+static bool fusion_branch_on_t(uint32_t next) { return (next & 0xFF00) == 0x8900; }
+
+/* Which fusions the interpreter actually performs per source (see
+ * sh7095_ops.inc): TST Rn,Rm -> BF and BT; CMP/GT -> BT; DT -> BF;
+ * CMP/EQ #imm -> BF; TST #imm -> BT. */
+static bool fusion_pair_valid(uint32_t w, uint32_t next)
+{
+ const unsigned top = w >> 12, low = w & 0xF;
+ const bool bt = (next & 0xFF00) == 0x8900, bf = (next & 0xFF00) == 0x8B00;
+ if(top == 0x2 && low == 0x8) return bt || bf;
+ if(top == 0x3 && low == 0x7) return bt;
+ if(top == 0x4 && (w & 0xFF) == 0x10) return bf;
+ if((w & 0xFF00) == 0x8800) return bf;
+ if((w & 0xFF00) == 0xC800) return bt;
+ return false;
+}
+
 static bool is_branch_word(uint32_t w)
 {
  const unsigned top = w >> 12;
@@ -1541,6 +1568,9 @@ static bool compile_block(Block* b)
   bool prefetch;
   void* instr_start = x86_codegen_wptr(g_cg);
   g_blk_allow_movb = !((b->words[i + 1] & 0xFF00) == 0x8800 || (b->words[i + 1] & 0xFF00) == 0xC800);
+  g_folded_pair = is_fusion_pair(w, b->words[i + 1]) && fusion_pair_valid(w, b->words[i + 1]) &&
+                  fusion_target(b->addr + i * 2, b->words[i + 1]) == b->addr && i + 1 < b->nwords;
+  g_suppress_fusion = g_folded_pair;
   { static int nomovb = -1; if(nomovb < 0) nomovb = getenv("SH2JIT_NOMOVB") != NULL; if(nomovb) g_blk_allow_movb = false; }
   /* Probe first: nothing that references the block's exit label may be
    * emitted and then discarded (its patch sites would outlive it). */
@@ -1613,6 +1643,45 @@ static bool compile_block(Block* b)
     compile_body(w);
     if(fp == FETCH_AFTER_INTDIS) { g_fetch_int_prevent = true; emit_folded_fetch(pc_at_body, nw, nnw); g_fetch_int_prevent = false; }
    }
+   if(g_folded_pair)
+   {
+    /* --- the fused BF/BT, folded: runs inside the source's step, before
+     * END_OP's PC += 2 (see FUSE_COND_BRANCH and Branch) --- */
+    const uint16_t bw = b->words[i + 1];
+    const bool on_t = fusion_branch_on_t(bw);
+    x86_label not_fused, not_taken, cont; x86_label_init(&not_fused); x86_label_init(&not_taken); x86_label_init(&cont);
+    x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
+    x86_shift_ri(g_cg, X86_SHR, EAX, 24);
+    x86_alu_ri(g_cg, X86_CMP, EAX, on_t ? OP_BT_ID : OP_BF_ID);
+    x86_jcc(g_cg, X86_CC_NE, &not_fused);
+    x86_alu_mi32(g_cg, X86_ADD, M_Z(O(PC)), 2);                              /* consume the branch word */
+    emit_folded_fetch(b->addr + i * 2 + 6, b->words[i + 2], b->words[i + 3]); /* DoIDIF(false) */
+    x86_mov_rm(g_cg, EAX, M_Z(O(SR)));
+    x86_alu_ri(g_cg, X86_AND, EAX, 1);
+    x86_alu_ri(g_cg, X86_CMP, EAX, on_t ? 1 : 0);
+    x86_jcc(g_cg, X86_CC_NE, &not_taken);
+    /* taken, target == head: Branch(head) then END_OP -> the entry state */
+    ts_load(EAX); x86_mov_rm(g_cg, ECX, M_Z(O(MA_until)));
+    x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+    x86_alu_ri(g_cg, X86_ADD, EAX, 1); ts_store(EAX);                          /* ForceIBufferFill timing */
+    x86_mov_mi32(g_cg, M_Z(O(Pipe_IF)), b->words[0]);
+    x86_mov_mi32(g_cg, M_Z(O(PC)), b->addr + 2);
+    emit_folded_fetch(b->addr + 2, b->words[0], b->words[1]);                 /* DoIDIF(false) at head + 2 */
+    emit_pc_advance();                                                         /* END_OP: head + 4 */
+    emit_post_instr(&exit, false);
+    x86_jmp(g_cg, &head);
+    x86_label_bind(g_cg, &not_taken);
+    emit_pc_advance();                                                         /* END_OP: A_i + 8, state for words[i+2] */
+    emit_post_instr(&exit, false);
+    x86_jmp(g_cg, &cont);
+    x86_label_bind(g_cg, &not_fused);                                          /* exception pending at the branch */
+    emit_pc_advance();
+    emit_post_instr(&exit, false);
+    x86_jmp(g_cg, &exit);
+    x86_label_bind(g_cg, &cont);
+    i++;                                                                       /* the branch word is done */
+    continue;
+   }
    emit_pc_advance();
    /* a store into this block's own range: exit after this instruction */
    { static int full = -1; if(full < 0) full = getenv("SH2JIT_FULLPOST") != NULL; if(full) g_body_wrote_memory = true; }
@@ -1637,6 +1706,8 @@ static bool compile_block(Block* b)
  g_blk_self_write_check = false;
  g_blk_allow_movb = false;
  g_in_block = false;
+ g_suppress_fusion = false;
+ g_folded_pair = false;
  if(ok && b->nvalid != b->nwords + 2)
  {
   /* truncated: lookahead is now the two words after the new end */
@@ -1718,7 +1789,19 @@ bool SH2JIT_RunBlock(struct SH7095* z)
     if(nobr && is_branch_word(w) && b->nwords > 0) break; }
   b->words[b->nwords++] = w;
   if(is_branch_word(w)) break;
-  if(is_fusion_pair(w, guest_word(addr + (i + 1) * 2))) break;
+  {
+   const uint16_t nw = guest_word(addr + (i + 1) * 2);
+   if(is_fusion_pair(w, nw))
+   {
+    if(fusion_pair_valid(w, nw) && fusion_target(addr + i * 2, nw) == addr && i + 2 < g_blk_max)
+    {
+     /* foldable: include the BF/BT word and keep gathering after it */
+     b->words[b->nwords++] = nw; i++;
+     continue;
+    }
+    break;
+   }
+  }
   {
    /* diagnostic: SH2JIT_BLKCLASS=1 stops before a memory op in slot >= 1, =2 before a non-memory op */
    static int cls = -1; if(cls < 0) { const char* e = getenv("SH2JIT_BLKCLASS"); cls = e ? atoi(e) : 0; }
