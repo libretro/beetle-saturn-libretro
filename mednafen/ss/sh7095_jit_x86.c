@@ -1782,6 +1782,12 @@ static bool fusion_pair_valid(uint32_t w, uint32_t next)
  return false;
 }
 
+/* BT / BF (non-delayed): taken leaves the block, not taken continues in it. */
+static bool is_cond_nondelayed(uint32_t w)
+{
+ return (w >> 12) == 0x8 && (((w >> 8) & 0xF) == 0x9 || ((w >> 8) & 0xF) == 0xB);
+}
+
 static bool is_branch_word(uint32_t w)
 {
  const unsigned top = w >> 12;
@@ -1917,7 +1923,18 @@ static bool compile_block(Block* b)
      x86_jcc(g_cg, X86_CC_AE, &exit);
      if((int32_t)target >= 0) emit_link_or_exit(target, &exit); else x86_jmp(g_cg, &exit);
      x86_label_bind(g_cg, &no);
-     /* not taken: PC == A_i + 6, the state for the word after the branch */
+     /* not taken: PC == A_i + 6, the state for the word after the branch.
+      * If that word is inside this block, continue with it here; the
+      * live prefetch left its op byte in R15 and its PC is known. */
+     if(i + 1 < b->nwords)
+     {
+      x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
+      x86_alu_ri(g_cg, X86_CMP, EAX, (int32_t)(b->addr + i * 2 + 6));
+      x86_jcc(g_cg, X86_CC_NE, &exit);          /* neither taken nor the fall-through: exception path */
+      g_pc_known = true; g_pc_value = b->addr + i * 2 + 6;
+      continue;                                  /* the for loop moves to i + 1 */
+     }
+     else
      {
       const uint32_t fall = b->addr + i * 2 + 2;
       x86_label no2; x86_label_init(&no2);
@@ -2209,7 +2226,7 @@ bool SH2JIT_RunBlock(struct SH7095* z)
   { static int nobr = -1; if(nobr < 0) nobr = getenv("SH2JIT_NOBRANCH") != NULL;
     if(nobr && is_branch_word(w) && b->nwords > 0) break; }
   b->words[b->nwords++] = w;
-  if(is_branch_word(w)) break;
+  if(is_branch_word(w) && !is_cond_nondelayed(w)) break;   /* BT/BF: the block continues on the fall-through */
   {
    const uint16_t nw = guest_word(addr + (i + 1) * 2);
    if(is_fusion_pair(w, nw))
