@@ -344,6 +344,9 @@ void x86_alu_rm(x86_codegen* cg, unsigned op, unsigned dst, unsigned base, int i
  emit_mem(cg, dst, base, index, scale, disp);
 }
 
+void x86_stc(x86_codegen* cg) { emit_b(cg, 0xF9); }
+void x86_clc(x86_codegen* cg) { emit_b(cg, 0xF8); }
+
 void x86_cmp_r8i(x86_codegen* cg, unsigned r, uint8_t imm)   /* cmp r8, imm8 (low byte of r) */
 {
  if(r >= 4) emit_b(cg, 0x40 | ((r >= 8) ? 1 : 0));   /* REX for spl..dil and r8b..r15b */

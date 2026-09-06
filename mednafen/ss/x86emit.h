@@ -119,6 +119,8 @@ void x86_cmp_mi8  (x86_codegen*, unsigned base, int index, unsigned scale_log2, 
 void x86_cmp_mi16 (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, uint16_t imm);
 void x86_mov_mr8  (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, unsigned src);
 void x86_cmp_r8i  (x86_codegen*, unsigned r, uint8_t imm);
+void x86_stc      (x86_codegen*);
+void x86_clc      (x86_codegen*);
 void x86_test_mi8 (x86_codegen*, unsigned base, int index, unsigned scale_log2, int32_t disp, uint8_t imm);
 
 void x86_shift_ri (x86_codegen*, unsigned kind, unsigned r, unsigned imm);

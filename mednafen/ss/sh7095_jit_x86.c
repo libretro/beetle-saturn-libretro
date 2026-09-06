@@ -90,6 +90,7 @@ static uint32_t g_blk_lo, g_blk_hi;
 static bool     g_blk_self_write_check;
 static bool     g_body_wrote_memory;       /* the body emitted a store (self-write check needed) */
 static bool     g_folded_pair;             /* current instruction is a fusion source whose BF/BT the block folds */
+static bool     g_end_dynamic, g_end_static, g_end_selfloop;   /* which delayed-branch ending a block emits */
 static bool     g_blk_allow_movb;      /* block compiler: next word is not CMP/EQ #imm / TST #imm (no triplet fusion possible) */
 
 static int      g_probe_placement;
@@ -593,6 +594,8 @@ static int32_t write_table_off(MemSize sz)
  * CacheData[set][way] at the host-endian-adjusted index.  Everything
  * else -- misalignment, other regions, cache off, a miss, the cache
  * bypass hack -- takes the helper.  x86-64 only; A in EAX, result in EAX. */
+static void* g_read_stub[3][2];   /* [size][ts pinned in EBP] */
+
 static const uint8_t LRU_AND[4] = { 0x07, 0x19, 0x2A, 0x34 };
 static const uint8_t LRU_OR[4]  = { 0x00, 0x20, 0x14, 0x0B };
 
@@ -642,16 +645,41 @@ static void emit_mem_read_cached_hit(MemSize sz, x86_label* slow, x86_label* don
 }
 
 /* EAX = address in -> EAX = value read (zero-extended to 32). */
+/* Emit the three cached-read stubs for the current mode into the chain
+ * segment: call rel32 from every load site instead of ~200 bytes each. */
+static void emit_read_stubs(bool ts_pinned)
+{
+#if X86EMIT_64
+ int sz;
+ const bool saved_in_block = g_in_block;
+ g_in_block = ts_pinned;               /* ts_load reads EBP or memory accordingly */
+ for(sz = 0; sz < 3; sz++)
+ {
+  x86_label slow, done; x86_label_init(&slow); x86_label_init(&done);
+  g_read_stub[sz][ts_pinned] = x86_codegen_wptr(g_cg);
+  emit_mem_read_cached_hit((MemSize)sz, &slow, &done);
+  x86_label_bind(g_cg, &slow);
+  x86_mov_rr(g_cg, EAX, S1);          /* A back */
+  x86_stc(g_cg); x86_ret(g_cg);
+  x86_label_bind(g_cg, &done);
+  x86_clc(g_cg); x86_ret(g_cg);
+ }
+ g_in_block = saved_in_block;
+#else
+ (void)ts_pinned;
+#endif
+}
+
 static void emit_mem_read(MemSize sz, bool instr_space)
 {
  const int32_t tab = read_table_off(sz, instr_space);
  x86_label slow, done; x86_label_init(&slow); x86_label_init(&done);
- const bool inline_hit = X86EMIT_64 && !instr_space && !g_cbh_setting;
+ const bool inline_hit = X86EMIT_64 && !instr_space && !g_cbh_setting && g_read_stub[sz][TS_PINNED ? 1 : 0] != NULL;
  if(inline_hit)
  {
-  emit_mem_read_cached_hit(sz, &slow, &done);
-  x86_label_bind(g_cg, &slow);
-  x86_mov_rr(g_cg, EAX, S1);                                   /* A back for the helper */
+  /* the stub: hit -> EAX = value, CF clear; miss -> EAX = A, CF set */
+  x86_call_abs(g_cg, g_read_stub[sz][TS_PINNED ? 1 : 0]);
+  x86_jcc(g_cg, X86_CC_AE, &done);    /* CF == 0: hit */
  }
  ts_flush();
  memts_flush();
@@ -1804,7 +1832,20 @@ static bool compile_block(Block* b)
    b->chain_entry = x86_codegen_wptr(g_cg);
 #if X86EMIT_64
    x86_mov_ri64(g_cg, X86_R8, (uint64_t)(uintptr_t)hw);
-   for(k = 0; k < b->nvalid; k++) { x86_cmp_mi16(g_cg, X86_R8, X86_NOIDX, 0, (int32_t)(k * 2), b->words[k]); x86_jcc(g_cg, X86_CC_NE, &exit); }
+   for(k = 0; k < b->nvalid; k += 4)
+   {
+    /* compare four words (host order: little-endian 16-bit units) at once */
+    uint64_t q = 0; uint32_t j, cnt = (b->nvalid - k < 4) ? (b->nvalid - k) : 4;
+    for(j = 0; j < cnt; j++) q |= (uint64_t)b->words[k + j] << (16 * j);
+    if(cnt == 4)
+    {
+     x86_mov_ri64(g_cg, EAX, q);
+     x86_alu_rm64(g_cg, X86_CMP, EAX, X86_R8, X86_NOIDX, 0, (int32_t)(k * 2));
+     x86_jcc(g_cg, X86_CC_NE, &exit);
+    }
+    else
+     for(j = 0; j < cnt; j++) { x86_cmp_mi16(g_cg, X86_R8, X86_NOIDX, 0, (int32_t)((k + j) * 2), b->words[k + j]); x86_jcc(g_cg, X86_CC_NE, &exit); }
+   }
 #else
    x86_mov_ri(g_cg, X86_ESI, (uint32_t)(uintptr_t)hw);
    for(k = 0; k < b->nvalid; k++) { x86_cmp_mi16(g_cg, X86_ESI, X86_NOIDX, 0, (int32_t)(k * 2), b->words[k]); x86_jcc(g_cg, X86_CC_NE, &exit); }
@@ -1904,7 +1945,18 @@ static bool compile_block(Block* b)
     { void* pr = x86_codegen_wptr(g_cg); sp = !is_branch_word(slot) && compile_body(slot); x86_codegen_set_wptr(g_cg, pr); }
     g_blk_self_write_check = true;
     { static int noloop = -1; if(noloop < 0) noloop = getenv("SH2JIT_NOLOOP") != NULL; if(noloop) sp = false; }
-    if(sp && g_fetch_placement == FETCH_BEFORE && (((w >> 12) == 0x4 && ((w & 0xFF) == 0x2B || (w & 0xFF) == 0x0B)) || w == 0x000B))
+    /* which delayed-branch ending applies (one slot copy per block, not three) */
+    {
+     const unsigned top = w >> 12;
+     const bool dynamic = ((top == 0x4 && ((w & 0xFF) == 0x2B || (w & 0xFF) == 0x0B)) || w == 0x000B);
+     uint32_t st = 0; bool has_static = false;
+     if(top == 0xA || top == 0xB) { st = (b->addr + i * 2 + 4) + ((uint32_t)(((int32_t)(w << 20)) >> 20) << 1); has_static = true; }
+     if(top == 0x8 && (((w >> 8) & 0xF) == 0xD || ((w >> 8) & 0xF) == 0xF)) { st = (b->addr + i * 2 + 4) + ((uint32_t)(int32_t)(int8_t)w << 1); has_static = true; }
+     g_end_dynamic  = dynamic;
+     g_end_static   = has_static && st != b->addr;
+     g_end_selfloop = has_static && st == b->addr;
+    }
+    if(sp && g_fetch_placement == FETCH_BEFORE && g_end_dynamic)
     {
      /* JMP/JSR/RTS: dynamic target.  After the helper PC == target + 2 with
       * the slot in Pipe_ID (delay flag).  Run the slot with a live fetch,
@@ -1931,7 +1983,7 @@ static bool compile_block(Block* b)
      emit_dynamic_link(&exit);
      x86_label_bind(g_cg, &no);
     }
-    if(sp && g_fetch_placement == FETCH_BEFORE && ((w >> 12) == 0xA || (w >> 12) == 0xB))
+    if(sp && g_fetch_placement == FETCH_BEFORE && g_end_static && ((w >> 12) == 0xA || (w >> 12) == 0xB))
     {
      /* BRA/BSR to a static target other than the head: PC == target + 2
       * with the slot in Pipe_ID.  Run the slot with a live fetch (nothing
@@ -1957,7 +2009,7 @@ static bool compile_block(Block* b)
       x86_label_bind(g_cg, &no);
      }
     }
-    if(sp && g_fetch_placement == FETCH_BEFORE)
+    if(sp && g_fetch_placement == FETCH_BEFORE && g_end_selfloop)
     {
      x86_label not_loop; x86_label_init(&not_loop);
      x86_mov_rm(g_cg, EAX, M_Z(O(PC)));
@@ -2297,6 +2349,8 @@ void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, c
   emit_entry_frame();
   x86_jmp_abs(g_cg, g_dispatch_next);   /* first instruction runs unconditionally */
   g_entry_stub = (void (*)(struct SH7095*))p;
+  emit_read_stubs(false);
+  emit_read_stubs(true);
   if(getenv("SH2JIT_PERFMAP")) { char n[64]; FILE* f; snprintf(n, sizeof n, "/tmp/perf-%d.map", (int)getpid()); f = fopen(n, "a");
    if(f) { fprintf(f, "%lx %lx sh2jit_stubs\n", (unsigned long)(uintptr_t)g_exit_stub, (unsigned long)((uint8_t*)x86_codegen_wptr(g_cg) - (uint8_t*)g_exit_stub)); fclose(f); } }
  }
