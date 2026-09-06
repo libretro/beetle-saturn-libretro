@@ -5072,6 +5072,7 @@ static FORCE_INLINE void SH7095_Step_JIT_w0_C0(SH7095* z)
   * the delay-slot flag: every word with a handler is a non-branch op
   * whose delay-slot case shares the body verbatim.  Pseudo-ops and the
   * exception pseudo-op carry other op bytes and go to the interpreter. */
+ { static int off = -1; if(off < 0) off = getenv("SH2JIT_OFF") != NULL; if(off) { SH7095_Step_w0_C0_NI(z); return; } }   /* control: measure the JIT loop with every step on the interpreter */
  /* Slave powered off, ordinary instruction (no delay flag, no exception):
   * run a compiled block; it exits at an interpreter-exact step boundary. */
  if((z->Pipe_ID >> 24) == SH2JIT_OpID[z->Pipe_ID & 0xFFFF] && CPU[1].timestamp == SS_EVENT_DISABLED_TS && SH2JIT_RunBlock(z))

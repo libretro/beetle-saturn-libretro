@@ -125,6 +125,7 @@ enum { EAX = X86_EAX, ECX = X86_ECX, EDX = X86_EDX, EBX = X86_EBX, ESP = X86_ESP
 
 static bool g_in_block;                /* compiling for the block compiler (master, slave off), not the chain */
 static bool g_cbh_setting;             /* cache bypass hack on either CPU: keep reads on the helper */
+static void emit_deadline_load(void);
 static void emit_env_ptr(unsigned r, int32_t field);
 /* In blocks on x86-64, z->timestamp lives in EBP for the block's life:
  * every fold, stall check and event check touches it, and through
@@ -1649,11 +1650,7 @@ static void emit_post_instr(x86_label* exit, bool touched_memory)
 #endif
 #if X86EMIT_64
  if(touched_memory)
- {
-  /* a register access may have scheduled an earlier event: refresh the pin */
-  emit_env_ptr(S0, E(next_event_ts));
-  x86_mov_rm(g_cg, PIN_TABLE, S0, X86_NOIDX, 0, 0);
- }
+  emit_deadline_load();                /* a register access may have scheduled an earlier event or changed the FRT */
  x86_alu_rr(g_cg, X86_CMP, ECX, PIN_TABLE);
  x86_jcc(g_cg, X86_CC_GE, exit);
 #else
@@ -1687,23 +1684,39 @@ static void emit_loop_if_head(x86_label* head, x86_label* exit, uint32_t head_pc
 }
 
 /* Pre-instruction checks: exception pending (op byte 0xFF), FRT due. */
+/* R13 = min(next_event_ts, FRT_WDT_NextTS): the block's single deadline.
+ * Exiting for the FRT at the post-check instead of the pre-check is
+ * exact: the C step performs the update before the next instruction
+ * either way, and an early exit is always safe. */
+static void emit_deadline_load(void)
+{
+#if X86EMIT_64
+ emit_env_ptr(S0, E(next_event_ts));
+ x86_mov_rm(g_cg, PIN_TABLE, S0, X86_NOIDX, 0, 0);
+ x86_mov_rm(g_cg, EAX, M_Z(O(FRT_WDT_NextTS)));
+ x86_alu_rr(g_cg, X86_CMP, EAX, PIN_TABLE);
+ x86_cmov(g_cg, X86_CC_L, PIN_TABLE, EAX);
+#endif
+}
+
 static void emit_pre_instr(x86_label* exit)
 {
  /* Exception pending: the op byte is 0xFF.  (Testing EPending instead is
   * wrong: after an IntPreventNext fetch the op byte is normal while
   * EPending is set, and exiting there re-enters forever.) */
 #if X86EMIT_64
- x86_alu_ri(g_cg, X86_CMP, PIN_OPID, 0xFF);          /* R15 = this instruction's op byte, set by the fold that produced it */
+ x86_cmp_r8i(g_cg, PIN_OPID, 0xFF);                  /* R15 = this instruction's op byte, set by the fold that produced it */
  x86_jcc(g_cg, X86_CC_E, exit);
+ /* the FRT deadline is part of R13, tested after each instruction */
 #else
  x86_mov_rm(g_cg, EAX, M_Z(O(Pipe_ID)));
  x86_shift_ri(g_cg, X86_SHR, EAX, 24);
  x86_alu_ri(g_cg, X86_CMP, EAX, 0xFF);
  x86_jcc(g_cg, X86_CC_E, exit);
-#endif
  ts_load(EAX);
  x86_alu_rm(g_cg, X86_CMP, EAX, M_Z(O(FRT_WDT_NextTS)));
  x86_jcc(g_cg, X86_CC_GE, exit);
+#endif
 }
 
 
@@ -1771,9 +1784,8 @@ static bool compile_block(Block* b)
  emit_entry_frame();
 #if X86EMIT_64
  x86_push(g_cg, PIN_TS); x86_alu_ri64(g_cg, X86_SUB, ESP, 8);   /* keep 16-byte alignment */
- emit_env_ptr(S0, E(next_event_ts));
- x86_mov_rm(g_cg, PIN_TABLE, S0, X86_NOIDX, 0, 0);   /* R13 = next_event_ts for the block's life */
  x86_mov_rm(g_cg, PIN_TS, M_Z(O(timestamp)));         /* EBP = timestamp for the block's life */
+ emit_deadline_load();                                /* R13 = min(next_event_ts, FRT_WDT_NextTS) */
  emit_env_ptr(S0, E(mem_ts));
  x86_mov_rm(g_cg, PIN_MEMTS, S0, X86_NOIDX, 0, 0);    /* R14 = mem_timestamp for the block's life */
  x86_mov_rm(g_cg, PIN_OPID, M_Z(O(Pipe_ID)));
@@ -2268,11 +2280,11 @@ void SH2JIT_Init(struct SH7095* master, struct SH7095* slave, int32_t* mem_ts, c
  memset(SH2JIT_Pure, 0, sizeof SH2JIT_Pure);
  SH7095_JIT_BuildOpIDTable(g_opid);
  if(!g_blk_cg)
-  g_blk_cg = x86_codegen_create(BLK_CODE_BYTES);
+  g_blk_cg = x86_codegen_create_near(BLK_CODE_BYTES, (const void*)&SH7095_DoIDIF_NI_C0_I0);   /* rel32 to the helpers */
  if(!g_cg)
  {
   void* p;
-  g_cg = x86_codegen_create(SH2JIT_CODE_BYTES);
+  g_cg = x86_codegen_create_near(SH2JIT_CODE_BYTES, (const void*)&SH7095_DoIDIF_NI_C0_I0);
   if(!g_cg) return;
   /* exit stub, dispatch stub, then the entry stub (frame + dispatch) */
   p = x86_codegen_wptr(g_cg);

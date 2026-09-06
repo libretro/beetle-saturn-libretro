@@ -344,6 +344,14 @@ void x86_alu_rm(x86_codegen* cg, unsigned op, unsigned dst, unsigned base, int i
  emit_mem(cg, dst, base, index, scale, disp);
 }
 
+void x86_cmp_r8i(x86_codegen* cg, unsigned r, uint8_t imm)   /* cmp r8, imm8 (low byte of r) */
+{
+ if(r >= 4) emit_b(cg, 0x40 | ((r >= 8) ? 1 : 0));   /* REX for spl..dil and r8b..r15b */
+ emit_b(cg, 0x80);
+ emit_b(cg, 0xC0 | (7 << 3) | (r & 7));
+ emit_b(cg, imm);
+}
+
 void x86_mov_mr8(x86_codegen* cg, unsigned base, int index, unsigned scale, int32_t disp, unsigned src)   /* mov byte [m], r8 */
 {
  /* REX needed for spl/bpl/sil/dil and for r8+; emit_rex handles the extension bits, force it for 4..7 */
@@ -770,11 +778,14 @@ void x86_call_r(x86_codegen* cg, unsigned r)
 
 void x86_jmp_abs(x86_codegen* cg, const void* target)
 {
- intptr_t delta;
- emit_b(cg, 0xE9);
- delta = (intptr_t)((const uint8_t*)target - (cg->wp + 4));
- assert(fits_s32(delta));
- emit_d(cg, (uint32_t)delta);
+ intptr_t delta = (intptr_t)((const uint8_t*)target - (cg->wp + 5));
+ if(fits_s32(delta)) { emit_b(cg, 0xE9); emit_d(cg, (uint32_t)delta); return; }
+#if X86EMIT_64
+ x86_mov_ri64(cg, X86_EAX, (uint64_t)(uintptr_t)target);
+ x86_jmp_r(cg, X86_EAX);
+#else
+ assert(0);
+#endif
 }
 
 void x86_jcc_abs(x86_codegen* cg, unsigned cc, const void* target)
@@ -789,6 +800,10 @@ void x86_jcc_abs(x86_codegen* cg, unsigned cc, const void* target)
 void x86_call_abs(x86_codegen* cg, const void* target)
 {
 #if X86EMIT_64
+ /* E8 rel32 when the target is within reach (segments created with
+  * x86_codegen_create_near around the core), else MOV RAX,imm64; CALL RAX */
+ intptr_t delta = (intptr_t)((const uint8_t*)target - (cg->wp + 5));
+ if(fits_s32(delta)) { emit_b(cg, 0xE8); emit_d(cg, (uint32_t)delta); return; }
  x86_mov_ri64(cg, X86_EAX, (uint64_t)(uintptr_t)target);
  x86_call_r(cg, X86_EAX);
 #else
