@@ -162,53 +162,6 @@ static const bool PrevInterlaced = false;
 
 static MDFN_Surface *surf = NULL;
 
-/* RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER: a buffer of the
- * frontend's own, the size of the scanout surface, that this frame
- * renders into instead of surf. video_cb then hands back a pointer
- * inside the frontend's memory - the overscan and top-line crops
- * below are a pointer offset at the surface stride, which the frontend
- * accepts - so under threaded video the frame is presented without a
- * full-frame copy.
- *
- * Declined, and the frame renders into surf as before, when the
- * frontend has no such buffer or offers another format or stride, and
- * whenever the picture is interlaced: in interlaced modes VDP2 writes
- * only this field's lines and the other field's are the previous
- * frame's, still in the surface (and WEAVE/FASTMAD read them too), so
- * the surface has to persist from one frame to the next. */
-static MDFN_Surface lent_surf;
-static bool         last_frame_interlaced;
-
-static MDFN_Surface *acquire_lent_surface(void)
-{
-   struct retro_framebuffer fb;
-
-   if (!surf || !environ_cb)
-      return NULL;
-   if (last_frame_interlaced || PrevInterlaced)
-      return NULL;
-
-   memset(&fb, 0, sizeof(fb));
-   fb.width        = (unsigned)surf->w;
-   fb.height       = (unsigned)surf->h;
-   /* Read as well as write: the renderer's line mirror and blend
-    * read back what it scanned out this frame. */
-   fb.access_flags = RETRO_MEMORY_ACCESS_WRITE | RETRO_MEMORY_ACCESS_READ;
-
-   if (   !environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb)
-       || !fb.data
-       || fb.format != RETRO_PIXEL_FORMAT_XRGB8888
-       || fb.pitch  != (size_t)surf->pitchinpix * sizeof(uint32_t)
-       || !(fb.memory_flags & RETRO_MEMORY_TYPE_CACHED))
-      return NULL;
-
-   lent_surf.pixels     = (uint32_t*)fb.data;
-   lent_surf.w          = surf->w;
-   lent_surf.h          = surf->h;
-   lent_surf.pitchinpix = surf->pitchinpix;
-   return &lent_surf;
-}
-
 static void alloc_surface(void)
 {
   uint32_t width  = MEDNAFEN_CORE_GEOMETRY_MAX_W;
@@ -1504,20 +1457,13 @@ void retro_run(void)
     * semantics: surface/LineWidths NULL, InterlaceOn/Field/skip
     * false, sizes/cycles 0. */
    EmulateSpecStruct spec = {0};
-   /* The frontend's buffer when it lends one, else the core's own. */
-   MDFN_Surface *frame_surf = acquire_lent_surface();
-   if (!frame_surf)
-      frame_surf = surf;
-   spec.surface = frame_surf;
+   spec.surface = surf;
    spec.LineWidths = rects;
    spec.SoundBufSize = 0;
 
    EmulateSpecStruct *espec = (EmulateSpecStruct*)&spec;
 
    Emulate(espec);
-
-   /* Before the deinterlacer clears it: next frame's lend decision. */
-   last_frame_interlaced = spec.InterlaceOn;
 
 #ifdef NEED_DEINTERLACER
    if (spec.InterlaceOn)
@@ -1547,7 +1493,7 @@ void retro_run(void)
 
 #endif
    const void *fb      = NULL;
-   const uint32_t *pix = frame_surf->pixels;
+   const uint32_t *pix = surf->pixels;
    size_t pitch        = FB_WIDTH * sizeof(uint32_t);
 
    hires_h_mode  = (rects[0] == 704) ? true : false;
@@ -1580,7 +1526,7 @@ void retro_run(void)
       input_set_geometry(cur_width, cur_height);
    }
 
-   pix += frame_surf->pitchinpix * (linevisfirst << PrevInterlaced) + overscan_mask;
+   pix += surf->pitchinpix * (linevisfirst << PrevInterlaced) + overscan_mask;
 
    fb = pix;
 
