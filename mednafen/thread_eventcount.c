@@ -25,9 +25,9 @@ static retro_atomic_int_t spin_budget;
 #include <linux/futex.h>
 #elif defined(_WIN32) && !defined(_XBOX) && !defined(SATURN_EVENTCOUNT_FORCE_SLEEP)
 #include <windows.h>
-typedef LONG (WINAPI *nt_wait_t)(volatile void*, LARGE_INTEGER*);
-typedef LONG (WINAPI *nt_alert_t)(HANDLE);
-static retro_atomic_ptr_t nt_wait, nt_alert;
+/* NT alerts target a thread rather than an event address. A late alert from
+ * a completed core wait can escape into the frontend's next wait. Use
+ * address-scoped wakes so notifications stay with their own epoch. */
 typedef BOOL (WINAPI *address_wait_t)(volatile VOID*, PVOID, SIZE_T, DWORD);
 typedef VOID (WINAPI *address_wake_t)(PVOID);
 static retro_atomic_ptr_t address_wait;
@@ -48,17 +48,7 @@ bool retro_eventcount_init(retro_eventcount_t *ec)
    /* Concurrent initializers resolve the same immutable exports. They
     * publish independently; nobody spins waiting for an initializer. */
    {
-      HMODULE nt = GetModuleHandleA("ntdll.dll");
       HMODULE module = GetModuleHandleA("kernelbase.dll");
-      if (nt)
-      {
-#ifndef SATURN_EVENTCOUNT_FORCE_ADDRESS_WAIT
-         retro_atomic_store_release_ptr(&nt_wait,
-               (void*)GetProcAddress(nt, "NtWaitForAlertByThreadId"));
-         retro_atomic_store_release_ptr(&nt_alert,
-               (void*)GetProcAddress(nt, "NtAlertThreadByThreadId"));
-#endif
-      }
       if (!module)
          module = GetModuleHandleA("kernel32.dll");
       if (module)
@@ -85,35 +75,17 @@ void retro_eventcount_notify(retro_eventcount_t *ec)
 #elif defined(_WIN32) && !defined(_XBOX) && !defined(SATURN_EVENTCOUNT_FORCE_SLEEP)
    {
       address_wake_t wake = (address_wake_t)retro_atomic_load_acquire_ptr(&address_wake);
-      nt_alert_t alert = (nt_alert_t)retro_atomic_load_acquire_ptr(&nt_alert);
-      nt_wait_t wait = (nt_wait_t)retro_atomic_load_acquire_ptr(&nt_wait);
-      if (alert && wait)
-      {
-         void *tid = retro_atomic_load_acquire_ptr(&ec->waitlist);
-         if (tid) alert((HANDLE)tid);
-      }
-      else if (wake) wake((void*)&ec->epoch);
+      if (wake) wake((void*)&ec->epoch);
    }
 #endif
 }
 int retro_eventcount_prepare_wait(retro_eventcount_t *ec)
 {
-#if defined(_WIN32) && !defined(_XBOX) && !defined(SATURN_EVENTCOUNT_FORCE_SLEEP)
-   /* The SPSC endpoints, renderer and CD work event each have one
-    * waiter. Store only its thread ID, never a pointer to stack data.
-    * An alert arriving before NtWait is remembered by the kernel. */
-   if (retro_atomic_exchange_ptr(&ec->waitlist,
-         (void*)(uintptr_t)GetCurrentThreadId()) != NULL)
-      abort(); /* violated the core's single-waiter contract */
-#endif
    retro_atomic_fetch_add_seq_cst_int(&ec->waiters, 1);
    return retro_atomic_load_seq_cst_int(&ec->epoch);
 }
 void retro_eventcount_cancel_wait(retro_eventcount_t *ec)
 {
-#if defined(_WIN32) && !defined(_XBOX) && !defined(SATURN_EVENTCOUNT_FORCE_SLEEP)
-   retro_atomic_store_release_ptr(&ec->waitlist, NULL);
-#endif
    retro_atomic_fetch_sub_int(&ec->waiters, 1);
 }
 static bool kernel_park(retro_eventcount_t *ec, int key, int64_t timeout_us)
@@ -137,27 +109,6 @@ static bool kernel_park(retro_eventcount_t *ec, int key, int64_t timeout_us)
    {
       address_wait_t wait = (address_wait_t)retro_atomic_load_acquire_ptr(&address_wait);
       address_wake_t wake = (address_wake_t)retro_atomic_load_acquire_ptr(&address_wake);
-      nt_wait_t ntwait = (nt_wait_t)retro_atomic_load_acquire_ptr(&nt_wait);
-      nt_alert_t alert = (nt_alert_t)retro_atomic_load_acquire_ptr(&nt_alert);
-      if (ntwait && alert)
-      {
-         LARGE_INTEGER bound;
-         LONG status;
-         int64_t start = timeout_us < 0 ? 0 : cpu_features_get_time_usec();
-         int64_t left = timeout_us;
-         for (;;)
-         {
-            if (timeout_us >= 0)
-               bound.QuadPart = -(left > INT64_MAX / 10 ? INT64_MAX : left * 10);
-            status = ntwait((void*)&ec->epoch, timeout_us < 0 ? NULL : &bound);
-            if (status != 0x102) return true; /* spurious wakes are allowed */
-            if (timeout_us < 0) continue;
-            left = timeout_us - (cpu_features_get_time_usec() - start);
-            if (left <= 0) return false;
-            /* NT's timeout rounding may expire before the QPC deadline. */
-            if (retro_atomic_load_acquire_int(&ec->epoch) != key) return true;
-         }
-      }
       if (wait && wake)
       {
          DWORD ms = timeout_us < 0 ? INFINITE :
@@ -229,8 +180,6 @@ const char *retro_eventcount_backend_name(void)
 #if defined(__linux__) && !defined(ANDROID_NO_FUTEX) && !defined(SATURN_EVENTCOUNT_FORCE_SLEEP)
    return "futex address wait";
 #elif defined(_WIN32) && !defined(_XBOX) && !defined(SATURN_EVENTCOUNT_FORCE_SLEEP)
-   if (retro_atomic_load_acquire_ptr(&nt_wait) && retro_atomic_load_acquire_ptr(&nt_alert))
-      return "NT thread alert";
    return retro_atomic_load_acquire_ptr(&address_wait)
       && retro_atomic_load_acquire_ptr(&address_wake)
       ? "WaitOnAddress" : "timed sleep";

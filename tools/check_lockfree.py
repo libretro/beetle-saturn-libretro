@@ -22,6 +22,8 @@ parser.add_argument('--platform', default='win' if os.name == 'nt' else 'unix')
 parser.add_argument('--jobs', default='4')
 parser.add_argument('--zstd-library')
 parser.add_argument('--no-threading', action='store_true')
+parser.add_argument('--frontend-eventcount-source', type=Path,
+                    help='Unchanged RetroArch retro_eventcount.c for Windows integration')
 args = parser.parse_args()
 
 def run(command, **kwargs):
@@ -70,9 +72,14 @@ with tempfile.TemporaryDirectory(prefix='saturn-tests-') as directory:
         event = compile_test('eventcount_test', thread_sources)
         run([str(event)], timeout=60)
         if args.platform == 'win':
-            event = compile_test('eventcount_test', thread_sources,
-                                 ['-DSATURN_EVENTCOUNT_FORCE_ADDRESS_WAIT'])
-            run([str(event)], timeout=60)
+            isolation = compile_test('windows_eventcount_test', thread_sources,
+                                     ['-DSATURN_EVENTCOUNT_SPIN_ITERS=0'])
+            run([str(isolation)], timeout=60)
+            if args.frontend_eventcount_source:
+                isolation = compile_test('windows_eventcount_test',
+                    thread_sources + [str(args.frontend_eventcount_source.resolve())],
+                    ['-DSATURN_EVENTCOUNT_SPIN_ITERS=0', '-DSATURN_TEST_FRONTEND'])
+                run([str(isolation)], timeout=60)
         event = compile_test('eventcount_test', thread_sources,
                              ['-DSATURN_EVENTCOUNT_FORCE_SLEEP'])
         run([str(event), 'short'], timeout=60)

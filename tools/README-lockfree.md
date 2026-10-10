@@ -12,12 +12,14 @@ with `NEED_THREADING=0` consume the same commands synchronously.
 
 `mednafen/thread_eventcount.c` implements the common API with namespaced
 symbols and requires lock-free word atomics. Each event has one waiting
-thread. Windows registers that thread's ID atomically and uses
-`NtWaitForAlertByThreadId` / `NtAlertThreadByThreadId`, as the upstream
-Windows backend does. There is no waiter-list spinlock. A notification
-before the kernel wait is retained as a pending thread alert. Linux uses
-private futex waits. Windows can fall back to `WaitOnAddress`; platforms
-without either mechanism recheck using timed sleeps. Upstream common
+thread. Windows uses `WaitOnAddress` / `WakeByAddressAll`, resolved from
+KernelBase with a Kernel32 fallback, and Linux uses private futex waits.
+These wakes target the event's epoch address. NT thread alerts are avoided:
+a notification racing with the end of a core wait can remain pending on
+the thread and wake the frontend's next, unrelated eventcount wait. Some
+frontend waiter-list implementations return on that alert without removing
+their stack waiter, leaving a dangling pointer for the next notification.
+Platforms without address waits recheck using timed sleeps. Upstream common
 threading implementations and their platform fallbacks remain intact.
 
 On multiple processors, a bounded poll of 256 iterations precedes parking
@@ -32,6 +34,9 @@ To reproduce the deterministic checks with GNU make, GCC and Python:
 python tools/check_lockfree.py --zstd-library /path/to/libzstd
 python tools/check_lockfree.py --no-threading --zstd-library /path/to/libzstd
 python tools/check_build_matrix.py
+# Optional Windows integration with unchanged RetroArch eventcount source:
+python tools/check_lockfree.py --zstd-library /path/to/libzstd \
+    --frontend-eventcount-source /path/to/RetroArch/libretro-common/rthreads/retro_eventcount.c
 ```
 
 The stress runner cleans and rebuilds the core. Its tests need no BIOS or
@@ -42,7 +47,8 @@ FLAC frames independently of the core decoder.
 
 Tests cover sequential/random CD reads, cache hits, errors, hint floods,
 slow I/O, inclusive LBA boundaries, parked/pending shutdown, eventcount
-wrap/timeout/cancel windows, tiny renderer queues, bursts, actual draw
+wrap/timeout/cancel windows, one million Windows waits with no escaped NT
+alerts, optional frontend stack-waiter cleanup checks, tiny renderer queues, bursts, actual draw
 completion, state drains and restart. CHD fixtures cover v3/v4 and v5
 stored/compressed maps, zlib/LZMA/Zstd/FLAC and CD codec variants. ZIP tests
 cover stored/DEFLATE/empty entries, multi-chunk compressed input, short
