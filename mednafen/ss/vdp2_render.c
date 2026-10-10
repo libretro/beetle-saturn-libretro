@@ -66,6 +66,9 @@ MDFN_HIDE extern bool VDP1_MeshImproved;
 //uint8_t vdp2rend_prepad_bss
 
 static struct EmulateSpecStruct* espec = NULL;
+/* Row for scanout lines the frame's surface does not hold (a
+ * frontend-lent window); sized for the widest line. */
+static uint32_t SpillRow[704];
 static bool PAL;
 static bool CorrectAspect;
 static bool ShowHOverscan;
@@ -4159,7 +4162,10 @@ static INLINE void ApplyMeshOverlay(uint32_t* target, const uint16_t* mesh_line,
  }
 }
 
-static int32_t ApplyHBlend(uint32_t* const target, int32_t w)
+/* Blend a row of w pixels in place; low-res rows come out 2w wide. The
+ * row takes at most cw pixels (a lent window's width): stores past it
+ * are dropped, the returned width is the full one. */
+static int32_t ApplyHBlend(uint32_t* const target, int32_t w, int32_t cw)
 {
  #define BHALF(m, n) ((((uint64_t)(m) + (n)) - (((m) ^ (n)) & 0x01010101)) >> 1)
 
@@ -4175,6 +4181,44 @@ static int32_t ApplyHBlend(uint32_t* const target, int32_t w)
 
  if(!(HRes & 0x2))
  {
+  if(MDFN_UNLIKELY(cw < (w << 1)))
+  {
+   /* Clipped: the expansion runs from the far end, so a pixel is read
+    * before any store that could land on it; stores at or past cw are
+    * dropped. Reads stay below w, which the caller holds. */
+   #define HB_PUT(i, v) do { if((i) < cw) target[(i)] = (v); } while(0)
+   const int32_t lw = w << 1;
+   int32_t x;
+   uint32_t v0, v1;
+
+   /* Source pixels past cw were never stored in this row. */
+   if(cw < w)
+    w = cw;
+   if(w < 2)
+    return lw;
+
+   v1 = target[w - 1];
+   v0 = BHALF(BHALF(target[w - 2], target[w - 1]), target[w - 1]);
+   HB_PUT((w - 1) * 2 + 1, v1);
+   HB_PUT((w - 1) * 2 + 0, v0);
+
+   for(x = w - 2; x > 0; x--)
+   {
+    uint32_t ptxm1 = target[x - 1];
+    uint32_t ptx = target[x];
+    uint32_t ptxp1 = target[x + 1];
+    uint32_t ptxm1_ptx = BHALF(ptxm1, ptx);
+    uint32_t ptx_ptxp1 = BHALF(ptx, ptxp1);
+
+    HB_PUT(x * 2 + 0, BHALF(ptxm1_ptx, ptx));
+    HB_PUT(x * 2 + 1, BHALF(ptx_ptxp1, ptx));
+   }
+
+   HB_PUT(1, BHALF(BHALF(target[0], target[1]), target[0]));
+   #undef HB_PUT
+   return lw;
+  }
+
   target[(w - 1) * 2 + 1] = target[w - 1];
   target[(w - 1) * 2 + 0] = BHALF(BHALF(target[w - 2], target[w - 1]), target[w - 1]);
 
@@ -4197,8 +4241,9 @@ static int32_t ApplyHBlend(uint32_t* const target, int32_t w)
  }
  else
  {
+  const int32_t n = (w - 1) < (cw - 1) ? (w - 1) : (cw - 1);
   uint32_t a = target[0];
-  for(int32_t x = 0; x < w - 1; x++)
+  for(int32_t x = 0; x < n; x++)
   {
    uint32_t b = target[x];
    uint32_t c = target[x + 1];
@@ -4261,7 +4306,10 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
  const int32_t tvxo = ((int32_t)(0) > (int32_t)((int32_t)(tvdw - w) >> 1) ? (int32_t)(0) : (int32_t)((int32_t)(tvdw - w) >> 1));
  uint32_t back_rgb24;
  uint32_t border_ncf;
- uint32_t *target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
+ uint32_t *target = MDFN_Surface_Line(espec->surface, out_line, SpillRow);
+ /* Pixels the row can take: the whole line for the core's surface, a
+  * frontend-lent window's width otherwise. */
+ int32_t cw = espec->surface->w;
 
  // Invalidate LB clean flags whenever w changes -- a flag means
  // "buffer is zero in [0, LB_cleaned_w)", and after a width change
@@ -4288,6 +4336,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
   assert((tvdw + tadj) <= 704);
 
   target += tadj;
+  cw -= tadj;
   espec->LineWidths[out_line] = ntdw;
  }
 
@@ -4348,9 +4397,12 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
  else
   border_ncf = MAKECOLOR(0, 0, 0, 0);
 
+ if(cw > tvdw)
+  cw = tvdw;
+
  if(vdp2_line == 0xFFFF)
  {
-  for(int32_t i = 0; i < tvdw; i++)
+  for(int32_t i = 0; i < cw; i++)
    target[i] = border_ncf;
  }
  else
@@ -4791,11 +4843,14 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
   // Apply window to sprite linebuffer after BG layers have windows applied.
   ApplyWin(WINLAYER_SPRITE, LB.spr);
 
+  /* Output pixels of the mixed span that fit the row. */
+  const int32_t ow = (cw - tvxo) < (int32_t)w ? ((cw > tvxo) ? (cw - tvxo) : 0) : (int32_t)w;
+
   //
-  for(int32_t i = 0; i < tvxo; i++)
+  for(int32_t i = 0; i < tvxo && i < cw; i++)
    target[i] = border_ncf;
 
-  for(int32_t i = tvxo + w; i < tvdw; i++)
+  for(int32_t i = tvxo + w; i < cw; i++)
    target[i] = border_ncf;
 
   {
@@ -4827,7 +4882,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
     if(CRAM_Mode)
      special = MIXIT_SPECIAL_HIRES_CRAM12;
    }
-   MixIt[rbgdualen][special][CCRTMD][CCMD](target + tvxo, vdp2_line, w, back_rgb24, blursrc);
+   MixIt[rbgdualen][special][CCRTMD][CCMD](target + tvxo, vdp2_line, ow, back_rgb24, blursrc);
    // RGB-to-output byte-swap now folded into MixIt's terminal store
    // (single bswap+shr per pixel at a register that already holds the
    // value, instead of a separate read-modify-write pass over the row).
@@ -4846,7 +4901,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
    if(VDP1_MeshImproved)
    {
     const bool use_vdp1_alt = (ConsumerDeinterlaceMode == VDP2_DEINT_PROGRESSIVE) && espec->InterlaceOn && (InterlaceMode == IM_DOUBLE) && field && LIB[vdp2_line].vdp1_alt_valid;
-    ApplyMeshOverlay(target + tvxo, use_vdp1_alt ? LIB[vdp2_line].vdp1_mesh_line_alt : LIB[vdp2_line].vdp1_mesh_line, LIB[vdp2_line].vdp1_winprio, w, (HRes & 0x2) >> 1);
+    ApplyMeshOverlay(target + tvxo, use_vdp1_alt ? LIB[vdp2_line].vdp1_mesh_line_alt : LIB[vdp2_line].vdp1_mesh_line, LIB[vdp2_line].vdp1_winprio, ow, (HRes & 0x2) >> 1);
    }
   }
   //
@@ -4871,7 +4926,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
  //
  if(DoHBlend)
  {
-  espec->LineWidths[out_line] = ApplyHBlend(espec->surface->pixels + out_line * espec->surface->pitchinpix + espec->DisplayRect.x, espec->LineWidths[out_line]);
+  espec->LineWidths[out_line] = ApplyHBlend(MDFN_Surface_Line(espec->surface, out_line, SpillRow) + espec->DisplayRect.x, espec->LineWidths[out_line], espec->surface->w - espec->DisplayRect.x);
 
   // Kind of late, but meh. ;p
   assert((espec->DisplayRect.x + espec->LineWidths[out_line]) <= 704);
@@ -4908,13 +4963,13 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
   const int32_t rect_end = espec->DisplayRect.y + espec->DisplayRect.h;
   if(mirror_line >= espec->DisplayRect.y && mirror_line < rect_end)
   {
-   const size_t   col_off  = (size_t)espec->DisplayRect.x;
-   const size_t   copy_pix = (size_t)espec->LineWidths[out_line];
-   const uint32_t*  src_row  = espec->surface->pixels
-                              + out_line    * espec->surface->pitchinpix + col_off;
-   uint32_t*        dst_row  = espec->surface->pixels
-                              + mirror_line * espec->surface->pitchinpix + col_off;
-   memcpy(dst_row, src_row, copy_pix * sizeof(uint32_t));
+   const int32_t  col_off  = espec->DisplayRect.x;
+   const int32_t  row_pix  = espec->surface->w - col_off;
+   const int32_t  copy_pix = espec->LineWidths[out_line] < row_pix ? espec->LineWidths[out_line] : row_pix;
+   const uint32_t*  src_row  = MDFN_Surface_Line(espec->surface, out_line, SpillRow) + col_off;
+   uint32_t*        dst_row  = MDFN_Surface_Line(espec->surface, mirror_line, SpillRow) + col_off;
+   if(copy_pix > 0 && src_row != dst_row)
+    memcpy(dst_row, src_row, (size_t)copy_pix * sizeof(uint32_t));
    espec->LineWidths[mirror_line] = espec->LineWidths[out_line];
   }
  }
@@ -5420,6 +5475,9 @@ void VDP2REND_EndFrame(void)
  if(NextOutLine < VisibleLines)
  {
   const bool progressive = (ProducerDeinterlaceMode == VDP2_DEINT_PROGRESSIVE && espec->InterlaceOn);
+  /* Black the row out to the surface's width: a frontend-lent window
+   * holds no earlier frame to fall back on. */
+  const int32_t fill = espec->surface->w;
 
   do
   {
@@ -5428,9 +5486,9 @@ void VDP2REND_EndFrame(void)
     for(unsigned f = 0; f < 2; f++)
     {
      const uint16_t out_line = (NextOutLine << 1) | f;
-     uint32_t* target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
+     uint32_t* target = MDFN_Surface_Line(espec->surface, out_line, SpillRow);
 
-     target[0] = target[1] = target[2] = target[3] = MAKECOLOR(0, 0, 0, 0);
+     MDFN_FastArraySet(target, MAKECOLOR(0, 0, 0, 0), fill);
      espec->LineWidths[out_line] = 4;
     }
    }
@@ -5442,8 +5500,8 @@ void VDP2REND_EndFrame(void)
     if(espec->InterlaceOn)
      out_line = (out_line << 1) | espec->InterlaceField;
 
-    target = espec->surface->pixels + out_line * espec->surface->pitchinpix;
-    target[0] = target[1] = target[2] = target[3] = MAKECOLOR(0, 0, 0, 0);
+    target = MDFN_Surface_Line(espec->surface, out_line, SpillRow);
+    MDFN_FastArraySet(target, MAKECOLOR(0, 0, 0, 0), fill);
     espec->LineWidths[out_line] = 4;
    }
   } while(++NextOutLine < VisibleLines);

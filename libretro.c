@@ -137,6 +137,7 @@ char retro_cd_base_name[4096];
 #endif
 
 static bool libretro_supports_bitmasks = false;
+static bool libretro_can_dupe          = false;
 
 MDFNGI *MDFNGameInfo = NULL;
 
@@ -161,53 +162,6 @@ static const bool PrevInterlaced = false;
 #endif
 
 static MDFN_Surface *surf = NULL;
-
-/* RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER: a buffer of the
- * frontend's own, the size of the scanout surface, that this frame
- * renders into instead of surf. video_cb then hands back a pointer
- * inside the frontend's memory - the overscan and top-line crops
- * below are a pointer offset at the surface stride, which the frontend
- * accepts - so under threaded video the frame is presented without a
- * full-frame copy.
- *
- * Declined, and the frame renders into surf as before, when the
- * frontend has no such buffer or offers another format or stride, and
- * whenever the picture is interlaced: in interlaced modes VDP2 writes
- * only this field's lines and the other field's are the previous
- * frame's, still in the surface (and WEAVE/FASTMAD read them too), so
- * the surface has to persist from one frame to the next. */
-static MDFN_Surface lent_surf;
-static bool         last_frame_interlaced;
-
-static MDFN_Surface *acquire_lent_surface(void)
-{
-   struct retro_framebuffer fb;
-
-   if (!surf || !environ_cb)
-      return NULL;
-   if (last_frame_interlaced || PrevInterlaced)
-      return NULL;
-
-   memset(&fb, 0, sizeof(fb));
-   fb.width        = (unsigned)surf->w;
-   fb.height       = (unsigned)surf->h;
-   /* Read as well as write: the renderer's line mirror and blend
-    * read back what it scanned out this frame. */
-   fb.access_flags = RETRO_MEMORY_ACCESS_WRITE | RETRO_MEMORY_ACCESS_READ;
-
-   if (   !environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb)
-       || !fb.data
-       || fb.format != RETRO_PIXEL_FORMAT_XRGB8888
-       || fb.pitch  != (size_t)surf->pitchinpix * sizeof(uint32_t)
-       || !(fb.memory_flags & RETRO_MEMORY_TYPE_CACHED))
-      return NULL;
-
-   lent_surf.pixels     = (uint32_t*)fb.data;
-   lent_surf.w          = surf->w;
-   lent_surf.h          = surf->h;
-   lent_surf.pitchinpix = surf->pitchinpix;
-   return &lent_surf;
-}
 
 static void alloc_surface(void)
 {
@@ -356,6 +310,12 @@ void retro_init(void)
     * non-trivial (netplay, replay-recording, runahead). */
    if (environ_cb(RETRO_ENVIRONMENT_GET_INPUT_BITMASKS, NULL))
       libretro_supports_bitmasks = true;
+
+   {
+      bool can_dupe = false;
+      if (environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &can_dupe))
+         libretro_can_dupe = can_dupe;
+   }
 
    check_system_specs();
 }
@@ -1448,6 +1408,70 @@ void retro_unload_game(void)
 // MDFN_MidSync below for the full rationale.
 static bool current_frame_is_sim = false;
 
+/* RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER: a buffer of the
+ * frontend's own that this frame renders into instead of surf, so under
+ * threaded video the frame is presented without a full-frame copy.
+ *
+ * The pointer, width, height and pitch the frontend lends go back to
+ * video_cb exactly as lent - libretro leaves anything else undefined,
+ * and released frontends do break on an offset pointer or another
+ * size. So the loan is asked for at the geometry the frontend will
+ * show, which is last frame's output size, and lent_surf is that
+ * window of the scanout: row 0 is scanout line linevisfirst, a row is
+ * game_width pixels. The renderer clips to the window
+ * (MDFN_Surface_Line, surface->w); a frame that comes out at another
+ * geometry is duped rather than pushed at a size the loan was not
+ * asked for, and the next frame's loan has the new size.
+ *
+ * Declined, and the frame renders into surf as before, when the
+ * frontend has no buffer to lend or offers another format or an
+ * unusable pitch; for a run-ahead simulation frame nobody will see;
+ * with a horizontal overscan mask, which would start the window inside
+ * a row; and whenever the picture is interlaced: in interlaced modes
+ * VDP2 writes only this field's lines and the other field's are the
+ * previous frame's, still in the surface (and WEAVE/FASTMAD read them
+ * too), so the surface has to persist from one frame to the next. */
+static MDFN_Surface lent_surf;
+static bool         last_frame_interlaced;
+static size_t       lent_pitch;
+
+static MDFN_Surface *acquire_lent_surface(unsigned linevisfirst)
+{
+   struct retro_framebuffer fb;
+
+   /* A frame that misses its loan's geometry is duped. */
+   if (!surf || !environ_cb || !libretro_can_dupe || current_frame_is_sim)
+      return NULL;
+   if (last_frame_interlaced || PrevInterlaced)
+      return NULL;
+   if (h_mask || !game_width || !game_height)
+      return NULL;
+
+   memset(&fb, 0, sizeof(fb));
+   fb.width        = game_width;
+   fb.height       = game_height;
+   /* Read as well as write: the renderer's line mirror and blend
+    * read back what it scanned out this frame. */
+   fb.access_flags = RETRO_MEMORY_ACCESS_WRITE | RETRO_MEMORY_ACCESS_READ;
+
+   if (   !environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb)
+       || !fb.data
+       || fb.format != RETRO_PIXEL_FORMAT_XRGB8888
+       || (fb.pitch & (sizeof(uint32_t) - 1))
+       || fb.pitch < (size_t)game_width * sizeof(uint32_t)
+       || fb.pitch > (size_t)1 << 20
+       || !(fb.memory_flags & RETRO_MEMORY_TYPE_CACHED))
+      return NULL;
+
+   lent_surf.pixels     = (uint32_t*)fb.data;
+   lent_surf.w          = (int32_t)game_width;
+   lent_surf.h          = (int32_t)game_height;
+   lent_surf.pitchinpix = (int32_t)(fb.pitch / sizeof(uint32_t));
+   lent_surf.y0         = (int32_t)linevisfirst;
+   lent_pitch           = fb.pitch;
+   return &lent_surf;
+}
+
 void retro_run(void)
 {
    bool updated = false;
@@ -1505,8 +1529,9 @@ void retro_run(void)
     * false, sizes/cycles 0. */
    EmulateSpecStruct spec = {0};
    /* The frontend's buffer when it lends one, else the core's own. */
-   MDFN_Surface *frame_surf = acquire_lent_surface();
-   if (!frame_surf)
+   MDFN_Surface *frame_surf = acquire_lent_surface(linevisfirst);
+   const bool lent          = (frame_surf != NULL);
+   if (!lent)
       frame_surf = surf;
    spec.surface = frame_surf;
    spec.LineWidths = rects;
@@ -1520,7 +1545,10 @@ void retro_run(void)
    last_frame_interlaced = spec.InterlaceOn;
 
 #ifdef NEED_DEINTERLACER
-   if (spec.InterlaceOn)
+   /* A lent window holds this frame's field only: the frame is duped
+    * below, and the next one renders into surf with the deinterlacer
+    * started fresh. */
+   if (spec.InterlaceOn && !lent)
    {
       if (!PrevInterlaced)
          Deinterlacer_ClearState(&deint);
@@ -1547,7 +1575,7 @@ void retro_run(void)
 
 #endif
    const void *fb      = NULL;
-   const uint32_t *pix = frame_surf->pixels;
+   const uint32_t *pix = surf->pixels;
    size_t pitch        = FB_WIDTH * sizeof(uint32_t);
 
    hires_h_mode  = (rects[0] == 704) ? true : false;
@@ -1580,11 +1608,23 @@ void retro_run(void)
       input_set_geometry(cur_width, cur_height);
    }
 
-   pix += frame_surf->pitchinpix * (linevisfirst << PrevInterlaced) + overscan_mask;
-
-   fb = pix;
-
-   video_cb(fb, game_width, game_height, pitch);
+   if (lent)
+   {
+      /* Back as lent, or not at all: a frame at another geometry than
+       * the loan's is a dupe. */
+      pitch = lent_pitch;
+      if (     !spec.InterlaceOn
+            && cur_width  == (unsigned)frame_surf->w
+            && cur_height == (unsigned)frame_surf->h)
+         fb = frame_surf->pixels;
+      video_cb(fb, (unsigned)frame_surf->w, (unsigned)frame_surf->h, pitch);
+   }
+   else
+   {
+      pix += surf->pitchinpix * (linevisfirst << PrevInterlaced) + overscan_mask;
+      fb   = pix;
+      video_cb(fb, game_width, game_height, pitch);
+   }
    audio_batch_cb((int16_t*)&IBuffer, spec.SoundBufSize);
 
    //
@@ -1772,6 +1812,8 @@ void retro_deinit(void)
 #endif
 
    libretro_supports_bitmasks          = false;
+   libretro_can_dupe                   = false;
+   last_frame_interlaced               = false;
 }
 
 unsigned retro_get_region(void)

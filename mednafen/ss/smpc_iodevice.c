@@ -1029,6 +1029,10 @@ void IODevice_Gun_SetCrosshairsColor(IODevice *gun, uint32_t color)
    self->chair_b = (color >>  0) & 0xFF;
 }
 
+/* Row for lines the surface does not hold; the crosshair is clipped to
+ * drect, which a lent window covers, so this is only ever a safe sink. */
+static uint32_t gun_spill[704];
+
 static void crosshair_plot(MDFN_Surface *surface, uint32_t *lpix,
                            int x, int y,
                            int chair_r, int chair_g, int chair_b)
@@ -1197,7 +1201,7 @@ static void IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN
             if(y < drect->y || (y - drect->y) >= drect->h)
                continue;
 
-            lpix = surface->pixels + y * surface->pitchinpix;
+            lpix = MDFN_Surface_Line(surface, y, gun_spill);
             cx   = (int32_t)gun_coord_floordiv((2 * ((int64_t)self->nom_coord[0] * gun_x_d - gun_x_on) - (int64_t)MDFNGameInfo->mouse_offs_x2 * gun_x_sn) * lw[y] + (int64_t)gun_x_sn * MDFNGameInfo->mouse_scale_x, 2 * (int64_t)gun_x_sn * MDFNGameInfo->mouse_scale_x);
 
             xmin = drect->x + cx;
@@ -1213,6 +1217,8 @@ static void IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN
 
             xmin = ((int32_t)(drect->x) > (int32_t)(xmin) ? (int32_t)(drect->x) : (int32_t)(xmin));
             xmax = ((int32_t)(drect->x + lw[y] - 1) < (int32_t)(xmax) ? (int32_t)(drect->x + lw[y] - 1) : (int32_t)(xmax));
+            if(xmax > surface->w - 1)
+               xmax = surface->w - 1;
 
             for(x = xmin; x <= xmax; x++)
                crosshair_plot(surface, lpix, x, y, self->chair_r, self->chair_g, self->chair_b);
@@ -1232,7 +1238,7 @@ static void IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN
             if(y < drect->y || (y - drect->y) >= drect->h)
                continue;
 
-            lpix = surface->pixels + y * surface->pitchinpix;
+            lpix = MDFN_Surface_Line(surface, y, gun_spill);
             cx   = (int32_t)gun_coord_floordiv((2 * ((int64_t)self->nom_coord[0] * gun_x_d - gun_x_on) - (int64_t)MDFNGameInfo->mouse_offs_x2 * gun_x_sn) * lw[y] + (int64_t)gun_x_sn * MDFNGameInfo->mouse_scale_x, 2 * (int64_t)gun_x_sn * MDFNGameInfo->mouse_scale_x);
 
             xmin = drect->x + cx;
@@ -1245,6 +1251,8 @@ static void IODevice_Gun_Draw(IODevice *self_, MDFN_Surface *surface, const MDFN
 
             xmin = ((int32_t)(drect->x) > (int32_t)(xmin) ? (int32_t)(drect->x) : (int32_t)(xmin));
             xmax = ((int32_t)(drect->x + lw[y] - 1) < (int32_t)(xmax) ? (int32_t)(drect->x + lw[y] - 1) : (int32_t)(xmax));
+            if(xmax > surface->w - 1)
+               xmax = surface->w - 1;
 
             for(x = xmin; x <= xmax; x++)
                crosshair_plot(surface, lpix, x, y, self->chair_r, self->chair_g, self->chair_b);

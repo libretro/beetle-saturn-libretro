@@ -75,7 +75,25 @@ typedef struct
       int32_t pitch32;
       int32_t pitchinpix;
    };
+
+   /* Scanout line held by row 0. A surface that holds a window of
+    * the scanout (a frontend-lent frame) has y0 > 0 and/or w and h
+    * smaller than the scanout; lines outside [y0, y0 + h) are not
+    * stored, and a row is w pixels wide. 0 for the core's own
+    * surface, which holds the whole scanout. */
+   int32_t y0;
 } MDFN_Surface;
+
+/* Row of surface @s for scanout line @line, or @spill when the surface
+ * does not hold that line. Writers clip a row to s->w pixels. */
+static INLINE uint32_t *MDFN_Surface_Line(const MDFN_Surface *s,
+      int32_t line, uint32_t *spill)
+{
+   line -= s->y0;
+   if ((uint32_t)line >= (uint32_t)s->h)
+      return spill;
+   return s->pixels + line * s->pitchinpix;
+}
 
 /*
  * Allocate a new surface backed by a calloc'd uint32_t pixel buffer
