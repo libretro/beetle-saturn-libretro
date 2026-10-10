@@ -1,0 +1,113 @@
+Source: https://github.com/libretro/RetroArch
+Revision: 8e6af903ebd595b33b6d5acf731ec524c3c88415
+
+Selective refresh of the existing subset and dependency closure for
+rchd, rlzma, rflac, rinflate, rzstd, CRC32, CPU features and SPSC queues.
+Upstream fallback implementations are preserved. The core uses its own
+namespaced single-waiter eventcount backend in mednafen/.
+
+Additive local APIs in formats/chd/rchd.c and include/formats/rchd.h:
+- rchd_set_unit_bytes_hint: optional pre-v5 CD geometry, no default change.
+- rchd_prepare_cd_ecc: initialize existing ECC tables before workers start.
+
+Imported files:
+  cdrom/cdrom.c
+  compat/compat_posix_string.c
+  compat/compat_strcasestr.c
+  compat/compat_strl.c
+  compat/fopen_utf8.c
+  encodings/encoding_crc32.c
+  encodings/encoding_crc32_tables.h
+  encodings/encoding_deflate.c
+  encodings/encoding_huffman.c
+  encodings/encoding_rzstd.c
+  encodings/encoding_utf.c
+  features/cpu_class.h
+  features/features_cpu.c
+  file/file_path.c
+  file/file_path_io.c
+  file/retro_dirent.c
+  formats/7z/r7z_lzma.c
+  formats/chd/rchd.c
+  formats/flac/rflac.c
+  formats/flac/rflac_internal.h
+  formats/mp3/rmp3.c
+  formats/mpeg1/rmpeg1_ps.c
+  formats/mpeg1/rmpeg1_tables.h
+  formats/mpeg1/rmpeg1_video.c
+  include/7z/r7z_lzma.h
+  include/boolean.h
+  include/cdrom/cdrom.h
+  include/compat/apple_compat.h
+  include/compat/fnmatch.h
+  include/compat/fopen_utf8.h
+  include/compat/getopt.h
+  include/compat/ifaddrs.h
+  include/compat/intrinsics.h
+  include/compat/msvc.h
+  include/compat/msvc/stdint.h
+  include/compat/posix_string.h
+  include/compat/strcasestr.h
+  include/compat/strl.h
+  include/encodings/crc32.h
+  include/encodings/deflate.h
+  include/encodings/huffman.h
+  include/encodings/rzstd.h
+  include/encodings/utf.h
+  include/features/features_cpu.h
+  include/file/file_path.h
+  include/formats/rchd.h
+  include/formats/rflac.h
+  include/formats/rmp3.h
+  include/formats/rmpeg1_ps.h
+  include/formats/rmpeg1_video.h
+  include/libretro.h
+  include/lists/dir_list.h
+  include/lists/string_list.h
+  include/memalign.h
+  include/memmap.h
+  include/retro_assert.h
+  include/retro_atomic.h
+  include/retro_common.h
+  include/retro_common_api.h
+  include/retro_dirent.h
+  include/retro_endianness.h
+  include/retro_environment.h
+  include/retro_inline.h
+  include/retro_math.h
+  include/retro_miscellaneous.h
+  include/retro_posix_source.h
+  include/retro_spsc.h
+  include/retro_timers.h
+  include/retro_waitable_spsc.h
+  include/rthreads/async_job.h
+  include/rthreads/retro_eventcount.h
+  include/rthreads/rthreads.h
+  include/streams/file_stream.h
+  include/streams/file_stream_transforms.h
+  include/string/rstrtod.h
+  include/string/stdstring.h
+  include/time/rtime.h
+  include/vfs/vfs.h
+  include/vfs/vfs_hybrid.h
+  include/vfs/vfs_implementation.h
+  include/vfs/vfs_implementation_cdrom.h
+  include/vfs/vfs_implementation_saf.h
+  lists/dir_list.c
+  lists/string_list.c
+  memmap/memalign.c
+  queues/retro_spsc.c
+  queues/retro_waitable_spsc.c
+  rthreads/rthreads.c
+  rthreads/xenon_sdl_threads.c
+  streams/file_stream.c
+  streams/file_stream_transforms.c
+  string/rstrtod.c
+  string/stdstring.c
+  time/rtime.c
+  vfs/vfs_hybrid.c
+  vfs/vfs_implementation.c
+  vfs/vfs_implementation_cdrom.c
+  vfs/vfs_implementation_nfs.h
+  vfs/vfs_implementation_smb.h
+  vfs/vfs_implementation_uwp.cpp

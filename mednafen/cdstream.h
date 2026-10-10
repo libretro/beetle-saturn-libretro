@@ -47,9 +47,9 @@ extern "C" {
  *     isn't doing tens of thousands of tiny filesystem reads.
  *     Memory-backed streams are read-only; write ops are no-ops.
  *
- * The two backends are mutually exclusive: exactly one of (fp, buf)
- * is non-NULL on an open stream; both are NULL on a closed/zeroed
- * stream.  Operations branch once on `fp != NULL`.
+ * A mapped read stream has both fp and buf: fp owns the mapping, and
+ * reads/seeks use buf and the local cursor without VFS calls. Heap-backed
+ * streams have only buf; ordinary file streams have only fp.
  *
  * Replaces the legacy C++ Stream / FileStream / MemoryStream class
  * hierarchy with a single concrete C type and direct inline ops.
@@ -96,13 +96,17 @@ static INLINE uint64_t cdstream_read(cdstream *s, void *data, uint64_t count)
    }
    if (s->fp)
    {
-      int64_t got = filestream_read(s->fp, data, (int64_t)count);
-      /* filestream_read returns -1 on error.  Don't wrap a negative
-       * up to UINT64_MAX - return 0 so callers comparing against the
-       * requested count behave sanely. */
-      if (got < 0)
-         return 0;
-      return (uint64_t)got;
+      uint64_t total = 0;
+      if (count > SIZE_MAX || count > INT64_MAX) return 0;
+      /* Frontends may return short reads before EOF. Complete the
+       * sector/record without turning one fragment into an I/O error. */
+      while (total < count)
+      {
+         int64_t got = filestream_read(s->fp, (uint8_t*)data + total, count - total);
+         if (got <= 0 || (uint64_t)got > count - total) break;
+         total += (uint64_t)got;
+      }
+      return total;
    }
    return 0;
 }
@@ -140,7 +144,7 @@ static INLINE void cdstream_seek(cdstream *s, int64_t offset, int whence)
        * behaviour; the historical grow-on-write path is gone. */
       s->pos = new_position;
    }
-   if (s->fp)
+   else if (s->fp)
    {
       int seek_position = RETRO_VFS_SEEK_POSITION_START;
       switch (whence)

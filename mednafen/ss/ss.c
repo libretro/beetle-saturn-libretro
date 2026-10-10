@@ -2024,7 +2024,12 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       SCU_Init();
       SMPC_Init(smpc_area, MasterClock, is_stv);
       VDP1_Init();
-      VDP2_Init(PAL, vdp2_affinity);
+      if (!VDP2_Init(PAL, vdp2_affinity))
+      {
+         log_cb(RETRO_LOG_ERROR, "Unable to start VDP2 render thread.\n");
+         Cleanup();
+         return false;
+      }
       VDP2_SetGetVideoParams(&EmulatedSS, true, sls, sle, true, DoHBlend);
       CDB_Init();
       SOUND_Init(is_stv);
@@ -2069,7 +2074,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
       {
          log_cb(RETRO_LOG_ERROR, "AutoRTC error #1\n");
          /* Previously this just returned false, leaving the VDP2
-          * render thread, semaphore, queue, SCU, SMPC, etc. fully
+          * render thread, eventcounts, queue, SCU, SMPC, etc. fully
           * initialised. A subsequent load would then double-init
           * and race with the orphaned render thread. */
          Cleanup();

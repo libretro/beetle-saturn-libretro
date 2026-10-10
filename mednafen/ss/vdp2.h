@@ -46,7 +46,7 @@ uint32_t VDP2_Write16_DB(uint32_t A, uint16_t DB) MDFN_HOT;
 uint32_t VDP2_Write16Burst_DB(uint32_t base, uint32_t n16, uint32_t add_mode, const uint16_t* words) MDFN_HOT;
 uint16_t VDP2_Read16_DB(uint32_t A) MDFN_HOT;
 
-void VDP2_Init(const bool IsPAL, const uint64_t affinity) MDFN_COLD;
+bool VDP2_Init(const bool IsPAL, const uint64_t affinity) MDFN_COLD;
 void VDP2_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend) MDFN_COLD;
 void VDP2_Kill(void) MDFN_COLD;
 void VDP2_StateAction(StateMem* sm, const unsigned load, const bool data_only) MDFN_COLD;

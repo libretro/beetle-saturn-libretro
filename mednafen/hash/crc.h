@@ -26,7 +26,7 @@
 #include <stddef.h>
 
 /* Minimal subset of upstream Mednafen's hash/crc.h sufficient for the ST-V port.
- * crc32_zip wraps zlib's standard crc32(); crc16_ccitt is the same polynomial 0x1021
+ * crc32_zip wraps libretro-common encoding_crc32(); crc16_ccitt is the same polynomial 0x1021
  * left-shift form Mednafen uses (no input/output reflection, no final XOR). */
 
 #ifdef __cplusplus

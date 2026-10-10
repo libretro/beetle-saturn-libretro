@@ -5,8 +5,7 @@
 **
 ** Small in-tree ZIP reader for the ST-V cart loading path.  Parses the
 ** ZIP file format (PKWARE APPNOTE) and decompresses entries using the
-** existing in-tree zlib's inflate() primitive.  No new third-party code
-** is introduced -- only the ZIP container parsing is original.
+** libretro-common's streaming rinflate decoder and CRC32 helpers.
 **
 ** Limitations (matching ST-V ROM zip realities, not general ZIP support):
 **   - Reads from a regular file (RFILE) only -- no in-memory or

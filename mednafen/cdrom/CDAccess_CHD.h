@@ -26,8 +26,12 @@
 #include <boolean.h>
 
 #include "CDAccess.h"
-#include <libchdr/chd.h>
-#include <libchdr/cdrom.h>
+#include <formats/rchd.h>
+#include <streams/file_stream.h>
+
+#define CD_MAX_TRACKS 99
+#define CD_FRAME_SIZE 2448
+#define CD_TRACK_PADDING 4
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,7 +86,12 @@ struct CDAccess_CHD
    int num_sessions;
    int num_tracks;
 
-   chd_file *chd;
+   rchd_t *chd;
+   RFILE *file;
+   const uint8_t *mapped;
+   int64_t file_size, file_pos;
+   uint8_t *precache, *input;
+   size_t input_capacity;
    /* hunk data cache */
    uint8_t *hunkmem;
    /* last hunknum read */

@@ -4,7 +4,7 @@
 /* zip_reader.c:
 **
 ** See zip_reader.h for scope notes.  This TU is the entire ZIP-format
-** parser; it consumes only zlib's inflate primitive and libretro-common's
+** parser; it consumes only rinflate and libretro-common's
 ** filestream wrappers.
 **
 ** ZIP format references:
@@ -24,30 +24,8 @@
 
 #include <streams/file_stream.h>
 
-#include "zlib.h"
-
-/* ---- zlib allocator hooks ---- */
-
-/* This in-tree zlib build's inflateInit2_ returns Z_STREAM_ERROR if
- * strm->zalloc / strm->zfree are not set (rather than auto-defaulting
- * to system malloc/free as some other builds do).  Provide trivial
- * libc wrappers; libchdr (the other in-tree zlib consumer) uses the
- * same pattern with its own arena allocator -- a plain libc wrap is
- * sufficient for ST-V ROM extraction since the lifetime is bounded
- * to one zip_extract call and the working-set is the inflate state
- * struct (~7 KiB) plus the per-block sliding window. */
-
-static voidpf z_alloc_fn(voidpf opaque, uInt items, uInt size)
-{
-   (void)opaque;
-   return (voidpf)calloc(items, size);
-}
-
-static void z_free_fn(voidpf opaque, voidpf addr)
-{
-   (void)opaque;
-   free(addr);
-}
+#include <encodings/deflate.h>
+#include <encodings/crc32.h>
 
 /* ---- ZIP record signatures ---- */
 #define ZIP_SIG_EOCD  0x06054b50u   /* End of Central Directory record */
@@ -62,6 +40,20 @@ static void z_free_fn(voidpf opaque, voidpf addr)
 /* Compression methods.  Anything outside this set returns failure. */
 #define METHOD_STORED   0
 #define METHOD_DEFLATE  8
+
+/* A frontend may legally return a short read. Keep each record complete. */
+static bool zip_read_exact(RFILE *fp, void *dst, size_t length)
+{
+   uint8_t *p = (uint8_t*)dst;
+   while (length)
+   {
+      int64_t got = filestream_read(fp, p, length);
+      if (got <= 0 || (uint64_t)got > length) return false;
+      p += (size_t)got;
+      length -= (size_t)got;
+   }
+   return true;
+}
 
 /* ---- Little-endian field readers ---- */
 
@@ -116,8 +108,8 @@ static int64_t find_eocd(RFILE *fp, int64_t fsize)
       return -1;
    }
 
-   read_n = filestream_read(fp, buf, scan_len);
-   if (read_n != scan_len)
+   read_n = scan_len;
+   if (!zip_read_exact(fp, buf, (size_t)scan_len))
    {
       free(buf);
       return -1;
@@ -170,7 +162,7 @@ static bool read_central_directory(RFILE *fp,
       return false;
 
    if (filestream_seek(fp, cd_off, SEEK_SET) < 0
-    || filestream_read(fp, cd_buf, cd_size) != (int64_t)cd_size)
+    || !zip_read_exact(fp, cd_buf, cd_size))
    {
       free(cd_buf);
       return false;
@@ -267,7 +259,7 @@ bool zip_open(zip_archive *out, const char *path)
 
    out->fp = filestream_open(path,
          RETRO_VFS_FILE_ACCESS_READ,
-         RETRO_VFS_FILE_ACCESS_HINT_NONE);
+         RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS);
    if (!out->fp)
       return false;
 
@@ -283,7 +275,7 @@ bool zip_open(zip_archive *out, const char *path)
       goto fail;
 
    if (filestream_seek(out->fp, eocd_off, SEEK_SET) < 0
-    || filestream_read(out->fp, eocd_rec, sizeof(eocd_rec)) != (int64_t)sizeof(eocd_rec))
+    || !zip_read_exact(out->fp, eocd_rec, sizeof(eocd_rec)))
       goto fail;
 
    /* EOCD fields (after the 4-byte signature):
@@ -384,7 +376,7 @@ static bool seek_to_compressed_data(RFILE *fp, uint32_t lho)
 
    if (filestream_seek(fp, lho, SEEK_SET) < 0)
       return false;
-   if (filestream_read(fp, lfh, sizeof(lfh)) != (int64_t)sizeof(lfh))
+   if (!zip_read_exact(fp, lfh, sizeof(lfh)))
       return false;
    if (read_le32(lfh) != ZIP_SIG_LFH)
       return false;
@@ -406,8 +398,7 @@ static bool extract_stored(RFILE *fp,
    /* STORED: compressed_size == uncompressed_size; just copy. */
    if (e->compressed_size != e->uncompressed_size)
       return false;
-   if (filestream_read(fp, dst, e->uncompressed_size)
-         != (int64_t)e->uncompressed_size)
+   if (!zip_read_exact(fp, dst, e->uncompressed_size))
       return false;
    return true;
 }
@@ -415,59 +406,46 @@ static bool extract_stored(RFILE *fp,
 static bool extract_deflate(RFILE *fp,
       const struct zip_entry *e, uint8_t *dst)
 {
-   /* Use raw deflate (no zlib header / no gzip header): inflateInit2
-    * with negative windowBits.  Stream the compressed data in chunks
-    * so we don't need to allocate the entire compressed payload.
-    *
-    * Chunk size is a balance: too small means lots of syscalls; too
-    * large wastes memory for tiny files.  64 KiB is comfortable for
-    * ST-V ROM sizes (typically 256 KiB - 4 MiB compressed). */
-#define CHUNK 65536
-   uint8_t   in_buf[CHUNK];
-   z_stream  strm;
-   uint32_t  remaining = e->compressed_size;
-   int       zret;
-   bool      ok = false;
-
-   memset(&strm, 0, sizeof(strm));
-   strm.zalloc = z_alloc_fn;
-   strm.zfree  = z_free_fn;
-   if (inflateInit2(&strm, -15) != Z_OK)
-      return false;
-
-   strm.next_out  = dst;
-   strm.avail_out = e->uncompressed_size;
-
-   while (remaining > 0 || strm.avail_in > 0)
+   uint8_t in_buf[65536];
+   uint32_t remaining = e->compressed_size;
+   size_t input_left = 0, total_out = 0;
+   int64_t map_len = 0, pos = filestream_tell(fp);
+   const uint8_t *map = filestream_get_mapped_ptr(fp, &map_len);
+   void *stream = rinflate_new(-15);
+   bool ok = false;
+   if (!stream) return false;
+   rinflate_set_out(stream, dst, e->uncompressed_size);
+   if (map && pos >= 0 && pos <= map_len && remaining <= (uint64_t)(map_len - pos))
    {
-      if (strm.avail_in == 0 && remaining > 0)
-      {
-         uint32_t want = (remaining < CHUNK) ? remaining : CHUNK;
-         int64_t  got  = filestream_read(fp, in_buf, want);
-         if (got <= 0)
-            goto done;
-         strm.next_in  = in_buf;
-         strm.avail_in = (uInt)got;
-         remaining    -= (uint32_t)got;
-      }
-
-      zret = inflate(&strm, Z_NO_FLUSH);
-      if (zret == Z_STREAM_END)
-      {
-         ok = (strm.total_out == e->uncompressed_size);
-         goto done;
-      }
-      if (zret != Z_OK)
-         goto done;
-      if (strm.avail_out == 0 && strm.total_out < e->uncompressed_size)
-         goto done;  /* would overflow output */
+      input_left = remaining;
+      rinflate_set_in(stream, map + pos, input_left);
+      remaining = 0;
    }
-   /* Ran out of input without Z_STREAM_END: bad stream. */
-
-done:
-   inflateEnd(&strm);
+   for (;;)
+   {
+      size_t rd = 0, wr = 0;
+      int status;
+      if (!input_left && remaining)
+      {
+         uint32_t want = remaining < sizeof(in_buf) ? remaining : sizeof(in_buf);
+         int64_t got = filestream_read(fp, in_buf, want);
+         if (got <= 0) break;
+         input_left = (size_t)got;
+         remaining -= (uint32_t)got;
+         rinflate_set_in(stream, in_buf, input_left);
+      }
+      status = rinflate_process(stream, &rd, &wr);
+      input_left -= rd;
+      total_out += wr;
+      if (status == RDEFLATE_PROCESS_END)
+      {
+         ok = total_out == e->uncompressed_size && !remaining && !input_left;
+         break;
+      }
+      if (status == RDEFLATE_PROCESS_ERROR || (!rd && !wr)) break;
+   }
+   rinflate_free(stream);
    return ok;
-#undef CHUNK
 }
 
 bool zip_extract(zip_archive *za, const struct zip_entry *e, uint8_t *dst)
@@ -499,7 +477,7 @@ bool zip_extract(zip_archive *za, const struct zip_entry *e, uint8_t *dst)
     * means corruption or truncation between the time the archive was
     * built and now. */
    {
-      uLong got = crc32(0L, dst, e->uncompressed_size);
+      uint32_t got = encoding_crc32(0, dst, e->uncompressed_size);
       if ((uint32_t)got != e->crc32)
          return false;
    }

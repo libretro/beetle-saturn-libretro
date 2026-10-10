@@ -36,13 +36,12 @@ INCLUDES = [
     "mednafen", "mednafen/include", "mednafen/intl",
     "mednafen/hw_sound", "mednafen/hw_cpu", "mednafen/hw_misc",
     "libretro-common/include",
-    "deps/libchdr", "deps/libchdr/include", "deps/libchdr/include/libchdr",
 ]
 INCLUDE_FLAGS = [f"-I{p}" for p in INCLUDES]
 
 DEFAULTS = (
     "-DWANT_THREADING -DHAVE_THREADS -DNEED_DEINTERLACER -DWANT_32BPP "
-    "-DNO_COMPUTED_GOTO -DNEED_CD -DHAVE_CHD -D_7ZIP_ST -DZSTD_DISABLE_ASM "
+    "-DNO_COMPUTED_GOTO -DNEED_CD -DHAVE_CHD -DHAVE_RCHD_DEFLATE -DHAVE_RCHD_LZMA -DHAVE_RCHD_FLAC -DHAVE_RCHD_ZSTD "
     "-DNEED_TREMOR -DNDEBUG"
 ).split()
 
@@ -51,7 +50,7 @@ CONFIGS = {
     "default_BE":  DEFAULTS + ["-DMSB_FIRST"],
     "no_deint_LE":  [f for f in DEFAULTS if f != "-DNEED_DEINTERLACER"],
     "no_chd_LE":    [f for f in DEFAULTS
-                     if f not in ("-DHAVE_CHD", "-D_7ZIP_ST", "-DZSTD_DISABLE_ASM")],
+                     if f not in ("-DHAVE_CHD", "-DHAVE_RCHD_DEFLATE", "-DHAVE_RCHD_LZMA", "-DHAVE_RCHD_FLAC", "-DHAVE_RCHD_ZSTD")],
     "no_tremor_LE": [f for f in DEFAULTS if f != "-DNEED_TREMOR"],
     "no_threading_LE": [f for f in DEFAULTS
                        if f not in ("-DWANT_THREADING", "-DHAVE_THREADS")],
@@ -70,7 +69,7 @@ SOURCE_GLOBS = [
     "mednafen/hw_cpu/m68k/*.c", "mednafen/hw_cpu/m68k/*.cpp",
     "mednafen/video/*.c", "mednafen/video/*.cpp",
     "mednafen/*.c", "mednafen/*.cpp",
-    "libretro.c", "disc.c", "input.c",
+    "libretro.c", "disc.c", "input.c", "libretro_settings.c", "zip_reader.c",
 ]
 
 def project_sources():

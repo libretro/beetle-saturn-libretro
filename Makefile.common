@@ -1,20 +1,12 @@
 SOURCES_CXX :=
 SOURCES_C   :=
 
-DEPS_DIR     := $(CORE_DIR)/deps
 LIBRETRO_COMM_DIR := $(CORE_DIR)/libretro-common
 MEDNAFEN_DIR := $(CORE_DIR)/mednafen
 CORE_EMU_DIR := $(MEDNAFEN_DIR)/ss
 CDROM_DIR    := $(MEDNAFEN_DIR)/cdrom
 
-ZLIB_INCFLAGS := -I$(DEPS_DIR)/zlib
-INCFLAGS := -I$(CORE_DIR) -I$(MEDNAFEN_DIR) -I$(MEDNAFEN_DIR)/include -I$(MEDNAFEN_DIR)/intl -I$(MEDNAFEN_DIR)/hw_sound -I$(MEDNAFEN_DIR)/hw_cpu -I$(MEDNAFEN_DIR)/hw_misc -I$(LIBRETRO_COMM_DIR)/include 
-
-ZLIB_SOURCES_C := $(DEPS_DIR)/zlib/adler32.c \
-	     $(DEPS_DIR)/zlib/crc32.c \
-	     $(DEPS_DIR)/zlib/inffast.c \
-	     $(DEPS_DIR)/zlib/inflate.c \
-	     $(DEPS_DIR)/zlib/inftrees.c
+INCFLAGS := -I$(CORE_DIR) -I$(MEDNAFEN_DIR) -I$(MEDNAFEN_DIR)/include -I$(MEDNAFEN_DIR)/intl -I$(MEDNAFEN_DIR)/hw_sound -I$(MEDNAFEN_DIR)/hw_cpu -I$(MEDNAFEN_DIR)/hw_misc -I$(LIBRETRO_COMM_DIR)/include
 
 ifeq ($(NEED_THREADING), 1)
    FLAGS += -DWANT_THREADING -DHAVE_THREADS
@@ -37,17 +29,7 @@ ifeq ($(NEED_CD), 1)
 endif
 
 ifeq ($(HAVE_CHD), 1)
-   FLAGS += -DHAVE_CHD -D_7ZIP_ST -DZSTD_DISABLE_ASM
-ifeq ($(SYSTEM_LIBCHDR), 1)
-   INCFLAGS += $(shell pkg-config --cflags libchdr)
-   LIBS += $(shell pkg-config --libs libchdr)
-else
-   INCFLAGS += -I$(DEPS_DIR)/lzma/C \
-	       -I$(DEPS_DIR)/libchdr \
-	       -I$(DEPS_DIR)/libchdr/include \
-	       -I$(DEPS_DIR)/libchdr/include/libchdr \
-	       -I$(DEPS_DIR)/zstd/lib
-endif
+   FLAGS += -DHAVE_CHD -DHAVE_RCHD_DEFLATE -DHAVE_RCHD_LZMA -DHAVE_RCHD_FLAC -DHAVE_RCHD_ZSTD
 endif
 
 ifeq ($(NEED_TREMOR), 1)
@@ -131,38 +113,17 @@ SOURCES_C += $(CDROM_DIR)/edc_crc32.c \
 	$(CDROM_DIR)/CDAccess_Image.c \
 	$(CDROM_DIR)/cdromif.c
 
-ifeq ($(HAVE_CHD), 1)
-ifneq ($(SYSTEM_LIBCHDR), 1)
-LZMA_DIR := $(DEPS_DIR)/lzma/src
-LIBCHDR_DIR := $(DEPS_DIR)/libchdr/src
-INCFLAGS += -I$(DEPS_DIR)/lzma/include
-SOURCES_C += \
-	$(LZMA_DIR)/Alloc.c \
-	$(LZMA_DIR)/Bra86.c \
-	$(LZMA_DIR)/BraIA64.c \
-	$(LZMA_DIR)/CpuArch.c \
-	$(LZMA_DIR)/Delta.c \
-	$(LZMA_DIR)/LzFind.c \
-	$(LZMA_DIR)/Lzma86Dec.c \
-	$(LZMA_DIR)/LzmaDec.c \
-	$(LZMA_DIR)/LzmaEnc.c \
-	$(LIBCHDR_DIR)/libchdr_bitstream.c \
-	$(LIBCHDR_DIR)/libchdr_cdrom.c \
-	$(LIBCHDR_DIR)/libchdr_chd.c \
-	$(LIBCHDR_DIR)/libchdr_flac.c \
-	$(LIBCHDR_DIR)/libchdr_huffman.c \
-	$(DEPS_DIR)/zstd/lib/common/entropy_common.c \
-	$(DEPS_DIR)/zstd/lib/common/error_private.c \
-	$(DEPS_DIR)/zstd/lib/common/fse_decompress.c \
-	$(DEPS_DIR)/zstd/lib/common/zstd_common.c \
-	$(DEPS_DIR)/zstd/lib/common/xxhash.c \
-	$(DEPS_DIR)/zstd/lib/decompress/huf_decompress.c \
-	$(DEPS_DIR)/zstd/lib/decompress/zstd_ddict.c \
-	$(DEPS_DIR)/zstd/lib/decompress/zstd_decompress.c \
-	$(DEPS_DIR)/zstd/lib/decompress/zstd_decompress_block.c
-endif
+# ZIP extraction always needs rinflate, including builds without CHD.
+SOURCES_C += $(LIBRETRO_COMM_DIR)/encodings/encoding_deflate.c \
+             $(LIBRETRO_COMM_DIR)/encodings/encoding_crc32.c
 
-SOURCES_C += $(CDROM_DIR)/CDAccess_CHD.c
+ifeq ($(HAVE_CHD), 1)
+SOURCES_C += $(CDROM_DIR)/CDAccess_CHD.c \
+             $(LIBRETRO_COMM_DIR)/formats/chd/rchd.c \
+             $(LIBRETRO_COMM_DIR)/formats/7z/r7z_lzma.c \
+             $(LIBRETRO_COMM_DIR)/formats/flac/rflac.c \
+             $(LIBRETRO_COMM_DIR)/encodings/encoding_huffman.c \
+             $(LIBRETRO_COMM_DIR)/encodings/encoding_rzstd.c
 endif
 
 SOURCES_C += $(MEDNAFEN_DIR)/state.c
@@ -179,18 +140,6 @@ SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
 		$(MEDNAFEN_DIR)/video/Deinterlacer.c \
 		$(MEDNAFEN_DIR)/hash/md5.c \
 		$(MEDNAFEN_DIR)/hash/sha256.c
-
-ifeq ($(HAVE_CHD), 1)
-ifneq ($(SYSTEM_LIBCHDR), 1)
-ifeq ($(SYSTEM_ZLIB), 1)
-	INCFLAGS += $(shell pkg-config --cflags zlib)
-	LIBS += $(shell pkg-config --libs zlib)
-else
-	INCFLAGS += $(ZLIB_INCFLAGS)
-	SOURCES_C += $(ZLIB_SOURCES_C)
-endif
-endif
-endif
 
 ifneq ($(STATIC_LINKING), 1)
 SOURCES_C += 	 $(LIBRETRO_COMM_DIR)/formats/mpeg1/rmpeg1_ps.c \
@@ -211,12 +160,16 @@ SOURCES_C += 	 $(LIBRETRO_COMM_DIR)/formats/mpeg1/rmpeg1_ps.c \
 		 $(LIBRETRO_COMM_DIR)/memmap/memalign.c \
 		 $(LIBRETRO_COMM_DIR)/string/stdstring.c \
 		 $(LIBRETRO_COMM_DIR)/string/rstrtod.c \
-		 $(LIBRETRO_COMM_DIR)/time/rtime.c
+		 $(LIBRETRO_COMM_DIR)/time/rtime.c \
+		 $(LIBRETRO_COMM_DIR)/features/features_cpu.c
 
 endif
 
 ifeq ($(NEED_THREADING), 1)
-SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/rthreads/rthreads.c
+SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/rthreads/rthreads.c \
+                 $(LIBRETRO_COMM_DIR)/queues/retro_spsc.c \
+                 $(CORE_DIR)/mednafen/thread_queue.c \
+                 $(CORE_DIR)/mednafen/thread_eventcount.c
 endif
 
 # Dynamically loaded builds only: statically linked frontends share one

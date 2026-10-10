@@ -25,7 +25,17 @@ bool cdstream_open(cdstream *out, const char *path)
    memset(out, 0, sizeof(*out));
    out->fp = filestream_open(path,
          RETRO_VFS_FILE_ACCESS_READ,
-         RETRO_VFS_FILE_ACCESS_HINT_NONE);
+         RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS);
+   if (out->fp)
+   {
+      int64_t len = 0;
+      const uint8_t *map = filestream_get_mapped_ptr(out->fp, &len);
+      if (map && len > 0)
+      {
+         out->buf = (uint8_t*)map;
+         out->size = (uint64_t)len;
+      }
+   }
    return out->fp != NULL;
 }
 

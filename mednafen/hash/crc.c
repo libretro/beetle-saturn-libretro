@@ -24,7 +24,7 @@
 
 #include "crc.h"
 
-#include <zlib.h>
+#include <encodings/crc32.h>
 
 uint16_t crc16_ccitt(uint16_t initial, const void* data, size_t len)
 {
@@ -47,7 +47,7 @@ uint16_t crc16_ccitt(uint16_t initial, const void* data, size_t len)
 uint32_t crc32_zip(uint32_t initial, const void* data, size_t len)
 {
  /* The "zip" CRC32 is the standard Ethernet/PNG/zip CRC32, identical to
-  * what zlib's crc32() computes, so forward to it. zlib's crc32(0, ...) is
+  * what encoding_crc32() computes, so forward to it. encoding_crc32(0, ...) is
   * exactly initial=0, the seed Mednafen documents. */
- return (uint32_t)crc32(initial, (const unsigned char*)data, (unsigned int)len);
+ return encoding_crc32(initial, data, len);
 }

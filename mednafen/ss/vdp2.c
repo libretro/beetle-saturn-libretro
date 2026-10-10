@@ -988,7 +988,7 @@ void VDP2_AdjustTS(const int32_t delta)
  lastts += delta;
 }
 
-void VDP2_Init(const bool IsPAL, const uint64_t affinity)
+bool VDP2_Init(const bool IsPAL, const uint64_t affinity)
 {
  SurfInterlaceField = -1;
  PAL = IsPAL;
@@ -1000,7 +1000,7 @@ void VDP2_Init(const bool IsPAL, const uint64_t affinity)
 
  ExLatchIn = false;
 
- VDP2REND_Init(IsPAL, affinity);
+ return VDP2REND_Init(IsPAL, affinity);
 }
 
 void VDP2_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend)

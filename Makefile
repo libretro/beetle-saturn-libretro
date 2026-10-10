@@ -269,7 +269,6 @@ else ifeq ($(platform), gcw0)
 else ifeq ($(platform), emscripten)
    TARGET := $(TARGET_NAME)_libretro_$(platform).bc
    FLAGS += -pthread -msimd128 -ftree-vectorize
-   SYSTEM_ZLIB = 1
    M68K_SPLIT_SWITCH = 1
    STATIC_LINKING = 1
    # frontend + core share one libretro-common; no hybrid there

@@ -36,7 +36,7 @@ struct EmulateSpecStruct;
 extern "C" {
 #endif
 
-void VDP2REND_Init(const bool IsPAL, const uint64_t affinity) MDFN_COLD;
+bool VDP2REND_Init(const bool IsPAL, const uint64_t affinity) MDFN_COLD;
 void VDP2REND_SetGetVideoParams(struct MDFNGI* gi, const bool caspect, const int sls, const int sle, const bool show_h_overscan, const bool dohblend) MDFN_COLD;
 void VDP2REND_Kill(void) MDFN_COLD;
 void VDP2REND_GetGunXTranslation(const bool clock28m, int32_t* sn, int32_t* on, int32_t* d);

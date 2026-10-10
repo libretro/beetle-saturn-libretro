@@ -142,174 +142,104 @@ static bool CDAccess_CHD_init(CDAccess_CHD *self, const char *path, bool image_m
 }
 
 
-/* libchdr file IO - ported from beetle-psx.  A heap-allocated
- * core_file whose argp is a chd_rfile wrapper around a
- * libretro-common RFILE, replacing chd_open(path)'s internal stdio:
- * that bypassed the VFS entirely (a sandboxed-storage hole on its
- * own) and offered no mapping seam.  chd_open_core_file() consumes
- * the core_file whether it succeeds or fails; the fclose shim closes
- * the RFILE (releasing any mapping with it) and frees the wrapper.
- *
- * Mapped mode: the open passes FREQUENT_ACCESS - hunk fetches are
- * the whole read traffic of a CHD for the whole session.  When the
- * local VFS hands back a mapping, every fread the decompressor
- * issues becomes a memcpy from the page cache at a cursor this
- * wrapper tracks itself: zero per-hunk syscalls.  Frontend-backed
- * handles and mmap-less platforms get NULL from the accessor and
- * take the filestream path, unchanged. */
-
-typedef struct
+/* Supply exactly the requested range. Mappings and precaches remain
+ * valid for the decoder lifetime; read hunks borrow them without a copy.
+ * Frontend streams reuse one scratch buffer and skip redundant seeks. */
+static int chd_supply(CDAccess_CHD *self, const rchd_request_t *req, bool reading)
 {
-   RFILE         *fp;
-   const uint8_t *base;   /* non-NULL when the VFS mapped the file */
-   int64_t        len;
-   int64_t        pos;    /* mapped-mode cursor */
-} chd_rfile;
-
-static uint64_t Callback_fsize(core_file *cf)
-{
-   chd_rfile *rf = (chd_rfile *)cf->argp;
-   int64_t    sz;
-   if (rf->base)
-      return (uint64_t)rf->len;
-   sz = filestream_get_size(rf->fp);
-   if (sz < 0)
-      return (uint64_t)-1;
-   return (uint64_t)sz;
-}
-
-static size_t Callback_fread(void *buffer, size_t size, size_t count,
-      core_file *cf)
-{
-   chd_rfile *rf = (chd_rfile *)cf->argp;
-   int64_t    got;
-   if (size == 0 || count == 0)
-      return 0;
-
-   if (rf->base)
+   const uint8_t *base = self->precache ? self->precache : self->mapped;
+   if (req->source != RCHD_SOURCE_SELF) return RCHD_ERROR_NO_PARENT;
+   if (self->file_size < 0 || req->offset > (uint64_t)self->file_size ||
+       req->length > (uint64_t)self->file_size - req->offset)
+      return RCHD_ERROR_DATA;
+   if (base)
+      return reading ? rchd_feed_borrow(self->chd, req->offset, req->source,
+            base + req->offset, req->length) :
+            rchd_feed(self->chd, base + req->offset, req->length);
+   if (req->length > self->input_capacity)
    {
-      int64_t want = (int64_t)(count * size);
-      int64_t avail;
-      if (rf->pos < 0 || rf->pos >= rf->len)
-         return 0;
-      avail = rf->len - rf->pos;
-      if (want > avail)
-         want = avail;
-      memcpy(buffer, rf->base + rf->pos, (size_t)want);
-      rf->pos += want;
-      return (size_t)want / size;
+      uint8_t *p = (uint8_t*)realloc(self->input, req->length);
+      if (!p) return RCHD_ERROR_MEM;
+      self->input = p;
+      self->input_capacity = req->length;
    }
-
-   got = filestream_read(rf->fp, buffer, (int64_t)(count * size));
-   if (got < 0)
-      return 0;
-   return (size_t)got / size;
-}
-
-static int Callback_fclose(core_file *cf)
-{
-   chd_rfile *rf = (chd_rfile *)cf->argp;
-   /* closing the RFILE releases the mapping with it */
-   filestream_close(rf->fp);
-   free(rf);
-   free(cf);
-   return 0;
-}
-
-static int Callback_fseek(core_file *cf, int64_t offset, int whence)
-{
-   chd_rfile *rf = (chd_rfile *)cf->argp;
-   if (rf->base)
+   if (self->file_pos != (int64_t)req->offset)
    {
-      int64_t new_pos;
-      switch (whence)
+      self->file_pos = filestream_seek(self->file, (int64_t)req->offset, SEEK_SET);
+      if (self->file_pos != (int64_t)req->offset) return RCHD_ERROR_DATA;
+   }
+   {
+      size_t total = 0;
+      while (total < req->length)
       {
-         case SEEK_SET: new_pos = offset;            break;
-         case SEEK_CUR: new_pos = rf->pos + offset;  break;
-         case SEEK_END: new_pos = rf->len + offset;  break;
-         default:       return -1;
+         int64_t got = filestream_read(self->file, self->input + total, req->length - total);
+         if (got <= 0) { self->file_pos = -1; return RCHD_ERROR_DATA; }
+         total += (size_t)got;
+         self->file_pos += got;
       }
-      if (new_pos < 0)
-         return -1;
-      /* past-EOF positions read as EOF (fread clamps) */
-      rf->pos = new_pos;
-      return 0;
    }
-   {
-      int seek_position = RETRO_VFS_SEEK_POSITION_START;
-      switch (whence)
-      {
-         case SEEK_SET: seek_position = RETRO_VFS_SEEK_POSITION_START;   break;
-         case SEEK_CUR: seek_position = RETRO_VFS_SEEK_POSITION_CURRENT; break;
-         case SEEK_END: seek_position = RETRO_VFS_SEEK_POSITION_END;     break;
-      }
-      filestream_seek(rf->fp, offset, seek_position);
-      return 0;
-   }
+   return rchd_feed(self->chd, self->input, req->length);
 }
-
-static core_file *chd_core_rfile_open(const char *path)
+static int chd_read_hunk(CDAccess_CHD *self, uint32_t hunk)
 {
-   core_file *cf;
-   chd_rfile *rf;
-   RFILE     *fp = filestream_open(path,
-         RETRO_VFS_FILE_ACCESS_READ,
-         RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS);
-   if (!fp)
-      return NULL;
-
-   rf = (chd_rfile *)calloc(1, sizeof(*rf));
-   cf = (core_file *)calloc(1, sizeof(*cf));
-   if (!rf || !cf)
+   rchd_request_t req;
+   int err = rchd_read_hunk_begin(self->chd, hunk, self->hunkmem);
+   if (err != RCHD_OK) return err;
+   while ((err = rchd_read_step(self->chd, &req)) == RCHD_PENDING)
    {
-      filestream_close(fp);
-      free(rf);
-      free(cf);
-      return NULL;
+      err = chd_supply(self, &req, true);
+      if (err < 0) return err;
    }
-   rf->fp   = fp;
-   rf->base = filestream_get_mapped_ptr(fp, &rf->len);
-   if (rf->base && rf->len <= 0)
-      rf->base = NULL;
-   cf->argp   = rf;
-   cf->fsize  = Callback_fsize;
-   cf->fread  = Callback_fread;
-   cf->fclose = Callback_fclose;
-   cf->fseek  = Callback_fseek;
-   return cf;
+   return err;
+}
+static bool chd_metadata_text(CDAccess_CHD *self, uint32_t tag,
+      unsigned index, char *dst, size_t size)
+{
+   const rchd_metadata_t *meta = rchd_metadata_find(self->chd, tag, index);
+   if (!meta || meta->length >= size) return false;
+   memcpy(dst, meta->data, meta->length);
+   dst[meta->length] = 0;
+   return true;
 }
 
 static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, bool image_memcache)
 {
-  chd_error err;
-  core_file *cf = chd_core_rfile_open(path);
-  if (!cf)
+  rchd_request_t req;
+  int err;
+  const rchd_info_t *head;
+  self->file = filestream_open(path, RETRO_VFS_FILE_ACCESS_READ,
+        RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS);
+  if (!self->file) return false;
+  self->file_size = filestream_get_size(self->file);
+  self->file_pos = 0;
+  self->mapped = filestream_get_mapped_ptr(self->file, NULL);
+  if (image_memcache && !self->mapped)
   {
-    log_cb(RETRO_LOG_ERROR, "Failed to open CHD image: %s", path);
-    return false;
+     int64_t total = 0;
+     if (self->file_size <= 0 || (uint64_t)self->file_size > SIZE_MAX) return false;
+     self->precache = (uint8_t*)malloc((size_t)self->file_size);
+     if (!self->precache) return false;
+     while (total < self->file_size)
+     {
+        int64_t got = filestream_read(self->file, self->precache + total, self->file_size - total);
+        if (got <= 0) return false;
+        total += got;
+     }
+     self->file_pos = total;
   }
-  /* consumes cf whether it succeeds or fails */
-  err = chd_open_core_file(cf, CHD_OPEN_READ, NULL, &self->chd);
-  if (err != CHDERR_NONE)
-  {
-    log_cb(RETRO_LOG_ERROR, "Failed to load CHD image: %s", path);
-    return false;
-  }
-
-  if (image_memcache)
-  {
-    err = chd_precache(self->chd);
-
-    if (err != CHDERR_NONE)
-    {
-      log_cb(RETRO_LOG_ERROR, "Failed to pre-cache CHD image: %s", path);
-      return false;
-    }
-  }
-
-  /* allocate storage for sector reads */
-  const chd_header *head = chd_get_header(self->chd);
-  self->hunkmem = (uint8_t *)malloc(head->hunkbytes);
+  rchd_prepare_cd_ecc();
+  self->chd = rchd_new();
+  if (!self->chd) return false;
+  if (rchd_set_unit_bytes_hint(self->chd, CD_FRAME_SIZE) != RCHD_OK) return false;
+  while ((err = rchd_open_step(self->chd, &req)) == RCHD_PENDING)
+     if (chd_supply(self, &req, false) < 0) return false;
+  if (err != RCHD_OK) return false;
+  head = rchd_info(self->chd);
+  if (!head || head->has_parent || !head->hunk_bytes ||
+      head->hunk_bytes % CD_FRAME_SIZE || head->unit_bytes != CD_FRAME_SIZE)
+     return false;
+  self->hunkmem = (uint8_t*)malloc(head->hunk_bytes);
+  if (!self->hunkmem) return false;
   self->oldhunk = -1;
 
   int plba = -150;
@@ -321,6 +251,18 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
     char type[64], subtype[32], pgtype[32], pgsub[32];
     char tmp[512];
     char tmp_int[16];
+
+    /* Try V5 metadata tag first, then V3/V4.  The unified
+     * chd_meta_find walks the value out per-key, so the same
+     * parse code handles both formats -- V3/V4 just won't have
+     * PREGAP / PGTYPE / PGSUB / POSTGAP, and those defaults
+     * survive (0 / empty string for pgtype/pgsub from
+     * chd_meta_find's clear-on-entry).  Pre-fix two separate
+     * sscanf calls handled the two formats; the V3/V4 sscanf
+     * left pgtype / pgsub holding stack garbage. */
+    if (!chd_metadata_text(self, RCHD_META_CDROM_TRACK2, self->NumTracks, tmp, sizeof(tmp)) &&
+        !chd_metadata_text(self, RCHD_META_CDROM_TRACK, self->NumTracks, tmp, sizeof(tmp)))
+       break;
 
     /* Cap track count against the on-struct Tracks[CD_MAX_TRACKS+1]
      * (= [100]) array.  Pre-fix the loop trusted chd_get_metadata to
@@ -334,32 +276,8 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
       return 0;
     }
 
-    /* Try V5 metadata tag first, then V3/V4.  The unified
-     * chd_meta_find walks the value out per-key, so the same
-     * parse code handles both formats -- V3/V4 just won't have
-     * PREGAP / PGTYPE / PGSUB / POSTGAP, and those defaults
-     * survive (0 / empty string for pgtype/pgsub from
-     * chd_meta_find's clear-on-entry).  Pre-fix two separate
-     * sscanf calls handled the two formats; the V3/V4 sscanf
-     * left pgtype / pgsub holding stack garbage. */
-    err = chd_get_metadata(self->chd, CDROM_TRACK_METADATA2_TAG, self->NumTracks, tmp, sizeof(tmp), NULL, NULL, NULL);
-    if (err != CHDERR_NONE)
-    {
-      err = chd_get_metadata(self->chd, CDROM_TRACK_METADATA_TAG,
-                             self->NumTracks, tmp, sizeof(tmp), NULL, NULL,
-                             NULL);
-      if (err != CHDERR_NONE)
-      {
-        /* if there's no valid metadata, this is the end of the TOC */
-        break;
-      }
-    }
 
-    /* TRACK: in both formats is the track number (1-based).  Pre-fix
-     * sscanf parsed it into a local 'tkid' that was never read -- the
-     * track ordering came from chd_get_metadata's index walking up
-     * via self->NumTracks.  Dropped here; chd_meta_find for "TRACK"
-     * is left in only as a presence check. */
+
     if (!chd_meta_find(tmp, "TRACK", tmp_int, sizeof(tmp_int)))
     {
       log_cb(RETRO_LOG_ERROR, "chd_parse: missing TRACK in metadata\n");
@@ -520,7 +438,10 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
 static void CDAccess_CHD_cleanup(CDAccess_CHD *self)
 {
   if (self->chd != NULL)
-    chd_close(self->chd);
+    rchd_free(self->chd);
+  if (self->file) filestream_close(self->file);
+  free(self->precache);
+  free(self->input);
 
   if (self->hunkmem)
     free(self->hunkmem);
@@ -613,17 +534,17 @@ static bool CDAccess_CHD_Read_Raw_Sector(CDAccess_CHD *self, uint8_t *buf, int32
   }
   else
   {
-    const chd_header *head = chd_get_header(self->chd);
+    const rchd_info_t *head = rchd_info(self->chd);
     int cad                = lba + ct->chd_offset;
-    int hunkid             = (cad * CD_FRAME_SIZE) / head->hunkbytes;
-    int hunkofs            = (cad * CD_FRAME_SIZE) % head->hunkbytes;
-    int err                = CHDERR_NONE;
+    int hunkid             = ((uint64_t)cad * CD_FRAME_SIZE) / head->hunk_bytes;
+    int hunkofs            = ((uint64_t)cad * CD_FRAME_SIZE) % head->hunk_bytes;
+    int err                = RCHD_OK;
 
     /* each hunk holds ~8 sectors, optimize when reading contiguous sectors */
     if (hunkid != self->oldhunk)
     {
-      err = chd_read(self->chd, hunkid, self->hunkmem);
-      if (err == CHDERR_NONE)
+      err = chd_read_hunk(self, hunkid);
+      if (err == RCHD_OK)
         self->oldhunk = hunkid;
       else
       {
