@@ -34,6 +34,8 @@
 **   RUNNER_SET_AT=N:k=v     change core option k to v before frame N (one
 **                           change; a geometry change on a lent frame is
 **                           the mismatch case).
+**   RUNNER_PRESS=N:B        hold joypad button B (RETRO_DEVICE_ID_JOYPAD_*
+**                           number) on port 0 for frames N..N+9.
 **   RUNNER_VERBOSE=1        pass the core's info-level log through.
 **
 ** Profiling: perf record -F 499 -D 40000 -- ./runner ... 7200 skips the
@@ -224,7 +226,14 @@ static void video_cb(const void* d, unsigned w, unsigned h, size_t p)
 static size_t audio_batch_cb(const int16_t* d, size_t f) { (void)d; return f; }
 static void audio_cb(int16_t l, int16_t r) { (void)l;(void)r; }
 static void input_poll_cb(void) {}
-static int16_t input_state_cb(unsigned port, unsigned dev, unsigned idx, unsigned id) { (void)port;(void)dev;(void)idx;(void)id; return 0; }
+static long press_frame = -1; static unsigned press_id;
+static int16_t input_state_cb(unsigned port, unsigned dev, unsigned idx, unsigned id)
+{
+ (void)dev;(void)idx;
+ if(port || press_frame < 0 || (long)frames_run < press_frame || (long)frames_run >= press_frame + 10) return 0;
+ if(id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)(1 << press_id);
+ return id == press_id;
+}
 
 #define SYM(name) name##_t p_##name = (name##_t)dlsym(h, #name); if(!p_##name) { fprintf(stderr, "missing %s\n", #name); return 1; }
 typedef void (*retro_set_environment_t)(retro_environment_t);
@@ -286,6 +295,7 @@ int main(int argc, char** argv)
  frame_hash = getenv("RUNNER_FRAME_HASH") != NULL;
  lend_every = getenv("RUNNER_LEND") ? atoi(getenv("RUNNER_LEND")) : 0;
  lend_pad   = getenv("RUNNER_LEND_PAD") ? atoi(getenv("RUNNER_LEND_PAD")) : 0;
+ if(getenv("RUNNER_PRESS")) { press_frame = atol(getenv("RUNNER_PRESS")); press_id = (unsigned)atoi(strchr(getenv("RUNNER_PRESS"), ':') ? strchr(getenv("RUNNER_PRESS"), ':') + 1 : "3"); }
  if(getenv("RUNNER_SET_AT"))
  {
   char* spec = strdup(getenv("RUNNER_SET_AT")); char* colon = strchr(spec, ':'); char* eq = colon ? strchr(colon, '=') : NULL;

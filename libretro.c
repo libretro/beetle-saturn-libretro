@@ -1423,17 +1423,37 @@ static bool current_frame_is_sim = false;
  * geometry is duped rather than pushed at a size the loan was not
  * asked for, and the next frame's loan has the new size.
  *
- * Declined, and the frame renders into surf as before, when the
- * frontend has no buffer to lend or offers another format or an
- * unusable pitch; for a run-ahead simulation frame nobody will see;
- * with a horizontal overscan mask, which would start the window inside
- * a row; and whenever the picture is interlaced: in interlaced modes
- * VDP2 writes only this field's lines and the other field's are the
- * previous frame's, still in the surface (and WEAVE/FASTMAD read them
- * too), so the surface has to persist from one frame to the next. */
+ * An interlaced picture is lent when every row of the output comes
+ * from this frame's field: Off and Progressive (the renderer writes
+ * both rows of a pair), Bob (the field alone, folded into the loan's
+ * consecutive rows by the surface, so the deinterlacer copies nothing)
+ * and Bob (Offset) (the deinterlacer fills the other rows from this
+ * field, in the loan). Weave and FastMAD show the previous frame's
+ * field as well, which only the core's own surface keeps, so those
+ * render into surf as before. A loan is made for the interlace state
+ * the previous frame settled on; a frame that switches is duped.
+ *
+ * Declined, and the frame renders into surf, when the frontend has no
+ * buffer to lend or offers another format or an unusable pitch; for a
+ * run-ahead simulation frame nobody will see; and with a horizontal
+ * overscan mask, which would start the window inside a row. */
 static MDFN_Surface lent_surf;
 static bool         last_frame_interlaced;
+/* The previous frame's interlace state went through the deinterlacer
+ * (or was progressive): PrevInterlaced describes its output. */
+static bool         last_frame_settled;
+static bool         lent_interlaced;
 static size_t       lent_pitch;
+
+static bool interlace_lendable(void)
+{
+#ifdef NEED_DEINTERLACER
+   const unsigned dt = Deinterlacer_GetType(&deint);
+   return dt == DEINT_OFF || dt == DEINT_BOB || dt == DEINT_BOB_OFFSET;
+#else
+   return false;
+#endif
+}
 
 static MDFN_Surface *acquire_lent_surface(unsigned linevisfirst)
 {
@@ -1442,7 +1462,7 @@ static MDFN_Surface *acquire_lent_surface(unsigned linevisfirst)
    /* A frame that misses its loan's geometry is duped. */
    if (!surf || !environ_cb || !libretro_can_dupe || current_frame_is_sim)
       return NULL;
-   if (last_frame_interlaced || PrevInterlaced)
+   if (last_frame_interlaced && (!last_frame_settled || !interlace_lendable()))
       return NULL;
    if (h_mask || !game_width || !game_height)
       return NULL;
@@ -1467,7 +1487,10 @@ static MDFN_Surface *acquire_lent_surface(unsigned linevisfirst)
    lent_surf.w          = (int32_t)game_width;
    lent_surf.h          = (int32_t)game_height;
    lent_surf.pitchinpix = (int32_t)(fb.pitch / sizeof(uint32_t));
-   lent_surf.y0         = (int32_t)linevisfirst;
+   lent_surf.y0         = (int32_t)(linevisfirst << PrevInterlaced);
+   /* Bob: one field at half height */
+   lent_surf.fold       = (last_frame_interlaced && !PrevInterlaced) ? 1 : 0;
+   lent_interlaced      = last_frame_interlaced;
    lent_pitch           = fb.pitch;
    return &lent_surf;
 }
@@ -1543,12 +1566,18 @@ void retro_run(void)
 
    /* Before the deinterlacer clears it: next frame's lend decision. */
    last_frame_interlaced = spec.InterlaceOn;
-
+   /* The loan was made for this interlace state, and for a folded or
+    * full-height picture as the deinterlacer now produces it. */
+   last_frame_settled    = !lent || lent_interlaced == spec.InterlaceOn;
 #ifdef NEED_DEINTERLACER
-   /* A lent window holds this frame's field only: the frame is duped
-    * below, and the next one renders into surf with the deinterlacer
-    * started fresh. */
-   if (spec.InterlaceOn && !lent)
+   if (lent && spec.InterlaceOn)
+      last_frame_settled = last_frame_settled
+         && (frame_surf->fold != 0) == (Deinterlacer_GetType(&deint) == DEINT_BOB);
+
+   /* A loan not made for this frame's shape holds a field misplaced:
+    * the frame is duped below, and the next one renders into surf
+    * with the deinterlacer started fresh. */
+   if (spec.InterlaceOn && last_frame_settled)
    {
       if (!PrevInterlaced)
          Deinterlacer_ClearState(&deint);
@@ -1613,7 +1642,7 @@ void retro_run(void)
       /* Back as lent, or not at all: a frame at another geometry than
        * the loan's is a dupe. */
       pitch = lent_pitch;
-      if (     !spec.InterlaceOn
+      if (     last_frame_settled
             && cur_width  == (unsigned)frame_surf->w
             && cur_height == (unsigned)frame_surf->h)
          fb = frame_surf->pixels;
@@ -1814,6 +1843,7 @@ void retro_deinit(void)
    libretro_supports_bitmasks          = false;
    libretro_can_dupe                   = false;
    last_frame_interlaced               = false;
+   last_frame_settled                  = false;
 }
 
 unsigned retro_get_region(void)

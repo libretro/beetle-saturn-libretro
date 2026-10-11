@@ -76,12 +76,15 @@ typedef struct
       int32_t pitchinpix;
    };
 
-   /* Scanout line held by row 0. A surface that holds a window of
-    * the scanout (a frontend-lent frame) has y0 > 0 and/or w and h
-    * smaller than the scanout; lines outside [y0, y0 + h) are not
-    * stored, and a row is w pixels wide. 0 for the core's own
-    * surface, which holds the whole scanout. */
+   /* Where scanout lines land. A surface that holds a window of the
+    * scanout (a frontend-lent frame) stores line L in row
+    * (L >> fold) - y0: y0 is the first line held, fold is 1 when the
+    * surface holds one field of an interlaced picture at half height
+    * (bob), so consecutive rows are every other line. Lines outside
+    * the window are not stored, and a row is w pixels wide. Both 0
+    * for the core's own surface, which holds the whole scanout. */
    int32_t y0;
+   int32_t fold;
 } MDFN_Surface;
 
 /* Row of surface @s for scanout line @line, or @spill when the surface
@@ -89,7 +92,7 @@ typedef struct
 static INLINE uint32_t *MDFN_Surface_Line(const MDFN_Surface *s,
       int32_t line, uint32_t *spill)
 {
-   line -= s->y0;
+   line = (line >> s->fold) - s->y0;
    if ((uint32_t)line >= (uint32_t)s->h)
       return spill;
    return s->pixels + line * s->pitchinpix;

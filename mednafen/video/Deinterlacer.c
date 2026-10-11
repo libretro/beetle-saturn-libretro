@@ -127,45 +127,67 @@ void Deinterlacer_ClearState(Deinterlacer *d)
  * far-right padding in the surface stays at whatever the GPU left
  * there.  Cheap insurance against future width-change shenanigans.
  */
-static void deint_bob(uint32_t *pixels, int32_t pitch_pix,
+/* Row of @surface for scanout line @native, or NULL when the surface
+ * does not hold it: a frontend-lent window is only the shown part of
+ * the rect, so a row outside it is skipped as a destination and
+ * blacked as a source. */
+static INLINE uint32_t *deint_row(MDFN_Surface *surface, int32_t native)
+{
+   const int32_t r = (native >> surface->fold) - surface->y0;
+   if ((uint32_t)r >= (uint32_t)surface->h)
+      return NULL;
+   return surface->pixels + (size_t)r * surface->pitchinpix;
+}
+
+/* Rows @src_native to @dst_native over the row block of up << s lines,
+ * @copy_pix wide from @x; a destination the surface lacks is skipped,
+ * a source it lacks blacks the destination. */
+static INLINE void deint_copy_rows(MDFN_Surface *surface,
+      int32_t src_native, int32_t dst_native, int32_t x,
+      size_t copy_pix, unsigned s)
+{
+   const unsigned  up   = 1u << s;
+   const int32_t   pp   = surface->pitchinpix;
+   uint32_t       *dst  = deint_row(surface, dst_native << s);
+   const uint32_t *src  = deint_row(surface, src_native << s);
+   unsigned u;
+
+   if (!dst || src == dst)
+      return;
+   if ((int32_t)copy_pix > surface->w - x)
+      copy_pix = (size_t)(surface->w - x);
+   for (u = 0; u < up; u++)
+   {
+      uint32_t *d = dst + (size_t)u * pp + x;
+      if (src)
+         memcpy(d, src + (size_t)u * pp + x, copy_pix * sizeof(uint32_t));
+      else
+         memset(d, 0, copy_pix * sizeof(uint32_t));
+   }
+}
+
+/* The field's lines packed into consecutive rows from half the
+ * rect's origin, where the half-height frame is read from. */
+static void deint_bob(MDFN_Surface *surface,
       const MDFN_Rect *DisplayRect, const int32_t *LineWidths,
       bool field, unsigned s)
 {
-   const unsigned up      = 1u << s;
    const int32_t  field_h = DisplayRect->h / 2;
    const int32_t  dy      = DisplayRect->y;
    int32_t        k;
 
    for (k = 0; k < field_h; k++)
    {
-      const int32_t   src_native = (k * 2) + (int32_t)field + dy;
-      const int32_t   dst_native = k + dy;
-      const size_t    copy_pix   = (size_t)LineWidths[src_native] << s;
-      const uint32_t *src        = pixels
-         + (size_t)(src_native << s) * pitch_pix
-         + DisplayRect->x;
-      uint32_t       *dst        = pixels
-         + (size_t)(dst_native << s) * pitch_pix
-         + DisplayRect->x;
-      unsigned u;
-
-      /* k=0, field=0 case: src and dst are the same row block; the
-       * memcpy would be a no-op but skipping it saves the work. */
-      if (src == dst)
-         continue;
-
-      for (u = 0; u < up; u++)
-         memcpy(dst + (size_t)u * pitch_pix,
-                src + (size_t)u * pitch_pix,
-                copy_pix * sizeof(uint32_t));
+      const int32_t src_native = (k * 2) + (int32_t)field + dy;
+      deint_copy_rows(surface, src_native, k + (dy >> 1), DisplayRect->x,
+            (size_t)LineWidths[src_native] << s, s);
    }
 }
 
-static void deint_bob_offset(uint32_t *pixels, int32_t pitch_pix,
+static void deint_bob_offset(MDFN_Surface *surface,
       const MDFN_Rect *DisplayRect, const int32_t *LineWidths,
       bool field, unsigned s)
 {
-   const unsigned up      = 1u << s;
    const int32_t  field_h = DisplayRect->h / 2;
    const int32_t  dy      = DisplayRect->y;
    const int32_t  rect_end_native = dy + DisplayRect->h;
@@ -184,39 +206,30 @@ static void deint_bob_offset(uint32_t *pixels, int32_t pitch_pix,
       const int32_t  blank_line = first_dly - 2;
       if (blank_line >= 0)
       {
-         const size_t   copy_pix = (size_t)LineWidths[(int32_t)field + dy] << s;
-         uint32_t      *dst      = pixels
-            + (size_t)(blank_line << s) * pitch_pix;
-         unsigned u;
-         for (u = 0; u < up; u++)
+         const size_t copy_pix = (size_t)LineWidths[(int32_t)field + dy] << s;
+         uint32_t    *dst      = deint_row(surface, blank_line << s);
+         if (dst)
          {
-            uint32_t *row = dst + (size_t)u * pitch_pix;
-            size_t x;
-            for (x = 0; x < copy_pix; x++)
-               row[x] = 0; /* MAKECOLOR(0,0,0,0) - all zero shifts */
+            const unsigned up = 1u << s;
+            unsigned u;
+            size_t   n = copy_pix;
+            if ((int32_t)n > surface->w)
+               n = (size_t)surface->w;
+            for (u = 0; u < up; u++)
+               memset(dst + (size_t)u * surface->pitchinpix, 0, n * sizeof(uint32_t));
          }
       }
    }
 
    for (k = 0; k < field_h; k++)
    {
-      const int32_t   src_native = (k * 2) + (int32_t)field + dy;
-      const int32_t   dly        = (k * 2) + (int32_t)field + 1 + dy;
-      const size_t    copy_pix   = (size_t)LineWidths[src_native] << s;
-      const uint32_t *src;
-      uint32_t       *dst;
-      unsigned u;
+      const int32_t src_native = (k * 2) + (int32_t)field + dy;
+      const int32_t dly        = (k * 2) + (int32_t)field + 1 + dy;
 
       if (dly >= rect_end_native)
          continue;
-
-      src = pixels + (size_t)(src_native << s) * pitch_pix + DisplayRect->x;
-      dst = pixels + (size_t)(dly        << s) * pitch_pix + DisplayRect->x;
-
-      for (u = 0; u < up; u++)
-         memcpy(dst + (size_t)u * pitch_pix,
-                src + (size_t)u * pitch_pix,
-                copy_pix * sizeof(uint32_t));
+      deint_copy_rows(surface, src_native, dly, DisplayRect->x,
+            (size_t)LineWidths[src_native] << s, s);
    }
 }
 
@@ -735,7 +748,7 @@ void Deinterlacer_Process(Deinterlacer *d, MDFN_Surface *surface,
     */
    {
       const int32_t first = (int32_t)field + DisplayRect->y;
-      if (first < surface->h)
+      if (first < DisplayRect->y + DisplayRect->h)
          LineWidths[0] = LineWidths[first];
    }
 
@@ -754,8 +767,9 @@ void Deinterlacer_Process(Deinterlacer *d, MDFN_Surface *surface,
          break;
 
       case DEINT_BOB:
-         deint_bob(pixels, pitch_pix, DisplayRect,
-               LineWidths, field, s);
+         /* A folded surface took the field packed already */
+         if (!surface->fold)
+            deint_bob(surface, DisplayRect, LineWidths, field, s);
          break;
 
       case DEINT_FASTMAD:
@@ -764,8 +778,7 @@ void Deinterlacer_Process(Deinterlacer *d, MDFN_Surface *surface,
 
       case DEINT_BOB_OFFSET:
       default:
-         deint_bob_offset(pixels, pitch_pix, DisplayRect,
-               LineWidths, field, s);
+         deint_bob_offset(surface, DisplayRect, LineWidths, field, s);
          break;
    }
 
