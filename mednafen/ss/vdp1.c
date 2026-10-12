@@ -1396,6 +1396,14 @@ MDFN_FASTCALL uint16_t VDP1_Read16_DB(uint32_t A)
 void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
 {
  bool tmp_abs_dy_gt_abs_dx = false;
+ /* The side framebuffers belong to the alternate-field and improved-mesh
+  * enhancements, not to the Saturn: nothing reads them while their
+  * feature is off, so a state carries only those in use (a bit each).
+  * States from before this always carry all three. */
+ uint8_t SideFBSaved = (load || MDFNSS_SizingPass) ? 0x7 :
+       (uint8_t)((VDP1_AltFieldCapture ? 0x1 : 0)
+                 | (VDP1_MeshImproved ? 0x2 : 0)
+                 | ((VDP1_AltFieldCapture && VDP1_MeshImproved) ? 0x4 : 0));
 
  /* On-disk savestate keys deliberately use the short, unqualified names
     (VRAM, PrimData.*, LineData.*, ...) so that states written before the
@@ -1498,6 +1506,7 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFPTR16N(&(AltFB)[0][0], (sizeof(AltFB) / sizeof(uint16_t)), "&AltFB[0][0]"),
   SFPTR16N(&(MeshFB)[0][0], (sizeof(MeshFB) / sizeof(uint16_t)), "&MeshFB[0][0]"),
   SFPTR16N(&(AltMeshFB)[0][0], (sizeof(AltMeshFB) / sizeof(uint16_t)), "&AltMeshFB[0][0]"),
+  SFVAR(SideFBSaved),
   SFVAR(FBDrawWhich),
 
   SFVAR(FBManualPending),
@@ -1562,7 +1571,30 @@ void VDP1_StateAction(StateMem* sm, const unsigned load, const bool data_only)
   SFEND
  };
 
+ if(!load)
+ {
+  if(!(SideFBSaved & 0x1))
+   StateRegs[2].size = 0;
+  if(!(SideFBSaved & 0x2))
+   StateRegs[3].size = 0;
+  if(!(SideFBSaved & 0x4))
+   StateRegs[4].size = 0;
+ }
+
  MDFNSS_StateAction(sm, load, data_only, StateRegs, "VDP1", false);
+
+ if(load)
+ {
+  /* A side buffer the state left out starts from what its feature
+   * would hold on a fresh frame: the field the main framebuffer has,
+   * and no mesh pixels. */
+  if(!(SideFBSaved & 0x1))
+   memcpy(VDP1_AltFB, VDP1_FB, sizeof(VDP1_AltFB));
+  if(!(SideFBSaved & 0x2))
+   memset(VDP1_MeshFB, 0, sizeof(VDP1_MeshFB));
+  if(!(SideFBSaved & 0x4))
+   memset(VDP1_AltMeshFB, 0, sizeof(VDP1_AltMeshFB));
+ }
 
  if(load)
  {

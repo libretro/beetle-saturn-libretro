@@ -57,6 +57,10 @@ extern "C" {
 int MDFNSS_SaveSM(void *st, uint32_t ver);
 int MDFNSS_LoadSM(void *st, uint32_t ver);
 
+/* Set while a save only measures the largest state this session can
+ * write: sections that leave optional data out include it. */
+extern bool MDFNSS_SizingPass;
+
 #ifdef __cplusplus
 }
 #endif

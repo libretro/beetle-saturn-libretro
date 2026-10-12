@@ -35,6 +35,8 @@ extern retro_log_printf_t log_cb;
 
 #define RLSB MDFNSTATE_RLSB	//0x80000000
 
+bool MDFNSS_SizingPass = false;
+
 static int32_t smem_read(StateMem *st, void *buffer, uint32_t len)
 {
    if ((len + st->loc) > st->len)
@@ -179,8 +181,8 @@ static void SubWrite(StateMem *st, const SFORMAT *sf)
 
 	do
 	{
-		// Special case for the evil bool type, to convert bool to 1-byte elements.
-		if(!sf->type)
+		/* Bools go out as one byte each; one-byte bools already are. */
+		if(!sf->type && sizeof(bool) > 1)
 		{
 			int32_t bool_monster;
 			for(bool_monster = 0; bool_monster < bytesize; bool_monster++)
@@ -197,63 +199,25 @@ static void SubWrite(StateMem *st, const SFORMAT *sf)
    }
 }
 
-/* Name -> SFORMAT* lookup table. Was a
- * std::map<const char*, const SFORMAT*, compare_cstr>; the SFORMAT
- * lists this is built from are small (at most a few dozen live
- * entries per chunk), so a flat array with a linear strcmp scan is
- * simpler and, with no per-node allocation, at least as fast and far
- * more cache-friendly. This is purely an in-memory lookup structure
- * built fresh in ReadStateChunk -- it has no bearing on the
- * serialized savestate format. */
+/* A chunk's SFORMAT entries flattened in write order (links followed,
+ * unsaved entries skipped), each with its name's length. A state lists
+ * a chunk's records in this same order, so ReadStateChunk tries the
+ * entry after the last match first and searches only on a miss. It
+ * holds no state of its own and has no bearing on the format. */
 typedef struct
 {
- const char    *name;
  const SFORMAT *sf;
-} SFMapEntry;
+ size_t         namelen;
+} SFEntry;
 
 typedef struct
 {
- SFMapEntry *entries;
- size_t      count;
- size_t      cap;
-} SFMap_t;
+ SFEntry *e;
+ size_t   count;
+ size_t   cap;
+} SFList;
 
-static const SFORMAT *SFMap_Find(const SFMap_t *m, const char *name)
-{
- size_t i;
- for(i = 0; i < m->count; i++)
-  if(!strcmp(m->entries[i].name, name))
-   return m->entries[i].sf;
- return NULL;
-}
-
-/* Insert-or-overwrite, matching std::map's operator[] = assignment. */
-static void SFMap_Set(SFMap_t *m, const char *name, const SFORMAT *sf)
-{
- size_t i;
- for(i = 0; i < m->count; i++)
- {
-  if(!strcmp(m->entries[i].name, name))
-  {
-   m->entries[i].sf = sf;
-   return;
-  }
- }
- if(m->count >= m->cap)
- {
-  size_t newcap     = m->cap ? m->cap * 2 : 32;
-  SFMapEntry *np    = (SFMapEntry *)realloc(m->entries, newcap * sizeof(SFMapEntry));
-  if(!np)
-   return;
-  m->entries = np;
-  m->cap     = newcap;
- }
- m->entries[m->count].name = name;
- m->entries[m->count].sf   = sf;
- m->count++;
-}
-
-static void MakeSFMap(const SFORMAT *sf, SFMap_t *sfmap)
+static void SFList_Build(const SFORMAT *sf, SFList *l)
 {
  while(sf->size || sf->name) // Size can sometimes be zero, so also check for the text name.  These two should both be zero only at the end of a struct.
  {
@@ -264,27 +228,69 @@ static void MakeSFMap(const SFORMAT *sf, SFMap_t *sfmap)
   }
 
   if(sf->size == ~0U)            /* Link to another SFORMAT structure. */
-   MakeSFMap((const SFORMAT *)sf->data, sfmap);
+   SFList_Build((const SFORMAT *)sf->data, l);
   else
   {
    assert(sf->name);
-
-   if(SFMap_Find(sfmap, sf->name))
-    log_cb( RETRO_LOG_WARN, "Duplicate save state variable in internal emulator structures(CLUB THE PROGRAMMERS WITH BREADSTICKS): %s\n", sf->name);
-
-   SFMap_Set(sfmap, sf->name, sf);
+#ifndef NDEBUG
+   {
+    size_t i;
+    for(i = 0; i < l->count; i++)
+     if(!strcmp(l->e[i].sf->name, sf->name))
+      log_cb( RETRO_LOG_WARN, "Duplicate save state variable in internal emulator structures(CLUB THE PROGRAMMERS WITH BREADSTICKS): %s\n", sf->name);
+   }
+#endif
+   if(l->count >= l->cap)
+   {
+    size_t   newcap = l->cap ? l->cap * 2 : 64;
+    SFEntry *np     = (SFEntry *)realloc(l->e, newcap * sizeof(SFEntry));
+    if(!np)
+     return;
+    l->e   = np;
+    l->cap = newcap;
+   }
+   l->e[l->count].sf      = sf;
+   l->e[l->count].namelen = strlen(sf->name);
+   l->count++;
   }
 
   sf++;
  }
 }
 
+/* The entry named @name (@len bytes): the one at *cursor when the state
+ * is in order, else the last of that name, as the map this replaced
+ * kept the last duplicate. */
+static const SFORMAT *SFList_Find(const SFList *l, size_t *cursor,
+      const char *name, size_t len)
+{
+ size_t i = *cursor;
+
+ if(i < l->count && l->e[i].namelen == len
+       && !memcmp(l->e[i].sf->name, name, len))
+ {
+  *cursor = i + 1;
+  return l->e[i].sf;
+ }
+
+ for(i = l->count; i-- > 0;)
+ {
+  if(l->e[i].namelen == len && !memcmp(l->e[i].sf->name, name, len))
+  {
+   *cursor = i + 1;
+   return l->e[i].sf;
+  }
+ }
+ return NULL;
+}
+
 static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 {
-	SFMap_t sfmap = { NULL, 0, 0 };
+	SFList sflist = { NULL, 0, 0 };
+	size_t cursor = 0;
 	int temp;
 
-	MakeSFMap(sf, &sfmap);
+	SFList_Build(sf, &sflist);
 
 	temp = st->loc;
 
@@ -296,13 +302,13 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 
 		if(smem_read(st, toa, 1) != 1)
 		{
-			free(sfmap.entries);
+			free(sflist.e);
 			return(0);
 		}
 
 		if(smem_read(st, toa + 1, toa[0]) != toa[0])
 		{
-			free(sfmap.entries);
+			free(sflist.e);
 			return 0;
 		}
 
@@ -316,11 +322,11 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 		 * truncated state -> clean abort. */
 		if (smem_read32le(st, &recorded_size) != 4)
 		{
-			free(sfmap.entries);
+			free(sflist.e);
 			return(0);
 		}
 
-		tmp = SFMap_Find(&sfmap, (char *)toa + 1);
+		tmp = SFList_Find(&sflist, &cursor, (const char *)toa + 1, toa[0]);
 
 		if(tmp)
 		{
@@ -328,7 +334,7 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 			{
 				if(smem_seek(st, recorded_size, SEEK_CUR) < 0)
 				{
-					free(sfmap.entries);
+					free(sflist.e);
 					return(0);
 				}
 			}
@@ -354,7 +360,7 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 					 * multiple subsystems. */
 					if (smem_read(st, (void*)p, expected_size) != (int32_t)expected_size)
 					{
-						free(sfmap.entries);
+						free(sflist.e);
 						return(0);
 					}
 
@@ -372,13 +378,13 @@ static int ReadStateChunk(StateMem *st, const SFORMAT *sf, uint32_t size)
 		{
 			if(smem_seek(st, recorded_size, SEEK_CUR) < 0)
 			{
-				free(sfmap.entries);
+				free(sflist.e);
 				return(0);
 			}
 		}
 	}
 
-	free(sfmap.entries);
+	free(sflist.e);
 	return 1;
 }
 
@@ -560,6 +566,14 @@ int MDFNSS_LoadSM(void *st_p, uint32_t ver)
 	stateversion = (uint32_t)header[16] | ((uint32_t)header[17] << 8) | ((uint32_t)header[18] << 16) | ((uint32_t)header[19] << 24);
 	if ( (int32_t)stateversion < 0x900 )
 		return(0);
+
+	/* The state's own length: a frontend buffer sized for the largest
+	 * state can hold a shorter one followed by padding. */
+	{
+		const uint32_t recorded = (uint32_t)header[20] | ((uint32_t)header[21] << 8) | ((uint32_t)header[22] << 16) | ((uint32_t)header[23] << 24);
+		if (recorded >= 32 && recorded < st->len)
+			st->len = recorded;
+	}
 
 	/* Call out to main save state function. */
 	return LibRetro_StateAction( st, stateversion /*LOAD*/);

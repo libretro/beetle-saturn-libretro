@@ -1945,6 +1945,9 @@ size_t retro_serialize_size(void)
       st.malloced       = 0;
       st.initial_malloc = 0;
 
+      /* Sized for the largest state, so a feature switched on later
+       * still fits; smaller states are padded (see retro_serialize). */
+      MDFNSS_SizingPass = true;
       if (MDFNSS_SaveSM(&st, MEDNAFEN_CORE_VERSION_NUMERIC))
       {
          // Cache and tidy up.
@@ -1952,6 +1955,7 @@ size_t retro_serialize_size(void)
          if (st.data)
             free(st.data);
       }
+      MDFNSS_SizingPass = false;
    }
 
    // Return cached value.
@@ -1974,17 +1978,15 @@ bool retro_serialize(void *data, size_t size)
     * the save if the passed-in size is too small */
    ret               = MDFNSS_SaveSM(&st, MEDNAFEN_CORE_VERSION_NUMERIC);
 
-   if (st.len != size)
+   if (st.data != st.data_frontend)
    {
       log_cb(RETRO_LOG_WARN, "Save state size has changed.\n");
-
-      if (st.data != st.data_frontend)
-      {
-         free(st.data);
-         serialize_size = st.len;
-         ret            = false;
-      }
+      free(st.data);
+      serialize_size = st.len;
+      ret            = false;
    }
+   else if (st.len < size)
+      memset((uint8_t*)data + st.len, 0, size - st.len);
 
    return ret;
 }

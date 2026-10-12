@@ -60,9 +60,17 @@ struct CDIF
    /* MT-only.  Untouched in ST instances. */
    sthread_t *CDReadThread;
 
-   /* Indices transfer ownership of these fixed pool slots. */
-   CDIF_Sector_Buffer SectorPool[32];
-   CDIF_Sector_Buffer SectorBuffers[CDIF_SBSIZE]; /* emulation-owned */
+   /* Indices transfer ownership of these fixed pool slots. The worker
+    * reads a sector straight into a slot, and the emulation thread
+    * keeps that slot as its cached copy of the sector: CacheSlot maps
+    * lba & (CDIF_SBSIZE - 1) to a slot, or -1. Every slot taken from
+    * ready_sectors gives one back to free_sectors - the slot it evicts
+    * from the cache, else one from Reserve - so 32 slots circulate
+    * between the threads and the queues never overflow. */
+   CDIF_Sector_Buffer SectorPool[CDIF_SBSIZE + 32];
+   int16_t  CacheSlot[CDIF_SBSIZE];         /* emulation-owned */
+   uint16_t Reserve[CDIF_SBSIZE];           /* emulation-owned */
+   unsigned ReserveCount;                   /* emulation-owned */
    retro_waitable_spsc_t ready_sectors; /* worker -> emulation */
    retro_waitable_spsc_t free_sectors;  /* emulation -> worker */
    retro_eventcount_t work;
@@ -147,8 +155,8 @@ int CDIF_ReadSector(CDIF *cdif, uint8_t *buf, int32_t lba, uint32_t sector_count
 #ifdef WANT_THREADING
 static bool CDIF_TakeSector(CDIF *self, bool blocking)
 {
-   unsigned slot;
-   CDIF_Sector_Buffer *source, *cache;
+   unsigned slot, give;
+   int16_t *entry;
    if (blocking)
    {
       while (!retro_waitable_spsc_wait_readable(&self->ready_sectors, sizeof(slot), 1000000))
@@ -156,13 +164,16 @@ static bool CDIF_TakeSector(CDIF *self, bool blocking)
    }
    else if (retro_spsc_read_avail(&self->ready_sectors.queue) < sizeof(slot))
       return false;
+   /* The read of ready_sectors acquires the worker's payload; the slot
+    * is the emulation thread's until it goes back to free_sectors. */
    retro_waitable_spsc_read(&self->ready_sectors, &slot, sizeof(slot));
-   source = &self->SectorPool[slot];
-   cache = &self->SectorBuffers[(uint32_t)source->lba & (CDIF_SBSIZE - 1)];
-   *cache = *source;
-   /* The read of ready_sectors acquired the worker's payload; returning
-    * the index releases it only after the snapshot is complete. */
-   retro_waitable_spsc_write(&self->free_sectors, &slot, sizeof(slot));
+   entry = &self->CacheSlot[(uint32_t)self->SectorPool[slot].lba & (CDIF_SBSIZE - 1)];
+   if (*entry >= 0)
+      give = (unsigned)*entry;
+   else
+      give = self->Reserve[--self->ReserveCount];
+   *entry = (int16_t)slot;
+   retro_waitable_spsc_write(&self->free_sectors, &give, sizeof(give));
    return true;
 }
 
@@ -262,29 +273,50 @@ static void CDIF_ReadThreadStart(void *v_arg)
    CDIF_MT_ReadThreadBody((CDIF *)v_arg);
 }
 
+/* The cached sector @lba, or NULL */
+static const CDIF_Sector_Buffer *CDIF_Cached(const CDIF *self, int32_t lba)
+{
+   const int16_t s = self->CacheSlot[(uint32_t)lba & (CDIF_SBSIZE - 1)];
+   const CDIF_Sector_Buffer *b;
+   if (s < 0)
+      return NULL;
+   b = &self->SectorPool[s];
+   return (b->valid && b->lba == lba) ? b : NULL;
+}
+
+/* Sector @lba (in range), demanding it when it is not cached yet. The
+ * slot stays the emulation thread's until a later take evicts it, so
+ * the pointer holds until the next CDIF call. NULL when stopping. */
+static const CDIF_Sector_Buffer *CDIF_MT_Fetch(CDIF *self, int32_t lba)
+{
+   const CDIF_Sector_Buffer *cache;
+   while (CDIF_TakeSector(self, false)) {}
+   if (!(cache = CDIF_Cached(self, lba)))
+   {
+      retro_atomic_store_release_int(&self->request_lba, lba);
+      retro_atomic_store_release_int(&self->request_seq, (int)++self->request_local);
+      retro_eventcount_notify(&self->work);
+      while (!(cache = CDIF_Cached(self, lba)))
+         if (!CDIF_TakeSector(self, true)) return NULL;
+   }
+   return cache;
+}
+
 static bool CDIF_MT_ReadRawSector(CDIF *self, uint8_t *buf, int32_t lba)
 {
-   CDIF_Sector_Buffer *cache = &self->SectorBuffers[(uint32_t)lba & (CDIF_SBSIZE - 1)];
+   const CDIF_Sector_Buffer *cache;
+   bool ok;
    if (lba < CDIF_LBA_Read_Minimum || lba > CDIF_LBA_Read_Maximum)
    {
       memset(buf, 0, 2352 + 96);
       return false;
    }
-   while (CDIF_TakeSector(self, false)) {}
-   if (!(cache->valid && cache->lba == lba))
-   {
-      retro_atomic_store_release_int(&self->request_lba, lba);
-      retro_atomic_store_release_int(&self->request_seq, (int)++self->request_local);
-      retro_eventcount_notify(&self->work);
-      while (!cache->valid || cache->lba != lba)
-         if (!CDIF_TakeSector(self, true)) return false;
-   }
-   {
-      bool ok = !cache->error;
-      memcpy(buf, cache->data, sizeof(cache->data));
-      CDIF_MT_Hint(self, lba);
-      return ok;
-   }
+   if (!(cache = CDIF_MT_Fetch(self, lba)))
+      return false;
+   ok = !cache->error;
+   memcpy(buf, cache->data, sizeof(cache->data));
+   CDIF_MT_Hint(self, lba);
+   return ok;
 }
 
 static bool CDIF_MT_ReadRawSectorPWOnly(CDIF *self, uint8_t *pwbuf, int32_t lba, bool hint_fullread)
@@ -303,12 +335,14 @@ static bool CDIF_MT_ReadRawSectorPWOnly(CDIF *self, uint8_t *pwbuf, int32_t lba,
    }
    else
    {
-      uint8_t tmpbuf[2352 + 96];
-      bool    ret;
-
-      ret = CDIF_MT_ReadRawSector(self, tmpbuf, lba);
-      memcpy(pwbuf, tmpbuf + 2352, 96);
-      return ret;
+      const CDIF_Sector_Buffer *cache = CDIF_MT_Fetch(self, lba);
+      bool ok;
+      if (!cache)
+         return false;
+      ok = !cache->error;
+      memcpy(pwbuf, cache->data + 2352, 96);
+      CDIF_MT_Hint(self, lba);
+      return ok;
    }
 }
 
@@ -328,7 +362,7 @@ static bool CDIF_ST_ReadRawSector(CDIF *self, uint8_t *buf, int32_t lba)
 
    /* Pre-fix: ignored Read_Raw_Sector's return and unconditionally
     * returned true.  The MT counterpart routes failure through
-    * SectorBuffers[].error; the ST path has no sector buffer to
+    * the cached sector's error flag; the ST path has no sector buffer to
     * stash it in, so just propagate the bool directly. */
    return self->disc_cdaccess->Read_Raw_Sector(self->disc_cdaccess, buf, lba);
 }
@@ -434,6 +468,12 @@ CDIF *CDIF_Open(const char *path, bool image_memcache)
       ok = ok && retro_waitable_spsc_init(&cdif->free_sectors, 32 * sizeof(unsigned));
       if (ok)
       {
+         for (i = 0; i < CDIF_SBSIZE; i++)
+         {
+            cdif->CacheSlot[i] = -1;
+            cdif->Reserve[i]   = (uint16_t)(32 + i);
+         }
+         cdif->ReserveCount = CDIF_SBSIZE;
          for (i = 0; i < 32; i++)
             retro_waitable_spsc_write(&cdif->free_sectors, &i, sizeof(i));
          cdif->CDReadThread = sthread_create(CDIF_ReadThreadStart, cdif);
