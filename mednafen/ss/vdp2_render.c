@@ -5072,6 +5072,7 @@ struct __attribute__((aligned(64))) ProducerState
                           // appears full (huge queue, so basically never)
  uint32_t BurstWritePos;    // cumulative uint16_t words written to BurstBuf
  uint32_t BurstPopCached;   // last-seen BurstPopCount; refreshed only when BurstBuf appears full
+ bool WakePending;          /* the consumer caught up; wake it at the next batch */
 };
 struct __attribute__((aligned(64))) ConsumerState
 {
@@ -5146,9 +5147,10 @@ static INLINE void WWQ(uint16_t command, uint32_t arg32, uint16_t arg16)
 
  Prod.WritePos = (Prod.WritePos + 1) % WQ_SIZE;
  VDP2_ATOMIC_STORE_REL(WQ_PushCount, ++Prod.PushLocal);
-#ifdef WANT_THREADING
- WakeConsumer();
-#else
+ /* No wake here: commands are picked up in batches (see
+  * VDP2REND_DrawLine), and every producer wait wakes the consumer
+  * first. A wake per command cost a kernel call per VDP2 write. */
+#ifndef WANT_THREADING
  ConsumeCommand();
 #endif
 }
@@ -5214,9 +5216,12 @@ static void ConsumeCommand(void)
   //
   Cons.ReadPos = (Cons.ReadPos + 1) % WQ_SIZE;
   VDP2_ATOMIC_STORE_REL(WQ_PopCount, ++Cons.PopLocal);
-  /* Publish space for bounded queue/burst back-pressure and full drains. */
+  /* Full drains and back-pressure waits are answered once the queue is
+   * empty; the frame-end drain by DRAW_LINE above. Notifying per
+   * command woke a waiting producer for every command it consumed. */
 #ifdef WANT_THREADING
-  retro_eventcount_notify(&DrainEvent);
+  if (Cons.PopLocal == VDP2_ATOMIC_LOAD_ACQ(WQ_PushCount))
+   retro_eventcount_notify(&DrainEvent);
 #endif
 }
 
@@ -5498,13 +5503,32 @@ void VDP2REND_DrawLine(const int vdp2_line, const uint32_t crt_line, const bool 
 
    WWQ(COMMAND_DRAW_LINE, ((uint16_t)vdp2_line << 16) | out_line, field);
   }
-  //
-  //
+  /* The consumer is woken in batches of 64 queued lines until the
+   * last 48, then for every line where it busy-waits: a notify is a
+   * kernel call only once its bounded spin has parked it. On a single
+   * hardware thread it never spins and catches up at the frame end. */
   if(crt_line == bwthresh)
   {
    if(BusyWaitAllowed)
     WWQ(COMMAND_SET_BUSYWAIT, true, 0);
    WakeConsumer();
+  }
+  else if(crt_line > bwthresh)
+  {
+   if(BusyWaitAllowed)
+    WakeConsumer();
+  }
+  else
+  {
+   const uint32_t queued = Prod.DrawPushLocal - VDP2_ATOMIC_LOAD_ACQ(DrawFinishCount);
+
+   if(queued <= queued_lines)
+    Prod.WakePending = true;
+   else if(queued >= 64 && Prod.WakePending)
+   {
+    WakeConsumer();
+    Prod.WakePending = false;
+   }
   }
 
   NextOutLine = crt_line + 1;

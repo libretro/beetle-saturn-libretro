@@ -34,6 +34,11 @@
 **   RUNNER_SET_AT=N:k=v     change core option k to v before frame N (one
 **                           change; a geometry change on a lent frame is
 **                           the mismatch case).
+**   RUNNER_FRAMETIME=1      report retro_run's wall time per frame:
+**                           median, p99, p99.9, max and the frames over
+**                           half a 60 Hz frame (8.3 ms).
+**   RUNNER_WAV=file.wav     write the core's audio to a 16-bit stereo WAV
+**                           at the rate the core reports.
 **   RUNNER_PRESS=N:B        hold joypad button B (RETRO_DEVICE_ID_JOYPAD_*
 **                           number) on port 0 for frames N..N+9.
 **   RUNNER_VERBOSE=1        pass the core's info-level log through.
@@ -223,7 +228,23 @@ static void video_cb(const void* d, unsigned w, unsigned h, size_t p)
   for(x = 0; x < w; x++) { unsigned char rgb[3] = { row[x] >> 16, row[x] >> 8, row[x] }; fwrite(rgb, 1, 3, f); } }
  fclose(f);
 }
-static size_t audio_batch_cb(const int16_t* d, size_t f) { (void)d; return f; }
+static FILE* wav_f; static unsigned long wav_frames;
+static size_t audio_batch_cb(const int16_t* d, size_t f)
+{
+ if(wav_f && f) { fwrite(d, 4, f, wav_f); wav_frames += f; }
+ return f;
+}
+static void wav_header(FILE* f, unsigned rate, unsigned long frames)
+{
+ unsigned char h[44]; unsigned long data = frames * 4;
+ memcpy(h, "RIFF", 4); h[4]=(unsigned char)(data+36); h[5]=(unsigned char)((data+36)>>8); h[6]=(unsigned char)((data+36)>>16); h[7]=(unsigned char)((data+36)>>24);
+ memcpy(h+8, "WAVEfmt ", 8); h[16]=16; h[17]=h[18]=h[19]=0; h[20]=1; h[21]=0; h[22]=2; h[23]=0;
+ h[24]=(unsigned char)rate; h[25]=(unsigned char)(rate>>8); h[26]=(unsigned char)(rate>>16); h[27]=(unsigned char)(rate>>24);
+ h[28]=(unsigned char)(rate*4); h[29]=(unsigned char)((rate*4)>>8); h[30]=(unsigned char)((rate*4)>>16); h[31]=(unsigned char)((rate*4)>>24);
+ h[32]=4; h[33]=0; h[34]=16; h[35]=0; memcpy(h+36, "data", 4);
+ h[40]=(unsigned char)data; h[41]=(unsigned char)(data>>8); h[42]=(unsigned char)(data>>16); h[43]=(unsigned char)(data>>24);
+ fseek(f, 0, SEEK_SET); fwrite(h, 1, 44, f);
+}
 static void audio_cb(int16_t l, int16_t r) { (void)l;(void)r; }
 static void input_poll_cb(void) {}
 static long press_frame = -1; static unsigned press_id;
@@ -316,11 +337,15 @@ int main(int argc, char** argv)
  memset(&gi, 0, sizeof gi); gi.path = argv[2];
  if(!p_retro_load_game(&gi)) { fprintf(stderr, "load_game failed\n"); return 2; }
  p_retro_get_system_av_info(&av);
+ if(getenv("RUNNER_WAV") && (wav_f = fopen(getenv("RUNNER_WAV"), "wb")))
+  wav_header(wav_f, (unsigned)(av.timing.sample_rate + 0.5), 0);
  frames = atoi(argv[3]);
  now_mono(&t0);
  {
   const char* he = getenv("RUNNER_HASH_EVERY"); int every = he ? atoi(he) : 0;
   void* sbuf = NULL; size_t scap = 0;
+  int ftime = getenv("RUNNER_FRAMETIME") != NULL;
+  double* ft = ftime ? (double*)malloc(sizeof(double) * (frames > 0 ? frames : 1)) : NULL;
   for(i = 0; i < frames; i++)
   {
    if(i == set_at_frame)
@@ -330,6 +355,8 @@ int main(int argc, char** argv)
     if(!found && nvars < 32) { vars[nvars].k = set_at_k; vars[nvars].v = set_at_v; nvars++; }
     vars_updated = 1;
    }
+   if(ft) { struct timespec a, b; now_mono(&a); p_retro_run(); now_mono(&b); ft[i] = (b.tv_sec - a.tv_sec) * 1e3 + (b.tv_nsec - a.tv_nsec) / 1e6; }
+   else
    p_retro_run();
    frames_run++;
    if(lend_data) { fprintf(stderr, "frame %lu: lent buffer never pushed\n", frames_run); return 3; }
@@ -337,6 +364,16 @@ int main(int argc, char** argv)
     printf("frame %6d state %016llx\n", i + 1, (unsigned long long)hash_state(p_retro_serialize_size, p_retro_serialize, &sbuf, &scap));
   }
   free(sbuf);
+  if(ft && frames > 0)
+  {
+   /* Insertion sort is plenty for a few thousand frames. */
+   int j, k, over = 0;
+   for(j = 0; j < frames; j++) if(ft[j] > 8.33) over++;
+   for(j = 1; j < frames; j++) { double v = ft[j]; k = j - 1; while(k >= 0 && ft[k] > v) { ft[k + 1] = ft[k]; k--; } ft[k + 1] = v; }
+   fprintf(stderr, "retro_run ms: median %.3f p99 %.3f p99.9 %.3f max %.3f over_8.3ms %d\n",
+     ft[frames / 2], ft[(int)(frames * 0.99)], ft[(int)(frames * 0.999)], ft[frames - 1], over);
+   free(ft);
+  }
  }
  now_mono(&t1);
  {
@@ -345,6 +382,7 @@ int main(int argc, char** argv)
   if(lend_every)
    fprintf(stderr, "lent %lu: %lu pushed zero-copy, %lu duped\n", lend_asked, lend_zero_copy, lend_dupes);
  }
+ if(wav_f) { wav_header(wav_f, (unsigned)(av.timing.sample_rate + 0.5), wav_frames); fclose(wav_f); }
  p_retro_unload_game(); p_retro_deinit(); dlclose(h);
  free(lend_block);
  return 0;

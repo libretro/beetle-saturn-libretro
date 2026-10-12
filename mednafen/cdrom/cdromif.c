@@ -200,8 +200,13 @@ static void CDIF_MT_ReadThreadBody(CDIF *self)
          hint_seen = hint;
          if (lba != self->last_read_lba)
          {
-            if (lba == self->last_read_lba + 1 && self->ra_lba > lba && self->ra_lba <= lba + 16)
-               self->ra_count = lba + 17 - self->ra_lba;
+            /* Hints coalesce: while a sector decodes, the reader may move
+             * several sectors on. Anywhere up to the read-ahead edge is
+             * sequential progress and tops the window up; only a hint
+             * outside it is a seek. Rewinding on a skipped hint threw the
+             * read-ahead away and let the next read miss. */
+            if (lba > self->last_read_lba && lba <= self->ra_lba)
+               self->ra_count = (lba + 17 > self->ra_lba) ? lba + 17 - self->ra_lba : 0;
             else
             {
                self->ra_lba = lba;
