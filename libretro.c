@@ -35,6 +35,7 @@
 
 #include "mednafen/ss/ss.h"
 #include "mednafen/ss/cart.h"
+#include "mednafen/ss/cart/backup.h"
 #include "mednafen/ss/db.h"
 #include "mednafen/ss/smpc.h"
 #include "mednafen/ss/stvio.h"
@@ -116,6 +117,8 @@ bool shared_intmemory_toggle = false;
 // shared backup memory support
 bool shared_backup = false;
 bool shared_backup_toggle = false;
+/* Latched at startup; selects the capacity of the Backup Memory cartridge. */
+bool setting_backup_memory_4mb = false;
 
 // Save Method: true = core-managed .bkr, false = frontend-managed .srm
 // via RETRO_MEMORY_SAVE_RAM. Default is Libretro (.srm). Latched at
@@ -430,6 +433,13 @@ static void check_variables(bool startup)
          else if (!strcmp(var.value, "disabled"))
             shared_backup_toggle = false;
       }
+
+      var.key = "beetle_saturn_backup_memory_size";
+      var.value = NULL;
+      setting_backup_memory_4mb = false;
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+         setting_backup_memory_4mb = !strcmp(var.value, "4MB");
+      CART_Backup_SetSize(setting_backup_memory_4mb);
 
       // Latch at startup only: retro_get_memory_size is queried by the
       // frontend once after retro_load_game, so toggling mid-game has no
@@ -2333,11 +2343,15 @@ char *MDFN_MakeFName(char *buf, size_t buflen, MakeFName_Type type, int id1, con
                cd1);
          break;
       case MDFNMKF_CART:
-         snprintf(buf, buflen, "%s" RETRO_SLASH "%s.%s",
-               retro_save_directory,
-               (!shared_backup) ? retro_cd_base_name : "mednafen_saturn_libretro_shared",
-               cd1);
+      {
+         const char *cart_basename = (!shared_backup)
+               ? retro_cd_base_name : "mednafen_saturn_libretro_shared";
+         const char *size_suffix = (setting_backup_memory_4mb && cd1 && !strcmp(cd1, "bcr"))
+               ? "_4mb" : "";
+         snprintf(buf, buflen, "%s" RETRO_SLASH "%s%s.%s",
+               retro_save_directory, cart_basename, size_suffix, cd1);
          break;
+      }
       case MDFNMKF_FIRMWARE:
          snprintf(buf, buflen, "%s" RETRO_SLASH "%s", retro_base_directory, cd1);
          break;

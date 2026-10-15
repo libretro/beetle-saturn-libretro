@@ -33,23 +33,36 @@
 #include "../cart.h"
 #include "backup.h"
 
-static uint8_t ExtBackupRAM[0x80000];
+#define EXT_BACKUPRAM_DEFAULT_SIZE 0x80000u
+#define EXT_BACKUPRAM_4MB_SIZE     0x400000u
+
+/* Allocate the maximum supported size, but expose and persist only the
+ * selected capacity. The size is latched by libretro before CART_Init. */
+static uint8_t ExtBackupRAM[EXT_BACKUPRAM_4MB_SIZE];
+static uint32_t ExtBackupRAM_Size = EXT_BACKUPRAM_DEFAULT_SIZE;
+static uint32_t ExtBackupRAM_Mask = EXT_BACKUPRAM_DEFAULT_SIZE - 1;
 static bool    ExtBackupRAM_Dirty;
+
+void CART_Backup_SetSize(bool use_4mb)
+{
+   ExtBackupRAM_Size = use_4mb ? EXT_BACKUPRAM_4MB_SIZE : EXT_BACKUPRAM_DEFAULT_SIZE;
+   ExtBackupRAM_Mask = ExtBackupRAM_Size - 1;
+}
 
 /* TODO: Check mirroring. */
 static MDFN_HOT void ExtBackupRAM_Read_DB(uint32_t A, uint16_t *DB)
 {
-   uint8_t* const ptr = ExtBackupRAM + ((A >> 1) & 0x7FFFF);
+   uint8_t* const ptr = ExtBackupRAM + ((A >> 1) & ExtBackupRAM_Mask);
 
    *DB = (*ptr << 0) | 0xFF00;
 
    if((A & ~1) == 0x04FFFFFE)
-      *DB = 0x21;
+      *DB = (ExtBackupRAM_Size == EXT_BACKUPRAM_4MB_SIZE) ? 0x24 : 0x21;
 }
 
 static MDFN_HOT void ExtBackupRAM_Write_DB(uint32_t A, uint16_t *DB)
 {
-   uint8_t* const ptr = ExtBackupRAM + ((A >> 1) & 0x7FFFF);
+   uint8_t* const ptr = ExtBackupRAM + ((A >> 1) & ExtBackupRAM_Mask);
 
    if(A & 1)
    {
@@ -72,14 +85,14 @@ static MDFN_COLD void GetNVInfo(const char **ext, void **nv_ptr, bool *nv16, uin
    *ext     = "bcr";
    *nv_ptr  = ExtBackupRAM;
    *nv16    = false;
-   *nv_size = sizeof(ExtBackupRAM);
+   *nv_size = ExtBackupRAM_Size;
 }
 
 static MDFN_COLD void StateAction(StateMem *sm, const unsigned load, const bool data_only)
 {
    SFORMAT StateRegs[] =
    {
-      SFPTR8N(ExtBackupRAM, 0x80000, "ExtBackupRAM"),
+      SFPTR8N(ExtBackupRAM, ExtBackupRAM_Size, "ExtBackupRAM"),
       SFEND
    };
 
@@ -97,7 +110,9 @@ void CART_Backup_Init(struct CartInfo *c)
    unsigned i;
 
    memset(ExtBackupRAM, 0x00, sizeof(ExtBackupRAM));
-   for(i = 0; i < 0x200; i += 0x10)
+   /* The format header occupies the first 512 bytes on a standard cart,
+    * and the first 1024 bytes on the 4 MiB variant. */
+   for(i = 0; i < (ExtBackupRAM_Size == EXT_BACKUPRAM_4MB_SIZE ? 0x400 : 0x200); i += 0x10)
       memcpy(ExtBackupRAM + i, init, 0x10);
 
    ExtBackupRAM_Dirty = false;

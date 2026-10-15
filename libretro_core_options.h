@@ -795,6 +795,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "Auto Detect"
    },
    {
+      "beetle_saturn_backup_memory_size",
+      "Backup Memory Size",
+      NULL,
+      "Capacity of the external Backup Memory cartridge. Only applies when Cartridge is set to Backup Memory. Restart required.",
+      NULL,
+      "memcards",
+      {
+         { "Default", NULL },
+         { "4MB", NULL },
+         { NULL, NULL },
+      },
+      "Default"
+   },
+   {
       "beetle_saturn_shared_int",
       "Shared Internal Memory",
       NULL,
