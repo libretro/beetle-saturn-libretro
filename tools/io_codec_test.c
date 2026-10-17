@@ -15,11 +15,13 @@ static struct retro_vfs_file_handle *vopen(const char *p, unsigned mode, unsigne
 static int vclose(struct retro_vfs_file_handle *h) { return fclose((FILE*)h); }
 static int64_t vtell(struct retro_vfs_file_handle *h) { return _ftelli64((FILE*)h); }
 static int64_t vseek(struct retro_vfs_file_handle *h, int64_t off, int whence)
-{ return _fseeki64((FILE*)h, off, whence) ? -1 : vtell(h); }
+{ return _fseeki64((FILE*)h, off, whence) ? -1 : 0; }
 static int64_t vsize(struct retro_vfs_file_handle *h)
 {
-   int64_t p = vtell(h), n = vseek(h, 0, SEEK_END);
-   vseek(h, p, SEEK_SET); return n;
+   int64_t p = vtell(h), n;
+   if (p < 0 || vseek(h, 0, SEEK_END) < 0) return -1;
+   n = vtell(h);
+   return vseek(h, p, SEEK_SET) < 0 ? -1 : n;
 }
 static int64_t vread(struct retro_vfs_file_handle *h, void *p, uint64_t n)
 { if (short_reads && n > 7) n = 7; return fread(p, 1, (size_t)n, (FILE*)h); }
