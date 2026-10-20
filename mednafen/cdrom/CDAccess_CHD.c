@@ -166,7 +166,10 @@ static int chd_supply(CDAccess_CHD *self, const rchd_request_t *req, bool readin
    if (self->file_pos != (int64_t)req->offset)
    {
       if (filestream_seek(self->file, (int64_t)req->offset, RETRO_VFS_SEEK_POSITION_START) < 0)
+      {
+         self->file_pos = -1;
          return RCHD_ERROR_DATA;
+      }
       self->file_pos = (int64_t)req->offset;
    }
    {
