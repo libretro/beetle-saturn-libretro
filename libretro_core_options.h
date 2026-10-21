@@ -798,12 +798,12 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "beetle_saturn_backup_memory_size",
       "Backup Memory Size",
       NULL,
-      "Capacity of the external Backup Memory cartridge. Only applies when Cartridge is set to Backup Memory. Restart required.",
+      "Capacity of the external Backup Memory cartridge, used when Cartridge is Backup Memory or Auto Detect picks it. The 4 MB cart saves to its own .4mb.bcr file, and save states do not carry cart contents between the two sizes. Restart required.",
       NULL,
       "memcards",
       {
-         { "Default", NULL },
-         { "4MB", NULL },
+         { "Default", "512 KB (4 Mbit)" },
+         { "4MB", "4 MB (32 Mbit)" },
          { NULL, NULL },
       },
       "Default"
