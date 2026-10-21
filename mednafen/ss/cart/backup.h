@@ -34,6 +34,7 @@ extern "C" {
 struct CartInfo;
 
 void CART_Backup_Init(struct CartInfo* c) MDFN_COLD;
+void CART_Backup_SetSize(bool use_4mb) MDFN_COLD;
 
 #ifdef __cplusplus
 }

@@ -25,6 +25,7 @@
    functions, one read and one write. */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <boolean.h>
 
@@ -33,23 +34,36 @@
 #include "../cart.h"
 #include "backup.h"
 
-static uint8_t ExtBackupRAM[0x80000];
+#define EXT_BACKUPRAM_DEFAULT_SIZE 0x80000u
+#define EXT_BACKUPRAM_4MB_SIZE     0x400000u
+
+/* Sized by CART_Backup_SetSize, which libretro latches before CART_Init;
+ * allocated in CART_Backup_Init and freed by Kill. */
+static uint8_t *ExtBackupRAM = NULL;
+static uint32_t ExtBackupRAM_Size = EXT_BACKUPRAM_DEFAULT_SIZE;
+static uint32_t ExtBackupRAM_Mask = EXT_BACKUPRAM_DEFAULT_SIZE - 1;
 static bool    ExtBackupRAM_Dirty;
+
+MDFN_COLD void CART_Backup_SetSize(bool use_4mb)
+{
+   ExtBackupRAM_Size = use_4mb ? EXT_BACKUPRAM_4MB_SIZE : EXT_BACKUPRAM_DEFAULT_SIZE;
+   ExtBackupRAM_Mask = ExtBackupRAM_Size - 1;
+}
 
 /* TODO: Check mirroring. */
 static MDFN_HOT void ExtBackupRAM_Read_DB(uint32_t A, uint16_t *DB)
 {
-   uint8_t* const ptr = ExtBackupRAM + ((A >> 1) & 0x7FFFF);
+   uint8_t* const ptr = ExtBackupRAM + ((A >> 1) & ExtBackupRAM_Mask);
 
    *DB = (*ptr << 0) | 0xFF00;
 
    if((A & ~1) == 0x04FFFFFE)
-      *DB = 0x21;
+      *DB = (ExtBackupRAM_Size == EXT_BACKUPRAM_4MB_SIZE) ? 0x24 : 0x21;
 }
 
 static MDFN_HOT void ExtBackupRAM_Write_DB(uint32_t A, uint16_t *DB)
 {
-   uint8_t* const ptr = ExtBackupRAM + ((A >> 1) & 0x7FFFF);
+   uint8_t* const ptr = ExtBackupRAM + ((A >> 1) & ExtBackupRAM_Mask);
 
    if(A & 1)
    {
@@ -69,17 +83,17 @@ static MDFN_COLD bool GetClearNVDirty(void)
 
 static MDFN_COLD void GetNVInfo(const char **ext, void **nv_ptr, bool *nv16, uint64_t *nv_size)
 {
-   *ext     = "bcr";
+   *ext     = (ExtBackupRAM_Size == EXT_BACKUPRAM_4MB_SIZE) ? "4mb.bcr" : "bcr";
    *nv_ptr  = ExtBackupRAM;
    *nv16    = false;
-   *nv_size = sizeof(ExtBackupRAM);
+   *nv_size = ExtBackupRAM_Size;
 }
 
 static MDFN_COLD void StateAction(StateMem *sm, const unsigned load, const bool data_only)
 {
    SFORMAT StateRegs[] =
    {
-      SFPTR8N(ExtBackupRAM, 0x80000, "ExtBackupRAM"),
+      SFPTR8N(ExtBackupRAM, ExtBackupRAM_Size, "ExtBackupRAM"),
       SFEND
    };
 
@@ -91,13 +105,24 @@ static MDFN_COLD void StateAction(StateMem *sm, const unsigned load, const bool 
    }
 }
 
+static MDFN_COLD void Kill(void)
+{
+   free(ExtBackupRAM);
+   ExtBackupRAM = NULL;
+}
+
 void CART_Backup_Init(struct CartInfo *c)
 {
    static const uint8_t init[0x10] = { 0x42, 0x61, 0x63, 0x6B, 0x55, 0x70, 0x52, 0x61, 0x6D, 0x20, 0x46, 0x6F, 0x72, 0x6D, 0x61, 0x74 };
    unsigned i;
 
-   memset(ExtBackupRAM, 0x00, sizeof(ExtBackupRAM));
-   for(i = 0; i < 0x200; i += 0x10)
+   ExtBackupRAM = (uint8_t*)calloc(ExtBackupRAM_Size, 1);
+   if(!ExtBackupRAM)
+      return;
+
+   /* The format header occupies the first 512 bytes on a standard cart,
+    * and the first 1024 bytes on the 4 MiB variant. */
+   for(i = 0; i < (ExtBackupRAM_Size == EXT_BACKUPRAM_4MB_SIZE ? 0x400 : 0x200); i += 0x10)
       memcpy(ExtBackupRAM + i, init, 0x10);
 
    ExtBackupRAM_Dirty = false;
@@ -110,4 +135,5 @@ void CART_Backup_Init(struct CartInfo *c)
    c->GetClearNVDirty = GetClearNVDirty;
    c->GetNVInfo       = GetNVInfo;
    c->StateAction     = StateAction;
+   c->Kill            = Kill;
 }

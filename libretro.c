@@ -35,6 +35,7 @@
 
 #include "mednafen/ss/ss.h"
 #include "mednafen/ss/cart.h"
+#include "mednafen/ss/cart/backup.h"
 #include "mednafen/ss/db.h"
 #include "mednafen/ss/smpc.h"
 #include "mednafen/ss/stvio.h"
@@ -430,6 +431,11 @@ static void check_variables(bool startup)
          else if (!strcmp(var.value, "disabled"))
             shared_backup_toggle = false;
       }
+
+      var.key = "beetle_saturn_backup_memory_size";
+      var.value = NULL;
+      CART_Backup_SetSize(environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var)
+            && var.value && !strcmp(var.value, "4MB"));
 
       // Latch at startup only: retro_get_memory_size is queried by the
       // frontend once after retro_load_game, so toggling mid-game has no
