@@ -210,11 +210,9 @@
 #include <file/file_path.h>
 #include <string/stdstring.h>
 #if defined(_WIN32) && !defined(_XBOX) && !defined(HAVE_MMAP) && defined(HAVE_THREADS)
-/* Saturn's copy: the eventcount this core links is its own, under the
- * saturn_* names this header maps the common ones to */
-#include "../../mednafen/thread_eventcount.h"
 #include <retro_atomic.h>
 #include <rthreads/rthreads.h>
+#include <rthreads/retro_eventcount.h>
 #endif
 
 #if defined(_WIN32) && !defined(_XBOX) && !defined(HAVE_MMAP)

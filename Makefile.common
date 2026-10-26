@@ -169,7 +169,8 @@ ifeq ($(NEED_THREADING), 1)
 SOURCES_C +=	 $(LIBRETRO_COMM_DIR)/rthreads/rthreads.c \
                  $(LIBRETRO_COMM_DIR)/queues/retro_spsc.c \
                  $(CORE_DIR)/mednafen/thread_queue.c \
-                 $(CORE_DIR)/mednafen/thread_eventcount.c
+                 $(CORE_DIR)/mednafen/thread_eventcount.c \
+                 $(CORE_DIR)/mednafen/thread_eventcount_common.c
 endif
 
 # Dynamically loaded builds only: statically linked frontends share one

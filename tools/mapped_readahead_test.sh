@@ -13,7 +13,7 @@ mkdir -p "$WORK"
 trap 'rm -rf "$WORK"' EXIT
 
 SRC="tools/mapped_readahead_test.c mednafen/cdstream.c
-     mednafen/thread_eventcount.c
+     mednafen/thread_eventcount.c mednafen/thread_eventcount_common.c
      $LC/streams/file_stream.c $LC/vfs/vfs_implementation.c
      $LC/file/file_path.c $LC/file/file_path_io.c
      $LC/compat/compat_strl.c $LC/compat/fopen_utf8.c
