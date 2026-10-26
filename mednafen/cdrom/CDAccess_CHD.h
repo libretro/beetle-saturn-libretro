@@ -28,6 +28,7 @@
 #include "CDAccess.h"
 #include <formats/rchd.h>
 #include <streams/file_stream.h>
+#include "../mapped_readahead.h"
 
 #define CD_MAX_TRACKS 99
 #define CD_FRAME_SIZE 2448
@@ -90,6 +91,7 @@ struct CDAccess_CHD
    RFILE *file;
    const uint8_t *mapped;
    int64_t file_size, file_pos;
+   mapped_readahead ra; /* reads through mapped */
    uint8_t *precache, *input;
    size_t input_capacity;
    /* hunk data cache */

@@ -62,7 +62,11 @@ bool cdstream_open_memcached(cdstream *out, const char *path)
    if (cdstream_open(out, path))
    {
       if (out->buf)
+      {
+         /* ...though the mapping still has to be read in */
+         filestream_prefetch(out->fp, 0, out->size);
          return true;
+      }
       cdstream_close(out);
       memset(out, 0, sizeof(*out));
    }

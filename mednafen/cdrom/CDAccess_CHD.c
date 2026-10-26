@@ -152,6 +152,8 @@ static int chd_supply(CDAccess_CHD *self, const rchd_request_t *req, bool readin
    if (self->file_size < 0 || req->offset > (uint64_t)self->file_size ||
        req->length > (uint64_t)self->file_size - req->offset)
       return RCHD_ERROR_DATA;
+   if (base && base == self->mapped)
+      mapped_readahead_note(&self->ra, self->file, req->offset, req->length);
    if (base)
       return reading ? rchd_feed_borrow(self->chd, req->offset, req->source,
             base + req->offset, req->length) :
@@ -217,6 +219,9 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
   self->file_size = filestream_get_size(self->file);
   self->file_pos = 0;
   self->mapped = filestream_get_mapped_ptr(self->file, NULL);
+  /* the mapping is the memcache, but it still has to be read in */
+  if (image_memcache && self->mapped)
+     filestream_prefetch(self->file, 0, (uint64_t)self->file_size);
   if (image_memcache && !self->mapped)
   {
      int64_t total = 0;

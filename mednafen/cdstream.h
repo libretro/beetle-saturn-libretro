@@ -27,6 +27,7 @@
 #include <retro_inline.h>
 
 #include <streams/file_stream.h>
+#include "mapped_readahead.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,6 +61,7 @@ typedef struct cdstream
    uint8_t *buf;    /* memory-backed: owned buffer, freed on close */
    uint64_t size;   /* memory-backed: buffer size in bytes */
    int64_t  pos;    /* memory-backed: current read position */
+   mapped_readahead ra; /* mapped: fp and buf both set */
 } cdstream;
 
 /* Open `path` as a file-backed read stream.  Returns true on success;
@@ -90,6 +92,7 @@ static INLINE uint64_t cdstream_read(cdstream *s, void *data, uint64_t count)
       avail = s->size - (uint64_t)s->pos;
       if (count > avail)
          count = avail;
+      mapped_readahead_note(&s->ra, s->fp, (uint64_t)s->pos, count);
       memcpy(data, s->buf + s->pos, (size_t)count);
       s->pos += (int64_t)count;
       return count;
