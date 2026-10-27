@@ -1100,15 +1100,21 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          /* Registering the current stream starts preparation. */
          if(!which)
          {
+            /* A new stream: its first picture and first audio output
+               are reported again (VOSTRT, AOSTRT), which is what the
+               Video CD player waits for after a track change. */
             if(Con[0].vidbufnum != MPEG_NUL_SEL && VState == MPEG_ASTV_STOP)
             {
                VState = MPEG_ASTV_PRE1;
                VPrepSectors = 0;
+               VideoStarted = false;
+               SyncWait = 0;
             }
             if(Con[0].audbufnum != MPEG_NUL_SEL && AState == MPEG_ASTV_STOP)
             {
                AState = MPEG_ASTV_PRE1;
                APrepSectors = 0;
+               AudioStarted = false;
             }
             UpdateActionStatus();
          }
