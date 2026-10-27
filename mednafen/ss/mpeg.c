@@ -302,6 +302,18 @@ static uint32_t VBVBytes;      /* 0 until a sequence header is seen */
 static uint8_t  SeqHdr[8];
 static uint8_t  SeqHdrFill = 8;
 static uint32_t SyncWait;
+
+/*
+   End of a video sequence.  rmpeg1_video holds an I or P picture back
+   until the next reference arrives, so the last picture of a sequence,
+   and the only one of a still, comes out only once the decoder is told
+   the stream has ended.  The sequence_end_code marks that point.
+*/
+static bool SeqEndPending;
+
+/* OUT_DECSYNC received in host-synchronised decoding: decode the next
+   picture as soon as it is complete, not only at the strobe. */
+static bool DecodePending;
 static uint64_t AudioPTS;
 static uint64_t LastSCR;
 
@@ -360,6 +372,8 @@ static void ResetSync(void)
    VBVBytes     = 0;
    SeqHdrFill   = 8;
    SyncWait     = 0;
+   SeqEndPending = false;
+   DecodePending = false;
 }
 
 /*
@@ -1350,7 +1364,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          if(Mode.dectimingmode == MPEG_DEC_HOST)
          {
             Display.fbn = cd[1] & 0xFF;
-            MPEG_RunFrame();
+            DecodePending = !MPEG_RunFrame();
          }
 
          MPEGReport(base_status, out);
@@ -1614,7 +1628,7 @@ static MDFN_HOT void ScanVideoStartCodes(const uint8_t *data, uint32_t len)
       {
          case 0x00: RaiseInt(MPEG_INT_PSTRT);  break;
          case 0xB3: RaiseInt(MPEG_INT_SQSTRT); break;
-         case 0xB7: RaiseInt(MPEG_INT_SQEND);  break;
+         case 0xB7: RaiseInt(MPEG_INT_SQEND); SeqEndPending = true; break;
          case 0xB8: RaiseInt(MPEG_INT_GSTRT);  break;
          default: break;
       }
@@ -2334,6 +2348,7 @@ bool MPEG_RunFrame(void)
    uint8_t staging[8192];
    rmpeg1_video_frame_t frame;
    bool produced = false;
+   bool flushed  = false;
 
    if(!Present || !Video)
       return false;
@@ -2411,7 +2426,18 @@ bool MPEG_RunFrame(void)
       }
 
       if(!VFIFO.count)
+      {
+         /* Everything up to the sequence end is in the decoder: let it
+            release the picture it holds back, once. */
+         if(SeqEndPending && !flushed)
+         {
+            rmpeg1_video_flush(Video);
+            flushed = true;
+            continue;
+         }
+
          break;
+      }
 
       take = VFIFO.count;
       if(take > sizeof(staging))
@@ -2425,6 +2451,12 @@ bool MPEG_RunFrame(void)
          code it has not seen.  Nothing more to do this call. */
       if(!took)
          break;
+   }
+
+   if(flushed)
+   {
+      rmpeg1_video_reset(Video);
+      SeqEndPending = false;
    }
 
    return produced;
@@ -2536,7 +2568,12 @@ void MPEG_Update(int64_t clocks)
          decoding on its own VSYNC.  VCounter still advances, since it
          counts display intervals and not pictures. */
       if(Mode.dectimingmode == MPEG_DEC_HOST)
+      {
+         /* The strobe came before the picture was complete. */
+         if(DecodePending && MPEG_RunFrame())
+            DecodePending = false;
          continue;
+      }
 
       /* Pause holds the decoder; VCounter keeps running because it is
          the card's vertical counter, not a picture counter, and
@@ -2715,6 +2752,8 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(SeqHdr),
       SFVAR(SeqHdrFill),
       SFVAR(SyncWait),
+      SFVAR(SeqEndPending),
+      SFVAR(DecodePending),
       SFVAR(AudioPTS),
       SFVAR(LastSCR),
 
