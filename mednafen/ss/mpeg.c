@@ -73,12 +73,31 @@
 /* Elementary stream FIFOs, downstream of the demuxer.  The card has
    2 MiB of DRAM split between the two streams and the frame buffers;
    the split is programmable via the buffer-number fields of
-   SET_CONNECTION, which is recorded but not yet acted on.  Until the
-   decoders land these are fixed-size ring buffers sized generously
-   enough that a stalled decoder drops elementary stream instead of
-   stalling the CD block. */
+   SET_CONNECTION, which is recorded but not yet acted on. */
 #define MPEG_VFIFO_SIZE (256 * 1024)
 #define MPEG_AFIFO_SIZE (64  * 1024)
+
+/*
+   How much elementary stream the card holds before it stops taking
+   sectors from its buffer partition.  CD-ROM data always comes off the
+   disc at double speed, faster than a movie plays, so the card has to
+   leave sectors in the CD block until it has room: the partition then
+   fills and the drive pauses, as it does for any full buffer.
+
+   The video figure is a little over three times the largest MPEG-1
+   constrained-parameters VBV (40 KiB), so a large I picture never waits
+   on the next sector.  The audio figure is a few hundred milliseconds
+   of Layer II at Video CD rates.  Both leave a whole sector of headroom
+   below the FIFO size, so nothing taken is ever dropped.
+*/
+#define MPEG_VFIFO_HOLD (128 * 1024)
+#define MPEG_AFIFO_HOLD (16  * 1024)
+#define MPEG_SECTOR_MAX 2324
+
+/* Decoded audio the card keeps ahead of the SCSP, in sample pairs.
+   Decoding stops while the ring holds this much, so audio leaves the
+   FIFO at the rate it is played. */
+#define MPEG_ARING_HOLD (4 * 1152)
 
 /* Demuxer input buffer.  rmpeg1_ps requires at least the 65541-byte
    worst-case packet; give it room for a few sectors beyond that so a
@@ -243,12 +262,10 @@ static uint64_t VideoPTS;
 static uint64_t AudioPTS;
 static uint64_t LastSCR;
 
-/* Dropped-payload counters.  With the decoders connected and clocked
-   these should stay at zero: measured over a full 1.5s NTSC Video CD
-   fed at the real 75-sectors-per-second cadence, nothing is dropped on
-   either stream, so a nonzero value here means something is wedged
-   rather than merely busy.  That is why there is no backpressure path
-   into the CD block -- the condition it would handle does not arise. */
+/* Dropped-payload counters.  With sectors taken through
+   MPEG_WantsSector() these stay at zero; a nonzero value means a
+   connection that does not delete what it takes, which still feeds at
+   the disc's rate. */
 static uint32_t VDropped;
 static uint32_t ADropped;
 
@@ -1884,7 +1901,7 @@ static void RunAudio(void)
    if(!Audio || !AFIFO.count)
       return;
 
-   for(;;)
+   while(ARing_Count < MPEG_ARING_HOLD)
    {
       uint32_t avail = AFIFO.count;
       uint32_t take  = (avail > sizeof(staging)) ? (uint32_t)sizeof(staging) : avail;
@@ -2072,6 +2089,20 @@ bool MPEG_WantsPartition(uint8_t pnum)
       return true;
 
    return false;
+}
+
+bool MPEG_WantsSector(uint8_t pnum)
+{
+   if(!MPEG_ConsumesPartition(pnum))
+      return false;
+
+   if(Con[0].vidbufnum == pnum && VFIFO.count + MPEG_SECTOR_MAX > MPEG_VFIFO_HOLD)
+      return false;
+
+   if(Con[0].audbufnum == pnum && AFIFO.count + MPEG_SECTOR_MAX > MPEG_AFIFO_HOLD)
+      return false;
+
+   return true;
 }
 
 bool MPEG_ConsumesPartition(uint8_t pnum)

@@ -510,6 +510,15 @@ bool MPEG_WantsPartition(uint8_t pnum);
 bool MPEG_ConsumesPartition(uint8_t pnum);
 
 /*
+   True when the card has room for one more sector from partition pnum.
+   Only for connections that delete what they take: the CD block leaves
+   those sectors in the partition and hands them over one at a time
+   while this holds, so a full card leaves the partition to fill and the
+   drive to pause.
+*/
+bool MPEG_WantsSector(uint8_t pnum);
+
+/*
    Drain decoded audio.  Writes up to frames interleaved stereo s16
    sample pairs and returns how many were actually available.  Output is
    at the stream's own rate -- 44.1 kHz for Video CD -- and needs

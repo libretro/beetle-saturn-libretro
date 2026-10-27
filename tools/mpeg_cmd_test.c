@@ -1026,6 +1026,12 @@ int main(void)
             {
                MPEG_FeedSector(sec, (uint32_t)got, 0x00);
                MPEG_RunFrame();
+
+               /* The card stops decoding audio while its ring is full,
+                  so play what is there to reach past the stream's
+                  silent lead-in. */
+               if(i < 63)
+                  while(MPEG_ReadAudio(pcm, 64)) { }
             }
             fclose(fp);
 
