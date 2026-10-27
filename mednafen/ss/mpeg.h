@@ -420,17 +420,34 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only) M
 
 bool MPEG_IsPresent(void);
 
-/* Card firmware ROM, for the eventual BIOS-side Video CD player boot
-   path.  Returns NULL and sets *size to 0 when no ROM was loaded. */
+/* Card firmware ROM.  Returns NULL and sets *size to 0 when no ROM was
+   loaded. */
 const uint8_t *MPEG_GetROM(uint32_t *size);
+
+/*
+   The Saturn program the card ROM carries, which is what command 0xE2
+   reads out.  Every card ROM in hand starts with a block whose length
+   is the big-endian longword at offset 0, after an 8 byte header, and
+   the program follows it: 0x4FF8 + 8 puts it at 0x5000, where each of
+   them holds an IP header ("SEGA SEGASATURN", "SEGAVIEWER") that the
+   BIOS checks after loading the first sectors to 0x06002000, as it does
+   for a disc.  Returns NULL and sets *size to 0 when there is no ROM.
+*/
+const uint8_t *MPEG_GetProgram(uint32_t *size);
 
 /*
    AUTH_DEVICE / GET_AUTH with CR2 == 1 target the card rather than the
    disc.  MPEG_Auth() latches the authenticated state; MPEG_GetAuth()
    returns the value the CD block should place in CR2 (2 == card
    authenticated, 0 == not).
+
+   MPEG_ProgramRead() records that 0xE2 has read the program, which sets
+   bits 8 and 9 of that value until the next authentication.  The BIOS
+   asks GET_AUTH right after 0xE2 and takes the sectors only when it
+   sees them; Yabause's Cs2GetMPEGRom sets the same bits.
 */
 void MPEG_Auth(void);
+void MPEG_ProgramRead(void);
 uint16_t MPEG_GetAuth(void);
 
 /*

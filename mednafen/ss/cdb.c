@@ -223,7 +223,8 @@ enum
  COMMAND_ABORT_FILE	= 0x75,
 
  COMMAND_AUTH_DEVICE	= 0xE0,
- COMMAND_GET_AUTH	= 0xE1
+ COMMAND_GET_AUTH	= 0xE1,
+ COMMAND_GET_MPEGROM	= 0xE2
 };
 
 enum
@@ -2869,6 +2870,57 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       CDStatusResults(true, 0);
      else
       BasicResults(MakeBaseStatus(false, 0) << 8, AuthDiscType, 0, 0);
+    }
+    //
+    //
+    //
+    //
+    // Read the Saturn program the MPEG card's ROM carries into the
+    // partition that filter's true output connects to.  The BIOS sends
+    // this once the card has authenticated, to load the Video CD player.
+    // CR1's low byte and CR2 give the start in sectors from the start of
+    // the program, CR3's high byte the filter, CR4 the sector count; a
+    // sector is the current Get Sector Length, and each one is laid out
+    // where Get Sector Data reads that length from.  Same register
+    // shape as Yabause's Cs2GetMPEGRom.
+    //
+    else if(CTR.Command == COMMAND_GET_MPEGROM)
+    {
+     static const uint8_t seclen_offs[4] = { 16, 16, 12, 0 };
+     static const uint16_t seclen_size[4] = { 2048, 2336, 2340, 2352 };
+     const uint32_t start = ((uint32_t)(CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
+     const uint8_t fnum = CTR.CD[2] >> 8;
+     const unsigned count = CTR.CD[3];
+     uint32_t prog_size = 0;
+     const uint8_t* prog = MPEG_GetProgram(&prog_size);
+
+     if(!prog || !MPEG_GetAuth() || fnum >= 0x18 || Filters[fnum].TrueConn == 0xFF)
+      CDStatusResults(true, 0);
+     else
+     {
+      const unsigned pnum = Filters[fnum].TrueConn;
+      const uint32_t size = seclen_size[GetSecLen];
+      bool stored = false;
+
+      for(unsigned i = 0; i < count && FreeBufferCount; i++)
+      {
+       const uint64_t pos = (uint64_t)(start + i) * size;
+       const uint8_t bfi = Buffer_Allocate(true);
+       uint8_t* sd = Buffers[bfi].Data;
+
+       sd[15] = 0x1;	// Mode 1, so a 2048 byte read starts at 16
+
+       if(pos < prog_size)
+        memcpy(sd + seclen_offs[GetSecLen], prog + pos, (prog_size - pos) < size ? (prog_size - pos) : size);
+
+       Partition_LinkBuffer(pnum, bfi);
+       stored = true;
+      }
+
+      MPEG_ProgramRead();
+      CDStatusResults(false, 0);
+      TriggerIRQ(HIRQ_MPED | (stored ? HIRQ_CSCT : 0));
+     }
     }
     //
     //

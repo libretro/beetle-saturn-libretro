@@ -70,6 +70,8 @@
    padded, longer ones are truncated with the tail ignored. */
 #define MPEG_ROM_SIZE 0x80000
 
+#define MPEG_AUTH_PROGRAM 0x0300
+
 /* Elementary stream FIFOs, downstream of the demuxer.  The card has
    2 MiB of DRAM split between the two streams and the frame buffers;
    the split is programmable via the buffer-number fields of
@@ -156,7 +158,9 @@ static bool     Present;
 static uint8_t *CardROM;
 static uint32_t CardROMSize;
 
-static uint8_t  AuthState;      /* 0 = unauthenticated, 2 = authenticated */
+/* 0 = unauthenticated, 2 = authenticated, plus MPEG_AUTH_PROGRAM once
+   0xE2 has read the program out. */
+static uint16_t AuthState;
 
 /* MPEG interrupt register.  24 bits wide: CR1's low byte carries bits
    23..16 and CR2 carries bits 15..0.  Bit assignments are SBL 6.01's
@@ -725,6 +729,28 @@ const uint8_t *MPEG_GetROM(uint32_t *size)
    return CardROM;
 }
 
+const uint8_t *MPEG_GetProgram(uint32_t *size)
+{
+   uint32_t base;
+
+   if(size)
+      *size = 0;
+
+   if(!CardROM)
+      return NULL;
+
+   base = 8 + (((uint32_t)CardROM[0] << 24) | ((uint32_t)CardROM[1] << 16)
+             | ((uint32_t)CardROM[2] << 8) | CardROM[3]);
+
+   if(base >= CardROMSize)
+      return NULL;
+
+   if(size)
+      *size = CardROMSize - base;
+
+   return CardROM + base;
+}
+
 /*
  *
  * Authentication
@@ -739,6 +765,12 @@ void MPEG_Auth(void)
       there would send the BIOS off to run a player that is not
       there. */
    AuthState = CardROM ? 2 : 0;
+}
+
+void MPEG_ProgramRead(void)
+{
+   if(AuthState)
+      AuthState |= MPEG_AUTH_PROGRAM;
 }
 
 uint16_t MPEG_GetAuth(void)
