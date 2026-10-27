@@ -263,6 +263,26 @@ static int16_t  ACur[2];
 static bool     ACurValid;
 
 static uint64_t VideoPTS;
+
+/*
+   Start-up synchronisation.  When a connection carries both streams the
+   card plays them in step (SBL MPEG library, MPG_MvCreate: "If both are
+   specified at the same time, they will be played back in
+   synchronization").  Once started, video runs at the sequence header's
+   rate and audio at its sample rate, so what has to be right is where
+   each starts: the first picture is held until the audio being played
+   reaches the first video packet's PTS.  The audio position is the
+   first audio packet's PTS plus the samples played since.  A stream
+   that never delivers audio releases the hold after MPEG_SYNC_WAIT
+   periods.
+*/
+#define MPEG_SYNC_WAIT 120
+
+static uint64_t FirstVideoPTS;
+static uint64_t FirstAudioPTS;
+static uint64_t AudioPlayed;
+static bool     VideoReleased;
+static uint32_t SyncWait;
 static uint64_t AudioPTS;
 static uint64_t LastSCR;
 
@@ -313,6 +333,15 @@ static uint8_t  *FrameCb;
 static uint8_t  *FrameCr;
 static uint32_t  FrameW, FrameH;
 static bool      FrameValid;
+
+static void ResetSync(void)
+{
+   FirstVideoPTS = RMPEG1_PS_NO_PTS;
+   FirstAudioPTS = RMPEG1_PS_NO_PTS;
+   AudioPlayed   = 0;
+   VideoReleased = false;
+   SyncWait      = 0;
+}
 
 /*
  *
@@ -695,6 +724,7 @@ void MPEG_Reset(bool powering_up)
    FrameRateDen = 1001;
 
    VideoPTS = RMPEG1_PS_NO_PTS;
+   ResetSync();
    AudioPTS = RMPEG1_PS_NO_PTS;
    LastSCR  = RMPEG1_PS_NO_PTS;
    VDropped = 0;
@@ -902,6 +932,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          VideoReady      = false;
          AudioReady      = false;
          LastVideoErrors = 0;
+         ResetSync();
 
          /* CR2 bit 0 selects the soft-reset variant, which additionally
             completes the command handshake immediately. */
@@ -1331,6 +1362,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          if(clr_v == MPEG_CLV_FRM)
          {
             FrameValid = false;
+            ResetSync();
 
             if(Video)
                rmpeg1_video_reset(Video);
@@ -1584,7 +1616,12 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
                   VDropped += FIFO_Write(&VFIFO, pkt.data, (uint32_t)pkt.size);
 
                   if(pkt.pts != RMPEG1_PS_NO_PTS)
+                  {
                      VideoPTS = pkt.pts;
+
+                     if(FirstVideoPTS == RMPEG1_PS_NO_PTS)
+                        FirstVideoPTS = pkt.pts;
+                  }
 
                   saw_video = true;
 
@@ -1602,7 +1639,12 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
                   ADropped += FIFO_Write(&AFIFO, pkt.data, (uint32_t)pkt.size);
 
                   if(pkt.pts != RMPEG1_PS_NO_PTS)
+                  {
                      AudioPTS = pkt.pts;
+
+                     if(FirstAudioPTS == RMPEG1_PS_NO_PTS)
+                        FirstAudioPTS = pkt.pts;
+                  }
 
                   saw_audio = true;
 
@@ -1935,6 +1977,7 @@ bool MPEG_GetAudioSample(uint16_t *out)
 
       ARing_RP = (ARing_RP + 1) % MPEG_ARING_FRAMES;
       ARing_Count--;
+      AudioPlayed++;
 
       ACurValid   = true;
       ARatePhase -= (1U << 16);
@@ -2192,6 +2235,35 @@ bool MPEG_ConsumesPartition(uint8_t pnum)
    return false;
 }
 
+/* Whether the first picture may be shown yet; see FirstVideoPTS. */
+static bool VideoMayStart(void)
+{
+   if(VideoReleased)
+      return true;
+
+   /* Nothing to hold: no audio connected, or no timestamped video yet.
+      Neither latches, so the hold still applies once both exist. */
+   if(Con[0].audbufnum == MPEG_NUL_SEL || FirstVideoPTS == RMPEG1_PS_NO_PTS)
+      return true;
+
+   if(++SyncWait > MPEG_SYNC_WAIT)
+   {
+      VideoReleased = true;
+      return true;
+   }
+
+   if(FirstAudioPTS == RMPEG1_PS_NO_PTS || !AudioRate)
+      return false;
+
+   /* 33-bit timestamps: compare the distance, so a stream whose
+      timestamps wrap between the two first packets still starts. */
+   if(((FirstAudioPTS + AudioPlayed * 90000 / AudioRate - FirstVideoPTS)
+       & 0x1FFFFFFFFULL) < 0x100000000ULL)
+      VideoReleased = true;
+
+   return VideoReleased;
+}
+
 void MPEG_Update(int64_t clocks)
 {
    int64_t period;
@@ -2263,7 +2335,11 @@ void MPEG_Update(int64_t clocks)
          PauseCount = 0;
       }
 
-      MPEG_RunFrame();
+      /* Audio keeps decoding while the first picture waits for it. */
+      if(VideoMayStart())
+         MPEG_RunFrame();
+      else
+         RunAudio();
    }
 }
 
@@ -2408,6 +2484,11 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(FrameRateDen),
 
       SFVAR(VideoPTS),
+      SFVAR(FirstVideoPTS),
+      SFVAR(FirstAudioPTS),
+      SFVAR(AudioPlayed),
+      SFVAR(VideoReleased),
+      SFVAR(SyncWait),
       SFVAR(AudioPTS),
       SFVAR(LastSCR),
 
