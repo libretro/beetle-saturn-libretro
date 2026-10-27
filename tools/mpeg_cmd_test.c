@@ -1681,10 +1681,28 @@ int main(void)
             0x00, 0x00, 0x01, 0xBA, 0x21, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0x01
          };
 
+         /* Two sectors end preparation 1; video then waits for its
+            STD buffer + 16 KiB in preparation 2. */
          MPEG_FeedSector(vpkt, sizeof(vpkt), 0x00, 0x00);
          Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
-         expect_eq("video sector moves video to transfer",
+         expect_eq("one video sector: still preparing",
+                   Out[0] & 0xFF, MPEG_ASTV_PRE1 | MPEG_ASTA_PRE1);
+         MPEG_FeedSector(vpkt, sizeof(vpkt), 0x00, 0x00);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_eq("two video sectors: preparation 2",
+                   Out[0] & 0xFF, MPEG_ASTV_PRE2 | MPEG_ASTA_PRE1);
+         MPEG_RunFrame();
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_eq("short of the STD buffer: no transfer yet",
+                   Out[0] & 0xFF, MPEG_ASTV_PRE2 | MPEG_ASTA_PRE1);
+
+         /* Forced transfer mode starts at once. */
+         Cmd(MPEG_CMD_PLAY, 0x00FF, 0xFF01, 0, 0x00FF);
+         MPEG_FeedSector(vpkt, sizeof(vpkt), 0x00, 0x00);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_eq("forced transfer",
                    Out[0] & 0xFF, MPEG_ASTV_TRNS | MPEG_ASTA_PRE1);
+         Cmd(MPEG_CMD_PLAY, 0x00FF, 0xFF00, 0, 0x00FF);
       }
 
       /* CDC_PARA_NOCHG leaves a stream alone; COF_ABT stops it. */

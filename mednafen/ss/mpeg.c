@@ -279,23 +279,28 @@ static bool     ACurValid;
 static uint64_t VideoPTS;
 
 /*
-   Start-up synchronisation.  When a connection carries both streams the
-   card plays them in step (SBL MPEG library, MPG_MvCreate: "If both are
-   specified at the same time, they will be played back in
-   synchronization").  Once started, video runs at the sequence header's
-   rate and audio at its sample rate, so what has to be right is where
-   each starts: the first picture is held until the audio being played
-   reaches the first video packet's PTS.  The audio position is the
-   first audio packet's PTS plus the samples played since.  A stream
-   that never delivers audio releases the hold after MPEG_SYNC_WAIT
-   periods.
+   Start-up, from CDC_MpPlay (SBL CD communication I/F, MPEG part, 20.7).
+   In automatic transfer mode video starts "when data of STD buffer size
+   + 16KB is stored", the STD buffer being the sequence header's
+   vbv_buffer_size, and audio when two sectors are stored.  In
+   synchronous playback mode "decoding starts when the first picture of
+   the video is displayed" for audio.  Forced transfer starts each
+   stream at once.  PLAY's mode bytes follow CDC_MpPlay's argument
+   order: playback mode in CR1's low byte, audio and video transfer
+   modes in CR2.  SYNC and AUTO are the initial values and are taken to
+   be 0, FORCE and INDP 1.
 */
+#define MPEG_STD_EXTRA (16 * 1024)
 #define MPEG_SYNC_WAIT 120
 
-static uint64_t FirstVideoPTS;
-static uint64_t FirstAudioPTS;
-static uint64_t AudioPlayed;
-static bool     VideoReleased;
+static uint8_t  PlayMode;      /* 0 = synchronous, 1 = independent */
+static uint8_t  TransferModeA; /* 0 = automatic, 1 = forced */
+static uint8_t  TransferModeV;
+static uint8_t  VPrepSectors;
+static uint8_t  APrepSectors;
+static uint32_t VBVBytes;      /* 0 until a sequence header is seen */
+static uint8_t  SeqHdr[8];
+static uint8_t  SeqHdrFill = 8;
 static uint32_t SyncWait;
 static uint64_t AudioPTS;
 static uint64_t LastSCR;
@@ -350,11 +355,11 @@ static bool      FrameValid;
 
 static void ResetSync(void)
 {
-   FirstVideoPTS = RMPEG1_PS_NO_PTS;
-   FirstAudioPTS = RMPEG1_PS_NO_PTS;
-   AudioPlayed   = 0;
-   VideoReleased = false;
-   SyncWait      = 0;
+   VPrepSectors = 0;
+   APrepSectors = 0;
+   VBVBytes     = 0;
+   SeqHdrFill   = 8;
+   SyncWait     = 0;
 }
 
 /*
@@ -741,6 +746,9 @@ void MPEG_Reset(bool powering_up)
 
    VideoPTS = RMPEG1_PS_NO_PTS;
    ResetSync();
+   PlayMode      = 0;
+   TransferModeA = 0;
+   TransferModeV = 0;
    AudioPTS = RMPEG1_PS_NO_PTS;
    LastSCR  = RMPEG1_PS_NO_PTS;
    VDropped = 0;
@@ -1015,8 +1023,10 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          /* CDC_MpPlay sets the playback and transfer modes.  It does not
             start anything: "The MPEG decoder starts decoding by
             connecting to the buffer partition" (20.7), so the operating
-            state follows the connection, not this command.  The modes
-            are not acted on. */
+            state follows the connection, not this command. */
+         if((cd[0] & 0xFF) != MPEG_NOCHG8) PlayMode      = cd[0] & 0xFF;
+         if((cd[1] >> 8)   != MPEG_NOCHG8) TransferModeA = cd[1] >> 8;
+         if((cd[1] & 0xFF) != MPEG_NOCHG8) TransferModeV = cd[1] & 0xFF;
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
@@ -1076,9 +1086,15 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          if(!which)
          {
             if(Con[0].vidbufnum != MPEG_NUL_SEL && VState == MPEG_ASTV_STOP)
+            {
                VState = MPEG_ASTV_PRE1;
+               VPrepSectors = 0;
+            }
             if(Con[0].audbufnum != MPEG_NUL_SEL && AState == MPEG_ASTV_STOP)
+            {
                AState = MPEG_ASTV_PRE1;
+               APrepSectors = 0;
+            }
             UpdateActionStatus();
          }
 
@@ -1577,8 +1593,21 @@ static MDFN_HOT void ScanVideoStartCodes(const uint8_t *data, uint32_t len)
    {
       w = (w << 8) | data[i];
 
+      /* vbv_buffer_size: 10 bits, after 12 + 12 + 4 + 4 + 18 + 1 bits
+         of sequence header, in units of 16 kbit (11172-2, 2.4.2.3). */
+      if(SeqHdrFill < 8)
+      {
+         SeqHdr[SeqHdrFill++] = data[i];
+
+         if(SeqHdrFill == 8)
+            VBVBytes = ((((uint32_t)SeqHdr[6] & 0x1F) << 5) | (SeqHdr[7] >> 3)) * 2048;
+      }
+
       if((w & 0xFFFFFF00) != 0x00000100)
          continue;
+
+      if((w & 0xFF) == 0xB3)
+         SeqHdrFill = 0;
 
       switch(w & 0xFF)
       {
@@ -1593,16 +1622,72 @@ static MDFN_HOT void ScanVideoStartCodes(const uint8_t *data, uint32_t len)
    SCWindow = w;
 }
 
-/* Sectors reached the decoder for this stream: preparation is over. */
+/* A sector reached the decoder for this stream.  Two sectors end
+   preparation 1; audio then transfers, video waits in preparation 2 for
+   its start condition, checked in VideoTransfers(). */
 static void StreamFed(bool video)
 {
    uint8_t *st = video ? &VState : &AState;
+   uint8_t *n  = video ? &VPrepSectors : &APrepSectors;
 
-   if(*st == MPEG_ASTV_PRE1 || *st == MPEG_ASTV_PRE2)
-   {
+   if(*st == MPEG_ASTV_PRE1 && ++*n >= 2)
+      *st = video ? MPEG_ASTV_PRE2 : MPEG_ASTV_TRNS;
+
+   if(!video && *st == MPEG_ASTV_PRE2)
       *st = MPEG_ASTV_TRNS;
+
+   if(video && *st != MPEG_ASTV_TRNS && TransferModeV == 1
+      && (*st == MPEG_ASTV_PRE1 || *st == MPEG_ASTV_PRE2))
+      *st = MPEG_ASTV_TRNS;
+
+   if(!video && TransferModeA == 1 && *st == MPEG_ASTV_PRE1)
+      *st = MPEG_ASTV_TRNS;
+
+   UpdateActionStatus();
+}
+
+/* Whether video may decode.  A stream with no connection is decoded as
+   it comes, which is how sectors fed directly are handled. */
+static bool VideoTransfers(void)
+{
+   if(VState == MPEG_ASTV_PRE1)
+      return false;
+
+   if(VState == MPEG_ASTV_PRE2)
+   {
+      if(!VBVBytes || VFIFO.count < VBVBytes + MPEG_STD_EXTRA)
+         return false;
+
+      VState = MPEG_ASTV_TRNS;
       UpdateActionStatus();
    }
+
+   /* Synchronous playback starts audio with the first picture, so the
+      first picture waits for audio to be ready to start with it; a
+      connection that never delivers audio stops waiting after
+      MPEG_SYNC_WAIT picture periods. */
+   if(!VideoStarted && PlayMode == 0 && Con[0].audbufnum != MPEG_NUL_SEL
+      && AState != MPEG_ASTV_TRNS && SyncWait < MPEG_SYNC_WAIT)
+   {
+      SyncWait++;
+      return false;
+   }
+
+   return true;
+}
+
+/* Whether audio may decode: held until the first picture shows when
+   both streams play synchronously. */
+static bool AudioTransfers(void)
+{
+   if(AState == MPEG_ASTV_PRE1 || AState == MPEG_ASTV_PRE2)
+      return false;
+
+   if(PlayMode == 0 && Con[0].vidbufnum != MPEG_NUL_SEL && Con[0].audbufnum != MPEG_NUL_SEL
+      && !VideoStarted)
+      return false;
+
+   return true;
 }
 
 /* Natural end of the current stream: switch to the next connection if
@@ -1763,12 +1848,7 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode, uint8_t
                   VDropped += FIFO_Write(&VFIFO, pkt.data, (uint32_t)pkt.size);
 
                   if(pkt.pts != RMPEG1_PS_NO_PTS)
-                  {
                      VideoPTS = pkt.pts;
-
-                     if(FirstVideoPTS == RMPEG1_PS_NO_PTS)
-                        FirstVideoPTS = pkt.pts;
-                  }
 
                   saw_video = true;
 
@@ -1786,12 +1866,7 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode, uint8_t
                   ADropped += FIFO_Write(&AFIFO, pkt.data, (uint32_t)pkt.size);
 
                   if(pkt.pts != RMPEG1_PS_NO_PTS)
-                  {
                      AudioPTS = pkt.pts;
-
-                     if(FirstAudioPTS == RMPEG1_PS_NO_PTS)
-                        FirstAudioPTS = pkt.pts;
-                  }
 
                   saw_audio = true;
 
@@ -2140,7 +2215,6 @@ bool MPEG_GetAudioSample(uint16_t *out)
 
       ARing_RP = (ARing_RP + 1) % MPEG_ARING_FRAMES;
       ARing_Count--;
-      AudioPlayed++;
 
       ACurValid   = true;
       ARatePhase -= (1U << 16);
@@ -2177,7 +2251,7 @@ static void RunAudio(void)
 {
    uint8_t staging[4096];
 
-   if(!Audio || !AFIFO.count)
+   if(!Audio || !AFIFO.count || !AudioTransfers())
       return;
 
    while(ARing_Count < MPEG_ARING_HOLD)
@@ -2275,6 +2349,9 @@ bool MPEG_RunFrame(void)
          RaiseInt(MPEG_INT_VDERR);
       }
    }
+
+   if(!VideoTransfers())
+      return false;
 
    /* Push video ES until a picture pops out.  rmpeg1_video holds a
       window internally and reports a short write when it is full, which
@@ -2398,35 +2475,6 @@ bool MPEG_ConsumesPartition(uint8_t pnum)
    return false;
 }
 
-/* Whether the first picture may be shown yet; see FirstVideoPTS. */
-static bool VideoMayStart(void)
-{
-   if(VideoReleased)
-      return true;
-
-   /* Nothing to hold: no audio connected, or no timestamped video yet.
-      Neither latches, so the hold still applies once both exist. */
-   if(Con[0].audbufnum == MPEG_NUL_SEL || FirstVideoPTS == RMPEG1_PS_NO_PTS)
-      return true;
-
-   if(++SyncWait > MPEG_SYNC_WAIT)
-   {
-      VideoReleased = true;
-      return true;
-   }
-
-   if(FirstAudioPTS == RMPEG1_PS_NO_PTS || !AudioRate)
-      return false;
-
-   /* 33-bit timestamps: compare the distance, so a stream whose
-      timestamps wrap between the two first packets still starts. */
-   if(((FirstAudioPTS + AudioPlayed * 90000 / AudioRate - FirstVideoPTS)
-       & 0x1FFFFFFFFULL) < 0x100000000ULL)
-      VideoReleased = true;
-
-   return VideoReleased;
-}
-
 void MPEG_Update(int64_t clocks)
 {
    int64_t period;
@@ -2498,11 +2546,7 @@ void MPEG_Update(int64_t clocks)
          PauseCount = 0;
       }
 
-      /* Audio keeps decoding while the first picture waits for it. */
-      if(VideoMayStart())
-         MPEG_RunFrame();
-      else
-         RunAudio();
+      MPEG_RunFrame();
    }
 }
 
@@ -2649,10 +2693,14 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(FrameRateDen),
 
       SFVAR(VideoPTS),
-      SFVAR(FirstVideoPTS),
-      SFVAR(FirstAudioPTS),
-      SFVAR(AudioPlayed),
-      SFVAR(VideoReleased),
+      SFVAR(PlayMode),
+      SFVAR(TransferModeA),
+      SFVAR(TransferModeV),
+      SFVAR(VPrepSectors),
+      SFVAR(APrepSectors),
+      SFVAR(VBVBytes),
+      SFVAR(SeqHdr),
+      SFVAR(SeqHdrFill),
       SFVAR(SyncWait),
       SFVAR(AudioPTS),
       SFVAR(LastSCR),
