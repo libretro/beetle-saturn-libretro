@@ -191,6 +191,20 @@ static MPEG_Stream      Stm[2];   /* [0] = current, [1] = next */
 
 /* Fields the card echoes back in every MPEG status report. */
 static uint8_t  ActionStatus;
+
+/*
+   Transfer block operating state of each stream, CDC_MPASTV_* for video
+   and the same values shifted down for audio (SBL CD communication I/F,
+   MPEG part, 5.1.2, Table 5.1).  Registering a current connection takes
+   a stopped stream to preparation; sectors reaching the decoder take it
+   to transfer; a forced termination, a natural end with no next
+   connection, or MpInit take it back to stop.  The preparation
+   thresholds (two sectors, then STD buffer + 16 KiB for video) and the
+   restoration state are not modelled: the first sector taken moves a
+   stream to transfer.
+*/
+static uint8_t  VState;
+static uint8_t  AState;
 static uint16_t VCounter;
 static uint8_t  PictureInfo;
 static uint8_t  AudioStatus;
@@ -658,6 +672,8 @@ void MPEG_Reset(bool powering_up)
       Stm[i].vidchannum = 0x00;
    }
 
+   VState       = MPEG_ASTV_STOP;
+   AState       = MPEG_ASTV_STOP;
    ActionStatus = MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP;
    VCounter     = 0;
    PictureInfo  = 0;
@@ -845,6 +861,12 @@ uint16_t MPEG_TakePendingHIRQ(void)
 
 static void ApplyGain(void);
 
+static void UpdateActionStatus(void)
+{
+   ActionStatus = VState | (AState << 4)
+                | ((VState == MPEG_ASTV_STOP) ? MPEG_ASTD_STOP : 0);
+}
+
 static void MPEGReport(uint8_t base_status, uint16_t out[4])
 {
    out[0] = ((uint16_t)base_status << 8) | ActionStatus;
@@ -918,7 +940,9 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          FIFO_Clear(&VFIFO);
          FIFO_Clear(&AFIFO);
 
-         ActionStatus = MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP;
+         VState       = MPEG_ASTV_STOP;
+         AState       = MPEG_ASTV_STOP;
+         UpdateActionStatus();
          PictureInfo  = 0;
          AudioStatus  = MPEG_STA_BEMPTY;
          VideoStatus  = MPEG_STV_BEMPTY;
@@ -988,11 +1012,11 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
       break;
 
       case MPEG_CMD_PLAY:
-         /* Video and audio both move to the transferring state.  The
-            play mode in CR1/CR2 and the start offset in CR3/CR4 are not
-            acted on: the decoders are already fed by whatever the CD
-            block routes, and nothing here seeks. */
-         ActionStatus = MPEG_ASTV_TRNS | MPEG_ASTA_TRNS;
+         /* CDC_MpPlay sets the playback and transfer modes.  It does not
+            start anything: "The MPEG decoder starts decoding by
+            connecting to the buffer partition" (20.7), so the operating
+            state follows the connection, not this command.  The modes
+            are not acted on. */
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
@@ -1047,6 +1071,16 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          Con[which].vidcon    = cd[2] & 0xFF;
          Con[which].vidlay    = cd[3] >> 8;
          Con[which].vidbufnum = cd[3] & 0xFF;
+
+         /* Registering the current stream starts preparation. */
+         if(!which)
+         {
+            if(Con[0].vidbufnum != MPEG_NUL_SEL && VState == MPEG_ASTV_STOP)
+               VState = MPEG_ASTV_PRE1;
+            if(Con[0].audbufnum != MPEG_NUL_SEL && AState == MPEG_ASTV_STOP)
+               AState = MPEG_ASTV_PRE1;
+            UpdateActionStatus();
+         }
 
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
@@ -1318,6 +1352,8 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          const uint8_t clr_a = cd[2] >> 8;
          const uint8_t clr_v = cd[2] & 0xFF;
 
+         /* Each flag is COF_ABT (end the stream), COF_CHG (switch to
+            the next connection) or CDC_PARA_NOCHG (leave it alone). */
          if(chg_a == MPEG_COF_CHG)
          {
             Con[0].audcon    = Con[1].audcon;
@@ -1329,8 +1365,11 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
 
             RaiseInt(MPEG_INT_ASCHG);
          }
-         else
-            Con[0].audbufnum = MPEG_NUL_SEL;   /* MPEG_COF_ABT */
+         else if(chg_a == MPEG_COF_ABT)
+         {
+            Con[0].audbufnum = MPEG_NUL_SEL;
+            AState = MPEG_ASTV_STOP;
+         }
 
          if(chg_v == MPEG_COF_CHG)
          {
@@ -1343,8 +1382,20 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
 
             RaiseInt(MPEG_INT_VSCHG);
          }
-         else
+         else if(chg_v == MPEG_COF_ABT)
+         {
             Con[0].vidbufnum = MPEG_NUL_SEL;
+            VState = MPEG_ASTV_STOP;
+         }
+
+         /* A stopped stream switched onto a registered connection is
+            registered again. */
+         if(chg_a == MPEG_COF_CHG && Con[0].audbufnum != MPEG_NUL_SEL && AState == MPEG_ASTV_STOP)
+            AState = MPEG_ASTV_PRE1;
+         if(chg_v == MPEG_COF_CHG && Con[0].vidbufnum != MPEG_NUL_SEL && VState == MPEG_ASTV_STOP)
+            VState = MPEG_ASTV_PRE1;
+
+         UpdateActionStatus();
 
          if(clr_a == MPEG_CLA_ON)
          {
@@ -1542,11 +1593,93 @@ static MDFN_HOT void ScanVideoStartCodes(const uint8_t *data, uint32_t len)
    SCWindow = w;
 }
 
-void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
+/* Sectors reached the decoder for this stream: preparation is over. */
+static void StreamFed(bool video)
+{
+   uint8_t *st = video ? &VState : &AState;
+
+   if(*st == MPEG_ASTV_PRE1 || *st == MPEG_ASTV_PRE2)
+   {
+      *st = MPEG_ASTV_TRNS;
+      UpdateActionStatus();
+   }
+}
+
+/* Natural end of the current stream: switch to the next connection if
+   one is registered, otherwise stop (Table 5.1). */
+static void StreamEnd(bool video)
+{
+   if(video)
+   {
+      if(Con[0].vidbufnum == MPEG_NUL_SEL)
+         return;
+
+      if(Con[1].vidbufnum != MPEG_NUL_SEL)
+      {
+         Con[0].vidcon     = Con[1].vidcon;
+         Con[0].vidlay     = Con[1].vidlay;
+         Con[0].vidbufnum  = Con[1].vidbufnum;
+         Stm[0].vidstm     = Stm[1].vidstm;
+         Stm[0].vidstmid   = Stm[1].vidstmid;
+         Stm[0].vidchannum = Stm[1].vidchannum;
+         RaiseInt(MPEG_INT_VSCHG);
+      }
+      else
+      {
+         Con[0].vidbufnum = MPEG_NUL_SEL;
+         VState = MPEG_ASTV_STOP;
+      }
+   }
+   else
+   {
+      if(Con[0].audbufnum == MPEG_NUL_SEL)
+         return;
+
+      if(Con[1].audbufnum != MPEG_NUL_SEL)
+      {
+         Con[0].audcon     = Con[1].audcon;
+         Con[0].audlay     = Con[1].audlay;
+         Con[0].audbufnum  = Con[1].audbufnum;
+         Stm[0].audstm     = Stm[1].audstm;
+         Stm[0].audstmid   = Stm[1].audstmid;
+         Stm[0].audchannum = Stm[1].audchannum;
+         RaiseInt(MPEG_INT_ASCHG);
+      }
+      else
+      {
+         Con[0].audbufnum = MPEG_NUL_SEL;
+         AState = MPEG_ASTV_STOP;
+      }
+   }
+
+   UpdateActionStatus();
+}
+
+/* ISO/IEC 11172-1 system end code, 000001B9h, anywhere in a sector. */
+static bool HasSystemEndCode(const uint8_t *data, uint32_t len)
+{
+   uint32_t i;
+
+   for(i = 0; i + 3 < len; i++)
+   {
+      if(data[i] == 0x00 && data[i + 1] == 0x00 && data[i + 2] == 0x01 && data[i + 3] == 0xB9)
+         return true;
+   }
+
+   return false;
+}
+
+void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode, uint8_t pnum)
 {
    rmpeg1_ps_packet_t pkt;
    bool saw_video = false;
    bool saw_audio = false;
+   const uint8_t *data_start = data;
+   const uint32_t len_start  = len;
+   /* The streams this sector belongs to: those connected to the
+      partition it came from, or both when the caller does not say. */
+   const bool for_video = (pnum == MPEG_NUL_SEL) || (Con[0].vidbufnum == pnum);
+   const bool for_audio = (pnum == MPEG_NUL_SEL) || (Con[0].audbufnum == pnum);
 
    if(!Present || !Demux || !data || !len)
       return;
@@ -1573,8 +1706,15 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
          RaiseInt(MPEG_INT_VSRDY);
       }
 
+      StreamFed(true);
+
       if(submode & 0x10) RaiseInt(MPEG_INT_VTRG);
-      if(submode & 0x01) RaiseInt(MPEG_INT_VEOR);
+      if(submode & 0x01)
+      {
+         RaiseInt(MPEG_INT_VEOR);
+         if(Con[0].vidcon & MPEG_CMOD_EOR)
+            StreamEnd(true);
+      }
       return;
    }
 
@@ -1589,8 +1729,15 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
          RaiseInt(MPEG_INT_ASRDY);
       }
 
+      StreamFed(false);
+
       if(submode & 0x10) RaiseInt(MPEG_INT_ATRG);
-      if(submode & 0x01) RaiseInt(MPEG_INT_AEOR);
+      if(submode & 0x01)
+      {
+         RaiseInt(MPEG_INT_AEOR);
+         if(Con[0].audcon & MPEG_CMOD_EOR)
+            StreamEnd(false);
+      }
       return;
    }
 
@@ -1688,6 +1835,22 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
    {
       if(saw_video) RaiseInt(MPEG_INT_VEOR);
       if(saw_audio) RaiseInt(MPEG_INT_AEOR);
+   }
+
+   if(saw_video) StreamFed(true);
+   if(saw_audio) StreamFed(false);
+
+   /* End conditions of the connection, CdcMpCon.cmod: the EOR bit of
+      the sector, or the system end code in the stream. */
+   {
+      const bool sec = HasSystemEndCode(data_start, len_start);
+      const bool eor = (submode & 0x01) != 0;
+
+      if(for_video && ((eor && (Con[0].vidcon & MPEG_CMOD_EOR)) || (sec && (Con[0].vidcon & MPEG_CMOD_SEC))))
+         StreamEnd(true);
+
+      if(for_audio && ((eor && (Con[0].audcon & MPEG_CMOD_EOR)) || (sec && (Con[0].audcon & MPEG_CMOD_SEC))))
+         StreamEnd(false);
    }
 
    /* SQEND comes from the video sequence_end_code, which the scanner
@@ -2421,6 +2584,8 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(Stm->vidchannum, 2, sizeof(*Stm), Stm),
 
       SFVAR(ActionStatus),
+      SFVAR(VState),
+      SFVAR(AState),
       SFVAR(VCounter),
       SFVAR(PictureInfo),
       SFVAR(AudioStatus),

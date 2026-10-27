@@ -342,12 +342,17 @@ int main(void)
 
    /* --- 8. SET_MODE 0xFF-means-keep semantics --------------------- */
    printf("[mode]\n");
-   Cmd(MPEG_CMD_SET_MODE, 0x0003, 0x0102, 0x0400, 0);
-   Cmd(MPEG_CMD_SET_MODE, 0x00FF, 0xFFFF, 0xFF00, 0);
-   /* No getter is exposed; the check is that the command is claimed and
-      reports normally rather than clobbering to 0xFF and wedging. */
-   expect_eq("SET_MODE report", Out[0],
-             0x0100 | MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP);
+   Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+   {
+      const uint16_t before = Out[0];
+
+      Cmd(MPEG_CMD_SET_MODE, 0x0003, 0x0102, 0x0400, 0);
+      Cmd(MPEG_CMD_SET_MODE, 0x00FF, 0xFFFF, 0xFF00, 0);
+      /* No getter is exposed; the check is that the command is claimed
+         and reports normally rather than clobbering to 0xFF and
+         wedging. */
+      expect_eq("SET_MODE report", Out[0], before);
+   }
 
    /* --- 9. Unimplemented in-range opcodes are benign no-ops ------- */
    printf("[unimplemented opcodes]\n");
@@ -391,7 +396,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00, 0xFF);
       }
 
       vfill = MPEG_GetESFill(true);
@@ -413,7 +418,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00, 0xFF);
       }
 
       expect_eq("unselected video stream dropped", MPEG_GetESFill(true), 0);
@@ -428,7 +433,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00, 0xFF);
       }
 
       expect_eq("bare index selects stream 0", MPEG_GetESFill(true), PS_VIDEO_BYTES);
@@ -437,7 +442,7 @@ int main(void)
          must resynchronise rather than deadlock or mis-slice. */
       MPEG_Reset(true);
       Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
-      MPEG_FeedSector(ps + 37, (uint32_t)(len - 37), 0x00);
+      MPEG_FeedSector(ps + 37, (uint32_t)(len - 37), 0x00, 0xFF);
       expect_true("resynced mid-stream", MPEG_GetESFill(true) > 0);
 
       /* Garbage must not fault and must not be mistaken for a stream. */
@@ -445,17 +450,17 @@ int main(void)
       Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
       memset(sec, 0xA5, sizeof(sec));
       for(i = 0; i < 64; i++)
-         MPEG_FeedSector(sec, sizeof(sec), 0x00);
+         MPEG_FeedSector(sec, sizeof(sec), 0x00, 0xFF);
       expect_eq("garbage yields no video ES", MPEG_GetESFill(true), 0);
       expect_eq("garbage yields no audio ES", MPEG_GetESFill(false), 0);
 
       /* Overrun: feed the fixture until the ES FIFOs are saturated.
          Writes must clamp, never wrap past the end. */
       for(i = 0; i < 400; i++)
-         MPEG_FeedSector(ps, (uint32_t)(len > 2324 ? 2324 : len), 0x00);
+         MPEG_FeedSector(ps, (uint32_t)(len > 2324 ? 2324 : len), 0x00, 0xFF);
 
-      MPEG_FeedSector(NULL, 0, 0x00);
-      MPEG_FeedSector(sec, 0, 0x00);
+      MPEG_FeedSector(NULL, 0, 0x00, 0xFF);
+      MPEG_FeedSector(sec, 0, 0x00, 0xFF);
 
       expect_true("no frame yet", MPEG_RunFrame() == false);
       expect_true("no frame buffer yet", MPEG_GetFrame(NULL, NULL) == NULL);
@@ -493,7 +498,7 @@ int main(void)
             int16_t pcm[4096 * 2];
             uint32_t n;
 
-            MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+            MPEG_FeedSector(sec, (uint32_t)got, 0x00, 0xFF);
             MPEG_Update(sector_period);
 
             while((n = MPEG_ReadAudio(pcm, 4096)) > 0)
@@ -677,7 +682,7 @@ int main(void)
             /* Enough sectors to get well past the first audio frame. */
             for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
             {
-               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00, 0xFF);
                MPEG_RunFrame();
             }
 
@@ -738,7 +743,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00, 0xFF);
       }
 
       expect_eq("system layer demuxes video", MPEG_GetESFill(true),  PS_VIDEO_BYTES);
@@ -754,7 +759,7 @@ int main(void)
                                    0x0000, 0x0100 | 0x0007);
 
       memset(raw, 0x5A, sizeof(raw));
-      MPEG_FeedSector(raw, sizeof(raw), 0x00);
+      MPEG_FeedSector(raw, sizeof(raw), 0x00, 0xFF);
 
       expect_eq("video layer bypasses demux", MPEG_GetESFill(true), sizeof(raw));
       expect_eq("nothing leaked to audio",    MPEG_GetESFill(false), 0);
@@ -769,7 +774,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00, 0xFF);
       }
 
       expect_eq("search bits do not select ES layer",
@@ -799,7 +804,7 @@ int main(void)
 
             for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
             {
-               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00, 0xFF);
                MPEG_RunFrame();
             }
 
@@ -834,7 +839,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00, 0xFF);
       }
 
       /* CDC_MpGetPts returns the audio PTS as one 32-bit value across
@@ -868,7 +873,7 @@ int main(void)
          *p++ = 0x80; *p++ = 0x00; *p++ = 0x01;
          p = put_packet(p, 0xE0, pts, 64, 0x11);
 
-         MPEG_FeedSector(ps2, (uint32_t)(p - ps2), 0x00);
+         MPEG_FeedSector(ps2, (uint32_t)(p - ps2), 0x00, 0xFF);
 
          Cmd(MPEG_CMD_GET_TIMECODE, 0, 0, 0, 0);
          expect_eq("hour 1",    Out[2] >> 8,   1);
@@ -964,7 +969,7 @@ int main(void)
          Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
 
          for(i = 0; i + 2324 <= len && i < 2324 * 60; i += 2324)
-            MPEG_FeedSector(buf + i, 2324, 0x00);
+            MPEG_FeedSector(buf + i, 2324, 0x00, 0xFF);
 
          frames = 0;
          for(i = 0; i < 20; i++)
@@ -1033,7 +1038,7 @@ int main(void)
 
             for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
             {
-               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00, 0xFF);
                MPEG_RunFrame();
 
                /* The card stops decoding audio while its ring is full,
@@ -1129,7 +1134,7 @@ int main(void)
 
             for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
             {
-               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00, 0xFF);
                MPEG_RunFrame();
             }
             fclose(fp);
@@ -1182,7 +1187,7 @@ int main(void)
 
                for(i = 0; i + 2324 <= plen; i += 2324)
                {
-                  MPEG_FeedSector(prefix + i, 2324, 0x00);
+                  MPEG_FeedSector(prefix + i, 2324, 0x00, 0xFF);
                   MPEG_RunFrame();
                }
 
@@ -1263,7 +1268,7 @@ int main(void)
             Cmd(MPEG_CMD_SET_MODE, 0x00FF, (MPEG_DEC_HOST << 8) | 0x00FF, 0xFF00, 0);
 
             for(i = 0; i < 64 && (got = fread(sec, 1, sizeof(sec), fp)) > 0; i++)
-               MPEG_FeedSector(sec, (uint32_t)got, 0x00);
+               MPEG_FeedSector(sec, (uint32_t)got, 0x00, 0xFF);
             fclose(fp);
 
             for(i = 0; i < 30; i++)
@@ -1353,7 +1358,7 @@ int main(void)
       Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
       Cmd(MPEG_CMD_SET_INT_MASK, 0x00FF, 0xFFFF, 0, 0);
 
-      MPEG_FeedSector(ps, (uint32_t)(p - ps), 0x00);
+      MPEG_FeedSector(ps, (uint32_t)(p - ps), 0x00, 0xFF);
 
       Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
       pend = ((uint32_t)(Out[0] & 0xFF) << 16) | Out[1];
@@ -1375,8 +1380,8 @@ int main(void)
          static const uint8_t half1[] = { 0x11, 0x22, 0x00, 0x00 };
          static const uint8_t half2[] = { 0x01, 0xB8, 0x33 };
 
-         MPEG_FeedSector(half1, sizeof(half1), 0x00);
-         MPEG_FeedSector(half2, sizeof(half2), 0x00);
+         MPEG_FeedSector(half1, sizeof(half1), 0x00, 0xFF);
+         MPEG_FeedSector(half2, sizeof(half2), 0x00, 0xFF);
       }
 
       Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
@@ -1396,7 +1401,7 @@ int main(void)
          for(i = 0; i < sizeof(junk); i++)
             junk[i] = (uint8_t)(i | 0x40);
 
-         MPEG_FeedSector(junk, sizeof(junk), 0x00);
+         MPEG_FeedSector(junk, sizeof(junk), 0x00, 0xFF);
       }
 
       Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
@@ -1558,7 +1563,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00, 0xFF);
       }
 
       Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
@@ -1579,7 +1584,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00);
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x00, 0xFF);
       }
 
       expect_true("MPST owed after factors set",
@@ -1613,7 +1618,7 @@ int main(void)
          size_t chunk = len - i;
          if(chunk > 2324)
             chunk = 2324;
-         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x11);  /* trigger | EOR */
+         MPEG_FeedSector(ps + i, (uint32_t)chunk, 0x11, 0xFF);  /* trigger | EOR */
       }
 
       Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
@@ -1628,7 +1633,7 @@ int main(void)
       MPEG_Reset(true);
       Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
       Cmd(MPEG_CMD_SET_INT_MASK, 0x00FF, 0xFFFF, 0, 0);
-      MPEG_FeedSector(ps, (uint32_t)(len > 2324 ? 2324 : len), 0x00);
+      MPEG_FeedSector(ps, (uint32_t)(len > 2324 ? 2324 : len), 0x00, 0xFF);
 
       Cmd(MPEG_CMD_GET_INTERRUPT, 0, 0, 0, 0);
       pend = ((uint32_t)(Out[0] & 0xFF) << 16) | Out[1];
@@ -1649,10 +1654,57 @@ int main(void)
       expect_eq("video buffer empty after INIT", Out[3], MPEG_STV_BEMPTY);
       expect_eq("audio buffer empty after INIT", Out[2] & 0xFF, MPEG_STA_BEMPTY);
 
+      /* PLAY sets modes only; the connection drives the state. */
       Cmd(MPEG_CMD_PLAY, 0, 0, 0, 0);
       Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
-      expect_eq("playing action status after PLAY",
-                Out[0] & 0xFF, MPEG_ASTV_TRNS | MPEG_ASTA_TRNS);
+      expect_eq("PLAY alone leaves the streams stopped",
+                Out[0] & 0xFF, MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP);
+
+      /* Current connection: audio from partition 1, video from 0, any
+         stream ID, on a demultiplexer that holds nothing from the
+         streams fed above. */
+      MPEG_Reset(false);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0006, 0x0001, 0x0026, 0x0000);
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      expect_eq("registration starts preparation",
+                Out[0] & 0xFF, MPEG_ASTV_PRE1 | MPEG_ASTA_PRE1);
+
+      /* A pack header with no packets still counts as a sector taken
+         by neither stream; a video packet moves video to transfer. */
+      {
+         static const uint8_t vpkt[] =
+         {
+            0x00, 0x00, 0x01, 0xBA, 0x21, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0x01,
+            0x00, 0x00, 0x01, 0xE0, 0x00, 0x08, 0x0F,
+            0x00, 0x00, 0x01, 0xB3, 0x16, 0x00, 0xF0,
+            0x00, 0x00, 0x01, 0xBA, 0x21, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0x01
+         };
+
+         MPEG_FeedSector(vpkt, sizeof(vpkt), 0x00, 0x00);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_eq("video sector moves video to transfer",
+                   Out[0] & 0xFF, MPEG_ASTV_TRNS | MPEG_ASTA_PRE1);
+      }
+
+      /* CDC_PARA_NOCHG leaves a stream alone; COF_ABT stops it. */
+      Cmd(MPEG_CMD_CHANGE_CONN, 0, 0xFF00, 0xFFFF, 0);
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      expect_eq("abort video, keep audio",
+                Out[0] & 0xFF, MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_PRE1);
+      Cmd(MPEG_CMD_GET_CONNECTION, 0, 0, 0, 0);
+      expect_eq("aborted video connection is cleared", Out[3] & 0xFF, MPEG_NUL_SEL);
+      expect_eq("kept audio connection", Out[1] & 0xFF, 0x01);
+
+      /* A system end code ends a stream whose cmod asks for it. */
+      {
+         static const uint8_t endcode[] = { 0x00, 0x00, 0x01, 0xB9 };
+
+         MPEG_FeedSector(endcode, sizeof(endcode), 0x00, 0x01);
+         Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+         expect_eq("system end code stops audio",
+                   Out[0] & 0xFF, MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP);
+      }
    }
 
    /* --- 17. Double init must not leak ----------------------------- */

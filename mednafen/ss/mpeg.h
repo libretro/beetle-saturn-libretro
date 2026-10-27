@@ -482,8 +482,13 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
    block's, so there is deliberately no video/audio selector here.
    Demultiplexing and substream selection happen inside, driven by the
    stream IDs that SET_STREAM configured.
+
+   pnum is the buffer partition the sector was taken from, which says
+   which connection's end conditions it is tested against;
+   MPEG_NUL_SEL tests both.
 */
-void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode) MDFN_HOT;
+void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode,
+                     uint8_t pnum) MDFN_HOT;
 
 /*
    HIRQ bits the card has accumulated since the last call, cleared by

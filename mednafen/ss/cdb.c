@@ -1581,7 +1581,7 @@ static bool TestFilterCond(const unsigned fnum, const uint8_t* data)
 // The card takes the raw payload: on a Video CD the program stream is
 // the concatenation of the Mode 2 Form 2 payloads, and splitting it is
 // the card's job.
-static void MPEG_FeedBuffer(const uint8_t bfsidx)
+static void MPEG_FeedBuffer(const uint8_t bfsidx, const uint8_t pnum)
 {
  const uint8_t* sd = Buffers[bfsidx].Data;
  uint32_t offs, len;
@@ -1599,7 +1599,7 @@ static void MPEG_FeedBuffer(const uint8_t bfsidx)
 
  // Submode byte of the Mode 2 subheader carries the trigger and
  // end-of-record flags the card reports as interrupt factors.
- MPEG_FeedSector(sd + offs, len, (sd[15] == 0x2) ? sd[16 + 2] : 0x00);
+ MPEG_FeedSector(sd + offs, len, (sd[15] == 0x2) ? sd[16 + 2] : 0x00, pnum);
 }
 
 // Hand the card the sectors waiting in the partitions it deletes from,
@@ -1616,7 +1616,7 @@ static void MPEG_Pull(void)
   {
    const uint8_t bfsidx = Partitions[pnum].FirstBuf;
 
-   MPEG_FeedBuffer(bfsidx);
+   MPEG_FeedBuffer(bfsidx, pnum);
    Partition_UnlinkBuffer(pnum, bfsidx);
    Buffer_Free(bfsidx);
   }
@@ -1644,7 +1644,7 @@ static uint8_t FilterBuf(const unsigned fnum, const unsigned bfsidx)
    // the partition, and MPEG_Pull() hands it over when the card has
    // room.  One that does not delete reads a copy as it arrives.
    if(tconn != 0xFF && MPEG_WantsPartition(tconn) && !MPEG_ConsumesPartition(tconn))
-    MPEG_FeedBuffer(bfsidx);
+    MPEG_FeedBuffer(bfsidx, tconn);
 
    if(tconn != 0xFF)
    {
