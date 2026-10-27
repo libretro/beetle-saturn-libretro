@@ -868,6 +868,7 @@ uint16_t MPEG_TakePendingHIRQ(void)
 }
 
 static void ApplyGain(void);
+static void RunAudio(void);
 
 static void UpdateActionStatus(void)
 {
@@ -2198,6 +2199,13 @@ bool MPEG_GetAudioSample(uint16_t *out)
       return false;
 
    ARatePhase += ARateStep;
+
+   /* Refill as the ring runs dry rather than only once per picture
+      period: one Layer II frame is 1152 samples and a picture period
+      at 29.97 Hz is 1471, so a stream that has just started, with one
+      frame decoded, would otherwise run dry before the next period. */
+   if(ARatePhase >= (1U << 16) && !ARing_Count && AFIFO.count)
+      RunAudio();
 
    while(ARatePhase >= (1U << 16))
    {
