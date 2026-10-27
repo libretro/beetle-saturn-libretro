@@ -2801,12 +2801,11 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     {
      uint8_t fnum;
 
-     // CR2 == 0x0001 authenticates the MPEG card rather than the disc.
-     // It is unambiguous: a partition-0 disc auth uses CR2 == 0x0000,
-     // and every other partition puts its number in the high byte.
+     // CR2 names the device: 0x0000 the disc, 0x0001 the MPEG card.
+     // The filter number of a disc authentication is the high byte of CR3.
      fnum = (CTR.CD[2] >> 8);
 
-     if(CTR.CD[2] == 0x0001)
+     if(CTR.CD[1] == 0x0001)
      {
       MPEG_Auth();
       CDStatusResults(false, 0);
@@ -2842,7 +2841,7 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_AUTH)
     {
-     if(CTR.CD[2])
+     if(CTR.CD[1])
       BasicResults(MakeBaseStatus(false, 0) << 8, MPEG_GetAuth(), 0, 0);
      else if(FLS.Active && FLS.DoAuth)
       CDStatusResults(true, 0);
