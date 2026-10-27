@@ -41,6 +41,7 @@
 #include "../general.h"
 #include "../cdrom/cdromif.h"
 #include "../cdstream.h"
+#include "../save_writer.h"
 #include "../hash/sha256.h"
 #include "ss.h"
 
@@ -2143,6 +2144,8 @@ void MDFN_COLD CloseGame(void)
  SS_SaveBackupRAM();
  SS_SaveCartNV();
  SS_SaveRTC();
+ /* every save on its disk before the game's memory goes */
+ save_writer_stop();
 
  Cleanup();
 }
@@ -2161,10 +2164,15 @@ const uint8_t BRAM_Init_Data[0x10] = {
  0x6d, 0x20, 0x46, 0x6f, 0x72, 0x6d, 0x61, 0x74
 };
 
+/* A write handed over that failed, found on a later call: the flush
+ * reports it, so the frame loop tries again. */
+static bool BackupRAM_SaveFailed;
+static bool CartNV_SaveFailed;
+
 void SS_SaveBackupRAM(void)
 {
- char fpath[4096];
- cdstream brs;
+ char        fpath[4096];
+ save_job_t *job;
 
  /* Libretro save mode: the frontend persists BackupRAM as .srm, so the
   * core must not also write .bkr. This single guard covers every writer
@@ -2173,21 +2181,14 @@ void SS_SaveBackupRAM(void)
  if (!use_mednafen_save_method)
   return;
 
- if(!cdstream_open_write(&brs, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr")))
+ /* A snapshot of it, written to the file on the save writer's thread. */
+ if(!(job = save_job_new(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_SAV, 0, "bkr"), sizeof(BackupRAM))))
+ {
+  BackupRAM_SaveFailed = true;
   return;
-
- /* Pre-fix the write was unchecked; a partial 32 KiB write
-  * (disk full, quota exceeded, network share flake) would leave
-  * a truncated .bkr file the user thinks succeeded.  Subsequent
-  * SS_LoadBackupRAM detects this via the size mismatch and
-  * falls back to BRAM_Init_Data (the unformatted-cart pattern),
-  * but at that point the user's saves are already gone -- the
-  * truncated file overwrote the previous good one.  Log so the
-  * user sees there's a problem before they trust the new save. */
- if(cdstream_write(&brs, BackupRAM, sizeof(BackupRAM)) != sizeof(BackupRAM))
-  log_cb(RETRO_LOG_ERROR, "BackupRAM save (\"%s\"): short write (disk full or I/O error).\n", fpath);
-
- cdstream_close(&brs);
+ }
+ memcpy(save_job_data(job), BackupRAM, sizeof(BackupRAM));
+ save_writer_submit(job, &BackupRAM_SaveFailed);
 }
 
 /* Input-routing wrapper -- mirrors upstream Mednafen's TU-static
@@ -2382,37 +2383,22 @@ void SS_SaveCartNV(void)
 
    if(ext)
    {
-      cdstream nvs;
-      bool     ok = true;
-      if(!cdstream_open_write(&nvs, MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, ext)))
-         return;
+      /* A snapshot of it, big-endian words for a 16-bit one, written to
+       * the file on the save writer's thread. */
+      save_job_t *job = (nv_size <= (uint64_t)((size_t)-1) / 2)
+         ? save_job_new(MDFN_MakeFName(fpath, sizeof(fpath), MDFNMKF_CART, 0, ext), (size_t)nv_size)
+         : NULL;
 
-      if(nv16)
+      if(!job)
       {
-         uint64_t i;
-         /* nv_ptr is host-endian uint16s; cdstream_write_be_u16
-          * takes host-endian and emits big-endian bytes.  Just a
-          * misalignment-safe 2-byte load.  Break out on the first
-          * short write -- continuing would just produce more 0s
-          * in the truncated file. */
-         for(i = 0; i < nv_size; i += 2)
-         {
-            uint16_t v;
-            memcpy(&v, (uint8_t*)nv_ptr + i, 2);
-            if(cdstream_write_be_u16(&nvs, v) != 2)
-            {
-               ok = false;
-               break;
-            }
-         }
+         CartNV_SaveFailed = true;
+         return;
       }
+      if(nv16)
+         save_job_fill_be16(job, nv_ptr, (size_t)nv_size);
       else
-         ok = (cdstream_write(&nvs, nv_ptr, nv_size) == nv_size);
-
-      cdstream_close(&nvs);
-
-      if(!ok)
-         log_cb(RETRO_LOG_ERROR, "Cart NV save (\"%s\"): short write (disk full or I/O error).\n", fpath);
+         memcpy(save_job_data(job), nv_ptr, (size_t)nv_size);
+      save_writer_submit(job, &CartNV_SaveFailed);
    }
 }
 
@@ -2458,14 +2444,18 @@ void SS_LoadRTC(void)
  */
 bool SS_FlushBackupRAM(void)
 {
+ const bool failed = BackupRAM_SaveFailed;
+ BackupRAM_SaveFailed = false;
  SS_SaveBackupRAM();
- return true;
+ return !failed;
 }
 
 bool SS_FlushCartNV(void)
 {
+ const bool failed = CartNV_SaveFailed;
+ CartNV_SaveFailed = false;
  SS_SaveCartNV();
- return true;
+ return !failed;
 }
 
 /* ===================================================================
