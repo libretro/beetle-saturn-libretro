@@ -3,7 +3,11 @@
 #
 #   sh tools/mapped_readahead_test.sh            Linux, ASan + UBSan, leaks on
 #   MINGW=1 sh tools/mapped_readahead_test.sh    also mingw-w64 under Wine,
-#                                                in each RETRO_VFS_PREFETCH mode
+#                                                in each RETRO_VFS_PREFETCH mode,
+#                                                and with a slow stand-in for
+#                                                PrefetchVirtualMemory: no read
+#                                                waits for it, it is never on
+#                                                the reading thread
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
@@ -33,4 +37,10 @@ if [ -n "$MINGW" ]; then
       ( cd "$WORK" && RETRO_VFS_PREFETCH=$m WINEDEBUG=-all \
          timeout 120 wine ./t.exe )
    done
+   # PrefetchVirtualMemory a stand-in that sleeps like a cold disk: the
+   # reads never wait for it, and it never runs on the reader's thread
+   x86_64-w64-mingw32-gcc $FLAGS -o "$WORK/t_hook.exe" $SRC $WRAP -static \
+      -DVFS_WIN32_PREFETCH_HOOK=saturn_prefetch_hook \
+      -include tools/mapped_readahead_hook.h
+   ( cd "$WORK" && WINEDEBUG=-all timeout 120 wine ./t_hook.exe )
 fi
