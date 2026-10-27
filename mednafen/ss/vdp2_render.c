@@ -2314,19 +2314,7 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
          }
 
          {
-            uint32_t c = SampleEXBG(src, lsrc, sx, sy, fw, fh, ds);
-
-            /* Fade is a straight scale on the way out, which is what
-               MPEG_SET_FADE describes; 0xFF is unity and is the common
-               case, so keep it off the multiply path. */
-            if(ds->fade != 0xFF)
-            {
-               const uint32_t r = ((c & 0x0000FF) * ds->fade) >> 8;
-               const uint32_t g = (((c >> 8) & 0xFF) * ds->fade) >> 8;
-               const uint32_t b = (((c >> 16) & 0xFF) * ds->fade) >> 8;
-
-               c = r | (g << 8) | (b << 16);
-            }
+            const uint32_t c = SampleEXBG(src, lsrc, sx, sy, fw, fh, ds);
 
             bgbuf[x] = (uint64_t)pix_base_or | ((uint64_t)c << PIX_RGB_SHIFT);
          }

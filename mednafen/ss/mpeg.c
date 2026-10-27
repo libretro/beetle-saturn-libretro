@@ -271,6 +271,8 @@ static uint32_t FrameRateDen = 1001;
 /* Decoded picture, RGB555.  Untouched by stage 1. */
 static uint16_t *FrameBuf;
 static uint8_t  *FrameLuma;
+static uint8_t  *FrameCb;
+static uint8_t  *FrameCr;
 static uint32_t  FrameW, FrameH;
 static bool      FrameValid;
 
@@ -412,6 +414,8 @@ bool MPEG_Init(RFILE *rom_fp)
    CardROMSize = 0;
    FrameBuf    = NULL;
    FrameLuma   = NULL;
+   FrameCb     = NULL;
+   FrameCr     = NULL;
    Demux       = NULL;
    Video       = NULL;
    Audio       = NULL;
@@ -485,6 +489,14 @@ bool MPEG_Init(RFILE *rom_fp)
 
    memset(FrameLuma, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
 
+   FrameCb = (uint8_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+   FrameCr = (uint8_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+   if(!FrameCb || !FrameCr)
+      goto fail;
+
+   memset(FrameCb, 128, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+   memset(FrameCr, 128, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+
    MPEG_Reset(true);
 
    return true;
@@ -527,6 +539,14 @@ void MPEG_Kill(void)
    if(FrameLuma)
       free(FrameLuma);
    FrameLuma = NULL;
+
+   if(FrameCb)
+      free(FrameCb);
+   FrameCb = NULL;
+
+   if(FrameCr)
+      free(FrameCr);
+   FrameCr = NULL;
 
    Present = false;
 }
@@ -643,6 +663,10 @@ void MPEG_Reset(bool powering_up)
          memset(FrameBuf, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
       if(FrameLuma)
          memset(FrameLuma, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+      if(FrameCb)
+         memset(FrameCb, 128, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+      if(FrameCr)
+         memset(FrameCr, 128, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
    }
 }
 
@@ -713,6 +737,8 @@ uint16_t MPEG_TakePendingHIRQ(void)
 
    return ret;
 }
+
+static void ApplyGain(void);
 
 static void MPEGReport(uint8_t base_status, uint16_t out[4])
 {
@@ -1034,15 +1060,36 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          break;
 
       case MPEG_CMD_SET_FADE:
+      {
          /* CDC_MpSetFade(gain_y, gain_c): luma gain in CR2's high byte,
-            chroma gain in its low byte.  Only the luma gain scales the
-            converted RGB; the chroma gain is recorded but unused until
-            the conversion works in YCbCr. */
-         Display.fade   = cd[1] >> 8;
-         Display.fade_c = cd[1] & 0xFF;
+            chroma gain in its low byte, each signed, -8 to 7, initial
+            value 0.  A value outside that range is rejected (SBL CD
+            communication I/F, MPEG part, 22.8). */
+         const int8_t gy = (int8_t)(cd[1] >> 8);
+         const int8_t gc = (int8_t)(cd[1] & 0xFF);
+
+         if(gy < -8 || gy > 7 || gc < -8 || gc > 7)
+         {
+            out[0] = 0xFF00;
+            out[1] = 0xFFFF;
+            out[2] = 0xFFFF;
+            out[3] = 0xFFFF;
+            *hirq |= MPEG_HIRQ_MPCM;
+            break;
+         }
+
+         Display.fade   = gy;
+         Display.fade_c = gc;
+
+         /* The gain applies to the picture on screen, not only to the
+            next one decoded, so a held picture fades too. */
+         if(FrameValid)
+            ApplyGain();
+
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
-         break;
+      }
+      break;
 
       case MPEG_CMD_SET_VIDEOEFF:
          /* CDC_MpSetVeff(itp, trp, moz_h, moz_v, soft_h, soft_v) packs
@@ -1567,10 +1614,54 @@ static INLINE uint32_t ClampU5(int32_t v)
    return (uint32_t)v;
 }
 
-/* 4:2:0 planar to RGB555, chroma upsampled by replication.  Nearest
-   neighbour rather than a proper interpolating upsampler because the
-   card's own output was not doing anything cleverer at 352x240 and an
-   interpolator would be inventing detail the hardware did not show. */
+/*
+   SET_FADE gain in eighths, indexed by the gain + 8.  Transcribed from
+   the table under CDC_MpSetFade (SBL CD communication I/F, MPEG part,
+   22.8): -8 is 0, 0 is unity, and above unity the steps are uneven.
+*/
+static const uint8_t FadeEighths[16] =
+{
+   0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 12, 12, 16, 16
+};
+
+/* YCbCr planes to RGB555 with the SET_FADE gains applied to the luma
+   signal above black and to the colour difference signals.  At gain 0
+   both factors are exactly 8/8 and the output is the plain conversion. */
+static void ApplyGain(void)
+{
+   const int32_t gy = FadeEighths[(Display.fade   + 8) & 0xF];
+   const int32_t gc = FadeEighths[(Display.fade_c + 8) & 0xF];
+   unsigned x, y;
+
+   for(y = 0; y < FrameH; y++)
+   {
+      const size_t   row = (size_t)y * MPEG_MAX_WIDTH;
+      const uint8_t *lp  = FrameLuma + row;
+      const uint8_t *up  = FrameCb + row;
+      const uint8_t *vp  = FrameCr + row;
+      uint16_t      *dp  = FrameBuf + row;
+
+      for(x = 0; x < FrameW; x++)
+      {
+         const int32_t yy = ((((int32_t)lp[x] - 16) * gy) * YUV_Y) >> 3;
+         const int32_t cb = ((int32_t)up[x] - 128) * gc;
+         const int32_t cr = ((int32_t)vp[x] - 128) * gc;
+
+         const uint32_t r = ClampU5(yy + ((YUV_RV * cr) >> 3));
+         const uint32_t g = ClampU5(yy + ((YUV_GU * cb + YUV_GV * cr) >> 3));
+         const uint32_t b = ClampU5(yy + ((YUV_BU * cb) >> 3));
+
+         /* Saturn RGB555 is BGR order in the low 15 bits. */
+         dp[x] = (uint16_t)((b << 10) | (g << 5) | r);
+      }
+   }
+}
+
+/* 4:2:0 planar to full-resolution YCbCr planes, chroma upsampled by
+   replication, then to RGB555.  Nearest neighbour rather than a proper
+   interpolating upsampler because the card's own output was not doing
+   anything cleverer at 352x240 and an interpolator would be inventing
+   detail the hardware did not show. */
 static void ConvertFrame(const rmpeg1_video_frame_t *f)
 {
    unsigned x, y;
@@ -1585,9 +1676,9 @@ static void ConvertFrame(const rmpeg1_video_frame_t *f)
       const uint8_t *yp = f->y  + (size_t)y * f->y_stride;
       const uint8_t *up = f->cb + (size_t)(y >> 1) * f->c_stride;
       const uint8_t *vp = f->cr + (size_t)(y >> 1) * f->c_stride;
-      uint16_t      *dp = FrameBuf + (size_t)y * MPEG_MAX_WIDTH;
-
-      uint8_t *lp = FrameLuma + (size_t)y * MPEG_MAX_WIDTH;
+      uint8_t       *lp = FrameLuma + (size_t)y * MPEG_MAX_WIDTH;
+      uint8_t       *bp = FrameCb   + (size_t)y * MPEG_MAX_WIDTH;
+      uint8_t       *rp = FrameCr   + (size_t)y * MPEG_MAX_WIDTH;
 
       /* CDC_MPITP_CH: interpolate chroma horizontally instead of
          replicating it.  The card defaults to replication, which is why
@@ -1601,48 +1692,30 @@ static void ConvertFrame(const rmpeg1_video_frame_t *f)
 
       for(x = 0; x < w; x++)
       {
-         int32_t cb, cr;
-         const int32_t yy = ((int32_t)yp[x] - 16) * YUV_Y;
-
          lp[x] = yp[x];
 
-         if(itp_ch)
+         if(itp_ch && (x & 1))
          {
             const unsigned c0 = x >> 1;
             const unsigned c1 = (c0 + 1 < cw) ? (c0 + 1) : c0;
 
             /* Half-sample offset: even output pixels sit on the chroma
                sample, odd ones halfway to the next. */
-            if(x & 1)
-            {
-               cb = (((int32_t)up[c0] + up[c1] + 1) >> 1) - 128;
-               cr = (((int32_t)vp[c0] + vp[c1] + 1) >> 1) - 128;
-            }
-            else
-            {
-               cb = (int32_t)up[c0] - 128;
-               cr = (int32_t)vp[c0] - 128;
-            }
+            bp[x] = (uint8_t)(((unsigned)up[c0] + up[c1] + 1) >> 1);
+            rp[x] = (uint8_t)(((unsigned)vp[c0] + vp[c1] + 1) >> 1);
          }
          else
          {
-            cb = (int32_t)up[x >> 1] - 128;
-            cr = (int32_t)vp[x >> 1] - 128;
-         }
-
-         {
-            const uint32_t r = ClampU5(yy + YUV_RV * cr);
-            const uint32_t g = ClampU5(yy + YUV_GU * cb + YUV_GV * cr);
-            const uint32_t b = ClampU5(yy + YUV_BU * cb);
-
-            /* Saturn RGB555 is BGR order in the low 15 bits. */
-            dp[x] = (uint16_t)((b << 10) | (g << 5) | r);
+            bp[x] = up[x >> 1];
+            rp[x] = vp[x >> 1];
          }
       }
    }
 
    FrameW = w;
    FrameH = h;
+
+   ApplyGain();
 
    /* The display window follows the decoded picture unless SET_WINDOW
       has said otherwise.  A Video CD is full-screen by default and the

@@ -317,10 +317,18 @@ int main(void)
       Cmd(MPEG_CMD_SET_BORDERCOL, 0, 0x7C1F, 0, 0);
       expect_eq("border color", d->border_color, 0x7C1F);
 
-      /* CDC_MpSetFade(gain_y, gain_c). */
-      Cmd(MPEG_CMD_SET_FADE, 0, 0x8040, 0, 0);
-      expect_eq("fade luma",   d->fade,   0x80);
-      expect_eq("fade chroma", d->fade_c, 0x40);
+      /* CDC_MpSetFade(gain_y, gain_c): signed, -8 to 7. */
+      Cmd(MPEG_CMD_SET_FADE, 0, 0xF807, 0, 0);
+      expect_eq("fade luma",   (unsigned long)(d->fade + 8),   0);
+      expect_eq("fade chroma", (unsigned long)(d->fade_c + 8), 15);
+      expect_eq("fade accepted", Out[0] >> 8, 0x01);
+
+      Cmd(MPEG_CMD_SET_FADE, 0, 0x0800, 0, 0);
+      expect_eq("fade out of range rejected", Out[0] >> 8, 0xFF);
+      expect_eq("rejected fade leaves luma",  (unsigned long)(d->fade + 8), 0);
+
+      Cmd(MPEG_CMD_SET_FADE, 0, 0x0000, 0, 0);
+      expect_eq("fade back to unity", (unsigned long)(d->fade + 8), 8);
    }
 
    /* --- 8. SET_MODE 0xFF-means-keep semantics --------------------- */

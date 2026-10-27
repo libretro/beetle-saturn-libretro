@@ -561,8 +561,8 @@ typedef struct
  uint16_t ofs_x, ofs_y; /* DOFS -- display offset                 */
  uint16_t rat_x, rat_y; /* FRAT -- source scaling ratio           */
  uint16_t border_color; /* RGB555                                 */
- uint8_t  fade;         /* SET_FADE luma gain, 0x00..0xFF         */
- uint8_t  fade_c;       /* SET_FADE chroma gain                   */
+ int8_t   fade;         /* SET_FADE luma gain, -8..7, 0 = unity   */
+ int8_t   fade_c;       /* SET_FADE chroma gain, -8..7            */
 
  /* SET_VIDEO_EFFECTS */
  uint8_t  itp;          /* interpolation switches, MPEG_ITP_*     */
