@@ -2278,8 +2278,12 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
    const MPEG_DisplayState *ds = MPEG_GetDisplayState();
    uint32_t fw = 0, fh = 0;
    const uint16_t *fb = MPEG_GetFrame(&fw, &fh);
-   const uint64_t border = (uint64_t)pix_base_or
-                         | ((uint64_t)rgb15_to_rgb24(ds->border_color & 0x7FFF) << PIX_RGB_SHIFT);
+   /* CDC_MpSetBcolor (22.7): bit 15 set outputs the border colour,
+      clear leaves the area outside the window transparent. */
+   const uint64_t border = (ds->border_color & 0x8000)
+                         ? ((uint64_t)pix_base_or
+                            | ((uint64_t)rgb15_to_rgb24(ds->border_color & 0x7FFF) << PIX_RGB_SHIFT))
+                         : 0;
    const bool card_hd  = MPEG_HighDefinition();
    const bool vdp2_hd  = (HRes & 0x2) != 0;
    const bool vdp2_dd  = InterlaceMode == IM_DOUBLE;
