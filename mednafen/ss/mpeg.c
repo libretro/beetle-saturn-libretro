@@ -2223,8 +2223,11 @@ bool MPEG_GetAudioSample(uint16_t *out)
    /* Refill as the ring runs dry rather than only once per picture
       period: one Layer II frame is 1152 samples and a picture period
       at 29.97 Hz is 1471, so a stream that has just started, with one
-      frame decoded, would otherwise run dry before the next period. */
-   if(ARatePhase >= (1U << 16) && !ARing_Count && AFIFO.count)
+      frame decoded, would otherwise run dry before the next period.
+      Not while paused: decoding stops with the picture, as it does
+      when MPEG_Update skips the decode. */
+   if(ARatePhase >= (1U << 16) && !ARing_Count && AFIFO.count
+      && PauseIntvl != MPEG_INTVL_HOLD)
       RunAudio();
 
    while(ARatePhase >= (1U << 16))
