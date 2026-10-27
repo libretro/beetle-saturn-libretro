@@ -1586,20 +1586,24 @@ static void MPEG_FeedBuffer(const uint8_t bfsidx, const uint8_t pnum)
  const uint8_t* sd = Buffers[bfsidx].Data;
  uint32_t offs, len;
 
- if(sd[15] == 0x2)	// Mode 2
- {
-  offs = 24;
-  len  = (sd[16 + 2] & 0x20) ? 2324 : 2048;	// Form 2 : Form 1
- }
- else		// Mode 1
+ // Same layout test as Get Sector Data (DT_SetIBOffsCount): only a
+ // Mode 1 header puts the user data at 16.  Anything else, including a
+ // sector the host wrote with Put Sector Data (mode byte 0, data at
+ // 24), is laid out as Mode 2.
+ if(sd[15] == 0x1)	// Mode 1
  {
   offs = 16;
   len  = 2048;
  }
+ else			// Mode 2
+ {
+  offs = 24;
+  len  = (sd[16 + 2] & 0x20) ? 2324 : 2048;	// Form 2 : Form 1
+ }
 
  // Submode byte of the Mode 2 subheader carries the trigger and
  // end-of-record flags the card reports as interrupt factors.
- MPEG_FeedSector(sd + offs, len, (sd[15] == 0x2) ? sd[16 + 2] : 0x00, pnum);
+ MPEG_FeedSector(sd + offs, len, (sd[15] == 0x1) ? 0x00 : sd[16 + 2], pnum);
 }
 
 // Hand the card the sectors waiting in the partitions it deletes from,
