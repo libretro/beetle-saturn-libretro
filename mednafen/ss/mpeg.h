@@ -400,9 +400,10 @@ enum
 */
 #define MPEG_NUM_FBUF 4
 
-/* Video CD / MPEG-1 constrained-parameter frame geometry. */
-#define MPEG_MAX_WIDTH   352
-#define MPEG_MAX_HEIGHT  288
+/* Largest picture: a Video CD high definition still, 704x480 NTSC or
+   704x576 PAL. */
+#define MPEG_MAX_WIDTH   704
+#define MPEG_MAX_HEIGHT  576
 
 /*
    Lifecycle.
@@ -631,6 +632,13 @@ const MPEG_DisplayState *MPEG_GetDisplayState(void);
    check this as well as the display switch.
 */
 bool MPEG_DirectOutput(void);
+
+/*
+   True in the high definition modes (SET_MODE HMOV/HSTL), where the
+   card's picture and window coordinates are 704 dots wide and 480 or
+   576 lines tall rather than 352 by 240 or 288.
+*/
+bool MPEG_HighDefinition(void);
 
 /*
    Display-to-source coordinate mapping.

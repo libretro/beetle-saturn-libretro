@@ -698,7 +698,7 @@ void MPEG_Reset(bool powering_up)
    memset(LSIRegs, 0, sizeof(LSIRegs));
 
    memset(&Display, 0, sizeof(Display));
-   Display.w = MPEG_MAX_WIDTH;
+   Display.w = 352;   /* CDC_MpSetWinDsiz initial value */
    Display.h = 240;
    /* CDC_MpSetWinFrat: initial value 01H, magnification 1. */
    Display.rat_x = 0x0001;
@@ -2573,6 +2573,11 @@ const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height)
 const MPEG_DisplayState *MPEG_GetDisplayState(void)
 {
    return &Display;
+}
+
+bool MPEG_HighDefinition(void)
+{
+   return Mode.vidplaymode == MPEG_ACT_HMOV || Mode.vidplaymode == MPEG_ACT_HSTL;
 }
 
 bool MPEG_DirectOutput(void)

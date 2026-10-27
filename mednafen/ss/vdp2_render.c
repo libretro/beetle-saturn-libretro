@@ -2263,14 +2263,29 @@ static INLINE uint32_t SampleEXBG(const uint16_t *row, const uint8_t *lrow,
    return (acc_r / n) | ((acc_g / n) << 8) | ((acc_b / n) << 16);
 }
 
+/*
+   The card sends its picture as a video signal and VDP2 samples it at
+   its own dot clock, so one card pixel covers two VDP2 dots when VDP2
+   runs a high resolution mode (640/704) and the card a normal one, and
+   the other way round.  Lines follow the same rule between a 240 line
+   card picture and a double density interlaced screen.  The card's
+   high definition modes (SET_MODE NSTL/HSTL 704x480) count in those
+   finer units.
+*/
 static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_or,
-                     const unsigned line)
+                     const unsigned vdp2_line, const bool field)
 {
    const MPEG_DisplayState *ds = MPEG_GetDisplayState();
    uint32_t fw = 0, fh = 0;
    const uint16_t *fb = MPEG_GetFrame(&fw, &fh);
    const uint64_t border = (uint64_t)pix_base_or
                          | ((uint64_t)rgb15_to_rgb24(ds->border_color & 0x7FFF) << PIX_RGB_SHIFT);
+   const bool card_hd  = MPEG_HighDefinition();
+   const bool vdp2_hd  = (HRes & 0x2) != 0;
+   const bool vdp2_dd  = InterlaceMode == IM_DOUBLE;
+   /* Line in 480 line units, then in the card's units. */
+   const unsigned line480 = vdp2_dd ? (vdp2_line * 2 + field) : (vdp2_line * 2);
+   const unsigned line = card_hd ? line480 : (line480 >> 1);
    unsigned x;
    int32_t sy;
 
@@ -2289,9 +2304,10 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
 
       for(x = 0; x < w; x++)
       {
+         const unsigned cx = (card_hd == vdp2_hd) ? x : (card_hd ? (x << 1) : (x >> 1));
          int32_t sx;
 
-         if(!MPEG_MapCol(ds, x, fw, &sx))
+         if(!MPEG_MapCol(ds, cx, fw, &sx))
          {
             bgbuf[x] = border;
             continue;
@@ -4820,7 +4836,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
       pix_base_or |= (prio << PIX_PRIO_SHIFT);
 
      if(n == 1 && exbg)
-      DrawEXBG(LB.nbg[n] + 8, w, pix_base_or | (1U << PIX_ISRGB_SHIFT), vdp2_line);
+      DrawEXBG(LB.nbg[n] + 8, w, pix_base_or | (1U << PIX_ISRGB_SHIFT), vdp2_line, field);
      else if(n < 2)
       DrawNBG[bmen][colornum][igntp][priomode % 3][ccmode](n, LB.nbg[n] + 8, w, pix_base_or);
      else
