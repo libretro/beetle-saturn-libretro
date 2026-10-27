@@ -4768,9 +4768,19 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
 
   if((BGON & 0x30) != 0x30)
   {
+   // The external screen takes NBG1's slot whenever EXBGEN is set.  The
+   // VDP2 manual (2.5, Table 2.2) lists the NBG1 bits that apply to it
+   // and N1ON is not among them: N1ON only gates VRAM access, so the
+   // card's picture shows with N1ON clear, which is how Lunar - Silver
+   // Star Story Complete sets it up.  Gated on the card being present
+   // and its display on, so a game that sets the bit with nothing
+   // plugged in gets NBG1 as before.
+   const bool exbg = ExBGEnable && MPEG_IsPresent() && MPEG_DirectOutput()
+                     && MPEG_GetDisplayState()->enabled;
+
    for(unsigned n = (bool)(BGON & 0x20); n < 4; n++)
    {
-    if(MDFN_LIKELY((BGON >> n) & 1))
+    if(MDFN_LIKELY((BGON >> n) & 1) || (n == 1 && exbg))
     {
      const bool igntp = (BGON >> (n + 8)) & 1;
      bool bmen = false;
@@ -4821,12 +4831,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
      else
       pix_base_or |= (prio << PIX_PRIO_SHIFT);
 
-     // NBG1 doubles as the external background input when EXBGEN is
-     // set.  Gated on the card being present and enabled as well, so a
-     // game that sets the bit with nothing plugged in gets NBG1 as
-     // before rather than a screenful of border colour.
-     if(n == 1 && ExBGEnable && MPEG_IsPresent() && MPEG_DirectOutput()
-        && MPEG_GetDisplayState()->enabled)
+     if(n == 1 && exbg)
       DrawEXBG(LB.nbg[n] + 8, w, pix_base_or | (1U << PIX_ISRGB_SHIFT), vdp2_line);
      else if(n < 2)
       DrawNBG[bmen][colornum][igntp][priomode % 3][ccmode](n, LB.nbg[n] + 8, w, pix_base_or);
