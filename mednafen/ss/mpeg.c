@@ -273,6 +273,23 @@ static uint32_t ADropped;
    decoded picture no longer drives the window geometry. */
 static bool WindowSizeSet;
 
+/*
+   Window values registered by SET_WINDOW.  Each CDC_MpSetWin* call
+   carries a change flag: OFF registers the value, ON applies every
+   registered value (SBL CD communication I/F, MPEG part, 22.2-22.6).
+   So a caller can stage several window changes and have them take
+   effect together.
+*/
+static struct
+{
+ uint16_t src_x, src_y;
+ uint16_t rat_x, rat_y;
+ uint16_t x, y;
+ uint16_t w, h;
+ uint16_t ofs_x, ofs_y;
+ bool     size_set;
+} WinReg;
+
 /* Decode clock.  Accumulates the 32.32 fixed-point CD block clocks
    MPEG_Update() is handed and fires one decode per frame period.  The
    period follows the sequence header once one has been parsed; until
@@ -629,6 +646,15 @@ void MPEG_Reset(bool powering_up)
    memset(&Display, 0, sizeof(Display));
    Display.w = MPEG_MAX_WIDTH;
    Display.h = 240;
+   /* CDC_MpSetWinFrat: initial value 01H, magnification 1. */
+   Display.rat_x = 0x0001;
+   Display.rat_y = 0x0001;
+
+   memset(&WinReg, 0, sizeof(WinReg));
+   WinReg.w     = Display.w;
+   WinReg.h     = Display.h;
+   WinReg.rat_x = Display.rat_x;
+   WinReg.rat_y = Display.rat_y;
 
    FIFO_Clear(&VFIFO);
    FIFO_Clear(&AFIFO);
@@ -1020,50 +1046,65 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
       {
          /* One opcode, five sub-functions.  SBL's cmdRspWin emits the
             selector in CR1's low byte, the change flag in CR2's low
-            byte, x in CR3 and y in CR4.  The previous reading of this
-            command ignored the selector entirely and so applied every
-            window write to the same two fields. */
-         const unsigned sel = cd[0] & 0xFF;
-         const uint16_t x   = cd[2];
-         const uint16_t y   = cd[3];
+            byte, x in CR3 and y in CR4.  CDC_PARA_NOCHG in a coordinate
+            keeps the registered value; in a ratio, bit 14 does. */
+         const unsigned sel    = cd[0] & 0xFF;
+         const bool     chgflg = (cd[1] & 0xFF) != 0;
+         const uint16_t x      = cd[2];
+         const uint16_t y      = cd[3];
+         const bool     keep_x = (x == MPEG_NOCHG16);
+         const bool     keep_y = (y == MPEG_NOCHG16);
 
          switch(sel)
          {
             case MPEG_WIN_FPOS:
-               Display.src_x = x;
-               Display.src_y = y;
+               if(!keep_x) WinReg.src_x = x;
+               if(!keep_y) WinReg.src_y = y;
                break;
 
             case MPEG_WIN_FRAT:
-               Display.rat_x = x;
-               Display.rat_y = y;
+               if(!(x & MPEG_RAT_KEEP)) WinReg.rat_x = x;
+               if(!(y & MPEG_RAT_KEEP)) WinReg.rat_y = y;
                break;
 
             case MPEG_WIN_DPOS:
-               Display.x = x;
-               Display.y = y;
+               if(!keep_x) WinReg.x = x;
+               if(!keep_y) WinReg.y = y;
                break;
 
             case MPEG_WIN_DSIZ:
-               Display.w     = x;
-               Display.h     = y;
-               WindowSizeSet = true;
+               if(!keep_x) WinReg.w = x;
+               if(!keep_y) WinReg.h = y;
+               WinReg.size_set = true;
                break;
 
             case MPEG_WIN_DOFS:
-               Display.ofs_x = x;
-               Display.ofs_y = y;
+               if(!keep_x) WinReg.ofs_x = x;
+               if(!keep_y) WinReg.ofs_y = y;
                break;
 
             default:
                break;
          }
 
-         /* CR2's low byte is SBL's chgflg.  Its meaning is not
-            documented in anything I have -- most likely apply-now
-            versus apply-at-next-VSYNC -- so the write is always applied
-            rather than sometimes dropped, which is the failure mode
-            that would be hardest to spot. */
+         if(chgflg)
+         {
+            Display.src_x = WinReg.src_x;
+            Display.src_y = WinReg.src_y;
+            Display.rat_x = WinReg.rat_x;
+            Display.rat_y = WinReg.rat_y;
+            Display.x     = WinReg.x;
+            Display.y     = WinReg.y;
+            Display.ofs_x = WinReg.ofs_x;
+            Display.ofs_y = WinReg.ofs_y;
+
+            if(WinReg.size_set)
+            {
+               Display.w     = WinReg.w;
+               Display.h     = WinReg.h;
+               WindowSizeSet = true;
+            }
+         }
 
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
@@ -2319,6 +2360,17 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(AudioChannels),
 
       SFVAR(WindowSizeSet),
+      SFVAR(WinReg.src_x),
+      SFVAR(WinReg.src_y),
+      SFVAR(WinReg.rat_x),
+      SFVAR(WinReg.rat_y),
+      SFVAR(WinReg.x),
+      SFVAR(WinReg.y),
+      SFVAR(WinReg.w),
+      SFVAR(WinReg.h),
+      SFVAR(WinReg.ofs_x),
+      SFVAR(WinReg.ofs_y),
+      SFVAR(WinReg.size_set),
       SFVAR(FrameAccum),
       SFVAR(FrameRateNum),
       SFVAR(FrameRateDen),

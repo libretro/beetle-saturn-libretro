@@ -310,6 +310,15 @@ int main(void)
       expect_eq("FRAT x", d->rat_x, 0x77);
       expect_eq("FRAT y", d->rat_y, 0x88);
 
+      /* Change flag OFF registers without applying; ON applies every
+         registered value. */
+      Cmd(MPEG_CMD_SET_WINDOW, MPEG_WIN_DPOS, 0x0000, 0x0010, 0x0020);
+      expect_eq("DPOS registered, not applied", d->x, 0x33);
+      Cmd(MPEG_CMD_SET_WINDOW, MPEG_WIN_FPOS, 0x0001, 0xFFFF, 0xFFFF);
+      expect_eq("ON applies the registered DPOS", d->x, 0x10);
+      expect_eq("NOCHG keeps FPOS x", d->src_x, 0x11);
+      Cmd(MPEG_CMD_SET_WINDOW, MPEG_WIN_DPOS, 0x0001, 0x0033, 0x0044);
+
       /* Each sub-function must touch only its own pair. */
       expect_eq("FPOS untouched by later writes", d->src_x, 0x11);
       expect_eq("DPOS untouched by later writes", d->x,     0x33);
@@ -1456,6 +1465,36 @@ int main(void)
       expect_eq  ("FPOS+DOFS row", (uint32_t)sy, 7);
       expect_true("DOFS col maps", MPEG_MapCol(&ds, 32, 352, &sx));
       expect_eq  ("FPOS+DOFS col", (uint32_t)sx, 10);
+
+      /* FRAT magnification, CDC_MpSetWinFrat 22.3. */
+      {
+         uint32_t num, den;
+
+         MPEG_RatFrac(0x0001, &num, &den);
+         expect_eq("FRAT 0001 is 1", num * 1000 / den, 1000);
+         MPEG_RatFrac(0x000F, &num, &den);
+         expect_eq("FRAT 000F is 8/7", num * 7 + den * 1000, 8 * 7 + 7 * 1000);
+         MPEG_RatFrac(0x0021, &num, &den);
+         expect_eq("FRAT 0021 is 3", num * 1000 / den, 3000);
+         MPEG_RatFrac(0x8009, &num, &den);
+         expect_eq("FRAT 8009 is 1/1", num * 1000 / den, 1000);
+         MPEG_RatFrac(0x8012, &num, &den);
+         expect_eq("FRAT 8012 is 1/(1 + 1 - 1/2)", num * 3000 / den, 2000);
+      }
+
+      /* Lunar's movie window: FPOS 22, FRAT 000F, a 320 wide window
+         over a 320 wide picture.  The last column lands inside it. */
+      memset(&ds, 0, sizeof(ds));
+      ds.w = 320; ds.h = 224;
+      ds.src_x = 22;
+      ds.rat_x = 0x000F;
+      ds.rat_y = 0x0001;
+      expect_true("FRAT first col maps", MPEG_MapCol(&ds, 0, 320, &sx));
+      expect_eq  ("FRAT first col",      (uint32_t)sx, 22);
+      expect_true("FRAT last col maps",  MPEG_MapCol(&ds, 319, 320, &sx));
+      expect_eq  ("FRAT last col",       (uint32_t)sx, 22 + 319 * 7 / 8);
+      expect_true("FRAT 1 row",          MPEG_MapRow(&ds, 223, 224, &sy));
+      expect_eq  ("FRAT 1 row is identity", (uint32_t)sy, 223);
 
       /* Mosaic quantises to blocks of N+1, anchored at source zero. */
       memset(&ds, 0, sizeof(ds));

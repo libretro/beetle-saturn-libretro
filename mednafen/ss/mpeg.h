@@ -120,6 +120,27 @@ enum
  MPEG_WIN_DOFS = 4  /* CDC_MpSetWinDofs -- display offset             */
 };
 
+/*
+   FRAT ratio word, per axis (SBL CD communication I/F, MPEG part,
+   CDC_MpSetWinFrat, 22.3):
+
+     bit 15     C  1 = reduce, 0 = enlarge
+     bit 14        1 = keep the registered value
+     bits 13-4  A  integer part, A < 1024
+     bit 3      D  sign of the correction term
+     bits 2-0   B  correction coefficient, B > 0
+
+     C D  magnification
+     0 0  A + 2 - 1/B
+     0 1  A + 1 + 1/B
+     1 0  1 / (A + 1 - 1/B)
+     1 1  1 / (A + 1/B)
+
+   The initial value 01H is magnification 1.
+*/
+#define MPEG_RAT_REDUCE 0x8000
+#define MPEG_RAT_KEEP   0x4000
+
 #define MPEG_CMD_IS_MPEG(c) ((c) >= 0x90 && (c) <= 0xAF)
 
 /* HIRQ bits the card asks the CD block to raise.  Mirrors the
@@ -568,7 +589,7 @@ typedef struct
  uint16_t w, h;         /* DSIZ -- display size                   */
  uint16_t src_x, src_y; /* FPOS -- source origin in the frame     */
  uint16_t ofs_x, ofs_y; /* DOFS -- display offset                 */
- uint16_t rat_x, rat_y; /* FRAT -- source scaling ratio           */
+ uint16_t rat_x, rat_y; /* FRAT -- magnification, MPEG_RatFrac()  */
  uint16_t border_color; /* RGB555                                 */
  int8_t   fade;         /* SET_FADE luma gain, -8..7, 0 = unity   */
  int8_t   fade_c;       /* SET_FADE chroma gain, -8..7            */
@@ -608,6 +629,53 @@ bool MPEG_DirectOutput(void);
    Row mapping is separate from column mapping because the compositor
    works a scanline at a time and hoists the row out of the inner loop.
 */
+/*
+   Magnification of a FRAT word as num/den.  B = 0 is outside the
+   documented range and so is a reduction that comes to 1/0; both read
+   as magnification 1 rather than dividing by zero.
+*/
+static INLINE void MPEG_RatFrac(uint16_t rat, uint32_t *num, uint32_t *den)
+{
+   const uint32_t a = (rat >> 4) & 0x3FF;
+   const uint32_t d = (rat >> 3) & 1;
+   const uint32_t b = rat & 7;
+   uint32_t n;
+
+   *num = *den = 1;
+
+   if(!b)
+      return;
+
+   if(!(rat & MPEG_RAT_REDUCE))
+   {
+      *num = d ? (a + 1) * b + 1 : (a + 2) * b - 1;
+      *den = b;
+      return;
+   }
+
+   n = d ? a * b + 1 : (a + 1) * b - 1;
+
+   if(!n)
+      return;
+
+   *num = b;
+   *den = n;
+}
+
+/* Display distance to frame buffer distance: divide by the
+   magnification, rounding toward the origin. */
+static INLINE int32_t MPEG_RatScale(uint16_t rat, int32_t dist)
+{
+   uint32_t num, den;
+
+   MPEG_RatFrac(rat, &num, &den);
+
+   if(num == den)
+      return dist;
+
+   return (int32_t)(((int64_t)dist * den) / num);
+}
+
 static INLINE bool MPEG_MapRow(const MPEG_DisplayState *ds,
                                unsigned line, uint32_t fh, int32_t *sy)
 {
@@ -618,7 +686,11 @@ static INLINE bool MPEG_MapRow(const MPEG_DisplayState *ds,
 
    /* DOFS shifts the window within the display without moving DPOS,
       which is what SBL's CDC_MpSetWinDofs is for. */
-   y = (int32_t)ds->src_y + (int32_t)(line - ds->y) + (int32_t)ds->ofs_y;
+   /* FRAT magnifies the frame buffer window around its upper left
+      corner, FPOS, so the distance into the display window is divided
+      by the ratio before it is added to FPOS. */
+   y = (int32_t)ds->src_y + MPEG_RatScale(ds->rat_y, (int32_t)(line - ds->y))
+     + (int32_t)ds->ofs_y;
 
    /* Mosaic quantises the source coordinate before sampling, so a block
       takes the colour of its top-left source pixel.  The field is SBL's
@@ -644,7 +716,8 @@ static INLINE bool MPEG_MapCol(const MPEG_DisplayState *ds,
    if(!fw || x < ds->x || x >= (unsigned)(ds->x + ds->w))
       return false;
 
-   v = (int32_t)ds->src_x + (int32_t)(x - ds->x) + (int32_t)ds->ofs_x;
+   v = (int32_t)ds->src_x + MPEG_RatScale(ds->rat_x, (int32_t)(x - ds->x))
+     + (int32_t)ds->ofs_x;
 
    if(ds->moz_h)
       v -= v % (int32_t)(ds->moz_h + 1);
