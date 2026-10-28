@@ -16,6 +16,27 @@
 
 #include "../mednafen/cdstream.h"
 
+#if defined(_WIN32) && defined(VFS_WIN32_PREFETCH_HOOK)
+/* The off-thread build: PrefetchVirtualMemory is a stand-in that sleeps
+ * as a cold disk would, and a read must never wait for it. */
+#include <windows.h>
+#define SLOW_MS       200
+#define READ_LIMIT_MS 100
+static volatile LONG hook_calls, hook_on_reader;
+static DWORD         reader_thread;
+
+int saturn_prefetch_hook(void *addr, size_t len)
+{
+   (void)addr;
+   (void)len;
+   InterlockedIncrement(&hook_calls);
+   if (GetCurrentThreadId() == reader_thread)
+      InterlockedIncrement(&hook_on_reader);
+   Sleep(SLOW_MS);
+   return 1;
+}
+#endif
+
 #define FIXTURE_LEN (8u * 1024u * 1024u)
 #define STEP        2048u
 
@@ -94,16 +115,46 @@ int main(void)
       printf("  skip: no mapping on this build\n");
    else
    {
-      hints = 0;
+#if defined(_WIN32) && defined(VFS_WIN32_PREFETCH_HOOK)
+      LARGE_INTEGER freq, t0, t1;
+      double        worst_ms = 0.0;
+      int           waited;
+      QueryPerformanceFrequency(&freq);
+      reader_thread = GetCurrentThreadId();
+#endif
+      hints    = 0;
+      hint_off = hint_len = 0;
       for (i = 0; i + STEP <= 6u * 1024u * 1024u; i += STEP)
       {
+#if defined(_WIN32) && defined(VFS_WIN32_PREFETCH_HOOK)
+         QueryPerformanceCounter(&t0);
+#endif
          if (cdstream_read(&s, buf, STEP) != STEP
                || memcmp(buf, data + i, STEP))
             same = false;
+#if defined(_WIN32) && defined(VFS_WIN32_PREFETCH_HOOK)
+         QueryPerformanceCounter(&t1);
+         {
+            const double ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)freq.QuadPart;
+            if (ms > worst_ms)
+               worst_ms = ms;
+         }
+#endif
       }
+#if defined(_WIN32) && defined(VFS_WIN32_PREFETCH_HOOK)
+      /* the stand-in is the file's thread's to call, in its own time */
+      for (waited = 0; waited < 50 && hook_calls == 0; waited++)
+         Sleep(20);
+      CHECK(hook_calls > 0, "the read-ahead is taken up (off-thread build)");
+      CHECK(hook_on_reader == 0, "never on the reading thread");
+      CHECK(worst_ms < READ_LIMIT_MS, "no read waits for it");
+#endif
       CHECK(same, "reads through the mapping return the file");
 #ifdef _WIN32
       CHECK(hints == 3, "a reader in order is hinted ahead (Windows)");
+      /* the last hint was made by a read ending where it starts */
+      CHECK(hint_len == MAPPED_RA_AHEAD && hint_off % STEP == 0 && hint_off > 0,
+            "a hint starts past the read that made it");
 #else
       CHECK(hints == 0, "and nothing is hinted where the kernel reads ahead");
 #endif

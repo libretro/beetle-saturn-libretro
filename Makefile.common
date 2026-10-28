@@ -129,6 +129,7 @@ endif
 SOURCES_C += $(MEDNAFEN_DIR)/state.c
 
 SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
+		$(MEDNAFEN_DIR)/save_writer.c \
 		$(MEDNAFEN_DIR)/general.c \
 		$(MEDNAFEN_DIR)/mempatcher.c \
 		$(MEDNAFEN_DIR)/settings.c \

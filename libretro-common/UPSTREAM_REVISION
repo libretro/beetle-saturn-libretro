@@ -1,5 +1,5 @@
 Source: https://github.com/libretro/RetroArch
-Revision: 8e6af903ebd595b33b6d5acf731ec524c3c88415
+Revision: e0b5626af6b765d6f8fbe8978a394ffaab6a3f6f
 
 Selective refresh of the existing subset and dependency closure for
 rchd, rlzma, rflac, rinflate, rzstd, CRC32, CPU features and SPSC queues.

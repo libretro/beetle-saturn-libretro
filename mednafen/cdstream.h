@@ -242,16 +242,6 @@ static INLINE uint64_t cdstream_write_u8(cdstream *s, uint8_t v)
    return cdstream_write(s, &v, 1);
 }
 
-/* Big-endian uint16_t write.  Used by the cart NV save path for
- * NV-RAM regions that store data in big-endian word order. */
-static INLINE uint64_t cdstream_write_be_u16(cdstream *s, uint16_t v)
-{
-   uint8_t tmp[2];
-   tmp[0] = (uint8_t)(v >> 8);
-   tmp[1] = (uint8_t)v;
-   return cdstream_write(s, tmp, 2);
-}
-
 /* Read a line into `out` (cap bytes max, always NUL-terminated).
  * Returns the line-end char ('\r', '\n', or '\0') consumed from
  * the stream, or -1 on EOF with an empty line.  The line-end char
