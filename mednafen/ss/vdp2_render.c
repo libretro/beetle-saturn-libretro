@@ -2264,6 +2264,57 @@ static INLINE uint32_t SampleEXBG(const uint16_t *row, const uint8_t *lrow,
 }
 
 /*
+   The card's picture as the render thread sees it.  The card belongs to
+   the emulation thread, which decodes into its frame buffer while lines
+   are drawn here, so DrawEXBG reads this copy instead.  LatchEXBG fills
+   it from VDP2REND_StartFrame: VDP2REND_EndFrame has waited for every
+   queued line to be drawn, so nothing reads the copy while it is
+   written, and the release store in WWQ that queues the next line makes
+   it visible to the render thread, as for BurstBuf.
+*/
+static struct
+{
+   bool active;   /* present, output to VDP2, display on */
+   bool hd;
+   bool luma;
+   uint32_t fw, fh;
+   MPEG_DisplayState ds;
+} EXBG;
+static uint16_t EXBG_Frame[MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT];
+static uint8_t  EXBG_Luma[MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT];
+
+static void LatchEXBG(void)
+{
+   uint32_t fw = 0, fh = 0, y;
+   const uint16_t *fb;
+   const uint8_t *luma;
+
+   EXBG.active = MPEG_IsPresent() && MPEG_DirectOutput()
+              && MPEG_GetDisplayState()->enabled;
+   if(!EXBG.active)
+      return;
+
+   EXBG.ds = *MPEG_GetDisplayState();
+   EXBG.hd = MPEG_HighDefinition();
+   fb = MPEG_GetFrame(&fw, &fh);
+   luma = MPEG_GetFrameLuma();
+   if(!fb)
+      fw = fh = 0;
+   EXBG.fw = fw;
+   EXBG.fh = fh;
+   EXBG.luma = fb && luma;
+
+   for(y = 0; y < fh; y++)
+   {
+      const size_t o = (size_t)y * MPEG_MAX_WIDTH;
+
+      memcpy(EXBG_Frame + o, fb + o, fw * sizeof(uint16_t));
+      if(EXBG.luma)
+         memcpy(EXBG_Luma + o, luma + o, fw);
+   }
+}
+
+/*
    The card sends its picture as a video signal and VDP2 samples it at
    its own dot clock, so one card pixel covers two VDP2 dots when VDP2
    runs a high resolution mode (640/704) and the card a normal one, and
@@ -2275,16 +2326,16 @@ static INLINE uint32_t SampleEXBG(const uint16_t *row, const uint8_t *lrow,
 static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_or,
                      const unsigned vdp2_line, const bool field)
 {
-   const MPEG_DisplayState *ds = MPEG_GetDisplayState();
-   uint32_t fw = 0, fh = 0;
-   const uint16_t *fb = MPEG_GetFrame(&fw, &fh);
+   const MPEG_DisplayState *ds = &EXBG.ds;
+   const uint32_t fw = EXBG.fw, fh = EXBG.fh;
+   const uint16_t *fb = fh ? EXBG_Frame : NULL;
    /* CDC_MpSetBcolor (22.7): bit 15 set outputs the border colour,
       clear leaves the area outside the window transparent. */
    const uint64_t border = (ds->border_color & 0x8000)
                          ? ((uint64_t)pix_base_or
                             | ((uint64_t)rgb15_to_rgb24(ds->border_color & 0x7FFF) << PIX_RGB_SHIFT))
                          : 0;
-   const bool card_hd  = MPEG_HighDefinition();
+   const bool card_hd  = EXBG.hd;
    const bool vdp2_hd  = (HRes & 0x2) != 0;
    const bool vdp2_dd  = InterlaceMode == IM_DOUBLE;
    /* Line in 480 line units, then in the card's units. */
@@ -2301,7 +2352,7 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
    }
 
    {
-      const uint8_t *luma = MPEG_GetFrameLuma();
+      const uint8_t *luma = EXBG.luma ? EXBG_Luma : NULL;
       const uint16_t *src = fb + (size_t)sy * MPEG_MAX_WIDTH;
       const uint8_t  *lsrc = luma ? (luma + (size_t)sy * MPEG_MAX_WIDTH) : NULL;
       const unsigned trp = ds->trp & MPEG_TRP_MASK;
@@ -4783,8 +4834,7 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
    // Star Story Complete sets it up.  Gated on the card being present
    // and its display on, so a game that sets the bit with nothing
    // plugged in gets NBG1 as before.
-   const bool exbg = ExBGEnable && MPEG_IsPresent() && MPEG_DirectOutput()
-                     && MPEG_GetDisplayState()->enabled;
+   const bool exbg = ExBGEnable && EXBG.active;
 
    for(unsigned n = (bool)(BGON & 0x20); n < 4; n++)
    {
@@ -5399,6 +5449,7 @@ void VDP2REND_Kill(void)
 
 void VDP2REND_StartFrame(struct EmulateSpecStruct* espec_arg, const bool clock28m, const int SurfInterlaceField)
 {
+ LatchEXBG();
  NextOutLine = 0;
  Clock28M = clock28m;
  ProgressiveLineStateValid[0] = false;
