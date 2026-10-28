@@ -236,10 +236,8 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
      }
      self->file_pos = total;
   }
-  rchd_prepare_cd_ecc();
   self->chd = rchd_new();
   if (!self->chd) return false;
-  if (rchd_set_unit_bytes_hint(self->chd, CD_FRAME_SIZE) != RCHD_OK) return false;
   while ((err = rchd_open_step(self->chd, &req)) == RCHD_PENDING)
      if (chd_supply(self, &req, false) < 0) return false;
   if (err != RCHD_OK) return false;

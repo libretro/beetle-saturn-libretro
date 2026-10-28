@@ -123,7 +123,8 @@ SOURCES_C += $(CDROM_DIR)/CDAccess_CHD.c \
              $(LIBRETRO_COMM_DIR)/formats/7z/r7z_lzma.c \
              $(LIBRETRO_COMM_DIR)/formats/flac/rflac.c \
              $(LIBRETRO_COMM_DIR)/encodings/encoding_huffman.c \
-             $(LIBRETRO_COMM_DIR)/encodings/encoding_rzstd.c
+             $(LIBRETRO_COMM_DIR)/encodings/encoding_rzstd.c \
+             $(LIBRETRO_COMM_DIR)/encodings/encoding_xxh64.c
 endif
 
 SOURCES_C += $(MEDNAFEN_DIR)/state.c

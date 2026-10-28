@@ -1,14 +1,14 @@
 Source: https://github.com/libretro/RetroArch
-Revision: e0b5626af6b765d6f8fbe8978a394ffaab6a3f6f
+Revision: 79124b852a6838d71ad37301398e19ff00729686
+          plus "rchd: CD frame geometry for version 3/4 images,
+          constant ECC tables"
 
 Selective refresh of the existing subset and dependency closure for
 rchd, rlzma, rflac, rinflate, rzstd, CRC32, CPU features and SPSC queues.
 Upstream fallback implementations are preserved. The core uses its own
 namespaced single-waiter eventcount backend in mednafen/.
 
-Additive local APIs in formats/chd/rchd.c and include/formats/rchd.h:
-- rchd_set_unit_bytes_hint: optional pre-v5 CD geometry, no default change.
-- rchd_prepare_cd_ecc: initialize existing ECC tables before workers start.
+Every file is RetroArch's, unchanged; there are no local APIs.
 
 Imported files:
   cdrom/cdrom.c
@@ -22,6 +22,7 @@ Imported files:
   encodings/encoding_huffman.c
   encodings/encoding_rzstd.c
   encodings/encoding_utf.c
+  encodings/encoding_xxh64.c
   features/cpu_class.h
   features/features_cpu.c
   file/file_path.c
@@ -54,6 +55,7 @@ Imported files:
   include/encodings/huffman.h
   include/encodings/rzstd.h
   include/encodings/utf.h
+  include/encodings/xxh64.h
   include/features/features_cpu.h
   include/file/file_path.h
   include/formats/rchd.h
