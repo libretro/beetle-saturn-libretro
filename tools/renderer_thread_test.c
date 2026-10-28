@@ -11,6 +11,9 @@ static void drain(void)
    while (VDP2_ATOMIC_LOAD_ACQ(WQ_PopCount) != Prod.PushLocal)
    {
       int key = retro_eventcount_prepare_wait(&DrainEvent);
+      /* Queued commands do not wake the renderer on their own; every
+       * wait for it has to (see VDP2REND_StateAction). */
+      WakeConsumer();
       if (VDP2_ATOMIC_LOAD_ACQ(WQ_PopCount) != Prod.PushLocal)
          retro_eventcount_commit_wait(&DrainEvent, key);
       else retro_eventcount_cancel_wait(&DrainEvent);
