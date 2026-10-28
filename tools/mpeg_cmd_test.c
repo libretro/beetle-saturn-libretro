@@ -190,6 +190,43 @@ static bool Cmd(uint8_t op, uint16_t c1, uint16_t c2, uint16_t c3, uint16_t c4)
    return MPEG_Command(op, cd, 0x01 /* STATUS_PAUSE */, Out, &Hirq);
 }
 
+/* Play sectors [first, last) of a Program Stream on an audio-only
+   connection that ends on the EOR bit, set on sector last - 1 when eor
+   is set, appending the card's audio to out.  Returns the sample pairs
+   appended. */
+static uint64_t PlayAudio(const uint8_t *file, size_t first, size_t last,
+                          bool eor, int16_t *out)
+{
+   uint64_t n = 0;
+   size_t i;
+   unsigned k;
+
+   Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+   Cmd(MPEG_CMD_SET_CONNECTION, 0x0001, 0x0001, 0x0000, 0x00FF);
+   Cmd(MPEG_CMD_PLAY, 0x0001, 0x01FF, 0, 0x00FF);
+
+   for(i = first; i < last; i++)
+   {
+      uint32_t got;
+
+      MPEG_FeedSector(file + i * 2324, 2324, (eor && i + 1 == last) ? 0x01 : 0x00, 0x01);
+      MPEG_RunFrame();
+      while((got = MPEG_ReadAudio(out + n * 2, 4096)) > 0)
+         n += got;
+   }
+
+   for(k = 0; k < (eor ? 400U : 0U); k++)
+   {
+      uint32_t got;
+
+      MPEG_RunFrame();
+      while((got = MPEG_ReadAudio(out + n * 2, 4096)) > 0)
+         n += got;
+   }
+
+   return n;
+}
+
 int main(void)
 {
    printf("MPEG card command surface\n");
@@ -1780,7 +1817,7 @@ int main(void)
       static uint8_t aes[2 * 1024 * 1024];
       static int16_t ref[8 * 1024 * 1024];
       static int16_t got[8 * 1024 * 1024];
-      size_t flen = 0, alen = 0, i;
+      size_t flen = 0, alen = 0;
       uint64_t refn = 0, gotn = 0;
 
       if(fp)
@@ -1797,7 +1834,6 @@ int main(void)
          rmpeg1_ps_packet_t pk;
          rmp3 mp3;
          size_t off = 0;
-         unsigned k;
 
          while(off < flen)
          {
@@ -1820,31 +1856,23 @@ int main(void)
          /* Audio only, transferred at once, ending at the EOR bit of the
             last sector as a disc track does. */
          MPEG_Reset(false);
-         Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
-         Cmd(MPEG_CMD_SET_CONNECTION, 0x0001, 0x0001, 0x0000, 0x00FF);
-         Cmd(MPEG_CMD_PLAY, 0x0001, 0x01FF, 0, 0x00FF);
-
-         for(i = 0; i + 2324 <= flen; i += 2324)
-         {
-            uint32_t n;
-
-            MPEG_FeedSector(file + i, 2324, (i + 2324 * 2 > flen) ? 0x01 : 0x00, 0x01);
-            MPEG_RunFrame();
-            while((n = MPEG_ReadAudio(got + gotn * 2, 4096)) > 0)
-               gotn += n;
-         }
-         for(k = 0; k < 400; k++)
-         {
-            uint32_t n;
-
-            MPEG_RunFrame();
-            while((n = MPEG_ReadAudio(got + gotn * 2, 4096)) > 0)
-               gotn += n;
-         }
+         gotn = PlayAudio(file, 0, flen / 2324, true, got);
 
          expect_true("reference decoded", refn > 0);
          expect_eq("every audio sample played", (unsigned long)gotn, (unsigned long)refn);
          expect_true("samples match the reference",
+                     gotn == refn && !memcmp(got, ref, (size_t)refn * 4));
+
+         /* INIT empties the decoder (SBL 5.1.2): a stream played after
+            it, as the Video CD player does after a track change, starts
+            with its own first frame, not with what was left of the one
+            before. */
+         MPEG_Reset(false);
+         PlayAudio(file, 0, 200, false, got);
+         Cmd(MPEG_CMD_INIT, 0, 0, 0, 0);
+         gotn = PlayAudio(file, 0, flen / 2324, true, got);
+         expect_eq("after INIT, every sample of the new stream", (unsigned long)gotn, (unsigned long)refn);
+         expect_true("after INIT, nothing of the old stream",
                      gotn == refn && !memcmp(got, ref, (size_t)refn * 4));
       }
    }

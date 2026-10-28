@@ -516,6 +516,17 @@ static MDFN_HOT uint32_t FIFO_Write(MPEG_FIFO *f, const uint8_t *src, uint32_t l
    return dropped;
 }
 
+/* The audio input buffer is emptied: AFIFO and the part of it rmp3
+   has already taken in. */
+static void ClearAudioInput(void)
+{
+   FIFO_Clear(&AFIFO);
+   AEndPending = false;
+
+   if(Audio)
+      rmp3_stream_reset(Audio);
+}
+
 /*
  *
  * Lifecycle
@@ -981,9 +992,24 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          IntFlags    = 0;
          PendingHIRQ = 0;
 
+         /* The decoder starts over (SBL 5.1.2: every transfer block
+            returns to stopped): nothing of the stream before plays
+            after it.  The Video CD player sends this after a track
+            change. */
          FIFO_Clear(&VFIFO);
-         FIFO_Clear(&AFIFO);
-         AEndPending = false;
+         ClearAudioInput();
+
+         if(Demux)
+            rmpeg1_ps_reset(Demux);
+
+         if(Video)
+            rmpeg1_video_reset(Video);
+
+         ARing_RP    = 0;
+         ARing_WP    = 0;
+         ARing_Count = 0;
+         ARatePhase  = 0;
+         ACurValid   = false;
 
          VState       = MPEG_ASTV_STOP;
          AState       = MPEG_ASTV_STOP;
@@ -1458,8 +1484,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
 
          if(clr_a == MPEG_CLA_ON)
          {
-            FIFO_Clear(&AFIFO);
-            AEndPending = false;
+            ClearAudioInput();
             AudioStatus |= MPEG_STA_BEMPTY;
          }
 
