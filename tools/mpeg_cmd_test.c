@@ -1725,6 +1725,49 @@ int main(void)
       }
    }
 
+   /* --- 16b. End of stream ---------------------------------------- */
+   printf("[end of stream]\n");
+   {
+      /* 000001B9h inside a packet's payload is data, not an end code. */
+      static uint8_t sec[64];
+      static const uint8_t pack[] =
+      {
+         0x00, 0x00, 0x01, 0xBA, 0x21, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0x01
+      };
+      static const uint8_t vpkt[] =
+      {
+         0x00, 0x00, 0x01, 0xBA, 0x21, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0x01,
+         0x00, 0x00, 0x01, 0xE0, 0x00, 0x08, 0x0F,
+         0x00, 0x00, 0x01, 0xB3, 0x16, 0x00, 0xF0
+      };
+      static const uint8_t endcode[] = { 0x00, 0x00, 0x01, 0xB9 };
+      uint8_t *q = sec;
+      uint32_t fill;
+
+      memcpy(q, pack, sizeof(pack));
+      q += sizeof(pack);
+      *q++ = 0x00; *q++ = 0x00; *q++ = 0x01; *q++ = 0xC0;
+      *q++ = 0x00; *q++ = 0x09; *q++ = 0x0F;
+      *q++ = 0xFF; *q++ = 0x00; *q++ = 0x00; *q++ = 0x01; *q++ = 0xB9;
+      *q++ = 0x00; *q++ = 0x00; *q++ = 0x00;
+
+      MPEG_Reset(false);
+      Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+      Cmd(MPEG_CMD_SET_CONNECTION, 0x0006, 0x0001, 0x0026, 0x0001);
+      MPEG_FeedSector(sec, (uint32_t)(q - sec), 0x00, 0x01);
+      Cmd(MPEG_CMD_GET_STATUS, 0, 0, 0, 0);
+      expect_eq("end code bytes in a payload end nothing",
+                Out[0] & 0xFF, MPEG_ASTV_PRE1 | MPEG_ASTA_PRE1);
+
+      /* The demuxer keeps going after an end code: the next pack is a
+         new stream. */
+      MPEG_FeedSector(endcode, sizeof(endcode), 0x00, 0x01);
+      fill = MPEG_GetESFill(true);
+      MPEG_FeedSector(vpkt, sizeof(vpkt), 0x00, 0x01);
+      expect_eq("a pack after the end code is demultiplexed",
+                MPEG_GetESFill(true) - fill, 7);
+   }
+
    /* --- 17. Double init must not leak ----------------------------- */
    printf("[double init]\n");
    expect_true("re-init", MPEG_Init(NULL));

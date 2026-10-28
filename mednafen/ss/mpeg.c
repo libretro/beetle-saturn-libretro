@@ -1761,27 +1761,11 @@ static void StreamEnd(bool video)
    UpdateActionStatus();
 }
 
-/* ISO/IEC 11172-1 system end code, 000001B9h, anywhere in a sector. */
-static bool HasSystemEndCode(const uint8_t *data, uint32_t len)
-{
-   uint32_t i;
-
-   for(i = 0; i + 3 < len; i++)
-   {
-      if(data[i] == 0x00 && data[i + 1] == 0x00 && data[i + 2] == 0x01 && data[i + 3] == 0xB9)
-         return true;
-   }
-
-   return false;
-}
-
 void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode, uint8_t pnum)
 {
    rmpeg1_ps_packet_t pkt;
    bool saw_video = false;
    bool saw_audio = false;
-   const uint8_t *data_start = data;
-   const uint32_t len_start  = len;
    /* The streams this sector belongs to: those connected to the
       partition it came from, or both when the caller does not say. */
    const bool for_video = (pnum == MPEG_NUL_SEL) || (Con[0].vidbufnum == pnum);
@@ -1939,7 +1923,9 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode, uint8_t
    /* End conditions of the connection, CdcMpCon.cmod: the EOR bit of
       the sector, or the system end code in the stream. */
    {
-      const bool sec = HasSystemEndCode(data_start, len_start);
+      /* The ISO/IEC 11172-1 end code, 000001B9h, as the demuxer parses
+         it: the same bytes inside a packet's payload are data. */
+      const bool sec = rmpeg1_ps_ended(Demux);
       const bool eor = (submode & 0x01) != 0;
 
       if(for_video && ((eor && (Con[0].vidcon & MPEG_CMOD_EOR)) || (sec && (Con[0].vidcon & MPEG_CMOD_SEC))))
@@ -1947,6 +1933,13 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode, uint8_t
 
       if(for_audio && ((eor && (Con[0].audcon & MPEG_CMOD_EOR)) || (sec && (Con[0].audcon & MPEG_CMOD_SEC))))
          StreamEnd(false);
+
+      /* rmpeg1_ps parses nothing after an end code, but a new stream
+         may follow: the next connection's, or more of this one when it
+         does not end there.  A Video CD pack fills its sector, so what
+         is dropped with the rest of this sector is padding. */
+      if(sec)
+         rmpeg1_ps_reset(Demux);
    }
 
    /* SQEND comes from the video sequence_end_code, which the scanner
