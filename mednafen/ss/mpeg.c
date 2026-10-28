@@ -311,6 +311,26 @@ static uint32_t SyncWait;
 */
 static bool SeqEndPending;
 
+/*
+   End of the audio stream.  rmp3 decodes a frame only once it holds a
+   full window of input, or once it is told no more is coming
+   (rmp3_stream_set_eof), so the last frames of a stream stay inside it
+   until then.  AEndBytes counts what is left in AFIFO of the stream that
+   ended; RunAudio hands those over, declares the end, and resets the
+   decoder for whatever follows.
+*/
+static bool AEndPending;
+static uint32_t AEndBytes;
+
+static void AudioInputEnded(void)
+{
+   if(AEndPending)
+      return;
+
+   AEndPending = true;
+   AEndBytes   = AFIFO.count;
+}
+
 /* OUT_DECSYNC received in host-synchronised decoding: decode the next
    picture as soon as it is complete, not only at the strobe. */
 static bool DecodePending;
@@ -726,6 +746,7 @@ void MPEG_Reset(bool powering_up)
 
    FIFO_Clear(&VFIFO);
    FIFO_Clear(&AFIFO);
+   AEndPending = false;
 
    if(Demux)
       rmpeg1_ps_reset(Demux);
@@ -962,6 +983,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
 
          FIFO_Clear(&VFIFO);
          FIFO_Clear(&AFIFO);
+         AEndPending = false;
 
          VState       = MPEG_ASTV_STOP;
          AState       = MPEG_ASTV_STOP;
@@ -1437,6 +1459,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          if(clr_a == MPEG_CLA_ON)
          {
             FIFO_Clear(&AFIFO);
+            AEndPending = false;
             AudioStatus |= MPEG_STA_BEMPTY;
          }
 
@@ -1740,6 +1763,8 @@ static void StreamEnd(bool video)
    {
       if(Con[0].audbufnum == MPEG_NUL_SEL)
          return;
+
+      AudioInputEnded();
 
       if(Con[1].audbufnum != MPEG_NUL_SEL)
       {
@@ -2219,7 +2244,7 @@ bool MPEG_GetAudioSample(uint16_t *out)
       frame decoded, would otherwise run dry before the next period.
       Not while paused: decoding stops with the picture, as it does
       when MPEG_Update skips the decode. */
-   if(ARatePhase >= (1U << 16) && !ARing_Count && AFIFO.count
+   if(ARatePhase >= (1U << 16) && !ARing_Count && (AFIFO.count || AEndPending)
       && PauseIntvl != MPEG_INTVL_HOLD)
       RunAudio();
 
@@ -2275,18 +2300,18 @@ static void RunAudio(void)
 {
    uint8_t staging[4096];
 
-   if(!Audio || !AFIFO.count || !AudioTransfers())
+   if(!Audio || (!AFIFO.count && !AEndPending) || !AudioTransfers())
       return;
 
    while(ARing_Count < MPEG_ARING_HOLD)
    {
-      uint32_t avail = AFIFO.count;
+      uint32_t avail = AEndPending ? AEndBytes : AFIFO.count;
       uint32_t take  = (avail > sizeof(staging)) ? (uint32_t)sizeof(staging) : avail;
       size_t   read  = 0;
       size_t   wrote = 0;
       int      st;
 
-      if(!take)
+      if(!take && !AEndPending)
          break;
 
       FIFO_Peek(&AFIFO, staging, take);
@@ -2294,9 +2319,15 @@ static void RunAudio(void)
       rmp3_stream_set_in(Audio, staging, take);
       rmp3_stream_set_out_s16(Audio, APCM, RMP3_MAX_SAMPLES_PER_FRAME / 2);
 
+      /* The window holds the rest of the stream that ended. */
+      if(AEndPending && take == avail)
+         rmp3_stream_set_eof(Audio);
+
       st = rmp3_stream_process(Audio, &read, &wrote);
 
       FIFO_Drop(&AFIFO, (uint32_t)read);
+      if(AEndPending)
+         AEndBytes -= (uint32_t)read;
 
       if(wrote)
       {
@@ -2332,6 +2363,13 @@ static void RunAudio(void)
             AudioStarted = true;
             RaiseInt(MPEG_INT_AOSTRT);
          }
+      }
+
+      if(st == RMP3_STREAM_END && AEndPending)
+      {
+         rmp3_stream_reset(Audio);
+         AEndPending = false;
+         continue;
       }
 
       if(st != RMP3_STREAM_OK)
@@ -2755,6 +2793,8 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(SeqHdrFill),
       SFVAR(SyncWait),
       SFVAR(SeqEndPending),
+      SFVAR(AEndPending),
+      SFVAR(AEndBytes),
       SFVAR(DecodePending),
       SFVAR(AudioPTS),
       SFVAR(LastSCR),
@@ -2799,6 +2839,7 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
 
       FIFO_Clear(&VFIFO);
       FIFO_Clear(&AFIFO);
+      AEndPending = false;
 
       ARing_RP    = 0;
       ARing_WP    = 0;

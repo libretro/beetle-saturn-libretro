@@ -31,6 +31,8 @@
 #include <stdlib.h>
 
 #include "mednafen/ss/mpeg.h"
+#include <formats/rmpeg1_ps.h>
+#include <formats/rmp3.h>
 
 /* ---- stubs ------------------------------------------------------- */
 
@@ -1766,6 +1768,85 @@ int main(void)
       MPEG_FeedSector(vpkt, sizeof(vpkt), 0x00, 0x01);
       expect_eq("a pack after the end code is demultiplexed",
                 MPEG_GetESFill(true) - fill, 7);
+   }
+
+   if(getenv("MPEG_TEST_STREAM"))
+   {
+      /* The whole audio stream comes out: the card against rmp3 decoding
+         the same elementary stream from memory, which decodes every
+         frame to the last one. */
+      FILE *fp = fopen(getenv("MPEG_TEST_STREAM"), "rb");
+      static uint8_t file[16 * 1024 * 1024];
+      static uint8_t aes[2 * 1024 * 1024];
+      static int16_t ref[8 * 1024 * 1024];
+      static int16_t got[8 * 1024 * 1024];
+      size_t flen = 0, alen = 0, i;
+      uint64_t refn = 0, gotn = 0;
+
+      if(fp)
+      {
+         flen = fread(file, 1, sizeof(file), fp);
+         fclose(fp);
+      }
+
+      if(!flen)
+         printf("  skipped\n");
+      else
+      {
+         rmpeg1_ps_t *ps = rmpeg1_ps_init(0);
+         rmpeg1_ps_packet_t pk;
+         rmp3 mp3;
+         size_t off = 0;
+         unsigned k;
+
+         while(off < flen)
+         {
+            off += rmpeg1_ps_write(ps, file + off, flen - off);
+            while(rmpeg1_ps_next(ps, &pk))
+               if(pk.type == RMPEG1_PS_AUDIO && alen + pk.size <= sizeof(aes))
+               {
+                  memcpy(aes + alen, pk.data, pk.size);
+                  alen += pk.size;
+               }
+         }
+         rmpeg1_ps_free(ps);
+
+         if(rmp3_init_memory(&mp3, aes, alen))
+         {
+            refn = rmp3_read_s16(&mp3, sizeof(ref) / 4, ref);
+            rmp3_uninit(&mp3);
+         }
+
+         /* Audio only, transferred at once, ending at the EOR bit of the
+            last sector as a disc track does. */
+         MPEG_Reset(false);
+         Cmd(MPEG_CMD_SET_STREAM, 0x0000, 0xFF00, 0x0000, 0xFF00);
+         Cmd(MPEG_CMD_SET_CONNECTION, 0x0001, 0x0001, 0x0000, 0x00FF);
+         Cmd(MPEG_CMD_PLAY, 0x0001, 0x01FF, 0, 0x00FF);
+
+         for(i = 0; i + 2324 <= flen; i += 2324)
+         {
+            uint32_t n;
+
+            MPEG_FeedSector(file + i, 2324, (i + 2324 * 2 > flen) ? 0x01 : 0x00, 0x01);
+            MPEG_RunFrame();
+            while((n = MPEG_ReadAudio(got + gotn * 2, 4096)) > 0)
+               gotn += n;
+         }
+         for(k = 0; k < 400; k++)
+         {
+            uint32_t n;
+
+            MPEG_RunFrame();
+            while((n = MPEG_ReadAudio(got + gotn * 2, 4096)) > 0)
+               gotn += n;
+         }
+
+         expect_true("reference decoded", refn > 0);
+         expect_eq("every audio sample played", (unsigned long)gotn, (unsigned long)refn);
+         expect_true("samples match the reference",
+                     gotn == refn && !memcmp(got, ref, (size_t)refn * 4));
+      }
    }
 
    /* --- 17. Double init must not leak ----------------------------- */
