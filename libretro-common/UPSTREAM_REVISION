@@ -1,7 +1,5 @@
 Source: https://github.com/libretro/RetroArch
-Revision: 79124b852a6838d71ad37301398e19ff00729686
-          plus "rchd: CD frame geometry for version 3/4 images,
-          constant ECC tables"
+Revision: 2855f460d83f8e211a49a8b88707fb3751b7abd8
 
 Selective refresh of the existing subset and dependency closure for
 rchd, rlzma, rflac, rinflate, rzstd, CRC32, CPU features and SPSC queues.
