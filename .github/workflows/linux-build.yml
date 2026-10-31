@@ -1,0 +1,58 @@
+name: Linux build and thread tests
+
+# old-binutils links the core the way the libretro linux-x64 image does,
+# GCC 9 through the binutils 2.26 assembler, where code needing a newer
+# assembler fails only at the LTO link.  thread-tests runs the
+# deterministic thread, CD and codec checks threaded and synchronous, and
+# the save writer on Linux and under Wine.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  old-binutils:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GCC 9
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-9 g++-9
+      - uses: actions/cache@v4
+        with:
+          path: ~/old-binutils
+          key: binutils-2.26.1-1ubuntu1-16.04.8
+      - name: Build with binutils 2.26
+        env:
+          BINUTILS_CACHE: /home/runner/old-binutils
+        run: sh tools/old_binutils_build.sh
+
+  thread-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mingw-w64 and Wine
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 wine wine64 libzstd1
+      - name: Thread, CD and codec checks
+        run: |
+          python3 tools/check_lockfree.py --jobs "$(nproc)" \
+             --zstd-library /usr/lib/x86_64-linux-gnu/libzstd.so.1
+      - name: Thread, CD and codec checks without threading
+        run: |
+          python3 tools/check_lockfree.py --no-threading --jobs "$(nproc)" \
+             --zstd-library /usr/lib/x86_64-linux-gnu/libzstd.so.1
+      - name: Save writer on Linux and under Wine
+        env:
+          MINGW: 1
+          WINEPREFIX: /tmp/wineprefix
+        run: sh tools/save_writer_test.sh
