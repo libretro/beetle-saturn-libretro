@@ -2281,10 +2281,49 @@ static struct
    const uint16_t *frame;
    const uint8_t *luma;
    MPEG_DisplayState ds;
+   bool col_valid;   /* EXBG_Col matches this frame; render thread sets it */
+   uint16_t col_w;
+   bool col_vdp2_hd;
 } EXBG;
+
+/*
+   Display column to source column, or -1 for the border, for the frame
+   being drawn.  Everything that decides it -- the window, FRAT scaling,
+   mosaic, the picture width and the dot clock ratio -- is fixed for the
+   frame by the latch, so it is worked out once per frame on the render
+   thread instead of once per pixel per line, which took the FRAT divide
+   and the mosaic modulo out of the inner loop.  Only the render thread
+   touches the table; LatchEXBG only clears col_valid, while the render
+   thread is idle.
+*/
+static int16_t EXBG_Col[704];
+
+static const int16_t *EXBG_Cols(const unsigned w, const bool vdp2_hd)
+{
+   if(!EXBG.col_valid || EXBG.col_w != w || EXBG.col_vdp2_hd != vdp2_hd)
+   {
+      const bool card_hd = EXBG.hd;
+      unsigned x;
+
+      for(x = 0; x < w; x++)
+      {
+         const unsigned cx = (card_hd == vdp2_hd) ? x : (card_hd ? (x << 1) : (x >> 1));
+         int32_t sx;
+
+         EXBG_Col[x] = MPEG_MapCol(&EXBG.ds, cx, EXBG.fw, &sx) ? (int16_t)sx : -1;
+      }
+
+      EXBG.col_w       = (uint16_t)w;
+      EXBG.col_vdp2_hd = vdp2_hd;
+      EXBG.col_valid   = true;
+   }
+
+   return EXBG_Col;
+}
 
 static void LatchEXBG(void)
 {
+   EXBG.col_valid = false;
    EXBG.active = MPEG_IsPresent() && MPEG_DirectOutput()
               && MPEG_GetDisplayState()->enabled;
    if(!EXBG.active)
@@ -2342,13 +2381,13 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
       const uint16_t *src = fb + (size_t)sy * MPEG_MAX_WIDTH;
       const uint8_t  *lsrc = luma ? (luma + (size_t)sy * MPEG_MAX_WIDTH) : NULL;
       const unsigned trp = ds->trp & MPEG_TRP_MASK;
+      const int16_t *col = EXBG_Cols(w, vdp2_hd);
 
       for(x = 0; x < w; x++)
       {
-         const unsigned cx = (card_hd == vdp2_hd) ? x : (card_hd ? (x << 1) : (x >> 1));
-         int32_t sx;
+         const int32_t sx = col[x];
 
-         if(!MPEG_MapCol(ds, cx, fw, &sx))
+         if(sx < 0)
          {
             bgbuf[x] = border;
             continue;
