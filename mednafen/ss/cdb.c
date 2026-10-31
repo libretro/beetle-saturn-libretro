@@ -1611,11 +1611,22 @@ static void MPEG_FeedBuffer(const uint8_t bfsidx, const uint8_t pnum)
 // host is reading sectors out, since those may be the same buffers.
 static void MPEG_Pull(void)
 {
+ uint8_t src[2];
+
  if(DT.Active && !DT.Writing)
   return;
 
- for(unsigned pnum = 0; pnum < 0x18; pnum++)
+ // Only the partitions the current video and audio connections draw
+ // from can feed the card, so those two are all that is checked.
+ MPEG_GetSourcePartitions(src);
+
+ for(unsigned k = 0; k < 2; k++)
  {
+  const uint8_t pnum = src[k];
+
+  if(pnum >= 0x18 || (k && pnum == src[0]))
+   continue;
+
   while(Partitions[pnum].Count && MPEG_WantsSector(pnum))
   {
    const uint8_t bfsidx = Partitions[pnum].FirstBuf;

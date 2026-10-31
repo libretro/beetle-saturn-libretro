@@ -2640,6 +2640,12 @@ bool MPEG_WantsPartition(uint8_t pnum)
    return false;
 }
 
+void MPEG_GetSourcePartitions(uint8_t src[2])
+{
+   src[0] = Present ? Con[0].vidbufnum : MPEG_NUL_SEL;
+   src[1] = Present ? Con[0].audbufnum : MPEG_NUL_SEL;
+}
+
 bool MPEG_WantsSector(uint8_t pnum)
 {
    if(!MPEG_ConsumesPartition(pnum))

@@ -563,6 +563,13 @@ bool MPEG_ConsumesPartition(uint8_t pnum);
 bool MPEG_WantsSector(uint8_t pnum);
 
 /*
+   The buffer partitions the current video and audio connections draw
+   from, src[0] video and src[1] audio, MPEG_NUL_SEL for one that is not
+   connected.  The CD block offers sectors only from these.
+*/
+void MPEG_GetSourcePartitions(uint8_t src[2]);
+
+/*
    Drain decoded audio.  Writes up to frames interleaved stereo s16
    sample pairs and returns how many were actually available.  Output is
    at the stream's own rate -- 44.1 kHz for Video CD -- and needs
