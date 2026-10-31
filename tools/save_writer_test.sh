@@ -23,17 +23,21 @@ THREADS="$LC/rthreads/rthreads.c $LC/queues/retro_spsc.c
       mednafen/thread_eventcount_common.c"
 FLAGS="-O1 -g -Wall -I$LC/include -Imednafen -I."
 MT="-DWANT_THREADING -DHAVE_THREADS"
+# Sanitizer shadow ranges can collide with the 32-bit mmap randomisation
+# of current kernels, as on GitHub's ubuntu-24.04 runners
+NORAND=
+setarch "$(uname -m)" -R true 2>/dev/null && NORAND="setarch $(uname -m) -R"
 
 ${CC:-cc} $FLAGS $MT -fsanitize=address,undefined -fno-sanitize-recover=undefined \
    -o "$WORK/t" $BASE $THREADS -lpthread
-ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 "$WORK/t" "$WORK"
+ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 $NORAND "$WORK/t" "$WORK"
 
 ${CC:-cc} $FLAGS $MT -fsanitize=thread -o "$WORK/t_tsan" $BASE $THREADS -lpthread
-TSAN_OPTIONS=halt_on_error=1 "$WORK/t_tsan" "$WORK"
+TSAN_OPTIONS=halt_on_error=1 $NORAND "$WORK/t_tsan" "$WORK"
 
 ${CC:-cc} $FLAGS -fsanitize=address,undefined -fno-sanitize-recover=undefined \
    -o "$WORK/t_st" $BASE
-"$WORK/t_st" "$WORK"
+$NORAND "$WORK/t_st" "$WORK"
 
 if [ -n "$MINGW" ]; then
    x86_64-w64-mingw32-gcc $FLAGS $MT -o "$WORK/t.exe" $BASE $THREADS -static

@@ -26,10 +26,14 @@ SRC="tools/mapped_readahead_test.c mednafen/cdstream.c
      $LC/features/features_cpu.c"
 FLAGS="-O1 -g -Wall -DHAVE_THREADS -I$LC/include -Imednafen -I."
 WRAP="-Wl,--wrap=filestream_prefetch"
+# Sanitizer shadow ranges can collide with the 32-bit mmap randomisation
+# of current kernels, as on GitHub's ubuntu-24.04 runners
+NORAND=
+setarch "$(uname -m)" -R true 2>/dev/null && NORAND="setarch $(uname -m) -R"
 
 ${CC:-cc} $FLAGS -DHAVE_MMAP -fsanitize=address,undefined \
    -fno-sanitize-recover=undefined -o "$WORK/t" $SRC $WRAP -lpthread
-( cd "$WORK" && ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 ./t )
+( cd "$WORK" && ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 $NORAND ./t )
 
 if [ -n "$MINGW" ]; then
    x86_64-w64-mingw32-gcc $FLAGS -o "$WORK/t.exe" $SRC $WRAP -static
