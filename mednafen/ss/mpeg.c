@@ -377,11 +377,36 @@ static int64_t  FrameAccum;
 static uint32_t FrameRateNum = 30000;
 static uint32_t FrameRateDen = 1001;
 
-/* Decoded picture, RGB555.  Untouched by stage 1. */
-static uint16_t *FrameBuf;
-static uint8_t  *FrameLuma;
+/*
+   Decoded picture.
+
+   The VDP2 render thread draws the card's picture straight out of these
+   planes; nothing copies them for it.  RGB555 and luma are each double
+   buffered: MPEG_LatchFrame(), called by VDP2 at the start of a frame,
+   marks the front plane as the one being drawn, and the emulation
+   thread only ever writes the other one, then makes it the front.  Both
+   the latch and every write happen on the emulation thread, so the
+   indices need no atomics; the render thread only ever sees the latched
+   plane, and only after VDP2REND_EndFrame has waited for the previous
+   frame's lines.  A second decode within one VDP2 frame rewrites the
+   unlatched plane again, which nothing is reading.
+
+   The two are flipped independently because SET_FADE on a held picture
+   makes new RGB from the same luma.  The chroma planes are kept at
+   their native 4:2:0 size for that re-gain only; VDP2 never reads them.
+*/
+#define MPEG_PIC_PIXELS   (MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT)
+#define MPEG_CHROMA_PITCH (MPEG_MAX_WIDTH / 2)
+#define MPEG_CHROMA_SIZE  (MPEG_CHROMA_PITCH * (MPEG_MAX_HEIGHT / 2))
+
+static uint8_t  *FrameMem;          /* one allocation backs every plane */
+static uint16_t *FrameRGB[2];
+static uint8_t  *FrameY[2];
 static uint8_t  *FrameCb;
 static uint8_t  *FrameCr;
+static uint8_t   RGBFront, RGBLatched;
+static uint8_t   YFront, YLatched;
+static bool      FrameItpCH;        /* CDC_MPITP_CH the chroma was converted with */
 static uint32_t  FrameW, FrameH;
 static bool      FrameValid;
 
@@ -543,10 +568,7 @@ bool MPEG_Init(RFILE *rom_fp)
    Present     = true;
    CardROM     = NULL;
    CardROMSize = 0;
-   FrameBuf    = NULL;
-   FrameLuma   = NULL;
-   FrameCb     = NULL;
-   FrameCr     = NULL;
+   FrameMem    = NULL;
    Demux       = NULL;
    Video       = NULL;
    Audio       = NULL;
@@ -608,25 +630,27 @@ bool MPEG_Init(RFILE *rom_fp)
 
    memset(ARing, 0, MPEG_ARING_FRAMES * 2 * sizeof(int16_t));
 
-   FrameBuf = (uint16_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
-   if(!FrameBuf)
+   /* Allocated once here and never resized: the largest picture fits,
+      so nothing is allocated while a movie plays. */
+   FrameMem = (uint8_t*)malloc(2 * MPEG_PIC_PIXELS * sizeof(uint16_t)
+                             + 2 * MPEG_PIC_PIXELS
+                             + 2 * MPEG_CHROMA_SIZE);
+   if(!FrameMem)
       goto fail;
 
-   memset(FrameBuf, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
+   FrameRGB[0] = (uint16_t*)FrameMem;
+   FrameRGB[1] = FrameRGB[0] + MPEG_PIC_PIXELS;
+   FrameY[0]   = (uint8_t*)(FrameRGB[1] + MPEG_PIC_PIXELS);
+   FrameY[1]   = FrameY[0] + MPEG_PIC_PIXELS;
+   FrameCb     = FrameY[1] + MPEG_PIC_PIXELS;
+   FrameCr     = FrameCb + MPEG_CHROMA_SIZE;
 
-   FrameLuma = (uint8_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-   if(!FrameLuma)
-      goto fail;
+   memset(FrameMem, 0, 2 * MPEG_PIC_PIXELS * sizeof(uint16_t) + 2 * MPEG_PIC_PIXELS);
+   memset(FrameCb, 128, 2 * MPEG_CHROMA_SIZE);
 
-   memset(FrameLuma, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-
-   FrameCb = (uint8_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-   FrameCr = (uint8_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-   if(!FrameCb || !FrameCr)
-      goto fail;
-
-   memset(FrameCb, 128, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-   memset(FrameCr, 128, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+   /* Nothing is latched yet; writes go to plane 0 first. */
+   RGBFront = YFront = 0;
+   RGBLatched = YLatched = 1;
 
    MPEG_Reset(true);
 
@@ -663,21 +687,12 @@ void MPEG_Kill(void)
    CardROM     = NULL;
    CardROMSize = 0;
 
-   if(FrameBuf)
-      free(FrameBuf);
-   FrameBuf = NULL;
-
-   if(FrameLuma)
-      free(FrameLuma);
-   FrameLuma = NULL;
-
-   if(FrameCb)
-      free(FrameCb);
-   FrameCb = NULL;
-
-   if(FrameCr)
-      free(FrameCr);
-   FrameCr = NULL;
+   if(FrameMem)
+      free(FrameMem);
+   FrameMem    = NULL;
+   FrameRGB[0] = FrameRGB[1] = NULL;
+   FrameY[0]   = FrameY[1]   = NULL;
+   FrameCb     = FrameCr     = NULL;
 
    Present = false;
 }
@@ -802,19 +817,11 @@ void MPEG_Reset(bool powering_up)
 
    FrameW     = 0;
    FrameH     = 0;
+   /* The planes themselves are left alone: nothing reads them while
+      FrameValid is clear, and VDP2 may still be drawing the latched
+      ones for the frame in progress. */
    FrameValid = false;
-
-   if(powering_up)
-   {
-      if(FrameBuf)
-         memset(FrameBuf, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
-      if(FrameLuma)
-         memset(FrameLuma, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-      if(FrameCb)
-         memset(FrameCb, 128, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-      if(FrameCr)
-         memset(FrameCr, 128, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-   }
+   (void)powering_up;
 }
 
 bool MPEG_IsPresent(void)
@@ -2058,98 +2065,179 @@ static const uint8_t FadeEighths[16] =
    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 12, 12, 16, 16
 };
 
-/* YCbCr planes to RGB555 with the SET_FADE gains applied to the luma
-   signal above black and to the colour difference signals.  At gain 0
-   both factors are exactly 8/8 and the output is the plain conversion. */
-static void ApplyGain(void)
+/*
+   Per-gain lookup tables for the conversion.  Each holds exactly the
+   term the straight per-pixel formula would compute, so the output is
+   bit-identical to it:
+
+     Y  = ((y - 16) * gy * YUV_Y) >> 3
+     R  = Y + ((YUV_RV * cr') >> 3)
+     G  = Y + ((YUV_GU * cb' + YUV_GV * cr') >> 3)
+     B  = Y + ((YUV_BU * cb') >> 3)
+
+   with cb' = (cb - 128) * gc and cr' likewise.  G's two terms are summed
+   before the shift, so their tables hold the unshifted products.  Built
+   only when a gain changes, which is never during ordinary playback.
+*/
+static struct
+{
+   int8_t  gy, gc;   /* gains the tables were built for */
+   bool    valid;
+   int32_t y[256];
+   int32_t rv[256];
+   int32_t bu[256];
+   int32_t gu[256];  /* unshifted */
+   int32_t gv[256];  /* unshifted */
+} YUVTab;
+
+static void YUVTab_Update(void)
 {
    const int32_t gy = FadeEighths[(Display.fade   + 8) & 0xF];
    const int32_t gc = FadeEighths[(Display.fade_c + 8) & 0xF];
-   unsigned x, y;
+   int32_t i;
 
-   for(y = 0; y < FrameH; y++)
+   if(YUVTab.valid && YUVTab.gy == Display.fade && YUVTab.gc == Display.fade_c)
+      return;
+
+   for(i = 0; i < 256; i++)
    {
-      const size_t   row = (size_t)y * MPEG_MAX_WIDTH;
-      const uint8_t *lp  = FrameLuma + row;
-      const uint8_t *up  = FrameCb + row;
-      const uint8_t *vp  = FrameCr + row;
-      uint16_t      *dp  = FrameBuf + row;
+      const int32_t c = (i - 128) * gc;
 
-      for(x = 0; x < FrameW; x++)
+      YUVTab.y[i]  = (((i - 16) * gy) * YUV_Y) >> 3;
+      YUVTab.rv[i] = (YUV_RV * c) >> 3;
+      YUVTab.bu[i] = (YUV_BU * c) >> 3;
+      YUVTab.gu[i] = YUV_GU * c;
+      YUVTab.gv[i] = YUV_GV * c;
+   }
+
+   YUVTab.gy    = Display.fade;
+   YUVTab.gc    = Display.fade_c;
+   YUVTab.valid = true;
+}
+
+/* Saturn RGB555 is BGR order in the low 15 bits. */
+#define YUV_PACK(yy, ro, go, bo) \
+   (uint16_t)((ClampU5((yy) + (bo)) << 10) | (ClampU5((yy) + (go)) << 5) | ClampU5((yy) + (ro)))
+
+/*
+   4:2:0 planes to RGB555 with the SET_FADE gains applied, in one pass
+   straight from the source planes.  Works a chroma row at a time, so
+   each chroma sample's three colour terms are looked up once and used
+   for the 2x2 luma samples it covers.  Chroma is upsampled by
+   replication, which is what the card did at 352x240; CDC_MPITP_CH
+   instead puts odd columns halfway to the next chroma sample.
+*/
+static void EmitRGB(uint16_t *dst,
+                    const uint8_t *ysrc, size_t ypitch,
+                    const uint8_t *cbsrc, const uint8_t *crsrc, size_t cpitch,
+                    unsigned w, unsigned h, bool itp_ch)
+{
+   const unsigned cw = (w + 1) >> 1;
+   unsigned y;
+
+   YUVTab_Update();
+
+   for(y = 0; y < h; y += 2)
+   {
+      const uint8_t *cb  = cbsrc + (size_t)(y >> 1) * cpitch;
+      const uint8_t *cr  = crsrc + (size_t)(y >> 1) * cpitch;
+      const uint8_t *y0  = ysrc + (size_t)y * ypitch;
+      const uint8_t *y1  = (y + 1 < h) ? (y0 + ypitch) : NULL;
+      uint16_t      *d0  = dst + (size_t)y * MPEG_MAX_WIDTH;
+      uint16_t      *d1  = d0 + MPEG_MAX_WIDTH;
+      unsigned i;
+
+      for(i = 0; i < cw; i++)
       {
-         const int32_t yy = ((((int32_t)lp[x] - 16) * gy) * YUV_Y) >> 3;
-         const int32_t cb = ((int32_t)up[x] - 128) * gc;
-         const int32_t cr = ((int32_t)vp[x] - 128) * gc;
+         const unsigned x = i << 1;
+         int32_t ro = YUVTab.rv[cr[i]];
+         int32_t bo = YUVTab.bu[cb[i]];
+         int32_t go = (YUVTab.gu[cb[i]] + YUVTab.gv[cr[i]]) >> 3;
 
-         const uint32_t r = ClampU5(yy + ((YUV_RV * cr) >> 3));
-         const uint32_t g = ClampU5(yy + ((YUV_GU * cb + YUV_GV * cr) >> 3));
-         const uint32_t b = ClampU5(yy + ((YUV_BU * cb) >> 3));
+         d0[x] = YUV_PACK(YUVTab.y[y0[x]], ro, go, bo);
+         if(y1)
+            d1[x] = YUV_PACK(YUVTab.y[y1[x]], ro, go, bo);
 
-         /* Saturn RGB555 is BGR order in the low 15 bits. */
-         dp[x] = (uint16_t)((b << 10) | (g << 5) | r);
+         if(x + 1 >= w)
+            break;
+
+         if(itp_ch)
+         {
+            const unsigned c1 = (i + 1 < cw) ? (i + 1) : i;
+            const unsigned ub = ((unsigned)cb[i] + cb[c1] + 1) >> 1;
+            const unsigned vr = ((unsigned)cr[i] + cr[c1] + 1) >> 1;
+
+            ro = YUVTab.rv[vr];
+            bo = YUVTab.bu[ub];
+            go = (YUVTab.gu[ub] + YUVTab.gv[vr]) >> 3;
+         }
+
+         d0[x + 1] = YUV_PACK(YUVTab.y[y0[x + 1]], ro, go, bo);
+         if(y1)
+            d1[x + 1] = YUV_PACK(YUVTab.y[y1[x + 1]], ro, go, bo);
       }
    }
 }
 
-/* 4:2:0 planar to full-resolution YCbCr planes, chroma upsampled by
-   replication, then to RGB555.  Nearest neighbour rather than a proper
-   interpolating upsampler because the card's own output was not doing
-   anything cleverer at 352x240 and an interpolator would be inventing
-   detail the hardware did not show. */
+/* The plane the emulation thread may write: whichever one VDP2 has not
+   latched. */
+#define RGB_BACK() (RGBLatched ^ 1)
+#define Y_BACK()   (YLatched ^ 1)
+
+/* New RGB for the picture on screen after a SET_FADE change, from the
+   luma and chroma it was decoded with.  The luma plane is not touched,
+   so it stays the front one. */
+static void ApplyGain(void)
+{
+   const unsigned back = RGB_BACK();
+
+   EmitRGB(FrameRGB[back], FrameY[YFront], MPEG_MAX_WIDTH,
+           FrameCb, FrameCr, MPEG_CHROMA_PITCH, FrameW, FrameH, FrameItpCH);
+   RGBFront = (uint8_t)back;
+}
+
+/*
+   A decoded picture becomes the front one.  The decoder's planes are
+   read once: the luma rows and the native-size chroma rows are kept
+   for the luminance key and for a later SET_FADE, and the RGB is made
+   from the decoder's own planes in the same go.
+*/
 static void ConvertFrame(const rmpeg1_video_frame_t *f)
 {
-   unsigned x, y;
+   unsigned y;
    unsigned w = f->width;
    unsigned h = f->height;
+   const unsigned yb = Y_BACK();
+   const unsigned rb = RGB_BACK();
+   unsigned cw, ch;
 
    if(w > MPEG_MAX_WIDTH)  w = MPEG_MAX_WIDTH;
    if(h > MPEG_MAX_HEIGHT) h = MPEG_MAX_HEIGHT;
 
+   cw = (w + 1) >> 1;
+   ch = (h + 1) >> 1;
+
    for(y = 0; y < h; y++)
+      memcpy(FrameY[yb] + (size_t)y * MPEG_MAX_WIDTH,
+             f->y + (size_t)y * f->y_stride, w);
+
+   for(y = 0; y < ch; y++)
    {
-      const uint8_t *yp = f->y  + (size_t)y * f->y_stride;
-      const uint8_t *up = f->cb + (size_t)(y >> 1) * f->c_stride;
-      const uint8_t *vp = f->cr + (size_t)(y >> 1) * f->c_stride;
-      uint8_t       *lp = FrameLuma + (size_t)y * MPEG_MAX_WIDTH;
-      uint8_t       *bp = FrameCb   + (size_t)y * MPEG_MAX_WIDTH;
-      uint8_t       *rp = FrameCr   + (size_t)y * MPEG_MAX_WIDTH;
-
-      /* CDC_MPITP_CH: interpolate chroma horizontally instead of
-         replicating it.  The card defaults to replication, which is why
-         that is the unconditional path; interpolation is only done when
-         SET_VIDEO_EFFECTS asks for it.  Vertical chroma interpolation
-         (CDC_MPITP_CV) would need the neighbouring chroma row and is
-         not done yet.  The luma switches only matter when the picture
-         is being scaled, which this does not do. */
-      const bool itp_ch = (Display.itp & MPEG_ITP_CH) != 0;
-      const unsigned cw = (w + 1) >> 1;
-
-      for(x = 0; x < w; x++)
-      {
-         lp[x] = yp[x];
-
-         if(itp_ch && (x & 1))
-         {
-            const unsigned c0 = x >> 1;
-            const unsigned c1 = (c0 + 1 < cw) ? (c0 + 1) : c0;
-
-            /* Half-sample offset: even output pixels sit on the chroma
-               sample, odd ones halfway to the next. */
-            bp[x] = (uint8_t)(((unsigned)up[c0] + up[c1] + 1) >> 1);
-            rp[x] = (uint8_t)(((unsigned)vp[c0] + vp[c1] + 1) >> 1);
-         }
-         else
-         {
-            bp[x] = up[x >> 1];
-            rp[x] = vp[x >> 1];
-         }
-      }
+      memcpy(FrameCb + (size_t)y * MPEG_CHROMA_PITCH, f->cb + (size_t)y * f->c_stride, cw);
+      memcpy(FrameCr + (size_t)y * MPEG_CHROMA_PITCH, f->cr + (size_t)y * f->c_stride, cw);
    }
 
-   FrameW = w;
-   FrameH = h;
+   /* CDC_MPITP_CH is sampled per picture, as before; vertical chroma
+      interpolation (CDC_MPITP_CV) is not done yet. */
+   FrameItpCH = (Display.itp & MPEG_ITP_CH) != 0;
 
-   ApplyGain();
+   EmitRGB(FrameRGB[rb], f->y, f->y_stride, f->cb, f->cr, f->c_stride,
+           w, h, FrameItpCH);
+
+   FrameW   = w;
+   FrameH   = h;
+   YFront   = (uint8_t)yb;
+   RGBFront = (uint8_t)rb;
 
    /* The display window follows the decoded picture unless SET_WINDOW
       has said otherwise.  A Video CD is full-screen by default and the
@@ -2662,7 +2750,27 @@ void MPEG_Update(int64_t clocks)
 
 const uint8_t *MPEG_GetFrameLuma(void)
 {
-   return FrameValid ? FrameLuma : NULL;
+   return FrameValid ? FrameY[YFront] : NULL;
+}
+
+const uint16_t *MPEG_LatchFrame(const uint8_t **luma, uint32_t *width, uint32_t *height)
+{
+   if(!FrameValid || !FrameMem)
+   {
+      if(luma)   *luma   = NULL;
+      if(width)  *width  = 0;
+      if(height) *height = 0;
+      return NULL;
+   }
+
+   RGBLatched = RGBFront;
+   YLatched   = YFront;
+
+   if(luma)   *luma   = FrameY[YLatched];
+   if(width)  *width  = FrameW;
+   if(height) *height = FrameH;
+
+   return FrameRGB[RGBLatched];
 }
 
 const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height)
@@ -2677,7 +2785,7 @@ const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height)
    if(width)  *width  = FrameW;
    if(height) *height = FrameH;
 
-   return FrameBuf;
+   return FrameRGB[RGBFront];
 }
 
 const MPEG_DisplayState *MPEG_GetDisplayState(void)

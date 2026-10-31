@@ -2264,53 +2264,39 @@ static INLINE uint32_t SampleEXBG(const uint16_t *row, const uint8_t *lrow,
 }
 
 /*
-   The card's picture as the render thread sees it.  The card belongs to
-   the emulation thread, which decodes into its frame buffer while lines
-   are drawn here, so DrawEXBG reads this copy instead.  LatchEXBG fills
-   it from VDP2REND_StartFrame: VDP2REND_EndFrame has waited for every
-   queued line to be drawn, so nothing reads the copy while it is
-   written, and the release store in WWQ that queues the next line makes
-   it visible to the render thread, as for BurstBuf.
+   The card's picture as the render thread sees it.  LatchEXBG runs on
+   the emulation thread from VDP2REND_StartFrame, after
+   VDP2REND_EndFrame has waited for every queued line, and takes the
+   card's current planes with MPEG_LatchFrame().  The card writes only
+   the planes that are not latched, so DrawEXBG reads them in place
+   for the whole frame with no copy; the release store in WWQ that
+   queues the next line makes the latch visible to the render thread,
+   as for BurstBuf.
 */
 static struct
 {
    bool active;   /* present, output to VDP2, display on */
    bool hd;
-   bool luma;
    uint32_t fw, fh;
+   const uint16_t *frame;
+   const uint8_t *luma;
    MPEG_DisplayState ds;
 } EXBG;
-static uint16_t EXBG_Frame[MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT];
-static uint8_t  EXBG_Luma[MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT];
 
 static void LatchEXBG(void)
 {
-   uint32_t fw = 0, fh = 0, y;
-   const uint16_t *fb;
-   const uint8_t *luma;
-
    EXBG.active = MPEG_IsPresent() && MPEG_DirectOutput()
               && MPEG_GetDisplayState()->enabled;
    if(!EXBG.active)
       return;
 
-   EXBG.ds = *MPEG_GetDisplayState();
-   EXBG.hd = MPEG_HighDefinition();
-   fb = MPEG_GetFrame(&fw, &fh);
-   luma = MPEG_GetFrameLuma();
-   if(!fb)
-      fw = fh = 0;
-   EXBG.fw = fw;
-   EXBG.fh = fh;
-   EXBG.luma = fb && luma;
-
-   for(y = 0; y < fh; y++)
+   EXBG.ds    = *MPEG_GetDisplayState();
+   EXBG.hd    = MPEG_HighDefinition();
+   EXBG.frame = MPEG_LatchFrame(&EXBG.luma, &EXBG.fw, &EXBG.fh);
+   if(!EXBG.frame)
    {
-      const size_t o = (size_t)y * MPEG_MAX_WIDTH;
-
-      memcpy(EXBG_Frame + o, fb + o, fw * sizeof(uint16_t));
-      if(EXBG.luma)
-         memcpy(EXBG_Luma + o, luma + o, fw);
+      EXBG.fw = EXBG.fh = 0;
+      EXBG.luma = NULL;
    }
 }
 
@@ -2328,7 +2314,7 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
 {
    const MPEG_DisplayState *ds = &EXBG.ds;
    const uint32_t fw = EXBG.fw, fh = EXBG.fh;
-   const uint16_t *fb = fh ? EXBG_Frame : NULL;
+   const uint16_t *fb = fh ? EXBG.frame : NULL;
    /* CDC_MpSetBcolor (22.7): bit 15 set outputs the border colour,
       clear leaves the area outside the window transparent. */
    const uint64_t border = (ds->border_color & 0x8000)
@@ -2352,7 +2338,7 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
    }
 
    {
-      const uint8_t *luma = EXBG.luma ? EXBG_Luma : NULL;
+      const uint8_t *luma = EXBG.luma;
       const uint16_t *src = fb + (size_t)sy * MPEG_MAX_WIDTH;
       const uint8_t  *lsrc = luma ? (luma + (size_t)sy * MPEG_MAX_WIDTH) : NULL;
       const unsigned trp = ds->trp & MPEG_TRP_MASK;

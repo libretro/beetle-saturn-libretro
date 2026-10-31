@@ -603,6 +603,17 @@ const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height);
 */
 const uint8_t *MPEG_GetFrameLuma(void);
 
+/*
+   The current picture for VDP2 to draw in place, with its luma plane
+   and size; NULL when there is no picture.  Call once per VDP2 frame
+   from the emulation thread, after the previous frame's lines have all
+   been drawn: the planes returned stay untouched until the next call,
+   because the card only writes the planes that are not latched.  No
+   copy is made.
+*/
+const uint16_t *MPEG_LatchFrame(const uint8_t **luma, uint32_t *width,
+                                uint32_t *height);
+
 /* Display geometry/appearance state, for the VDP2 compositor. */
 typedef struct
 {
