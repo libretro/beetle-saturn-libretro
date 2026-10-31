@@ -223,7 +223,8 @@ enum
  COMMAND_ABORT_FILE	= 0x75,
 
  COMMAND_AUTH_DEVICE	= 0xE0,
- COMMAND_GET_AUTH	= 0xE1
+ COMMAND_GET_AUTH	= 0xE1,
+ COMMAND_GET_MPEGROM	= 0xE2
 };
 
 enum
@@ -1577,6 +1578,66 @@ static bool TestFilterCond(const unsigned fnum, const uint8_t* data)
  return !shinv;
 }
 
+// The card takes the raw payload: on a Video CD the program stream is
+// the concatenation of the Mode 2 Form 2 payloads, and splitting it is
+// the card's job.
+static void MPEG_FeedBuffer(const uint8_t bfsidx, const uint8_t pnum)
+{
+ const uint8_t* sd = Buffers[bfsidx].Data;
+ uint32_t offs, len;
+
+ // Same layout test as Get Sector Data (DT_SetIBOffsCount): only a
+ // Mode 1 header puts the user data at 16.  Anything else, including a
+ // sector the host wrote with Put Sector Data (mode byte 0, data at
+ // 24), is laid out as Mode 2.
+ if(sd[15] == 0x1)	// Mode 1
+ {
+  offs = 16;
+  len  = 2048;
+ }
+ else			// Mode 2
+ {
+  offs = 24;
+  len  = (sd[16 + 2] & 0x20) ? 2324 : 2048;	// Form 2 : Form 1
+ }
+
+ // Submode byte of the Mode 2 subheader carries the trigger and
+ // end-of-record flags the card reports as interrupt factors.
+ MPEG_FeedSector(sd + offs, len, (sd[15] == 0x1) ? 0x00 : sd[16 + 2], pnum);
+}
+
+// Hand the card the sectors waiting in the partitions it deletes from,
+// oldest first, for as long as it has room.  Nothing is taken while the
+// host is reading sectors out, since those may be the same buffers.
+static void MPEG_Pull(void)
+{
+ uint8_t src[2];
+
+ if(DT.Active && !DT.Writing)
+  return;
+
+ // Only the partitions the current video and audio connections draw
+ // from can feed the card, so those two are all that is checked.
+ MPEG_GetSourcePartitions(src);
+
+ for(unsigned k = 0; k < 2; k++)
+ {
+  const uint8_t pnum = src[k];
+
+  if(pnum >= 0x18 || (k && pnum == src[0]))
+   continue;
+
+  while(Partitions[pnum].Count && MPEG_WantsSector(pnum))
+  {
+   const uint8_t bfsidx = Partitions[pnum].FirstBuf;
+
+   MPEG_FeedBuffer(bfsidx, pnum);
+   Partition_UnlinkBuffer(pnum, bfsidx);
+   Buffer_Free(bfsidx);
+  }
+ }
+}
+
 static uint8_t FilterBuf(const unsigned fnum, const unsigned bfsidx)
 {
  assert(bfsidx != 0xFF);
@@ -1593,38 +1654,12 @@ static uint8_t FilterBuf(const unsigned fnum, const unsigned bfsidx)
 
    // The MPEG card draws from a buffer partition, named by
    // CdcMpCon.bn in Set Connection -- so the test is on where this
-   // buffer is headed, not on which filter passed it. The card takes
-   // the raw payload: on a Video CD the program stream is the
-   // concatenation of the Mode 2 Form 2 payloads, and splitting it is
-   // the card's job.
-   if(tconn != 0xFF && MPEG_WantsPartition(tconn))
-   {
-    const uint8_t* sd = Buffers[bfsidx].Data;
-    uint32_t offs, len;
-
-    if(sd[15] == 0x2)	// Mode 2
-    {
-     offs = 24;
-     len  = (sd[16 + 2] & 0x20) ? 2324 : 2048;	// Form 2 : Form 1
-    }
-    else		// Mode 1
-    {
-     offs = 16;
-     len  = 2048;
-    }
-
-    // Submode byte of the Mode 2 subheader carries the trigger and
-    // end-of-record flags the card reports as interrupt factors.
-    MPEG_FeedSector(sd + offs, len, (sd[15] == 0x2) ? sd[16 + 2] : 0x00);
-
-    // CDC_MPCMOD_DEL: the card consumes the sector rather than leaving
-    // it in the partition for the host to read as well.
-    if(MPEG_ConsumesPartition(tconn))
-    {
-     Buffer_Free(bfsidx);
-     return cur;
-    }
-   }
+   // buffer is headed, not on which filter passed it.  A connection
+   // that deletes what it takes (CDC_MPCMOD_DEL) leaves the sector in
+   // the partition, and MPEG_Pull() hands it over when the card has
+   // room.  One that does not delete reads a copy as it arrives.
+   if(tconn != 0xFF && MPEG_WantsPartition(tconn) && !MPEG_ConsumesPartition(tconn))
+    MPEG_FeedBuffer(bfsidx, tconn);
 
    if(tconn != 0xFF)
    {
@@ -2415,6 +2450,9 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
 
   MPEG_Update(clocks);
 
+  if(MPEG_IsPresent())
+   MPEG_Pull();
+
   {
    const uint16_t mpeg_hirq = MPEG_TakePendingHIRQ();
 
@@ -2801,12 +2839,11 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     {
      uint8_t fnum;
 
-     // CR2 == 0x0001 authenticates the MPEG card rather than the disc.
-     // It is unambiguous: a partition-0 disc auth uses CR2 == 0x0000,
-     // and every other partition puts its number in the high byte.
+     // CR2 names the device: 0x0000 the disc, 0x0001 the MPEG card.
+     // The filter number of a disc authentication is the high byte of CR3.
      fnum = (CTR.CD[2] >> 8);
 
-     if(CTR.CD[2] == 0x0001)
+     if(CTR.CD[1] == 0x0001)
      {
       MPEG_Auth();
       CDStatusResults(false, 0);
@@ -2842,12 +2879,63 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
     //
     else if(CTR.Command == COMMAND_GET_AUTH)
     {
-     if(CTR.CD[2])
+     if(CTR.CD[1])
       BasicResults(MakeBaseStatus(false, 0) << 8, MPEG_GetAuth(), 0, 0);
      else if(FLS.Active && FLS.DoAuth)
       CDStatusResults(true, 0);
      else
       BasicResults(MakeBaseStatus(false, 0) << 8, AuthDiscType, 0, 0);
+    }
+    //
+    //
+    //
+    //
+    // Read the Saturn program the MPEG card's ROM carries into the
+    // partition that filter's true output connects to.  The BIOS sends
+    // this once the card has authenticated, to load the Video CD player.
+    // CR1's low byte and CR2 give the start in sectors from the start of
+    // the program, CR3's high byte the filter, CR4 the sector count; a
+    // sector is the current Get Sector Length, and each one is laid out
+    // where Get Sector Data reads that length from.  Same register
+    // shape as Yabause's Cs2GetMPEGRom.
+    //
+    else if(CTR.Command == COMMAND_GET_MPEGROM)
+    {
+     static const uint8_t seclen_offs[4] = { 16, 16, 12, 0 };
+     static const uint16_t seclen_size[4] = { 2048, 2336, 2340, 2352 };
+     const uint32_t start = ((uint32_t)(CTR.CD[0] & 0xFF) << 16) | CTR.CD[1];
+     const uint8_t fnum = CTR.CD[2] >> 8;
+     const unsigned count = CTR.CD[3];
+     uint32_t prog_size = 0;
+     const uint8_t* prog = MPEG_GetProgram(&prog_size);
+
+     if(!prog || !MPEG_GetAuth() || fnum >= 0x18 || Filters[fnum].TrueConn == 0xFF)
+      CDStatusResults(true, 0);
+     else
+     {
+      const unsigned pnum = Filters[fnum].TrueConn;
+      const uint32_t size = seclen_size[GetSecLen];
+      bool stored = false;
+
+      for(unsigned i = 0; i < count && FreeBufferCount; i++)
+      {
+       const uint64_t pos = (uint64_t)(start + i) * size;
+       const uint8_t bfi = Buffer_Allocate(true);
+       uint8_t* sd = Buffers[bfi].Data;
+
+       sd[15] = 0x1;	// Mode 1, so a 2048 byte read starts at 16
+
+       if(pos < prog_size)
+        memcpy(sd + seclen_offs[GetSecLen], prog + pos, (prog_size - pos) < size ? (prog_size - pos) : size);
+
+       Partition_LinkBuffer(pnum, bfi);
+       stored = true;
+      }
+
+      MPEG_ProgramRead();
+      CDStatusResults(false, 0);
+      TriggerIRQ(HIRQ_MPED | (stored ? HIRQ_CSCT : 0));
+     }
     }
     //
     //

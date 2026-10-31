@@ -2263,14 +2263,109 @@ static INLINE uint32_t SampleEXBG(const uint16_t *row, const uint8_t *lrow,
    return (acc_r / n) | ((acc_g / n) << 8) | ((acc_b / n) << 16);
 }
 
-static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_or,
-                     const unsigned line)
+/*
+   The card's picture as the render thread sees it.  LatchEXBG runs on
+   the emulation thread from VDP2REND_StartFrame, after
+   VDP2REND_EndFrame has waited for every queued line, and takes the
+   card's current planes with MPEG_LatchFrame().  The card writes only
+   the planes that are not latched, so DrawEXBG reads them in place
+   for the whole frame with no copy; the release store in WWQ that
+   queues the next line makes the latch visible to the render thread,
+   as for BurstBuf.
+*/
+static struct
 {
-   const MPEG_DisplayState *ds = MPEG_GetDisplayState();
-   uint32_t fw = 0, fh = 0;
-   const uint16_t *fb = MPEG_GetFrame(&fw, &fh);
-   const uint64_t border = (uint64_t)pix_base_or
-                         | ((uint64_t)rgb15_to_rgb24(ds->border_color & 0x7FFF) << PIX_RGB_SHIFT);
+   bool active;   /* present, output to VDP2, display on */
+   bool hd;
+   uint32_t fw, fh;
+   const uint16_t *frame;
+   const uint8_t *luma;
+   MPEG_DisplayState ds;
+   bool col_valid;   /* EXBG_Col matches this frame; render thread sets it */
+   uint16_t col_w;
+   bool col_vdp2_hd;
+} EXBG;
+
+/*
+   Display column to source column, or -1 for the border, for the frame
+   being drawn.  Everything that decides it -- the window, FRAT scaling,
+   mosaic, the picture width and the dot clock ratio -- is fixed for the
+   frame by the latch, so it is worked out once per frame on the render
+   thread instead of once per pixel per line, which took the FRAT divide
+   and the mosaic modulo out of the inner loop.  Only the render thread
+   touches the table; LatchEXBG only clears col_valid, while the render
+   thread is idle.
+*/
+static int16_t EXBG_Col[704];
+
+static const int16_t *EXBG_Cols(const unsigned w, const bool vdp2_hd)
+{
+   if(!EXBG.col_valid || EXBG.col_w != w || EXBG.col_vdp2_hd != vdp2_hd)
+   {
+      const bool card_hd = EXBG.hd;
+      unsigned x;
+
+      for(x = 0; x < w; x++)
+      {
+         const unsigned cx = (card_hd == vdp2_hd) ? x : (card_hd ? (x << 1) : (x >> 1));
+         int32_t sx;
+
+         EXBG_Col[x] = MPEG_MapCol(&EXBG.ds, cx, EXBG.fw, &sx) ? (int16_t)sx : -1;
+      }
+
+      EXBG.col_w       = (uint16_t)w;
+      EXBG.col_vdp2_hd = vdp2_hd;
+      EXBG.col_valid   = true;
+   }
+
+   return EXBG_Col;
+}
+
+static void LatchEXBG(void)
+{
+   EXBG.col_valid = false;
+   EXBG.active = MPEG_IsPresent() && MPEG_DirectOutput()
+              && MPEG_GetDisplayState()->enabled;
+   if(!EXBG.active)
+      return;
+
+   EXBG.ds    = *MPEG_GetDisplayState();
+   EXBG.hd    = MPEG_HighDefinition();
+   EXBG.frame = MPEG_LatchFrame(&EXBG.luma, &EXBG.fw, &EXBG.fh);
+   if(!EXBG.frame)
+   {
+      EXBG.fw = EXBG.fh = 0;
+      EXBG.luma = NULL;
+   }
+}
+
+/*
+   The card sends its picture as a video signal and VDP2 samples it at
+   its own dot clock, so one card pixel covers two VDP2 dots when VDP2
+   runs a high resolution mode (640/704) and the card a normal one, and
+   the other way round.  Lines follow the same rule between a 240 line
+   card picture and a double density interlaced screen.  The card's
+   high definition modes (SET_MODE NSTL/HSTL 704x480) count in those
+   finer units.
+*/
+static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_or,
+                     const unsigned vdp2_line, const bool field)
+{
+   const MPEG_DisplayState *ds = &EXBG.ds;
+   const uint32_t fw = EXBG.fw, fh = EXBG.fh;
+   const uint16_t *fb = fh ? EXBG.frame : NULL;
+   /* CDC_MpSetBcolor (22.7): bit 15 set outputs the border colour,
+      clear leaves the area outside the window transparent. */
+   const uint64_t border = (ds->border_color & 0x8000)
+                         ? ((uint64_t)pix_base_or
+                            | ((uint64_t)rgb15_to_rgb24(ds->border_color & 0x7FFF) << PIX_RGB_SHIFT))
+                         : 0;
+   const bool card_hd  = EXBG.hd;
+   const bool vdp2_hd  = (HRes & 0x2) != 0;
+   const bool vdp2_dd  = InterlaceMode == IM_DOUBLE;
+   /* Line in 480 line units, then in the card's units. */
+   const unsigned line480 = vdp2_dd ? (vdp2_line * 2 + field) : (vdp2_line * 2);
+   const unsigned line = card_hd ? line480 : (line480 >> 1);
    unsigned x;
    int32_t sy;
 
@@ -2282,16 +2377,17 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
    }
 
    {
-      const uint8_t *luma = MPEG_GetFrameLuma();
+      const uint8_t *luma = EXBG.luma;
       const uint16_t *src = fb + (size_t)sy * MPEG_MAX_WIDTH;
       const uint8_t  *lsrc = luma ? (luma + (size_t)sy * MPEG_MAX_WIDTH) : NULL;
       const unsigned trp = ds->trp & MPEG_TRP_MASK;
+      const int16_t *col = EXBG_Cols(w, vdp2_hd);
 
       for(x = 0; x < w; x++)
       {
-         int32_t sx;
+         const int32_t sx = col[x];
 
-         if(!MPEG_MapCol(ds, x, fw, &sx))
+         if(sx < 0)
          {
             bgbuf[x] = border;
             continue;
@@ -2314,19 +2410,7 @@ static void DrawEXBG(uint64_t *bgbuf, const unsigned w, const uint32_t pix_base_
          }
 
          {
-            uint32_t c = SampleEXBG(src, lsrc, sx, sy, fw, fh, ds);
-
-            /* Fade is a straight scale on the way out, which is what
-               MPEG_SET_FADE describes; 0xFF is unity and is the common
-               case, so keep it off the multiply path. */
-            if(ds->fade != 0xFF)
-            {
-               const uint32_t r = ((c & 0x0000FF) * ds->fade) >> 8;
-               const uint32_t g = (((c >> 8) & 0xFF) * ds->fade) >> 8;
-               const uint32_t b = (((c >> 16) & 0xFF) * ds->fade) >> 8;
-
-               c = r | (g << 8) | (b << 16);
-            }
+            const uint32_t c = SampleEXBG(src, lsrc, sx, sy, fw, fh, ds);
 
             bgbuf[x] = (uint64_t)pix_base_or | ((uint64_t)c << PIX_RGB_SHIFT);
          }
@@ -4768,9 +4852,18 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
 
   if((BGON & 0x30) != 0x30)
   {
+   // The external screen takes NBG1's slot whenever EXBGEN is set.  The
+   // VDP2 manual (2.5, Table 2.2) lists the NBG1 bits that apply to it
+   // and N1ON is not among them: N1ON only gates VRAM access, so the
+   // card's picture shows with N1ON clear, which is how Lunar - Silver
+   // Star Story Complete sets it up.  Gated on the card being present
+   // and its display on, so a game that sets the bit with nothing
+   // plugged in gets NBG1 as before.
+   const bool exbg = ExBGEnable && EXBG.active;
+
    for(unsigned n = (bool)(BGON & 0x20); n < 4; n++)
    {
-    if(MDFN_LIKELY((BGON >> n) & 1))
+    if(MDFN_LIKELY((BGON >> n) & 1) || (n == 1 && exbg))
     {
      const bool igntp = (BGON >> (n + 8)) & 1;
      bool bmen = false;
@@ -4821,13 +4914,8 @@ static NO_INLINE void DrawLine(const uint16_t out_line, const uint16_t vdp2_line
      else
       pix_base_or |= (prio << PIX_PRIO_SHIFT);
 
-     // NBG1 doubles as the external background input when EXBGEN is
-     // set.  Gated on the card being present and enabled as well, so a
-     // game that sets the bit with nothing plugged in gets NBG1 as
-     // before rather than a screenful of border colour.
-     if(n == 1 && ExBGEnable && MPEG_IsPresent() && MPEG_DirectOutput()
-        && MPEG_GetDisplayState()->enabled)
-      DrawEXBG(LB.nbg[n] + 8, w, pix_base_or | (1U << PIX_ISRGB_SHIFT), vdp2_line);
+     if(n == 1 && exbg)
+      DrawEXBG(LB.nbg[n] + 8, w, pix_base_or | (1U << PIX_ISRGB_SHIFT), vdp2_line, field);
      else if(n < 2)
       DrawNBG[bmen][colornum][igntp][priomode % 3][ccmode](n, LB.nbg[n] + 8, w, pix_base_or);
      else
@@ -5386,6 +5474,7 @@ void VDP2REND_Kill(void)
 
 void VDP2REND_StartFrame(struct EmulateSpecStruct* espec_arg, const bool clock28m, const int SurfInterlaceField)
 {
+ LatchEXBG();
  NextOutLine = 0;
  Clock28M = clock28m;
  ProgressiveLineStateValid[0] = false;

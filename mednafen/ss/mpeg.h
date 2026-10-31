@@ -120,6 +120,27 @@ enum
  MPEG_WIN_DOFS = 4  /* CDC_MpSetWinDofs -- display offset             */
 };
 
+/*
+   FRAT ratio word, per axis (SBL CD communication I/F, MPEG part,
+   CDC_MpSetWinFrat, 22.3):
+
+     bit 15     C  1 = reduce, 0 = enlarge
+     bit 14        1 = keep the registered value
+     bits 13-4  A  integer part, A < 1024
+     bit 3      D  sign of the correction term
+     bits 2-0   B  correction coefficient, B > 0
+
+     C D  magnification
+     0 0  A + 2 - 1/B
+     0 1  A + 1 + 1/B
+     1 0  1 / (A + 1 - 1/B)
+     1 1  1 / (A + 1/B)
+
+   The initial value 01H is magnification 1.
+*/
+#define MPEG_RAT_REDUCE 0x8000
+#define MPEG_RAT_KEEP   0x4000
+
 #define MPEG_CMD_IS_MPEG(c) ((c) >= 0x90 && (c) <= 0xAF)
 
 /* HIRQ bits the card asks the CD block to raise.  Mirrors the
@@ -379,9 +400,10 @@ enum
 */
 #define MPEG_NUM_FBUF 4
 
-/* Video CD / MPEG-1 constrained-parameter frame geometry. */
-#define MPEG_MAX_WIDTH   352
-#define MPEG_MAX_HEIGHT  288
+/* Largest picture: a Video CD high definition still, 704x480 NTSC or
+   704x576 PAL. */
+#define MPEG_MAX_WIDTH   704
+#define MPEG_MAX_HEIGHT  576
 
 /*
    Lifecycle.
@@ -399,17 +421,34 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only) M
 
 bool MPEG_IsPresent(void);
 
-/* Card firmware ROM, for the eventual BIOS-side Video CD player boot
-   path.  Returns NULL and sets *size to 0 when no ROM was loaded. */
+/* Card firmware ROM.  Returns NULL and sets *size to 0 when no ROM was
+   loaded. */
 const uint8_t *MPEG_GetROM(uint32_t *size);
+
+/*
+   The Saturn program the card ROM carries, which is what command 0xE2
+   reads out.  Every card ROM in hand starts with a block whose length
+   is the big-endian longword at offset 0, after an 8 byte header, and
+   the program follows it: 0x4FF8 + 8 puts it at 0x5000, where each of
+   them holds an IP header ("SEGA SEGASATURN", "SEGAVIEWER") that the
+   BIOS checks after loading the first sectors to 0x06002000, as it does
+   for a disc.  Returns NULL and sets *size to 0 when there is no ROM.
+*/
+const uint8_t *MPEG_GetProgram(uint32_t *size);
 
 /*
    AUTH_DEVICE / GET_AUTH with CR2 == 1 target the card rather than the
    disc.  MPEG_Auth() latches the authenticated state; MPEG_GetAuth()
    returns the value the CD block should place in CR2 (2 == card
    authenticated, 0 == not).
+
+   MPEG_ProgramRead() records that 0xE2 has read the program, which sets
+   bits 8 and 9 of that value until the next authentication.  The BIOS
+   asks GET_AUTH right after 0xE2 and takes the sectors only when it
+   sees them; Yabause's Cs2GetMPEGRom sets the same bits.
 */
 void MPEG_Auth(void);
+void MPEG_ProgramRead(void);
 uint16_t MPEG_GetAuth(void);
 
 /*
@@ -444,8 +483,13 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
    block's, so there is deliberately no video/audio selector here.
    Demultiplexing and substream selection happen inside, driven by the
    stream IDs that SET_STREAM configured.
+
+   pnum is the buffer partition the sector was taken from, which says
+   which connection's end conditions it is tested against;
+   MPEG_NUL_SEL tests both.
 */
-void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode) MDFN_HOT;
+void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode,
+                     uint8_t pnum) MDFN_HOT;
 
 /*
    HIRQ bits the card has accumulated since the last call, cleared by
@@ -510,6 +554,22 @@ bool MPEG_WantsPartition(uint8_t pnum);
 bool MPEG_ConsumesPartition(uint8_t pnum);
 
 /*
+   True when the card has room for one more sector from partition pnum.
+   Only for connections that delete what they take: the CD block leaves
+   those sectors in the partition and hands them over one at a time
+   while this holds, so a full card leaves the partition to fill and the
+   drive to pause.
+*/
+bool MPEG_WantsSector(uint8_t pnum);
+
+/*
+   The buffer partitions the current video and audio connections draw
+   from, src[0] video and src[1] audio, MPEG_NUL_SEL for one that is not
+   connected.  The CD block offers sectors only from these.
+*/
+void MPEG_GetSourcePartitions(uint8_t src[2]);
+
+/*
    Drain decoded audio.  Writes up to frames interleaved stereo s16
    sample pairs and returns how many were actually available.  Output is
    at the stream's own rate -- 44.1 kHz for Video CD -- and needs
@@ -550,6 +610,17 @@ const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height);
 */
 const uint8_t *MPEG_GetFrameLuma(void);
 
+/*
+   The current picture for VDP2 to draw in place, with its luma plane
+   and size; NULL when there is no picture.  Call once per VDP2 frame
+   from the emulation thread, after the previous frame's lines have all
+   been drawn: the planes returned stay untouched until the next call,
+   because the card only writes the planes that are not latched.  No
+   copy is made.
+*/
+const uint16_t *MPEG_LatchFrame(const uint8_t **luma, uint32_t *width,
+                                uint32_t *height);
+
 /* Display geometry/appearance state, for the VDP2 compositor. */
 typedef struct
 {
@@ -559,10 +630,10 @@ typedef struct
  uint16_t w, h;         /* DSIZ -- display size                   */
  uint16_t src_x, src_y; /* FPOS -- source origin in the frame     */
  uint16_t ofs_x, ofs_y; /* DOFS -- display offset                 */
- uint16_t rat_x, rat_y; /* FRAT -- source scaling ratio           */
+ uint16_t rat_x, rat_y; /* FRAT -- magnification, MPEG_RatFrac()  */
  uint16_t border_color; /* RGB555                                 */
- uint8_t  fade;         /* SET_FADE luma gain, 0x00..0xFF         */
- uint8_t  fade_c;       /* SET_FADE chroma gain                   */
+ int8_t   fade;         /* SET_FADE luma gain, -8..7, 0 = unity   */
+ int8_t   fade_c;       /* SET_FADE chroma gain, -8..7            */
 
  /* SET_VIDEO_EFFECTS */
  uint8_t  itp;          /* interpolation switches, MPEG_ITP_*     */
@@ -579,6 +650,13 @@ const MPEG_DisplayState *MPEG_GetDisplayState(void);
    check this as well as the display switch.
 */
 bool MPEG_DirectOutput(void);
+
+/*
+   True in the high definition modes (SET_MODE HMOV/HSTL), where the
+   card's picture and window coordinates are 704 dots wide and 480 or
+   576 lines tall rather than 352 by 240 or 288.
+*/
+bool MPEG_HighDefinition(void);
 
 /*
    Display-to-source coordinate mapping.
@@ -599,6 +677,53 @@ bool MPEG_DirectOutput(void);
    Row mapping is separate from column mapping because the compositor
    works a scanline at a time and hoists the row out of the inner loop.
 */
+/*
+   Magnification of a FRAT word as num/den.  B = 0 is outside the
+   documented range and so is a reduction that comes to 1/0; both read
+   as magnification 1 rather than dividing by zero.
+*/
+static INLINE void MPEG_RatFrac(uint16_t rat, uint32_t *num, uint32_t *den)
+{
+   const uint32_t a = (rat >> 4) & 0x3FF;
+   const uint32_t d = (rat >> 3) & 1;
+   const uint32_t b = rat & 7;
+   uint32_t n;
+
+   *num = *den = 1;
+
+   if(!b)
+      return;
+
+   if(!(rat & MPEG_RAT_REDUCE))
+   {
+      *num = d ? (a + 1) * b + 1 : (a + 2) * b - 1;
+      *den = b;
+      return;
+   }
+
+   n = d ? a * b + 1 : (a + 1) * b - 1;
+
+   if(!n)
+      return;
+
+   *num = b;
+   *den = n;
+}
+
+/* Display distance to frame buffer distance: divide by the
+   magnification, rounding toward the origin. */
+static INLINE int32_t MPEG_RatScale(uint16_t rat, int32_t dist)
+{
+   uint32_t num, den;
+
+   MPEG_RatFrac(rat, &num, &den);
+
+   if(num == den)
+      return dist;
+
+   return (int32_t)(((int64_t)dist * den) / num);
+}
+
 static INLINE bool MPEG_MapRow(const MPEG_DisplayState *ds,
                                unsigned line, uint32_t fh, int32_t *sy)
 {
@@ -609,7 +734,11 @@ static INLINE bool MPEG_MapRow(const MPEG_DisplayState *ds,
 
    /* DOFS shifts the window within the display without moving DPOS,
       which is what SBL's CDC_MpSetWinDofs is for. */
-   y = (int32_t)ds->src_y + (int32_t)(line - ds->y) + (int32_t)ds->ofs_y;
+   /* FRAT magnifies the frame buffer window around its upper left
+      corner, FPOS, so the distance into the display window is divided
+      by the ratio before it is added to FPOS. */
+   y = (int32_t)ds->src_y + MPEG_RatScale(ds->rat_y, (int32_t)(line - ds->y))
+     + (int32_t)ds->ofs_y;
 
    /* Mosaic quantises the source coordinate before sampling, so a block
       takes the colour of its top-left source pixel.  The field is SBL's
@@ -635,7 +764,8 @@ static INLINE bool MPEG_MapCol(const MPEG_DisplayState *ds,
    if(!fw || x < ds->x || x >= (unsigned)(ds->x + ds->w))
       return false;
 
-   v = (int32_t)ds->src_x + (int32_t)(x - ds->x) + (int32_t)ds->ofs_x;
+   v = (int32_t)ds->src_x + MPEG_RatScale(ds->rat_x, (int32_t)(x - ds->x))
+     + (int32_t)ds->ofs_x;
 
    if(ds->moz_h)
       v -= v % (int32_t)(ds->moz_h + 1);

@@ -70,15 +70,36 @@
    padded, longer ones are truncated with the tail ignored. */
 #define MPEG_ROM_SIZE 0x80000
 
+#define MPEG_AUTH_PROGRAM 0x0300
+
 /* Elementary stream FIFOs, downstream of the demuxer.  The card has
    2 MiB of DRAM split between the two streams and the frame buffers;
    the split is programmable via the buffer-number fields of
-   SET_CONNECTION, which is recorded but not yet acted on.  Until the
-   decoders land these are fixed-size ring buffers sized generously
-   enough that a stalled decoder drops elementary stream instead of
-   stalling the CD block. */
+   SET_CONNECTION, which is recorded but not yet acted on. */
 #define MPEG_VFIFO_SIZE (256 * 1024)
 #define MPEG_AFIFO_SIZE (64  * 1024)
+
+/*
+   How much elementary stream the card holds before it stops taking
+   sectors from its buffer partition.  CD-ROM data always comes off the
+   disc at double speed, faster than a movie plays, so the card has to
+   leave sectors in the CD block until it has room: the partition then
+   fills and the drive pauses, as it does for any full buffer.
+
+   The video figure is a little over three times the largest MPEG-1
+   constrained-parameters VBV (40 KiB), so a large I picture never waits
+   on the next sector.  The audio figure is a few hundred milliseconds
+   of Layer II at Video CD rates.  Both leave a whole sector of headroom
+   below the FIFO size, so nothing taken is ever dropped.
+*/
+#define MPEG_VFIFO_HOLD (128 * 1024)
+#define MPEG_AFIFO_HOLD (16  * 1024)
+#define MPEG_SECTOR_MAX 2324
+
+/* Decoded audio the card keeps ahead of the SCSP, in sample pairs.
+   Decoding stops while the ring holds this much, so audio leaves the
+   FIFO at the rate it is played. */
+#define MPEG_ARING_HOLD (4 * 1152)
 
 /* Demuxer input buffer.  rmpeg1_ps requires at least the 65541-byte
    worst-case packet; give it room for a few sectors beyond that so a
@@ -137,7 +158,9 @@ static bool     Present;
 static uint8_t *CardROM;
 static uint32_t CardROMSize;
 
-static uint8_t  AuthState;      /* 0 = unauthenticated, 2 = authenticated */
+/* 0 = unauthenticated, 2 = authenticated, plus MPEG_AUTH_PROGRAM once
+   0xE2 has read the program out. */
+static uint16_t AuthState;
 
 /* MPEG interrupt register.  24 bits wide: CR1's low byte carries bits
    23..16 and CR2 carries bits 15..0.  Bit assignments are SBL 6.01's
@@ -168,6 +191,20 @@ static MPEG_Stream      Stm[2];   /* [0] = current, [1] = next */
 
 /* Fields the card echoes back in every MPEG status report. */
 static uint8_t  ActionStatus;
+
+/*
+   Transfer block operating state of each stream, CDC_MPASTV_* for video
+   and the same values shifted down for audio (SBL CD communication I/F,
+   MPEG part, 5.1.2, Table 5.1).  Registering a current connection takes
+   a stopped stream to preparation; sectors reaching the decoder take it
+   to transfer; a forced termination, a natural end with no next
+   connection, or MpInit take it back to stop.  The preparation
+   thresholds (two sectors, then STD buffer + 16 KiB for video) and the
+   restoration state are not modelled: the first sector taken moves a
+   stream to transfer.
+*/
+static uint8_t  VState;
+static uint8_t  AState;
 static uint16_t VCounter;
 static uint8_t  PictureInfo;
 static uint8_t  AudioStatus;
@@ -240,21 +277,93 @@ static int16_t  ACur[2];
 static bool     ACurValid;
 
 static uint64_t VideoPTS;
+
+/*
+   Start-up, from CDC_MpPlay (SBL CD communication I/F, MPEG part, 20.7).
+   In automatic transfer mode video starts "when data of STD buffer size
+   + 16KB is stored", the STD buffer being the sequence header's
+   vbv_buffer_size, and audio when two sectors are stored.  In
+   synchronous playback mode "decoding starts when the first picture of
+   the video is displayed" for audio.  Forced transfer starts each
+   stream at once.  PLAY's mode bytes follow CDC_MpPlay's argument
+   order: playback mode in CR1's low byte, audio and video transfer
+   modes in CR2.  SYNC and AUTO are the initial values and are taken to
+   be 0, FORCE and INDP 1.
+*/
+#define MPEG_STD_EXTRA (16 * 1024)
+#define MPEG_SYNC_WAIT 120
+
+static uint8_t  PlayMode;      /* 0 = synchronous, 1 = independent */
+static uint8_t  TransferModeA; /* 0 = automatic, 1 = forced */
+static uint8_t  TransferModeV;
+static uint8_t  VPrepSectors;
+static uint8_t  APrepSectors;
+static uint32_t VBVBytes;      /* 0 until a sequence header is seen */
+static uint8_t  SeqHdr[8];
+static uint8_t  SeqHdrFill = 8;
+static uint32_t SyncWait;
+
+/*
+   End of a video sequence.  rmpeg1_video holds an I or P picture back
+   until the next reference arrives, so the last picture of a sequence,
+   and the only one of a still, comes out only once the decoder is told
+   the stream has ended.  The sequence_end_code marks that point.
+*/
+static bool SeqEndPending;
+
+/*
+   End of the audio stream.  rmp3 decodes a frame only once it holds a
+   full window of input, or once it is told no more is coming
+   (rmp3_stream_set_eof), so the last frames of a stream stay inside it
+   until then.  AEndBytes counts what is left in AFIFO of the stream that
+   ended; RunAudio hands those over, declares the end, and resets the
+   decoder for whatever follows.
+*/
+static bool AEndPending;
+static uint32_t AEndBytes;
+
+static void AudioInputEnded(void)
+{
+   if(AEndPending)
+      return;
+
+   AEndPending = true;
+   AEndBytes   = AFIFO.count;
+}
+
+/* OUT_DECSYNC received in host-synchronised decoding: decode the next
+   picture as soon as it is complete, not only at the strobe. */
+static bool DecodePending;
 static uint64_t AudioPTS;
 static uint64_t LastSCR;
 
-/* Dropped-payload counters.  With the decoders connected and clocked
-   these should stay at zero: measured over a full 1.5s NTSC Video CD
-   fed at the real 75-sectors-per-second cadence, nothing is dropped on
-   either stream, so a nonzero value here means something is wedged
-   rather than merely busy.  That is why there is no backpressure path
-   into the CD block -- the condition it would handle does not arise. */
+/* Dropped-payload counters.  With sectors taken through
+   MPEG_WantsSector() these stay at zero; a nonzero value means a
+   connection that does not delete what it takes, which still feeds at
+   the disc's rate. */
 static uint32_t VDropped;
 static uint32_t ADropped;
 
 /* Set once SET_WINDOW supplies an explicit size, after which the
    decoded picture no longer drives the window geometry. */
 static bool WindowSizeSet;
+
+/*
+   Window values registered by SET_WINDOW.  Each CDC_MpSetWin* call
+   carries a change flag: OFF registers the value, ON applies every
+   registered value (SBL CD communication I/F, MPEG part, 22.2-22.6).
+   So a caller can stage several window changes and have them take
+   effect together.
+*/
+static struct
+{
+ uint16_t src_x, src_y;
+ uint16_t rat_x, rat_y;
+ uint16_t x, y;
+ uint16_t w, h;
+ uint16_t ofs_x, ofs_y;
+ bool     size_set;
+} WinReg;
 
 /* Decode clock.  Accumulates the 32.32 fixed-point CD block clocks
    MPEG_Update() is handed and fires one decode per frame period.  The
@@ -268,11 +377,49 @@ static int64_t  FrameAccum;
 static uint32_t FrameRateNum = 30000;
 static uint32_t FrameRateDen = 1001;
 
-/* Decoded picture, RGB555.  Untouched by stage 1. */
-static uint16_t *FrameBuf;
-static uint8_t  *FrameLuma;
+/*
+   Decoded picture.
+
+   The VDP2 render thread draws the card's picture straight out of these
+   planes; nothing copies them for it.  RGB555 and luma are each double
+   buffered: MPEG_LatchFrame(), called by VDP2 at the start of a frame,
+   marks the front plane as the one being drawn, and the emulation
+   thread only ever writes the other one, then makes it the front.  Both
+   the latch and every write happen on the emulation thread, so the
+   indices need no atomics; the render thread only ever sees the latched
+   plane, and only after VDP2REND_EndFrame has waited for the previous
+   frame's lines.  A second decode within one VDP2 frame rewrites the
+   unlatched plane again, which nothing is reading.
+
+   The two are flipped independently because SET_FADE on a held picture
+   makes new RGB from the same luma.  The chroma planes are kept at
+   their native 4:2:0 size for that re-gain only; VDP2 never reads them.
+*/
+#define MPEG_PIC_PIXELS   (MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT)
+#define MPEG_CHROMA_PITCH (MPEG_MAX_WIDTH / 2)
+#define MPEG_CHROMA_SIZE  (MPEG_CHROMA_PITCH * (MPEG_MAX_HEIGHT / 2))
+
+static uint8_t  *FrameMem;          /* one allocation backs every plane */
+static uint16_t *FrameRGB[2];
+static uint8_t  *FrameY[2];
+static uint8_t  *FrameCb;
+static uint8_t  *FrameCr;
+static uint8_t   RGBFront, RGBLatched;
+static uint8_t   YFront, YLatched;
+static bool      FrameItpCH;        /* CDC_MPITP_CH the chroma was converted with */
 static uint32_t  FrameW, FrameH;
 static bool      FrameValid;
+
+static void ResetSync(void)
+{
+   VPrepSectors = 0;
+   APrepSectors = 0;
+   VBVBytes     = 0;
+   SeqHdrFill   = 8;
+   SyncWait     = 0;
+   SeqEndPending = false;
+   DecodePending = false;
+}
 
 /*
  *
@@ -394,6 +541,17 @@ static MDFN_HOT uint32_t FIFO_Write(MPEG_FIFO *f, const uint8_t *src, uint32_t l
    return dropped;
 }
 
+/* The audio input buffer is emptied: AFIFO and the part of it rmp3
+   has already taken in. */
+static void ClearAudioInput(void)
+{
+   FIFO_Clear(&AFIFO);
+   AEndPending = false;
+
+   if(Audio)
+      rmp3_stream_reset(Audio);
+}
+
 /*
  *
  * Lifecycle
@@ -410,8 +568,7 @@ bool MPEG_Init(RFILE *rom_fp)
    Present     = true;
    CardROM     = NULL;
    CardROMSize = 0;
-   FrameBuf    = NULL;
-   FrameLuma   = NULL;
+   FrameMem    = NULL;
    Demux       = NULL;
    Video       = NULL;
    Audio       = NULL;
@@ -473,17 +630,27 @@ bool MPEG_Init(RFILE *rom_fp)
 
    memset(ARing, 0, MPEG_ARING_FRAMES * 2 * sizeof(int16_t));
 
-   FrameBuf = (uint16_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
-   if(!FrameBuf)
+   /* Allocated once here and never resized: the largest picture fits,
+      so nothing is allocated while a movie plays. */
+   FrameMem = (uint8_t*)malloc(2 * MPEG_PIC_PIXELS * sizeof(uint16_t)
+                             + 2 * MPEG_PIC_PIXELS
+                             + 2 * MPEG_CHROMA_SIZE);
+   if(!FrameMem)
       goto fail;
 
-   memset(FrameBuf, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
+   FrameRGB[0] = (uint16_t*)FrameMem;
+   FrameRGB[1] = FrameRGB[0] + MPEG_PIC_PIXELS;
+   FrameY[0]   = (uint8_t*)(FrameRGB[1] + MPEG_PIC_PIXELS);
+   FrameY[1]   = FrameY[0] + MPEG_PIC_PIXELS;
+   FrameCb     = FrameY[1] + MPEG_PIC_PIXELS;
+   FrameCr     = FrameCb + MPEG_CHROMA_SIZE;
 
-   FrameLuma = (uint8_t*)malloc(MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-   if(!FrameLuma)
-      goto fail;
+   memset(FrameMem, 0, 2 * MPEG_PIC_PIXELS * sizeof(uint16_t) + 2 * MPEG_PIC_PIXELS);
+   memset(FrameCb, 128, 2 * MPEG_CHROMA_SIZE);
 
-   memset(FrameLuma, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
+   /* Nothing is latched yet; writes go to plane 0 first. */
+   RGBFront = YFront = 0;
+   RGBLatched = YLatched = 1;
 
    MPEG_Reset(true);
 
@@ -520,13 +687,12 @@ void MPEG_Kill(void)
    CardROM     = NULL;
    CardROMSize = 0;
 
-   if(FrameBuf)
-      free(FrameBuf);
-   FrameBuf = NULL;
-
-   if(FrameLuma)
-      free(FrameLuma);
-   FrameLuma = NULL;
+   if(FrameMem)
+      free(FrameMem);
+   FrameMem    = NULL;
+   FrameRGB[0] = FrameRGB[1] = NULL;
+   FrameY[0]   = FrameY[1]   = NULL;
+   FrameCb     = FrameCr     = NULL;
 
    Present = false;
 }
@@ -571,6 +737,8 @@ void MPEG_Reset(bool powering_up)
       Stm[i].vidchannum = 0x00;
    }
 
+   VState       = MPEG_ASTV_STOP;
+   AState       = MPEG_ASTV_STOP;
    ActionStatus = MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP;
    VCounter     = 0;
    PictureInfo  = 0;
@@ -590,11 +758,21 @@ void MPEG_Reset(bool powering_up)
    memset(LSIRegs, 0, sizeof(LSIRegs));
 
    memset(&Display, 0, sizeof(Display));
-   Display.w = MPEG_MAX_WIDTH;
+   Display.w = 352;   /* CDC_MpSetWinDsiz initial value */
    Display.h = 240;
+   /* CDC_MpSetWinFrat: initial value 01H, magnification 1. */
+   Display.rat_x = 0x0001;
+   Display.rat_y = 0x0001;
+
+   memset(&WinReg, 0, sizeof(WinReg));
+   WinReg.w     = Display.w;
+   WinReg.h     = Display.h;
+   WinReg.rat_x = Display.rat_x;
+   WinReg.rat_y = Display.rat_y;
 
    FIFO_Clear(&VFIFO);
    FIFO_Clear(&AFIFO);
+   AEndPending = false;
 
    if(Demux)
       rmpeg1_ps_reset(Demux);
@@ -628,6 +806,10 @@ void MPEG_Reset(bool powering_up)
    FrameRateDen = 1001;
 
    VideoPTS = RMPEG1_PS_NO_PTS;
+   ResetSync();
+   PlayMode      = 0;
+   TransferModeA = 0;
+   TransferModeV = 0;
    AudioPTS = RMPEG1_PS_NO_PTS;
    LastSCR  = RMPEG1_PS_NO_PTS;
    VDropped = 0;
@@ -635,15 +817,11 @@ void MPEG_Reset(bool powering_up)
 
    FrameW     = 0;
    FrameH     = 0;
+   /* The planes themselves are left alone: nothing reads them while
+      FrameValid is clear, and VDP2 may still be drawing the latched
+      ones for the frame in progress. */
    FrameValid = false;
-
-   if(powering_up)
-   {
-      if(FrameBuf)
-         memset(FrameBuf, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT * sizeof(uint16_t));
-      if(FrameLuma)
-         memset(FrameLuma, 0, MPEG_MAX_WIDTH * MPEG_MAX_HEIGHT);
-   }
+   (void)powering_up;
 }
 
 bool MPEG_IsPresent(void)
@@ -656,6 +834,28 @@ const uint8_t *MPEG_GetROM(uint32_t *size)
    if(size)
       *size = CardROMSize;
    return CardROM;
+}
+
+const uint8_t *MPEG_GetProgram(uint32_t *size)
+{
+   uint32_t base;
+
+   if(size)
+      *size = 0;
+
+   if(!CardROM)
+      return NULL;
+
+   base = 8 + (((uint32_t)CardROM[0] << 24) | ((uint32_t)CardROM[1] << 16)
+             | ((uint32_t)CardROM[2] << 8) | CardROM[3]);
+
+   if(base >= CardROMSize)
+      return NULL;
+
+   if(size)
+      *size = CardROMSize - base;
+
+   return CardROM + base;
 }
 
 /*
@@ -672,6 +872,12 @@ void MPEG_Auth(void)
       there would send the BIOS off to run a player that is not
       there. */
    AuthState = CardROM ? 2 : 0;
+}
+
+void MPEG_ProgramRead(void)
+{
+   if(AuthState)
+      AuthState |= MPEG_AUTH_PROGRAM;
 }
 
 uint16_t MPEG_GetAuth(void)
@@ -712,6 +918,15 @@ uint16_t MPEG_TakePendingHIRQ(void)
    PendingHIRQ = 0;
 
    return ret;
+}
+
+static void ApplyGain(void);
+static void RunAudio(void);
+
+static void UpdateActionStatus(void)
+{
+   ActionStatus = VState | (AState << 4)
+                | ((VState == MPEG_ASTV_STOP) ? MPEG_ASTD_STOP : 0);
 }
 
 static void MPEGReport(uint8_t base_status, uint16_t out[4])
@@ -784,10 +999,28 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          IntFlags    = 0;
          PendingHIRQ = 0;
 
+         /* The decoder starts over (SBL 5.1.2: every transfer block
+            returns to stopped): nothing of the stream before plays
+            after it.  The Video CD player sends this after a track
+            change. */
          FIFO_Clear(&VFIFO);
-         FIFO_Clear(&AFIFO);
+         ClearAudioInput();
 
-         ActionStatus = MPEG_ASTV_STOP | MPEG_ASTD_STOP | MPEG_ASTA_STOP;
+         if(Demux)
+            rmpeg1_ps_reset(Demux);
+
+         if(Video)
+            rmpeg1_video_reset(Video);
+
+         ARing_RP    = 0;
+         ARing_WP    = 0;
+         ARing_Count = 0;
+         ARatePhase  = 0;
+         ACurValid   = false;
+
+         VState       = MPEG_ASTV_STOP;
+         AState       = MPEG_ASTV_STOP;
+         UpdateActionStatus();
          PictureInfo  = 0;
          AudioStatus  = MPEG_STA_BEMPTY;
          VideoStatus  = MPEG_STV_BEMPTY;
@@ -801,6 +1034,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          VideoReady      = false;
          AudioReady      = false;
          LastVideoErrors = 0;
+         ResetSync();
 
          /* CR2 bit 0 selects the soft-reset variant, which additionally
             completes the command handshake immediately. */
@@ -856,11 +1090,13 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
       break;
 
       case MPEG_CMD_PLAY:
-         /* Video and audio both move to the transferring state.  The
-            play mode in CR1/CR2 and the start offset in CR3/CR4 are not
-            acted on: the decoders are already fed by whatever the CD
-            block routes, and nothing here seeks. */
-         ActionStatus = MPEG_ASTV_TRNS | MPEG_ASTA_TRNS;
+         /* CDC_MpPlay sets the playback and transfer modes.  It does not
+            start anything: "The MPEG decoder starts decoding by
+            connecting to the buffer partition" (20.7), so the operating
+            state follows the connection, not this command. */
+         if((cd[0] & 0xFF) != MPEG_NOCHG8) PlayMode      = cd[0] & 0xFF;
+         if((cd[1] >> 8)   != MPEG_NOCHG8) TransferModeA = cd[1] >> 8;
+         if((cd[1] & 0xFF) != MPEG_NOCHG8) TransferModeV = cd[1] & 0xFF;
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
          break;
@@ -915,6 +1151,28 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          Con[which].vidcon    = cd[2] & 0xFF;
          Con[which].vidlay    = cd[3] >> 8;
          Con[which].vidbufnum = cd[3] & 0xFF;
+
+         /* Registering the current stream starts preparation. */
+         if(!which)
+         {
+            /* A new stream: its first picture and first audio output
+               are reported again (VOSTRT, AOSTRT), which is what the
+               Video CD player waits for after a track change. */
+            if(Con[0].vidbufnum != MPEG_NUL_SEL && VState == MPEG_ASTV_STOP)
+            {
+               VState = MPEG_ASTV_PRE1;
+               VPrepSectors = 0;
+               VideoStarted = false;
+               SyncWait = 0;
+            }
+            if(Con[0].audbufnum != MPEG_NUL_SEL && AState == MPEG_ASTV_STOP)
+            {
+               AState = MPEG_ASTV_PRE1;
+               APrepSectors = 0;
+               AudioStarted = false;
+            }
+            UpdateActionStatus();
+         }
 
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
@@ -977,50 +1235,65 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
       {
          /* One opcode, five sub-functions.  SBL's cmdRspWin emits the
             selector in CR1's low byte, the change flag in CR2's low
-            byte, x in CR3 and y in CR4.  The previous reading of this
-            command ignored the selector entirely and so applied every
-            window write to the same two fields. */
-         const unsigned sel = cd[0] & 0xFF;
-         const uint16_t x   = cd[2];
-         const uint16_t y   = cd[3];
+            byte, x in CR3 and y in CR4.  CDC_PARA_NOCHG in a coordinate
+            keeps the registered value; in a ratio, bit 14 does. */
+         const unsigned sel    = cd[0] & 0xFF;
+         const bool     chgflg = (cd[1] & 0xFF) != 0;
+         const uint16_t x      = cd[2];
+         const uint16_t y      = cd[3];
+         const bool     keep_x = (x == MPEG_NOCHG16);
+         const bool     keep_y = (y == MPEG_NOCHG16);
 
          switch(sel)
          {
             case MPEG_WIN_FPOS:
-               Display.src_x = x;
-               Display.src_y = y;
+               if(!keep_x) WinReg.src_x = x;
+               if(!keep_y) WinReg.src_y = y;
                break;
 
             case MPEG_WIN_FRAT:
-               Display.rat_x = x;
-               Display.rat_y = y;
+               if(!(x & MPEG_RAT_KEEP)) WinReg.rat_x = x;
+               if(!(y & MPEG_RAT_KEEP)) WinReg.rat_y = y;
                break;
 
             case MPEG_WIN_DPOS:
-               Display.x = x;
-               Display.y = y;
+               if(!keep_x) WinReg.x = x;
+               if(!keep_y) WinReg.y = y;
                break;
 
             case MPEG_WIN_DSIZ:
-               Display.w     = x;
-               Display.h     = y;
-               WindowSizeSet = true;
+               if(!keep_x) WinReg.w = x;
+               if(!keep_y) WinReg.h = y;
+               WinReg.size_set = true;
                break;
 
             case MPEG_WIN_DOFS:
-               Display.ofs_x = x;
-               Display.ofs_y = y;
+               if(!keep_x) WinReg.ofs_x = x;
+               if(!keep_y) WinReg.ofs_y = y;
                break;
 
             default:
                break;
          }
 
-         /* CR2's low byte is SBL's chgflg.  Its meaning is not
-            documented in anything I have -- most likely apply-now
-            versus apply-at-next-VSYNC -- so the write is always applied
-            rather than sometimes dropped, which is the failure mode
-            that would be hardest to spot. */
+         if(chgflg)
+         {
+            Display.src_x = WinReg.src_x;
+            Display.src_y = WinReg.src_y;
+            Display.rat_x = WinReg.rat_x;
+            Display.rat_y = WinReg.rat_y;
+            Display.x     = WinReg.x;
+            Display.y     = WinReg.y;
+            Display.ofs_x = WinReg.ofs_x;
+            Display.ofs_y = WinReg.ofs_y;
+
+            if(WinReg.size_set)
+            {
+               Display.w     = WinReg.w;
+               Display.h     = WinReg.h;
+               WindowSizeSet = true;
+            }
+         }
 
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
@@ -1034,15 +1307,36 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          break;
 
       case MPEG_CMD_SET_FADE:
+      {
          /* CDC_MpSetFade(gain_y, gain_c): luma gain in CR2's high byte,
-            chroma gain in its low byte.  Only the luma gain scales the
-            converted RGB; the chroma gain is recorded but unused until
-            the conversion works in YCbCr. */
-         Display.fade   = cd[1] >> 8;
-         Display.fade_c = cd[1] & 0xFF;
+            chroma gain in its low byte, each signed, -8 to 7, initial
+            value 0.  A value outside that range is rejected (SBL CD
+            communication I/F, MPEG part, 22.8). */
+         const int8_t gy = (int8_t)(cd[1] >> 8);
+         const int8_t gc = (int8_t)(cd[1] & 0xFF);
+
+         if(gy < -8 || gy > 7 || gc < -8 || gc > 7)
+         {
+            out[0] = 0xFF00;
+            out[1] = 0xFFFF;
+            out[2] = 0xFFFF;
+            out[3] = 0xFFFF;
+            *hirq |= MPEG_HIRQ_MPCM;
+            break;
+         }
+
+         Display.fade   = gy;
+         Display.fade_c = gc;
+
+         /* The gain applies to the picture on screen, not only to the
+            next one decoded, so a held picture fades too. */
+         if(FrameValid)
+            ApplyGain();
+
          MPEGReport(base_status, out);
          *hirq |= MPEG_HIRQ_MPCM;
-         break;
+      }
+      break;
 
       case MPEG_CMD_SET_VIDEOEFF:
          /* CDC_MpSetVeff(itp, trp, moz_h, moz_v, soft_h, soft_v) packs
@@ -1131,7 +1425,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          if(Mode.dectimingmode == MPEG_DEC_HOST)
          {
             Display.fbn = cd[1] & 0xFF;
-            MPEG_RunFrame();
+            DecodePending = !MPEG_RunFrame();
          }
 
          MPEGReport(base_status, out);
@@ -1150,6 +1444,8 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          const uint8_t clr_a = cd[2] >> 8;
          const uint8_t clr_v = cd[2] & 0xFF;
 
+         /* Each flag is COF_ABT (end the stream), COF_CHG (switch to
+            the next connection) or CDC_PARA_NOCHG (leave it alone). */
          if(chg_a == MPEG_COF_CHG)
          {
             Con[0].audcon    = Con[1].audcon;
@@ -1161,8 +1457,11 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
 
             RaiseInt(MPEG_INT_ASCHG);
          }
-         else
-            Con[0].audbufnum = MPEG_NUL_SEL;   /* MPEG_COF_ABT */
+         else if(chg_a == MPEG_COF_ABT)
+         {
+            Con[0].audbufnum = MPEG_NUL_SEL;
+            AState = MPEG_ASTV_STOP;
+         }
 
          if(chg_v == MPEG_COF_CHG)
          {
@@ -1175,12 +1474,24 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
 
             RaiseInt(MPEG_INT_VSCHG);
          }
-         else
+         else if(chg_v == MPEG_COF_ABT)
+         {
             Con[0].vidbufnum = MPEG_NUL_SEL;
+            VState = MPEG_ASTV_STOP;
+         }
+
+         /* A stopped stream switched onto a registered connection is
+            registered again. */
+         if(chg_a == MPEG_COF_CHG && Con[0].audbufnum != MPEG_NUL_SEL && AState == MPEG_ASTV_STOP)
+            AState = MPEG_ASTV_PRE1;
+         if(chg_v == MPEG_COF_CHG && Con[0].vidbufnum != MPEG_NUL_SEL && VState == MPEG_ASTV_STOP)
+            VState = MPEG_ASTV_PRE1;
+
+         UpdateActionStatus();
 
          if(clr_a == MPEG_CLA_ON)
          {
-            FIFO_Clear(&AFIFO);
+            ClearAudioInput();
             AudioStatus |= MPEG_STA_BEMPTY;
          }
 
@@ -1194,6 +1505,7 @@ bool MPEG_Command(uint8_t cmd, const uint16_t cd[4],
          if(clr_v == MPEG_CLV_FRM)
          {
             FrameValid = false;
+            ResetSync();
 
             if(Video)
                rmpeg1_video_reset(Video);
@@ -1357,14 +1669,27 @@ static MDFN_HOT void ScanVideoStartCodes(const uint8_t *data, uint32_t len)
    {
       w = (w << 8) | data[i];
 
+      /* vbv_buffer_size: 10 bits, after 12 + 12 + 4 + 4 + 18 + 1 bits
+         of sequence header, in units of 16 kbit (11172-2, 2.4.2.3). */
+      if(SeqHdrFill < 8)
+      {
+         SeqHdr[SeqHdrFill++] = data[i];
+
+         if(SeqHdrFill == 8)
+            VBVBytes = ((((uint32_t)SeqHdr[6] & 0x1F) << 5) | (SeqHdr[7] >> 3)) * 2048;
+      }
+
       if((w & 0xFFFFFF00) != 0x00000100)
          continue;
+
+      if((w & 0xFF) == 0xB3)
+         SeqHdrFill = 0;
 
       switch(w & 0xFF)
       {
          case 0x00: RaiseInt(MPEG_INT_PSTRT);  break;
          case 0xB3: RaiseInt(MPEG_INT_SQSTRT); break;
-         case 0xB7: RaiseInt(MPEG_INT_SQEND);  break;
+         case 0xB7: RaiseInt(MPEG_INT_SQEND); SeqEndPending = true; break;
          case 0xB8: RaiseInt(MPEG_INT_GSTRT);  break;
          default: break;
       }
@@ -1373,11 +1698,135 @@ static MDFN_HOT void ScanVideoStartCodes(const uint8_t *data, uint32_t len)
    SCWindow = w;
 }
 
-void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
+/* A sector reached the decoder for this stream.  Two sectors end
+   preparation 1; audio then transfers, video waits in preparation 2 for
+   its start condition, checked in VideoTransfers(). */
+static void StreamFed(bool video)
+{
+   uint8_t *st = video ? &VState : &AState;
+   uint8_t *n  = video ? &VPrepSectors : &APrepSectors;
+
+   if(*st == MPEG_ASTV_PRE1 && ++*n >= 2)
+      *st = video ? MPEG_ASTV_PRE2 : MPEG_ASTV_TRNS;
+
+   if(!video && *st == MPEG_ASTV_PRE2)
+      *st = MPEG_ASTV_TRNS;
+
+   if(video && *st != MPEG_ASTV_TRNS && TransferModeV == 1
+      && (*st == MPEG_ASTV_PRE1 || *st == MPEG_ASTV_PRE2))
+      *st = MPEG_ASTV_TRNS;
+
+   if(!video && TransferModeA == 1 && *st == MPEG_ASTV_PRE1)
+      *st = MPEG_ASTV_TRNS;
+
+   UpdateActionStatus();
+}
+
+/* Whether video may decode.  A stream with no connection is decoded as
+   it comes, which is how sectors fed directly are handled. */
+static bool VideoTransfers(void)
+{
+   if(VState == MPEG_ASTV_PRE1)
+      return false;
+
+   if(VState == MPEG_ASTV_PRE2)
+   {
+      if(!VBVBytes || VFIFO.count < VBVBytes + MPEG_STD_EXTRA)
+         return false;
+
+      VState = MPEG_ASTV_TRNS;
+      UpdateActionStatus();
+   }
+
+   /* Synchronous playback starts audio with the first picture, so the
+      first picture waits for audio to be ready to start with it; a
+      connection that never delivers audio stops waiting after
+      MPEG_SYNC_WAIT picture periods. */
+   if(!VideoStarted && PlayMode == 0 && Con[0].audbufnum != MPEG_NUL_SEL
+      && AState != MPEG_ASTV_TRNS && SyncWait < MPEG_SYNC_WAIT)
+   {
+      SyncWait++;
+      return false;
+   }
+
+   return true;
+}
+
+/* Whether audio may decode: held until the first picture shows when
+   both streams play synchronously. */
+static bool AudioTransfers(void)
+{
+   if(AState == MPEG_ASTV_PRE1 || AState == MPEG_ASTV_PRE2)
+      return false;
+
+   if(PlayMode == 0 && Con[0].vidbufnum != MPEG_NUL_SEL && Con[0].audbufnum != MPEG_NUL_SEL
+      && !VideoStarted)
+      return false;
+
+   return true;
+}
+
+/* Natural end of the current stream: switch to the next connection if
+   one is registered, otherwise stop (Table 5.1). */
+static void StreamEnd(bool video)
+{
+   if(video)
+   {
+      if(Con[0].vidbufnum == MPEG_NUL_SEL)
+         return;
+
+      if(Con[1].vidbufnum != MPEG_NUL_SEL)
+      {
+         Con[0].vidcon     = Con[1].vidcon;
+         Con[0].vidlay     = Con[1].vidlay;
+         Con[0].vidbufnum  = Con[1].vidbufnum;
+         Stm[0].vidstm     = Stm[1].vidstm;
+         Stm[0].vidstmid   = Stm[1].vidstmid;
+         Stm[0].vidchannum = Stm[1].vidchannum;
+         RaiseInt(MPEG_INT_VSCHG);
+      }
+      else
+      {
+         Con[0].vidbufnum = MPEG_NUL_SEL;
+         VState = MPEG_ASTV_STOP;
+      }
+   }
+   else
+   {
+      if(Con[0].audbufnum == MPEG_NUL_SEL)
+         return;
+
+      AudioInputEnded();
+
+      if(Con[1].audbufnum != MPEG_NUL_SEL)
+      {
+         Con[0].audcon     = Con[1].audcon;
+         Con[0].audlay     = Con[1].audlay;
+         Con[0].audbufnum  = Con[1].audbufnum;
+         Stm[0].audstm     = Stm[1].audstm;
+         Stm[0].audstmid   = Stm[1].audstmid;
+         Stm[0].audchannum = Stm[1].audchannum;
+         RaiseInt(MPEG_INT_ASCHG);
+      }
+      else
+      {
+         Con[0].audbufnum = MPEG_NUL_SEL;
+         AState = MPEG_ASTV_STOP;
+      }
+   }
+
+   UpdateActionStatus();
+}
+
+void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode, uint8_t pnum)
 {
    rmpeg1_ps_packet_t pkt;
    bool saw_video = false;
    bool saw_audio = false;
+   /* The streams this sector belongs to: those connected to the
+      partition it came from, or both when the caller does not say. */
+   const bool for_video = (pnum == MPEG_NUL_SEL) || (Con[0].vidbufnum == pnum);
+   const bool for_audio = (pnum == MPEG_NUL_SEL) || (Con[0].audbufnum == pnum);
 
    if(!Present || !Demux || !data || !len)
       return;
@@ -1404,8 +1853,15 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
          RaiseInt(MPEG_INT_VSRDY);
       }
 
+      StreamFed(true);
+
       if(submode & 0x10) RaiseInt(MPEG_INT_VTRG);
-      if(submode & 0x01) RaiseInt(MPEG_INT_VEOR);
+      if(submode & 0x01)
+      {
+         RaiseInt(MPEG_INT_VEOR);
+         if(Con[0].vidcon & MPEG_CMOD_EOR)
+            StreamEnd(true);
+      }
       return;
    }
 
@@ -1420,8 +1876,15 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
          RaiseInt(MPEG_INT_ASRDY);
       }
 
+      StreamFed(false);
+
       if(submode & 0x10) RaiseInt(MPEG_INT_ATRG);
-      if(submode & 0x01) RaiseInt(MPEG_INT_AEOR);
+      if(submode & 0x01)
+      {
+         RaiseInt(MPEG_INT_AEOR);
+         if(Con[0].audcon & MPEG_CMOD_EOR)
+            StreamEnd(false);
+      }
       return;
    }
 
@@ -1511,6 +1974,31 @@ void MPEG_FeedSector(const uint8_t *data, uint32_t len, uint8_t submode)
       if(saw_audio) RaiseInt(MPEG_INT_AEOR);
    }
 
+   if(saw_video) StreamFed(true);
+   if(saw_audio) StreamFed(false);
+
+   /* End conditions of the connection, CdcMpCon.cmod: the EOR bit of
+      the sector, or the system end code in the stream. */
+   {
+      /* The ISO/IEC 11172-1 end code, 000001B9h, as the demuxer parses
+         it: the same bytes inside a packet's payload are data. */
+      const bool sec = rmpeg1_ps_ended(Demux);
+      const bool eor = (submode & 0x01) != 0;
+
+      if(for_video && ((eor && (Con[0].vidcon & MPEG_CMOD_EOR)) || (sec && (Con[0].vidcon & MPEG_CMOD_SEC))))
+         StreamEnd(true);
+
+      if(for_audio && ((eor && (Con[0].audcon & MPEG_CMOD_EOR)) || (sec && (Con[0].audcon & MPEG_CMOD_SEC))))
+         StreamEnd(false);
+
+      /* rmpeg1_ps parses nothing after an end code, but a new stream
+         may follow: the next connection's, or more of this one when it
+         does not end there.  A Video CD pack fills its sector, so what
+         is dropped with the rest of this sector is padding. */
+      if(sec)
+         rmpeg1_ps_reset(Demux);
+   }
+
    /* SQEND comes from the video sequence_end_code, which the scanner
       catches; the Program Stream's own ISO_11172_end_code is a
       different layer and does not necessarily coincide with it. */
@@ -1567,82 +2055,189 @@ static INLINE uint32_t ClampU5(int32_t v)
    return (uint32_t)v;
 }
 
-/* 4:2:0 planar to RGB555, chroma upsampled by replication.  Nearest
-   neighbour rather than a proper interpolating upsampler because the
-   card's own output was not doing anything cleverer at 352x240 and an
-   interpolator would be inventing detail the hardware did not show. */
+/*
+   SET_FADE gain in eighths, indexed by the gain + 8.  Transcribed from
+   the table under CDC_MpSetFade (SBL CD communication I/F, MPEG part,
+   22.8): -8 is 0, 0 is unity, and above unity the steps are uneven.
+*/
+static const uint8_t FadeEighths[16] =
+{
+   0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 12, 12, 16, 16
+};
+
+/*
+   Per-gain lookup tables for the conversion.  Each holds exactly the
+   term the straight per-pixel formula would compute, so the output is
+   bit-identical to it:
+
+     Y  = ((y - 16) * gy * YUV_Y) >> 3
+     R  = Y + ((YUV_RV * cr') >> 3)
+     G  = Y + ((YUV_GU * cb' + YUV_GV * cr') >> 3)
+     B  = Y + ((YUV_BU * cb') >> 3)
+
+   with cb' = (cb - 128) * gc and cr' likewise.  G's two terms are summed
+   before the shift, so their tables hold the unshifted products.  Built
+   only when a gain changes, which is never during ordinary playback.
+*/
+static struct
+{
+   int8_t  gy, gc;   /* gains the tables were built for */
+   bool    valid;
+   int32_t y[256];
+   int32_t rv[256];
+   int32_t bu[256];
+   int32_t gu[256];  /* unshifted */
+   int32_t gv[256];  /* unshifted */
+} YUVTab;
+
+static void YUVTab_Update(void)
+{
+   const int32_t gy = FadeEighths[(Display.fade   + 8) & 0xF];
+   const int32_t gc = FadeEighths[(Display.fade_c + 8) & 0xF];
+   int32_t i;
+
+   if(YUVTab.valid && YUVTab.gy == Display.fade && YUVTab.gc == Display.fade_c)
+      return;
+
+   for(i = 0; i < 256; i++)
+   {
+      const int32_t c = (i - 128) * gc;
+
+      YUVTab.y[i]  = (((i - 16) * gy) * YUV_Y) >> 3;
+      YUVTab.rv[i] = (YUV_RV * c) >> 3;
+      YUVTab.bu[i] = (YUV_BU * c) >> 3;
+      YUVTab.gu[i] = YUV_GU * c;
+      YUVTab.gv[i] = YUV_GV * c;
+   }
+
+   YUVTab.gy    = Display.fade;
+   YUVTab.gc    = Display.fade_c;
+   YUVTab.valid = true;
+}
+
+/* Saturn RGB555 is BGR order in the low 15 bits. */
+#define YUV_PACK(yy, ro, go, bo) \
+   (uint16_t)((ClampU5((yy) + (bo)) << 10) | (ClampU5((yy) + (go)) << 5) | ClampU5((yy) + (ro)))
+
+/*
+   4:2:0 planes to RGB555 with the SET_FADE gains applied, in one pass
+   straight from the source planes.  Works a chroma row at a time, so
+   each chroma sample's three colour terms are looked up once and used
+   for the 2x2 luma samples it covers.  Chroma is upsampled by
+   replication, which is what the card did at 352x240; CDC_MPITP_CH
+   instead puts odd columns halfway to the next chroma sample.
+*/
+static void EmitRGB(uint16_t *dst,
+                    const uint8_t *ysrc, size_t ypitch,
+                    const uint8_t *cbsrc, const uint8_t *crsrc, size_t cpitch,
+                    unsigned w, unsigned h, bool itp_ch)
+{
+   const unsigned cw = (w + 1) >> 1;
+   unsigned y;
+
+   YUVTab_Update();
+
+   for(y = 0; y < h; y += 2)
+   {
+      const uint8_t *cb  = cbsrc + (size_t)(y >> 1) * cpitch;
+      const uint8_t *cr  = crsrc + (size_t)(y >> 1) * cpitch;
+      const uint8_t *y0  = ysrc + (size_t)y * ypitch;
+      const uint8_t *y1  = (y + 1 < h) ? (y0 + ypitch) : NULL;
+      uint16_t      *d0  = dst + (size_t)y * MPEG_MAX_WIDTH;
+      uint16_t      *d1  = d0 + MPEG_MAX_WIDTH;
+      unsigned i;
+
+      for(i = 0; i < cw; i++)
+      {
+         const unsigned x = i << 1;
+         int32_t ro = YUVTab.rv[cr[i]];
+         int32_t bo = YUVTab.bu[cb[i]];
+         int32_t go = (YUVTab.gu[cb[i]] + YUVTab.gv[cr[i]]) >> 3;
+
+         d0[x] = YUV_PACK(YUVTab.y[y0[x]], ro, go, bo);
+         if(y1)
+            d1[x] = YUV_PACK(YUVTab.y[y1[x]], ro, go, bo);
+
+         if(x + 1 >= w)
+            break;
+
+         if(itp_ch)
+         {
+            const unsigned c1 = (i + 1 < cw) ? (i + 1) : i;
+            const unsigned ub = ((unsigned)cb[i] + cb[c1] + 1) >> 1;
+            const unsigned vr = ((unsigned)cr[i] + cr[c1] + 1) >> 1;
+
+            ro = YUVTab.rv[vr];
+            bo = YUVTab.bu[ub];
+            go = (YUVTab.gu[ub] + YUVTab.gv[vr]) >> 3;
+         }
+
+         d0[x + 1] = YUV_PACK(YUVTab.y[y0[x + 1]], ro, go, bo);
+         if(y1)
+            d1[x + 1] = YUV_PACK(YUVTab.y[y1[x + 1]], ro, go, bo);
+      }
+   }
+}
+
+/* The plane the emulation thread may write: whichever one VDP2 has not
+   latched. */
+#define RGB_BACK() (RGBLatched ^ 1)
+#define Y_BACK()   (YLatched ^ 1)
+
+/* New RGB for the picture on screen after a SET_FADE change, from the
+   luma and chroma it was decoded with.  The luma plane is not touched,
+   so it stays the front one. */
+static void ApplyGain(void)
+{
+   const unsigned back = RGB_BACK();
+
+   EmitRGB(FrameRGB[back], FrameY[YFront], MPEG_MAX_WIDTH,
+           FrameCb, FrameCr, MPEG_CHROMA_PITCH, FrameW, FrameH, FrameItpCH);
+   RGBFront = (uint8_t)back;
+}
+
+/*
+   A decoded picture becomes the front one.  The decoder's planes are
+   read once: the luma rows and the native-size chroma rows are kept
+   for the luminance key and for a later SET_FADE, and the RGB is made
+   from the decoder's own planes in the same go.
+*/
 static void ConvertFrame(const rmpeg1_video_frame_t *f)
 {
-   unsigned x, y;
+   unsigned y;
    unsigned w = f->width;
    unsigned h = f->height;
+   const unsigned yb = Y_BACK();
+   const unsigned rb = RGB_BACK();
+   unsigned cw, ch;
 
    if(w > MPEG_MAX_WIDTH)  w = MPEG_MAX_WIDTH;
    if(h > MPEG_MAX_HEIGHT) h = MPEG_MAX_HEIGHT;
 
+   cw = (w + 1) >> 1;
+   ch = (h + 1) >> 1;
+
    for(y = 0; y < h; y++)
+      memcpy(FrameY[yb] + (size_t)y * MPEG_MAX_WIDTH,
+             f->y + (size_t)y * f->y_stride, w);
+
+   for(y = 0; y < ch; y++)
    {
-      const uint8_t *yp = f->y  + (size_t)y * f->y_stride;
-      const uint8_t *up = f->cb + (size_t)(y >> 1) * f->c_stride;
-      const uint8_t *vp = f->cr + (size_t)(y >> 1) * f->c_stride;
-      uint16_t      *dp = FrameBuf + (size_t)y * MPEG_MAX_WIDTH;
-
-      uint8_t *lp = FrameLuma + (size_t)y * MPEG_MAX_WIDTH;
-
-      /* CDC_MPITP_CH: interpolate chroma horizontally instead of
-         replicating it.  The card defaults to replication, which is why
-         that is the unconditional path; interpolation is only done when
-         SET_VIDEO_EFFECTS asks for it.  Vertical chroma interpolation
-         (CDC_MPITP_CV) would need the neighbouring chroma row and is
-         not done yet.  The luma switches only matter when the picture
-         is being scaled, which this does not do. */
-      const bool itp_ch = (Display.itp & MPEG_ITP_CH) != 0;
-      const unsigned cw = (w + 1) >> 1;
-
-      for(x = 0; x < w; x++)
-      {
-         int32_t cb, cr;
-         const int32_t yy = ((int32_t)yp[x] - 16) * YUV_Y;
-
-         lp[x] = yp[x];
-
-         if(itp_ch)
-         {
-            const unsigned c0 = x >> 1;
-            const unsigned c1 = (c0 + 1 < cw) ? (c0 + 1) : c0;
-
-            /* Half-sample offset: even output pixels sit on the chroma
-               sample, odd ones halfway to the next. */
-            if(x & 1)
-            {
-               cb = (((int32_t)up[c0] + up[c1] + 1) >> 1) - 128;
-               cr = (((int32_t)vp[c0] + vp[c1] + 1) >> 1) - 128;
-            }
-            else
-            {
-               cb = (int32_t)up[c0] - 128;
-               cr = (int32_t)vp[c0] - 128;
-            }
-         }
-         else
-         {
-            cb = (int32_t)up[x >> 1] - 128;
-            cr = (int32_t)vp[x >> 1] - 128;
-         }
-
-         {
-            const uint32_t r = ClampU5(yy + YUV_RV * cr);
-            const uint32_t g = ClampU5(yy + YUV_GU * cb + YUV_GV * cr);
-            const uint32_t b = ClampU5(yy + YUV_BU * cb);
-
-            /* Saturn RGB555 is BGR order in the low 15 bits. */
-            dp[x] = (uint16_t)((b << 10) | (g << 5) | r);
-         }
-      }
+      memcpy(FrameCb + (size_t)y * MPEG_CHROMA_PITCH, f->cb + (size_t)y * f->c_stride, cw);
+      memcpy(FrameCr + (size_t)y * MPEG_CHROMA_PITCH, f->cr + (size_t)y * f->c_stride, cw);
    }
 
-   FrameW = w;
-   FrameH = h;
+   /* CDC_MPITP_CH is sampled per picture, as before; vertical chroma
+      interpolation (CDC_MPITP_CV) is not done yet. */
+   FrameItpCH = (Display.itp & MPEG_ITP_CH) != 0;
+
+   EmitRGB(FrameRGB[rb], f->y, f->y_stride, f->cb, f->cr, f->c_stride,
+           w, h, FrameItpCH);
+
+   FrameW   = w;
+   FrameH   = h;
+   YFront   = (uint8_t)yb;
+   RGBFront = (uint8_t)rb;
 
    /* The display window follows the decoded picture unless SET_WINDOW
       has said otherwise.  A Video CD is full-screen by default and the
@@ -1756,6 +2351,16 @@ bool MPEG_GetAudioSample(uint16_t *out)
 
    ARatePhase += ARateStep;
 
+   /* Refill as the ring runs dry rather than only once per picture
+      period: one Layer II frame is 1152 samples and a picture period
+      at 29.97 Hz is 1471, so a stream that has just started, with one
+      frame decoded, would otherwise run dry before the next period.
+      Not while paused: decoding stops with the picture, as it does
+      when MPEG_Update skips the decode. */
+   if(ARatePhase >= (1U << 16) && !ARing_Count && (AFIFO.count || AEndPending)
+      && PauseIntvl != MPEG_INTVL_HOLD)
+      RunAudio();
+
    while(ARatePhase >= (1U << 16))
    {
       if(!ARing_Count)
@@ -1808,18 +2413,18 @@ static void RunAudio(void)
 {
    uint8_t staging[4096];
 
-   if(!Audio || !AFIFO.count)
+   if(!Audio || (!AFIFO.count && !AEndPending) || !AudioTransfers())
       return;
 
-   for(;;)
+   while(ARing_Count < MPEG_ARING_HOLD)
    {
-      uint32_t avail = AFIFO.count;
+      uint32_t avail = AEndPending ? AEndBytes : AFIFO.count;
       uint32_t take  = (avail > sizeof(staging)) ? (uint32_t)sizeof(staging) : avail;
       size_t   read  = 0;
       size_t   wrote = 0;
       int      st;
 
-      if(!take)
+      if(!take && !AEndPending)
          break;
 
       FIFO_Peek(&AFIFO, staging, take);
@@ -1827,9 +2432,15 @@ static void RunAudio(void)
       rmp3_stream_set_in(Audio, staging, take);
       rmp3_stream_set_out_s16(Audio, APCM, RMP3_MAX_SAMPLES_PER_FRAME / 2);
 
+      /* The window holds the rest of the stream that ended. */
+      if(AEndPending && take == avail)
+         rmp3_stream_set_eof(Audio);
+
       st = rmp3_stream_process(Audio, &read, &wrote);
 
       FIFO_Drop(&AFIFO, (uint32_t)read);
+      if(AEndPending)
+         AEndBytes -= (uint32_t)read;
 
       if(wrote)
       {
@@ -1867,6 +2478,13 @@ static void RunAudio(void)
          }
       }
 
+      if(st == RMP3_STREAM_END && AEndPending)
+      {
+         rmp3_stream_reset(Audio);
+         AEndPending = false;
+         continue;
+      }
+
       if(st != RMP3_STREAM_OK)
          break;
 
@@ -1883,6 +2501,7 @@ bool MPEG_RunFrame(void)
    uint8_t staging[8192];
    rmpeg1_video_frame_t frame;
    bool produced = false;
+   bool flushed  = false;
 
    if(!Present || !Video)
       return false;
@@ -1906,6 +2525,9 @@ bool MPEG_RunFrame(void)
          RaiseInt(MPEG_INT_VDERR);
       }
    }
+
+   if(!VideoTransfers())
+      return false;
 
    /* Push video ES until a picture pops out.  rmpeg1_video holds a
       window internally and reports a short write when it is full, which
@@ -1957,7 +2579,18 @@ bool MPEG_RunFrame(void)
       }
 
       if(!VFIFO.count)
+      {
+         /* Everything up to the sequence end is in the decoder: let it
+            release the picture it holds back, once. */
+         if(SeqEndPending && !flushed)
+         {
+            rmpeg1_video_flush(Video);
+            flushed = true;
+            continue;
+         }
+
          break;
+      }
 
       take = VFIFO.count;
       if(take > sizeof(staging))
@@ -1971,6 +2604,12 @@ bool MPEG_RunFrame(void)
          code it has not seen.  Nothing more to do this call. */
       if(!took)
          break;
+   }
+
+   if(flushed)
+   {
+      rmpeg1_video_reset(Video);
+      SeqEndPending = false;
    }
 
    return produced;
@@ -1999,6 +2638,26 @@ bool MPEG_WantsPartition(uint8_t pnum)
       return true;
 
    return false;
+}
+
+void MPEG_GetSourcePartitions(uint8_t src[2])
+{
+   src[0] = Present ? Con[0].vidbufnum : MPEG_NUL_SEL;
+   src[1] = Present ? Con[0].audbufnum : MPEG_NUL_SEL;
+}
+
+bool MPEG_WantsSector(uint8_t pnum)
+{
+   if(!MPEG_ConsumesPartition(pnum))
+      return false;
+
+   if(Con[0].vidbufnum == pnum && VFIFO.count + MPEG_SECTOR_MAX > MPEG_VFIFO_HOLD)
+      return false;
+
+   if(Con[0].audbufnum == pnum && AFIFO.count + MPEG_SECTOR_MAX > MPEG_AFIFO_HOLD)
+      return false;
+
+   return true;
 }
 
 bool MPEG_ConsumesPartition(uint8_t pnum)
@@ -2068,7 +2727,12 @@ void MPEG_Update(int64_t clocks)
          decoding on its own VSYNC.  VCounter still advances, since it
          counts display intervals and not pictures. */
       if(Mode.dectimingmode == MPEG_DEC_HOST)
+      {
+         /* The strobe came before the picture was complete. */
+         if(DecodePending && MPEG_RunFrame())
+            DecodePending = false;
          continue;
+      }
 
       /* Pause holds the decoder; VCounter keeps running because it is
          the card's vertical counter, not a picture counter, and
@@ -2092,7 +2756,27 @@ void MPEG_Update(int64_t clocks)
 
 const uint8_t *MPEG_GetFrameLuma(void)
 {
-   return FrameValid ? FrameLuma : NULL;
+   return FrameValid ? FrameY[YFront] : NULL;
+}
+
+const uint16_t *MPEG_LatchFrame(const uint8_t **luma, uint32_t *width, uint32_t *height)
+{
+   if(!FrameValid || !FrameMem)
+   {
+      if(luma)   *luma   = NULL;
+      if(width)  *width  = 0;
+      if(height) *height = 0;
+      return NULL;
+   }
+
+   RGBLatched = RGBFront;
+   YLatched   = YFront;
+
+   if(luma)   *luma   = FrameY[YLatched];
+   if(width)  *width  = FrameW;
+   if(height) *height = FrameH;
+
+   return FrameRGB[RGBLatched];
 }
 
 const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height)
@@ -2107,12 +2791,17 @@ const uint16_t *MPEG_GetFrame(uint32_t *width, uint32_t *height)
    if(width)  *width  = FrameW;
    if(height) *height = FrameH;
 
-   return FrameBuf;
+   return FrameRGB[RGBFront];
 }
 
 const MPEG_DisplayState *MPEG_GetDisplayState(void)
 {
    return &Display;
+}
+
+bool MPEG_HighDefinition(void)
+{
+   return Mode.vidplaymode == MPEG_ACT_HMOV || Mode.vidplaymode == MPEG_ACT_HSTL;
 }
 
 bool MPEG_DirectOutput(void)
@@ -2168,6 +2857,8 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(Stm->vidchannum, 2, sizeof(*Stm), Stm),
 
       SFVAR(ActionStatus),
+      SFVAR(VState),
+      SFVAR(AState),
       SFVAR(VCounter),
       SFVAR(PictureInfo),
       SFVAR(AudioStatus),
@@ -2215,11 +2906,35 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
       SFVAR(AudioChannels),
 
       SFVAR(WindowSizeSet),
+      SFVAR(WinReg.src_x),
+      SFVAR(WinReg.src_y),
+      SFVAR(WinReg.rat_x),
+      SFVAR(WinReg.rat_y),
+      SFVAR(WinReg.x),
+      SFVAR(WinReg.y),
+      SFVAR(WinReg.w),
+      SFVAR(WinReg.h),
+      SFVAR(WinReg.ofs_x),
+      SFVAR(WinReg.ofs_y),
+      SFVAR(WinReg.size_set),
       SFVAR(FrameAccum),
       SFVAR(FrameRateNum),
       SFVAR(FrameRateDen),
 
       SFVAR(VideoPTS),
+      SFVAR(PlayMode),
+      SFVAR(TransferModeA),
+      SFVAR(TransferModeV),
+      SFVAR(VPrepSectors),
+      SFVAR(APrepSectors),
+      SFVAR(VBVBytes),
+      SFVAR(SeqHdr),
+      SFVAR(SeqHdrFill),
+      SFVAR(SyncWait),
+      SFVAR(SeqEndPending),
+      SFVAR(AEndPending),
+      SFVAR(AEndBytes),
+      SFVAR(DecodePending),
       SFVAR(AudioPTS),
       SFVAR(LastSCR),
 
@@ -2263,6 +2978,7 @@ void MPEG_StateAction(StateMem *sm, const unsigned load, const bool data_only)
 
       FIFO_Clear(&VFIFO);
       FIFO_Clear(&AFIFO);
+      AEndPending = false;
 
       ARing_RP    = 0;
       ARing_WP    = 0;
