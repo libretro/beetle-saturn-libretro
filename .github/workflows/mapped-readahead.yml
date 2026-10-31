@@ -53,5 +53,4 @@ jobs:
       - name: Read-ahead on Linux and under Wine
         env:
           MINGW: 1
-          WINEPREFIX: /tmp/wineprefix
         run: sh tools/mapped_readahead_test.sh

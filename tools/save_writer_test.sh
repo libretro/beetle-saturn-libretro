@@ -40,6 +40,9 @@ ${CC:-cc} $FLAGS -fsanitize=address,undefined -fno-sanitize-recover=undefined \
 $NORAND "$WORK/t_st" "$WORK"
 
 if [ -n "$MINGW" ]; then
+   # Wine makes a prefix only under a directory the user owns
+   WINEPREFIX=${WINEPREFIX:-$WORK/wineprefix}
+   export WINEPREFIX
    x86_64-w64-mingw32-gcc $FLAGS $MT -o "$WORK/t.exe" $BASE $THREADS -static
    ( cd "$WORK" && WINEDEBUG=-all timeout 120 wine ./t.exe . )
 fi

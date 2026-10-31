@@ -36,6 +36,9 @@ ${CC:-cc} $FLAGS -DHAVE_MMAP -fsanitize=address,undefined \
 ( cd "$WORK" && ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 $NORAND ./t )
 
 if [ -n "$MINGW" ]; then
+   # Wine makes a prefix only under a directory the user owns
+   WINEPREFIX=${WINEPREFIX:-$WORK/wineprefix}
+   export WINEPREFIX
    x86_64-w64-mingw32-gcc $FLAGS -o "$WORK/t.exe" $SRC $WRAP -static
    for m in "" touch none; do
       ( cd "$WORK" && RETRO_VFS_PREFETCH=$m WINEDEBUG=-all \

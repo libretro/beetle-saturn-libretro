@@ -54,5 +54,4 @@ jobs:
       - name: Save writer on Linux and under Wine
         env:
           MINGW: 1
-          WINEPREFIX: /tmp/wineprefix
         run: sh tools/save_writer_test.sh
