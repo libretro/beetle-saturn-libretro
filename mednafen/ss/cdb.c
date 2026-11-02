@@ -1606,15 +1606,34 @@ static void MPEG_FeedBuffer(const uint8_t bfsidx, const uint8_t pnum)
  MPEG_FeedSector(sd + offs, len, (sd[15] == 0x1) ? 0x00 : sd[16 + 2], pnum);
 }
 
+// Whether the host's data transfer still reads this buffer.  Only Get
+// Sector Data leaves the buffers it reads linked in their partition:
+// Get Then Delete unlinks them as the transfer starts, and a host write
+// links its buffers only when the transfer ends.  The other transfers
+// (TOC, subcode, file info) read sentinels, never a buffer.
+static bool DT_ReadsBuffer(const uint8_t bfsidx)
+{
+ if(!DT.Active || DT.Writing)
+  return false;
+
+ for(unsigned i = DT.CurBufIndex; i < DT.BufCount; i++)
+ {
+  if(DT.BufList[i] == bfsidx)
+   return true;
+ }
+
+ return false;
+}
+
 // Hand the card the sectors waiting in the partitions it deletes from,
-// oldest first, for as long as it has room.  Nothing is taken while the
-// host is reading sectors out, since those may be the same buffers.
+// oldest first, for as long as it has room.  A sector the host is still
+// reading out with Get Sector Data stays where it is, and so does every
+// sector behind it, so the card still takes them in order; any other
+// partition, or a transfer that reads none of these buffers, does not
+// hold the card up.
 static void MPEG_Pull(void)
 {
  uint8_t src[2];
-
- if(DT.Active && !DT.Writing)
-  return;
 
  // Only the partitions the current video and audio connections draw
  // from can feed the card, so those two are all that is checked.
@@ -1630,6 +1649,9 @@ static void MPEG_Pull(void)
   while(Partitions[pnum].Count && MPEG_WantsSector(pnum))
   {
    const uint8_t bfsidx = Partitions[pnum].FirstBuf;
+
+   if(DT_ReadsBuffer(bfsidx))
+    break;
 
    MPEG_FeedBuffer(bfsidx, pnum);
    Partition_UnlinkBuffer(pnum, bfsidx);
