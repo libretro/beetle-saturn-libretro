@@ -2935,6 +2935,13 @@ sscpu_timestamp_t CDB_Update(sscpu_timestamp_t timestamp)
       MPEG_ProgramRead();
       CDStatusResults(false, 0);
       TriggerIRQ(HIRQ_MPED | (stored ? HIRQ_CSCT : 0));
+
+      // As for sectors off the disc: the buffers ran out, here before
+      // every sector asked for was stored or with the last of them, so
+      // the host learns the block is full rather than finding fewer
+      // sectors than it asked for with nothing said.
+      if(FreeBufferCount == 0)
+       TriggerIRQ(HIRQ_BFUL);
      }
     }
     //
