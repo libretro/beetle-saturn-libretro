@@ -83,6 +83,10 @@ with tempfile.TemporaryDirectory(prefix='saturn-tests-') as directory:
         event = compile_test('eventcount_test', thread_sources,
                              ['-DSATURN_EVENTCOUNT_FORCE_SLEEP'])
         run([str(event), 'short'], timeout=60)
+    # Includes cdb.c itself, with the MPEG card and the rest of the
+    # Saturn stubbed, so it needs no other objects.
+    cdb_mpeg = compile_test('cdb_mpeg_test', [])
+    run([str(cdb_mpeg)], timeout=60)
     renderer = compile_test('renderer_thread_test',
                             [p for p in objects if Path(p).name != 'vdp2_render.o'])
     run([str(renderer)], timeout=60)
