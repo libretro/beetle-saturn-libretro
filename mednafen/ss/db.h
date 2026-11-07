@@ -50,15 +50,19 @@ enum
 const struct STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s);
 
 /* Predicate-based STV game lookup.  Iterates STVGI[]; for each game,
- * walks its rom_layout[] and calls `has_file(ctx, fname)` for each
- * populated slot's filename.  First game with any match returns.
+ * walks its rom_layout[] and calls `has_file(ctx, fname, head_crc32)`
+ * for each populated slot.  The predicate must also check the slot's
+ * head_crc32 (CRC32 of the first 128 bytes) when it is non-zero.  A
+ * game matches only when every slot is present; among complete
+ * matches the one with the most slots wins (merged sets, generic
+ * shared names such as ic22.bin), the first one on a tie.
  *
  * Intended for callers that have a name-resolver but no cdstream --
  * specifically, the libretro .zip load path can pass a predicate
  * that consults zip_find() over the open archive, without db.c
  * having to know what a zip is.  The cdstream-based DB_LookupSTV
  * stays the primary entry point for bare-file ROM loads. */
-typedef bool (*DB_STV_HasFile)(void* ctx, const char* fname);
+typedef bool (*DB_STV_HasFile)(void* ctx, const char* fname, uint32_t head_crc32);
 const struct STVGameInfo* DB_LookupSTV_ByPredicate(DB_STV_HasFile has_file, void* ctx);
 
 void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8_t* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode);
