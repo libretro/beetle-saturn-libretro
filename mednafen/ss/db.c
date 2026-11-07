@@ -1461,12 +1461,12 @@ static const struct STVGameInfo STVGI[] =
   STV_ROMTWIDDLE_NONE,
   false,
   {
-   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "epr20819.13" },
+   { 0x0000001, 0x0100000, STV_MAP_BYTE,  "epr20819.24" },
 
-   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20821.2" },
-   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20822.3" },
-   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20823.4" },
-   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20824.5" },
+   { 0x0400000, 0x0400000, STV_MAP_16LE, "mpr20821.12" },
+   { 0x0800000, 0x0400000, STV_MAP_16LE, "mpr20822.13" },
+   { 0x0C00000, 0x0400000, STV_MAP_16LE, "mpr20823.14" },
+   { 0x1000000, 0x0400000, STV_MAP_16LE, "mpr20824.15" },
   }
  },
 
@@ -1703,29 +1703,41 @@ const struct STVGameInfo* DB_LookupSTV(const char* fname, cdstream* s)
 
 const struct STVGameInfo* DB_LookupSTV_ByPredicate(DB_STV_HasFile has_file, void* ctx)
 {
+ const struct STVGameInfo* best = NULL;
+ size_t best_count = 0;
  size_t i, j;
 
- if(!has_file)
+ if (!has_file)
   return NULL;
 
- /* Same iteration shape as DB_LookupSTV's body, but the inner match
-  * delegates to the caller's has_file().  No CRC32 check -- the
-  * cdstream-based variant is the only one that does head_crc32
-  * validation, since this predicate-driven variant has no stream
-  * to read from.  Filename-only matching is consistent with the
-  * cdstream variant's behaviour when head_crc32 is 0 (the current
-  * 100% case in STVGI[]). */
- for(i = 0; i < sizeof(STVGI)/sizeof(STVGI[0]); i++)
+ /* A single matching file is not enough: clones and unrelated sets
+  * share ROM names with their parents (diehard/dnmtdeka, ic22.bin...).
+  * Require the complete rom_layout[] and keep the largest match. */
+ for (i = 0; i < sizeof(STVGI) / sizeof(STVGI[0]); i++)
  {
   const struct STVGameInfo* e = &STVGI[i];
-  for(j = 0; j < sizeof(e->rom_layout)/sizeof(e->rom_layout[0]) && e->rom_layout[j].size; j++)
+  const size_t slots = sizeof(e->rom_layout) / sizeof(e->rom_layout[0]);
+  bool complete = true;
+  size_t count = 0;
+
+  for (j = 0; j < slots && e->rom_layout[j].size; j++)
   {
-   if(has_file(ctx, e->rom_layout[j].fname))
-    return e;
+   if (!has_file(ctx, e->rom_layout[j].fname, e->rom_layout[j].head_crc32))
+   {
+    complete = false;
+    break;
+   }
+   count++;
+  }
+
+  if (complete && count > best_count)
+  {
+   best = e;
+   best_count = count;
   }
  }
 
- return NULL;
+ return best;
 }
 
 void DB_Lookup(const char* path, const char* sgid, const char* sgname, const char* sgarea, const uint8_t* fd_id, unsigned* const region, int* const cart_type, unsigned* const cpucache_emumode)
