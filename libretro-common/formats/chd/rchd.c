@@ -2913,7 +2913,9 @@ int rchd_read_begin(rchd_t *chd, uint64_t offset, void *dst, size_t len)
 
 int rchd_read_hunk_begin(rchd_t *chd, uint32_t hunk, void *dst)
 {
-   if (!chd || !dst || chd->state != RCHD_OPEN_DONE
+   /* @dst NULL: the hunk stays where it is decoded, for
+    * rchd_hunk_cache() */
+   if (!chd || chd->state != RCHD_OPEN_DONE
          || hunk >= chd->info.hunk_count)
       return RCHD_ERROR_PARAM;
 
@@ -2934,6 +2936,11 @@ int rchd_read_hunk_begin(rchd_t *chd, uint32_t hunk, void *dst)
    return RCHD_OK;
 }
 
+const uint8_t *rchd_hunk_cache(const rchd_t *chd)
+{
+   return chd ? chd->cache : NULL;
+}
+
 size_t rchd_read_progress(const rchd_t *chd)
 {
    return chd ? chd->rd_done : 0;
@@ -2942,6 +2949,23 @@ size_t rchd_read_progress(const rchd_t *chd)
 /* The byte-range worker. A sector-addressed read drives this directly
  * rather than going back through rchd_read_step, which would dispatch
  * straight back to the sector path. */
+/* A parent reference is a whole hunk's worth of the parent at a unit
+ * position.  For the child's last hunk that runs past the parent's
+ * logical end when the image ends mid-hunk, which a byte read rightly
+ * refuses; when it starts on one of the parent's hunks it is that whole
+ * hunk, padding and all, as a hunk read gives it. */
+static int rchd_parent_read_begin(rchd_t *chd, uint64_t offset,
+      uint8_t *dst)
+{
+   rchd_t  *p  = chd->parent;
+   uint32_t hb = chd->info.hunk_bytes;
+   if (     offset + hb > p->info.logical_bytes
+         && p->info.hunk_bytes == hb
+         && offset % hb == 0)
+      return rchd_read_hunk_begin(p, (uint32_t)(offset / hb), dst);
+   return rchd_read_begin(p, offset, dst, hb);
+}
+
 static int rchd_read_step_bytes(rchd_t *chd, rchd_request_t *req)
 {
    if (!chd->reading)
@@ -2977,6 +3001,15 @@ static int rchd_read_step_bytes(rchd_t *chd, rchd_request_t *req)
       if (chd->cached != src_hunk)
       {
          const rchd_map_entry_t *e;
+         /* A read covering the whole hunk decodes it straight into the
+          * caller's buffer: the cache is left holding what it held,
+          * which is still a valid hunk, and only a read of part of a
+          * hunk decodes into the cache to copy its slice out. A hunk
+          * read with no buffer (rchd_hunk_cache) decodes into the cache
+          * and copies nothing. */
+         int      whole = (chd->rd_dst && skip == 0
+               && avail == chd->info.hunk_bytes);
+         uint8_t *into  = whole ? chd->rd_dst + chd->rd_done : chd->cache;
          e = &chd->map[src_hunk];
 
          /* A parent reference is the parent's data at a unit position,
@@ -2986,9 +3019,8 @@ static int rchd_read_step_bytes(rchd_t *chd, rchd_request_t *req)
          {
             if (!chd->parent)
                return RCHD_ERROR_NO_PARENT;
-            err = rchd_read_begin(chd->parent,
-                  e->offset * chd->info.unit_bytes,
-                  chd->cache, chd->info.hunk_bytes);
+            err = rchd_parent_read_begin(chd,
+                  e->offset * chd->info.unit_bytes, into);
             if (err != RCHD_OK)
                return err;
             for (;;)
@@ -3003,7 +3035,6 @@ static int rchd_read_step_bytes(rchd_t *chd, rchd_request_t *req)
                   return err;
                break;
             }
-            chd->cached = src_hunk;
          }
          else
          {
@@ -3020,7 +3051,7 @@ static int rchd_read_step_bytes(rchd_t *chd, rchd_request_t *req)
             }
 
             err = rchd_build_hunk(chd, src_hunk, chd->pending,
-                  (uint32_t)need, chd->cache);
+                  (uint32_t)need, into);
             if (err != RCHD_OK)
                return err;
 
@@ -3028,15 +3059,21 @@ static int rchd_read_step_bytes(rchd_t *chd, rchd_request_t *req)
              * the only integrity signal those images carry. */
             if (chd->info.version >= 3 && chd->info.version <= 4
                   && e->crc != 0
-                  && encoding_crc32(0, chd->cache, chd->info.hunk_bytes)
+                  && encoding_crc32(0, into, chd->info.hunk_bytes)
                      != e->crc)
                return RCHD_ERROR_CRC;
-
-            chd->cached = src_hunk;
          }
+
+         if (whole)
+         {
+            chd->rd_done += avail;
+            continue;
+         }
+         chd->cached = src_hunk;
       }
 
-      memcpy(chd->rd_dst + chd->rd_done, chd->cache + skip, avail);
+      if (chd->rd_dst)
+         memcpy(chd->rd_dst + chd->rd_done, chd->cache + skip, avail);
       chd->rd_done += avail;
    }
 
