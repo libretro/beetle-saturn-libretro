@@ -106,4 +106,7 @@ with tempfile.TemporaryDirectory(prefix='saturn-tests-') as directory:
         if result.returncode not in (2, 5):
             raise RuntimeError('Truncated CHD was not rejected: ' + chd.name)
     print('Truncated CHD ranges rejected for all codecs.')
+    pregap = compile_test('chd_pregap_test',
+                          [p for p in objects if Path(p).name != 'CDAccess_CHD.o'])
+    run([str(pregap), str(fixtures / 'pregap' / 'pregap.chd')], timeout=60)
 print('All thread/codec checks passed.')

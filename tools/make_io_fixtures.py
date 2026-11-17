@@ -71,6 +71,24 @@ for ver,hl in [(3,120),(4,108)]:
   blob=rawzip(chunk);maps+=be(off,8)+be(zlib.crc32(chunk),4)+be(len(blob)&0xffff,2)+bytes([len(blob)>>16,1]);blobs.append(blob);off+=len(blob)
  h=bytearray(hl);h[:8]=b'MComprHD';h[8:16]=be(hl,4)+be(ver,4);h[20:44]=be(1,4)+be(4,4)+be(len(raw),8)+be(metaoff,8);idx=76 if ver==3 else 44;h[idx:idx+4]=be(hb,4)
  (out/('v'+str(ver)+'.chd')).write_bytes(h+maps+b'EndOfListCookie\0'+b'CHTR'+be(len(meta),4)+bytes(8)+meta+b''.join(blobs))
+# Three-track uncompressed V5 CHD for tools/chd_pregap_test.c, in its own
+# folder so the codec loop above does not pick it up. Track 2 has a pregap
+# that is not stored in the image (PGTYPE without 'V'); track 3 has one that
+# is (PGTYPE VAUDIO, counted in FRAMES). Each stored frame f carries its own
+# byte pattern so a reader that lands on the wrong frame is caught.
+pg=out/'pregap';pg.mkdir(exist_ok=True)
+tracks=[b'TRACK:1 TYPE:MODE1_RAW SUBTYPE:NONE FRAMES:8 PREGAP:0 PGTYPE:MODE1 PGSUB:NONE POSTGAP:0\0',
+ b'TRACK:2 TYPE:MODE2_RAW SUBTYPE:NONE FRAMES:8 PREGAP:3 PGTYPE:MODE1 PGSUB:NONE POSTGAP:0\0',
+ b'TRACK:3 TYPE:AUDIO SUBTYPE:NONE FRAMES:8 PREGAP:2 PGTYPE:VAUDIO PGSUB:NONE POSTGAP:0\0']
+pgraw=b''.join(bytes((f*29+j*7+1)&255 for j in range(2352))+bytes(96) for f in range(24))
+pghunks=len(pgraw)//hb;metaoff=124+4*pghunks;metas=b'';o=metaoff
+for k,m in enumerate(tracks):
+ nxt=o+16+len(m) if k+1<len(tracks) else 0
+ metas+=b'CHT2'+be(len(m),4)+be(nxt,8)+m;o+=16+len(m)
+header=b'MComprHD'+be(124,4)+be(5,4)+bytes(16)+be(len(pgraw),8)+be(124,8)+be(metaoff,8)+be(hb,4)+be(2448,4)+bytes(60)
+image=header+b''.join(be(i+1,4) for i in range(pghunks))+metas
+assert len(image)<=hb
+(pg/'pregap.chd').write_bytes(image+bytes(hb-len(image))+pgraw)
 with zipfile.ZipFile(out/'roms.zip','w') as za:
  data=bytes(((i*13)^(i>>7))&255 for i in range(2000000))
  za.writestr('stored.bin',data,compress_type=zipfile.ZIP_STORED)
