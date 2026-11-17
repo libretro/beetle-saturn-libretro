@@ -317,7 +317,143 @@ struct TileFetcher_NonRot
  TILEFETCHER_FIELDS_PREARR;
  uint32_t adj_map_regs[4];
  TILEFETCHER_FIELDS_POSTARR;
+
+ /* Character/bitmap data by access slot, see TileFetcher_NonRot_SlotSetup(). */
+ uint8_t  cg_fix;		/* Banks, a bit each, whose data is not read in place. */
+ uint8_t  cg_zoom;		/* Reads a cycle against no reduction: 1, 2 or 4. */
+ uint8_t  cg_offs[4][8];	/* By bank and its k-th read: 32-bit units fetched ahead. */
+ uint16_t cg_buf[16];		/* A cell row as the layer shows it. */
 };
+
+/*
+ Character and bitmap data by access slot, NBG0 and NBG1.
+
+ Where a layer's character/bitmap reads sit in the VRAM cycle patterns moves what the layer
+ shows:
+
+ - Number the slots the layer reads character/bitmap data in, across the banks, in cycle
+   order: T0 to T3 in the hi-res modes, T4 to T7 then T0 to T3 in the others.  A slot used in
+   several banks takes one number.  Pattern name reads, vertical cell scroll reads and other
+   layers' reads are not counted.
+ - A bank's k-th read fetches the 32-bit unit ((number - k) mod 4) ahead of the one in turn.
+   A bank is a half where RAMCTL splits it, each half counting its own reads.
+ - A bitmap takes the unit that far along its line.  A cell takes it from its own row of the
+   character, wrapping, so a 16-colour cell never changes.
+
+ NBG2 and NBG3 are not handled here.
+*/
+static void TileFetcher_NonRot_SlotSetup(struct TileFetcher_NonRot* self, const unsigned n)
+{
+ const bool hires = (bool)(HRes & 0x6);
+ const unsigned slots = hires ? 4 : 8;
+ const unsigned zm = (n < 2) ? ((ZMCTL >> (n << 3)) & 0x3) : 0;
+ uint8_t number[8];
+ unsigned count = 0;
+
+ self->cg_fix = 0;
+ self->cg_zoom = (zm & 2) ? 4 : ((zm & 1) ? 2 : 1);
+ memset(self->cg_offs, 0, sizeof(self->cg_offs));
+
+ if(n >= 2)
+  return;
+
+ for(unsigned i = 0; i < slots; i++)
+ {
+  const unsigned ac = hires ? i : ((i + 4) & 7);
+  bool used = false;
+
+  for(unsigned bank = 0; bank < 4; bank++)
+  {
+   const unsigned esb = bank & (2 | ((VRAM_Mode >> (bank >> 1)) & 1));
+
+   used |= self->cg_ok[bank] && VCPRegs[esb][ac] == (VCP_NBG0_CG + n);
+  }
+
+  number[ac] = count;
+  count += used;
+ }
+
+ for(unsigned bank = 0; bank < 4; bank++)
+ {
+  const unsigned esb = bank & (2 | ((VRAM_Mode >> (bank >> 1)) & 1));
+  unsigned k = 0;
+
+  if(!self->cg_ok[bank])
+   continue;
+
+  for(unsigned i = 0; i < slots; i++)
+  {
+   const unsigned ac = hires ? i : ((i + 4) & 7);
+
+   if(VCPRegs[esb][ac] != (VCP_NBG0_CG + n))
+    continue;
+
+   self->cg_offs[bank][k] = (number[ac] - k) & 3;
+
+   if(self->cg_offs[bank][k])
+    self->cg_fix |= 1U << bank;
+
+   k++;
+  }
+ }
+}
+
+/* Rebuilds the fetched cell row in cg_buf as the layer shows it, see
+ * TileFetcher_NonRot_SlotSetup().  Off the fast path: reached only for a bank in cg_fix. */
+static NO_INLINE void TileFetcher_NonRot_Fix(struct TileFetcher_NonRot* self, const unsigned bpp, const bool bmen, const uint32_t ix, const uint32_t iy)
+{
+ const unsigned units = bpp >> 2;	/* 32-bit units in 8 pixels */
+ const unsigned kmask = ((units * self->cg_zoom) - 1) & 7;
+ const unsigned kbase = (ix >> 3) * units;
+ const uint16_t* const row = self->tile_vrb;
+ unsigned bank;
+
+ if(row == DummyTileNT)
+  return;
+
+ bank = (size_t)(row - VRAM) >> 16;
+
+ if(!((self->cg_fix >> bank) & 1))
+  return;
+
+ if(bmen)
+ {
+  const unsigned ppu = 32 / bpp;	/* Pixels a unit */
+  const uint32_t xmask = self->BMWMask | 7;
+  const uint32_t line = (iy & self->BMHMask) << self->BMWShift;
+
+  for(unsigned j = 0; j < units; j++)
+  {
+   const unsigned off = self->cg_offs[bank][(kbase + j) & kmask];
+   const uint32_t x = ((ix &~ 0x7) + ((j + off) * ppu)) & xmask;
+   const uint32_t addr = self->BMOffset + (((x + line) * bpp) >> 4);
+
+   self->cg_buf[(j << 1) + 0] = VRAM[(addr + 0) & 0x3FFFF];
+   self->cg_buf[(j << 1) + 1] = VRAM[(addr + 1) & 0x3FFFF];
+  }
+ }
+ else
+ {
+  if(units == 1)
+   return;
+
+  for(unsigned j = 0; j < units; j++)
+  {
+   const unsigned u = (j + self->cg_offs[bank][(kbase + j) & kmask]) & (units - 1);
+
+   self->cg_buf[(j << 1) + 0] = row[(u << 1) + 0];
+   self->cg_buf[(j << 1) + 1] = row[(u << 1) + 1];
+  }
+ }
+
+ self->tile_vrb = self->cg_buf;
+}
+
+/* The slot offsets' part of the shared bodies below, by IS_ROT: nothing for a rotation layer. */
+#define TILEFETCHER_SLOT_SETUP_0 TileFetcher_NonRot_SlotSetup(self, n);
+#define TILEFETCHER_SLOT_SETUP_1
+#define TILEFETCHER_SLOT_FIX_0(TA_BPP) if(MDFN_UNLIKELY(self->cg_fix)) TileFetcher_NonRot_Fix(self, (TA_BPP), bmen, ix, iy);
+#define TILEFETCHER_SLOT_FIX_1(TA_BPP)
 
 /* Field-redirect block: bare field-name tokens (`pcco`, `BMOffset`,
  * ..., 22 names) are aliased to `(self->NAME)` so the body macros
@@ -431,6 +567,7 @@ struct TileFetcher_NonRot
   scc = false;                                                                                                          \
   tile_vrb = NULL;                                                                                                      \
   cellx_xor = 0;                                                                                                        \
+  TILEFETCHER_SLOT_SETUP_##IS_ROT                                                                                       \
  }
 
 /* Shared Fetch body.  Same as Start but also parameterized on
@@ -546,6 +683,7 @@ struct TileFetcher_NonRot
 /* */                                                                                                                   \
   pcco = ((palno << 4) &~ ((1U << ((TA_BPP) & 0x1F)) - 1)) + CRAOffs;                                                   \
                                                                                                                        \
+  TILEFETCHER_SLOT_FIX_##IS_ROT(TA_BPP)                                                                                 \
   return (IS_ROT) && is_outside && (PlaneOver & 2);                                                                     \
  }
 
@@ -611,6 +749,10 @@ static MDFN_FORCE_INLINE bool TileFetcher_NonRot_Fetch_32(struct TileFetcher_Non
 
 #undef TILEFETCHER_FETCH_BODY
 #undef TILEFETCHER_START_BODY
+#undef TILEFETCHER_SLOT_SETUP_0
+#undef TILEFETCHER_SLOT_SETUP_1
+#undef TILEFETCHER_SLOT_FIX_0
+#undef TILEFETCHER_SLOT_FIX_1
 
 /* Compile-time-folded BPP dispatch for Fetch, used inside the
  * function-table BODY macros.  At -O2 the compiler folds the ?:
