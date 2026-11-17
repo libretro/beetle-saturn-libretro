@@ -134,6 +134,7 @@ SOURCES_C += $(MEDNAFEN_DIR)/cdstream.c \
 		$(MEDNAFEN_DIR)/general.c \
 		$(MEDNAFEN_DIR)/mempatcher.c \
 		$(MEDNAFEN_DIR)/settings.c \
+		$(CORE_DIR)/calendar_rtc.c \
 		$(CORE_DIR)/disc.c \
 		$(CORE_DIR)/input.c \
 		$(CORE_DIR)/libretro.c \

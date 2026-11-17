@@ -4,7 +4,7 @@ name: Linux build and thread tests
 # GCC 9 through the binutils 2.26 assembler, where code needing a newer
 # assembler fails only at the LTO link.  thread-tests runs the
 # deterministic thread, CD and codec checks threaded and synchronous, and
-# the save writer on Linux and under Wine.
+# the save writer and the calendar RTC start time on Linux and under Wine.
 
 on:
   push:
@@ -55,3 +55,7 @@ jobs:
         env:
           MINGW: 1
         run: sh tools/save_writer_test.sh
+      - name: Calendar RTC on Linux and under Wine
+        env:
+          MINGW: 1
+        run: sh tools/calendar_rtc_test.sh
