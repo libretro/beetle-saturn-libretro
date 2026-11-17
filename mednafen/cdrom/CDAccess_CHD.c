@@ -354,8 +354,25 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
     self->toc.tracks[self->NumTracks].control = strcmp(type, "AUDIO") == 0 ? 0 : 4;
     self->toc.tracks[self->NumTracks].valid = true;
 
-    self->Tracks[self->NumTracks].pregap = (self->NumTracks == 1) ? 150 : 0;
-    self->Tracks[self->NumTracks].pregap_dv = pregap;
+    /* A pregap is stored in the CHD only when its PGTYPE starts with
+     * 'V' (chdman writes the 'V' when the pregap has data; MAME's
+     * cdrom.cpp reads it the same way).  A pregap without 'V' has no
+     * frames in the image: keep it virtual (synthesised on read, as
+     * Beetle PCE Fast does) and pull chd_offset back by its length, so
+     * the frames of this track and every later one are still found at
+     * lba + chd_offset. */
+    {
+      const bool pregap_in_chd = (pgtype[0] == 'V');
+
+      if (self->NumTracks == 1)
+        self->Tracks[self->NumTracks].pregap = 150;
+      else
+        self->Tracks[self->NumTracks].pregap = pregap_in_chd ? 0 : pregap;
+      self->Tracks[self->NumTracks].pregap_dv = pregap_in_chd ? pregap : 0;
+
+      if (self->NumTracks != 1 && !pregap_in_chd)
+        chd_offset -= pregap;
+    }
     plba += self->Tracks[self->NumTracks].pregap + self->Tracks[self->NumTracks].pregap_dv;
 
     /* plba is supposed to track the running LBA across tracks --
@@ -406,7 +423,11 @@ static bool CDAccess_CHD_Load_internal(CDAccess_CHD *self, const char *path, boo
     if (frames % CD_TRACK_PADDING > 0)
       chd_offset += (frames + (CD_TRACK_PADDING - frames % CD_TRACK_PADDING)) - frames;
 
+    /* The disc also spans the virtual pregap of a track after the
+     * first, so the lead-out (and total_sectors) moves past it. */
     numsectors += frames;
+    if (self->NumTracks != 1)
+      numsectors += self->Tracks[self->NumTracks].pregap;
     self->toc.first_track = 1;
     self->toc.last_track = self->NumTracks;
   }
