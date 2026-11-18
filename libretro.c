@@ -11,6 +11,7 @@
 
 #include "mednafen/ss/db.h"
 #include "zip_reader.h"
+#include "mednafen/hash/crc.h"
 
 #include <ctype.h>
 #include <time.h>
@@ -807,13 +808,28 @@ static void check_variables(bool startup)
  * and zip_find() per candidate filename. */
 struct stv_zip_lookup_ctx
 {
-   const zip_archive *za;
+    zip_archive* za;
 };
 
-static bool stv_zip_has_file(void *ctx, const char *fname)
+static bool stv_zip_has_file(void* ctx, const char* fname, uint32_t head_crc32)
 {
-   const struct stv_zip_lookup_ctx *c = (const struct stv_zip_lookup_ctx*)ctx;
-   return zip_find(c->za, fname) != NULL;
+   const struct stv_zip_lookup_ctx* c = (const struct stv_zip_lookup_ctx*)ctx;
+   const struct zip_entry* ze = zip_find(c->za, fname);
+   uint8_t* buf;
+   bool ok;
+
+   if (!ze)
+     return false;
+   if (!head_crc32)
+     return true;
+
+   /* Same check as the bare-file DB_LookupSTV: CRC32 of the first 128 bytes */
+   if (!(buf = (uint8_t*)malloc(ze->uncompressed_size ? ze->uncompressed_size : 1)))
+     return false;
+   ok = zip_extract(c->za, ze, buf) 
+     && crc32_zip(0, buf, ze->uncompressed_size < 0x80 ? ze->uncompressed_size : 0x80) == head_crc32;
+   free(buf);
+   return ok;
 }
 
 /* mkdir-p: create `dir` and any missing parents.  libretro-common's
