@@ -229,10 +229,15 @@ void VDP1_Reset(bool powering_up)
   EWLR = 0;
   EWRR = 0;
 
+  // Shining Wisdom draws its opening movie with the user clip enabled
+  // (inside mode) without ever setting the user clip, so a 0,0-0,0 user
+  // clip leaves one pixel of it.  Start with a user clip that covers the
+  // framebuffer: 0x3FF passes both the 10-bit per-pixel test and the
+  // 13-bit pre-clip test.
   VDP1_UserClipX0 = 0;
   VDP1_UserClipY0 = 0;
-  VDP1_UserClipX1 = 0;
-  VDP1_UserClipY1 = 0;
+  VDP1_UserClipX1 = 0x3FF;
+  VDP1_UserClipY1 = 0x3FF;
 
   VDP1_SysClipX = 0;
   VDP1_SysClipY = 0;
