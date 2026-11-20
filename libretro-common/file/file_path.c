@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 
 #include <boolean.h>
+#include <retro_atomic.h>
 #include <file/file_path.h>
 #include <retro_miscellaneous.h>
 #include <time/rtime.h>
@@ -66,20 +67,44 @@
 size_t strftime_am_pm(char *s, size_t len, const char* format,
       const void *ptr)
 {
-   size_t _len              = 0;
-#if !(defined(__linux__) && !defined(ANDROID))
-   char *local              = NULL;
-#endif
+   /* The host's LC_TIME is taken once: setting it on every call cost a
+    * locale reload each time and raced every other thread's strftime */
+   static retro_atomic_int_t strftime_locale_set =
+         RETRO_ATOMIC_INT_INITIALIZER(0);
    const struct tm *timeptr = (const struct tm*)ptr;
-   setlocale(LC_TIME, "");
-   _len = strftime(s, len, format, timeptr);
-#if !(defined(__linux__) && !defined(ANDROID))
-   if ((local = local_to_utf8_string_alloc(s)))
+   size_t _len;
+#if defined(_WIN32) && !defined(_XBOX) && !defined(UNICODE)
+   size_t i;
+#endif
+
+   if (!retro_atomic_load_acquire_int(&strftime_locale_set))
    {
-      if (local[0] != '\0')
+      setlocale(LC_TIME, "");
+      retro_atomic_store_release_int(&strftime_locale_set, 1);
+   }
+
+   /* A buffer too short leaves strftime()'s output unspecified */
+   if (!(_len = strftime(s, len, format, timeptr)))
+   {
+      if (len)
+         *s = '\0';
+      return 0;
+   }
+
+#if defined(_WIN32) && !defined(_XBOX) && !defined(UNICODE)
+   /* Only Windows writes the local codepage; an ASCII result is
+    * already UTF-8 */
+   for (i = 0; i < _len; i++)
+      if ((unsigned char)s[i] >= 0x80)
+         break;
+   if (i < _len)
+   {
+      char local[256];
+      if (strlcpy(local, s, sizeof(local)) < sizeof(local)
+            && local_to_utf8_string(local, s, len) && *s)
+         _len = strlen(s);
+      else
          _len = strlcpy(s, local, len);
-      free(local);
-      local = NULL;
    }
 #endif
    return _len;
@@ -519,6 +544,117 @@ size_t fill_pathname_basedir(char *s, const char *in_path, size_t len)
  *
  * @return Length of the string copied into @s
  **/
+static int path_hex_digit(char c)
+{
+   if (c >= '0' && c <= '9')
+      return c - '0';
+   if (c >= 'A' && c <= 'F')
+      return c - ('A' - 10);
+   if (c >= 'a' && c <= 'f')
+      return c - ('a' - 10);
+   return -1;
+}
+
+/* The next byte of a percent-encoded run, -1 at its end. %00 stays
+ * literal, as the SAF VFS decodes a serialized tree. */
+static int path_percent_next(const char **in, const char *end)
+{
+   const char *p = *in;
+   int         hi, lo;
+   if (p >= end)
+      return -1;
+   if (     *p == '%'
+         && end - p >= 3
+         && (hi = path_hex_digit(p[1])) >= 0
+         && (lo = path_hex_digit(p[2])) >= 0
+         && (hi | lo))
+   {
+      *in = p + 3;
+      return (hi << 4) | lo;
+   }
+   *in = p + 1;
+   return (unsigned char)*p;
+}
+
+/* The folder a saf://<tree> segment names: the last component of the
+ * tree's document ID ("primary:Games/Roms" -> "Roms"), empty for a
+ * volume root or a tree that is not a plain folder grant.
+ *
+ * The segment is the tree URI with its '%' and '/' escaped, and the
+ * document ID inside it is escaped again, so the name is decoded in
+ * two layers straight into @s. */
+static size_t path_saf_tree_name(char *s, const char *seg,
+      const char *seg_end, size_t len)
+{
+   static const char tree[] = "/tree/";
+   const char *p            = seg;
+   size_t      n            = 0;
+   bool        overflow     = false;
+
+   if (!len)
+      return 0;
+   s[0] = '\0';
+
+   /* Up to the end of "/tree/" in the once-decoded URI */
+   for (;;)
+   {
+      const char *q = p;
+      size_t      i = 0;
+      while (tree[i] && path_percent_next(&q, seg_end) == tree[i])
+         ++i;
+      if (!tree[i])
+      {
+         p = q;
+         break;
+      }
+      if (path_percent_next(&p, seg_end) < 0)
+         return 0;
+   }
+
+   /* The document ID, decoded once more; each '/' or ':' starts the
+    * name over. A '/' left after the first decode means the tree
+    * already points at a document. */
+   for (;;)
+   {
+      int c = path_percent_next(&p, seg_end);
+      if (c < 0)
+         break;
+      if (c == '/')
+      {
+         s[0] = '\0';
+         return 0;
+      }
+      if (c == '%')
+      {
+         const char *q = p;
+         int         d1 = path_percent_next(&q, seg_end);
+         int         d2 = path_percent_next(&q, seg_end);
+         int         hi = d1 < 0 ? -1 : path_hex_digit((char)d1);
+         int         lo = d2 < 0 ? -1 : path_hex_digit((char)d2);
+         if (hi >= 0 && lo >= 0 && (hi | lo))
+         {
+            c = (hi << 4) | lo;
+            p = q;
+         }
+      }
+      if (c == '/' || c == ':')
+      {
+         n        = 0;
+         overflow = false;
+         continue;
+      }
+      if (n + 1 >= len)
+         overflow = true;
+      else
+         s[n++] = (char)c;
+   }
+
+   if (overflow)
+      n = 0;
+   s[n] = '\0';
+   return n;
+}
+
 size_t fill_pathname_parent_dir_name(char *s,
    const char *in_dir, size_t len)
 {
@@ -553,11 +689,21 @@ size_t fill_pathname_parent_dir_name(char *s,
             && parent_start[-1] != '\\')
          --parent_start;
 
-      if (parent_end > parent_start)
-         return strlcpy(s, parent_start,
-               (size_t)(parent_end - parent_start + 1) < len
-               ? (size_t)(parent_end - parent_start + 1)
-               : len);
+      /* Directly under a SAF tree the parent component is the
+       * serialized tree URI, not a folder name */
+      if (     parent_start == in_dir + (sizeof("saf://") - 1)
+            && !strncmp(in_dir, "saf://", (sizeof("saf://") - 1)))
+         return path_saf_tree_name(s, parent_start, parent_end, len);
+
+      if (parent_end > parent_start && len)
+      {
+         size_t n = (size_t)(parent_end - parent_start);
+         if (n >= len)
+            n = len - 1;
+         memcpy(s, parent_start, n);
+         s[n] = '\0';
+         return n;
+      }
    }
    return 0;
 }

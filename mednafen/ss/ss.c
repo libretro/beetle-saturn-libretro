@@ -75,6 +75,7 @@ extern uint32_t IBufferCount;
 #endif
 #endif
 #include "../../libretro_settings.h"
+#include "../../calendar_rtc.h"
 #include "../../input.h"
 #include "../general.h"		/* MDFN_MidSync (defined in libretro.c) */
 extern bool is_pal;
@@ -2070,8 +2071,11 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
    {
       time_t ut;
       struct tm* ht;
+      struct tm ct;
 
-      if((ut = time(NULL)) == (time_t)-1)
+      if(calendar_rtc_start_tm(&calendar_iface, &ct))
+         ht = &ct;
+      else if((ut = time(NULL)) == (time_t)-1)
       {
          log_cb(RETRO_LOG_ERROR, "AutoRTC error #1\n");
          /* Previously this just returned false, leaving the VDP2
@@ -2081,8 +2085,7 @@ bool MDFN_COLD InitCommon(const unsigned cpucache_emumode, const unsigned horrib
          Cleanup();
          return false;
       }
-
-      if((ht = localtime(&ut)) == NULL)
+      else if((ht = localtime(&ut)) == NULL)
       {
          log_cb(RETRO_LOG_ERROR, "AutoRTC error #2\n");
          Cleanup();

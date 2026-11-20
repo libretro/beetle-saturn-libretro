@@ -55,3 +55,4 @@ ever edited in this core.
   local and mapped, with short frontend reads.
 - `sh tools/mapped_readahead_test.sh` - the mapped read-ahead.
 - `sh tools/save_writer_test.sh` - the save writer.
+- `sh tools/calendar_rtc_test.sh` - the calendar RTC start time.

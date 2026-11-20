@@ -50,6 +50,7 @@
 
 #include "libretro_core_options.h"
 #include "libretro_settings.h"
+#include "calendar_rtc.h"
 #include "mednafen/ss/sh7095_jit.h"
 #include "input.h"
 #include "disc.h"
@@ -77,6 +78,7 @@ retro_get_cpu_features_t perf_get_cpu_features_cb = NULL;
 // virtue of frontend call order.
 static void fallback_log(enum retro_log_level level, const char *fmt, ...);
 retro_log_printf_t log_cb                         = fallback_log;
+struct retro_calendar_time_interface calendar_iface;
 static retro_audio_sample_t audio_cb              = NULL;
 static retro_audio_sample_batch_t audio_batch_cb  = NULL;
 static retro_input_poll_t input_poll_cb           = NULL;
@@ -269,6 +271,10 @@ void retro_init(void)
       perf_get_cpu_features_cb = perf_cb.get_cpu_features;
    else
       perf_get_cpu_features_cb = NULL;
+
+   calendar_iface.interface_version = RETRO_CALENDAR_TIME_INTERFACE_VERSION;
+   if (!environ_cb(RETRO_ENVIRONMENT_GET_CALENDAR_TIME_INTERFACE, &calendar_iface))
+      memset(&calendar_iface, 0, sizeof(calendar_iface));
 
    setting_region = 0; // auto
    setting_smpc_autortc = true;
@@ -1850,6 +1856,8 @@ void retro_deinit(void)
    libretro_can_dupe                   = false;
    last_frame_interlaced               = false;
    last_frame_settled                  = false;
+
+   memset(&calendar_iface, 0, sizeof(calendar_iface));
 }
 
 unsigned retro_get_region(void)
