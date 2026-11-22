@@ -93,11 +93,14 @@ switch(z->Pipe_ID >> 24)
  // that reaches the multiplier ends no earlier than that: the next multiply's, and the one
  // of STS, STS.L, LDS and LDS.L with MACH or MACL, and of CLRMAC.
  // (SH-1/SH-2 Programming Manual, section 7.7, Multiply/Accumulate and Multiplication)
- // MULT_MA_CHECK() is that stage of STS, STS.L, LDS, LDS.L and CLRMAC.
- #define MULT_MA_CHECK() { sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
- // The slot of one of the two MA stages of DMULS.L, DMULU.L and MUL.L.  It is taken as a
- // read takes it, with no bus access.
- #define MULT_MA_STAGE() { sscpu_timestamp_t t__ = z->timestamp + 1; if(t__ > z->MA_until) z->MA_until = t__; }
+ // MULT_MA_CHECK() is that stage of STS, STS.L, LDS, LDS.L, CLRMAC, MULS.W and MULU.W.  It
+ // ends a state after the MA stage ahead of it at the earliest, so two in a row do not share
+ // a slot.
+ #define MULT_MA_CHECK() { sscpu_timestamp_t t__ = z->timestamp + 1; sscpu_timestamp_t m__ = z->MA_until + 1; if(z->MM_until > m__) m__ = z->MM_until; if(t__ > m__) m__ = t__; z->MA_until = m__; }
+ // The slot of one of the two MA stages of a multiply, a state after the MA stage ahead of it
+ // at the earliest.  DMULS.L, DMULU.L and MUL.L have no bus access in it.  MAC.L and MAC.W
+ // take it ahead of each read.
+ #define MULT_MA_STAGE() { sscpu_timestamp_t t__ = z->timestamp + 1; sscpu_timestamp_t m__ = z->MA_until + 1; if(t__ > m__) m__ = t__; z->MA_until = m__; }
  //
  //
  //
@@ -930,9 +933,11 @@ switch(z->Pipe_ID >> 24)
 	 z->timestamp++;
 
 	 // Order confirmed.
+	 MULT_MA_STAGE()
 	 MemRead32(z->R[instr_nyb1], opexec_MAC_L_m0);
 	 z->R[instr_nyb1] += 4;
 	 PART_OP_NORMIDIF
+	 MULT_MA_STAGE()
 	 MemRead32(z->R[instr_nyb2], opexec_MAC_L_m1);
 	 z->R[instr_nyb2] += 4;
 
@@ -969,9 +974,11 @@ switch(z->Pipe_ID >> 24)
 	 z->timestamp++;
 
 	 // Order confirmed.
+	 MULT_MA_STAGE()
 	 MemRead16(z->R[instr_nyb1], opexec_MAC_W_m0);
 	 z->R[instr_nyb1] += 2;
 	 PART_OP_NORMIDIF
+	 MULT_MA_STAGE()
 	 MemRead16(z->R[instr_nyb2], opexec_MAC_W_m1);
 	 z->R[instr_nyb2] += 2;
 
@@ -1087,7 +1094,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	{ sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
+	MULT_MA_CHECK()
 	z->MM_until = z->MA_until + 2;
 
 	z->MACL = (int16_t)z->R[n] * (int16_t)z->R[m];
@@ -1106,7 +1113,7 @@ switch(z->Pipe_ID >> 24)
 	WB_EX_CHECK(n)
 	WB_EX_CHECK(m)
 
-	{ sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
+	MULT_MA_CHECK()
 	z->MM_until = z->MA_until + 2;
 
 	z->MACL = (uint32_t)(uint16_t)z->R[n] * (uint32_t)(uint16_t)z->R[m];

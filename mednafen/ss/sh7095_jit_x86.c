@@ -1086,10 +1086,11 @@ static void emit_fetch_intdis_in_body(void)
  g_fetch_int_prevent = false;
 }
 
-/* MULT_MA_CHECK(): MA_until = max(MA_until, MM_until, timestamp + 1).  Leaves MA_until in EAX. */
+/* MULT_MA_CHECK(): MA_until = max(MA_until + 1, MM_until, timestamp + 1).  Leaves MA_until in EAX. */
 static void emit_mult_ma_check(void)
 {
  x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
+ x86_alu_ri(g_cg, X86_ADD, EAX, 1);
  x86_mov_rm(g_cg, ECX, M_Z(O(MM_until)));
  x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
  ts_load(ECX); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
@@ -1097,10 +1098,11 @@ static void emit_mult_ma_check(void)
  x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
 }
 
-/* MULT_MA_STAGE(): MA_until = max(MA_until, timestamp + 1).  Clobbers EAX and ECX. */
+/* MULT_MA_STAGE(): MA_until = max(MA_until + 1, timestamp + 1).  Clobbers EAX and ECX. */
 static void emit_mult_ma_stage(void)
 {
  x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
+ x86_alu_ri(g_cg, X86_ADD, EAX, 1);
  ts_load(ECX); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
  x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
  x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
@@ -1129,15 +1131,10 @@ static void emit_mul32_timing_around_fetch(void)
  emit_mult_start(4);
 }
 
-/* MULS.W / MULU.W post-fetch timing: MA_until = max(MA_until, MM_until, ts + 1); MM_until = MA_until + 2 */
+/* MULS.W / MULU.W post-fetch timing: MULT_MA_CHECK; MM_until = MA_until + 2 */
 static void emit_mul16_timing(void)
 {
- x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
- x86_mov_rm(g_cg, ECX, M_Z(O(MM_until)));
- x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
- ts_load(ECX); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
- x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
- x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
+ emit_mult_ma_check();
  x86_alu_ri(g_cg, X86_ADD, EAX, 2);
  x86_mov_mr(g_cg, M_Z(O(MM_until)), EAX);
 }
@@ -1173,9 +1170,11 @@ static bool compile_sys(uint32_t instr)
      * address), then the multiplier's start; operands parked in the
      * interpreter's own resume fields, arithmetic in the C helper. */
     ts_add_imm(1);
+    emit_mult_ma_stage();
     x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); emit_mem_read(MEM_32, false); x86_mov_mr(g_cg, M_Z(O(Resume_MAC_L_m0)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(m)), 4);
     g_fetch_emitter();
+    emit_mult_ma_stage();
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); emit_mem_read(MEM_32, false); x86_mov_mr(g_cg, M_Z(O(Resume_MAC_L_m1)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 4);
     emit_mult_start(4);
@@ -1307,9 +1306,11 @@ static bool compile_sys(uint32_t instr)
    {
     /* as MAC.L, with the multiplier busy for 2 states */
     ts_add_imm(1);
+    emit_mult_ma_stage();
     x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); emit_mem_read(MEM_16, false); x86_mov_mr16(g_cg, M_Z(O(Resume_MAC_W_m0)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(m)), 2);
     g_fetch_emitter();
+    emit_mult_ma_stage();
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); emit_mem_read(MEM_16, false); x86_mov_mr16(g_cg, M_Z(O(Resume_MAC_W_m1)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 2);
     emit_mult_start(2);
