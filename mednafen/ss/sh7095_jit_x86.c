@@ -1064,8 +1064,9 @@ static bool g_body_touches_memory;
 /* Where the instruction's fetch goes relative to its body, set by
  * compile_body for the caller: most ops prefetch (BEGIN_OP); the
  * system/control register moves fetch afterwards with the interrupt bit
- * masked (BEGIN_OP_DLYIDIF + PART_OP_INTDIS); the long multiplies adjust
- * MA/MM before a normal prefetch, which compile_body emits itself. */
+ * masked (BEGIN_OP_DLYIDIF + PART_OP_INTDIS), but for the MACH and MACL
+ * forms of STS.L and LDS.L; those and the long multiplies have their
+ * fetch inside the body, which compile_body emits itself. */
 typedef enum { FETCH_BEFORE = 0, FETCH_AFTER_INTDIS = 1, FETCH_EMITTED_BY_BODY = 2 } FetchPlacement;
 static FetchPlacement g_fetch_placement;
 static void (*g_fetch_emitter)(void);          /* used by FETCH_EMITTED_BY_BODY */
@@ -1075,6 +1076,14 @@ static void (*g_fetch_emitter)(void);          /* used by FETCH_EMITTED_BY_BODY 
 #define SR_M 0x200
 #define SYSREG_OFF(i) (O(SysRegs) + 4 * (int32_t)(i))
 #define CTRLREG_OFF(i) (O(CtrlRegs) + 4 * (int32_t)(i))
+
+/* PART_OP_INTDIS at its place inside a body (FETCH_EMITTED_BY_BODY) */
+static void emit_fetch_intdis_in_body(void)
+{
+ g_fetch_int_prevent = true;
+ g_fetch_emitter();
+ g_fetch_int_prevent = false;
+}
 
 /* MUL.L / DMULS / DMULU pre-fetch timing:
  *   timestamp++; MA_until = max(MA_until, MM_until, timestamp + 1); MM_until = MA_until + 4 */
@@ -1267,18 +1276,22 @@ static bool compile_sys(uint32_t instr)
    }
    if((instr & 0xFF) == 0x02 || (instr & 0xFF) == 0x12 || (instr & 0xFF) == 0x22)                                     /* STS.L MACH/MACL/PR,@-Rn */
    {
+    /* MACH and MACL: the fetch, then the write.  PR: the write, then the fetch. */
+    if(sri < 2) emit_fetch_intdis_in_body();
     x86_mov_rm(g_cg, EDX, M_Z(SYSREG_OFF(sri)));
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_alu_ri(g_cg, X86_SUB, EAX, 4); x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
     emit_mem_write(MEM_32);
-    g_fetch_placement = FETCH_AFTER_INTDIS; g_body_touches_memory = true; return true;
+    g_fetch_placement = (sri < 2) ? FETCH_EMITTED_BY_BODY : FETCH_AFTER_INTDIS; g_body_touches_memory = true; return true;
    }
    if((instr & 0xFF) == 0x06 || (instr & 0xFF) == 0x16 || (instr & 0xFF) == 0x26)                                     /* LDS.L @Rm+,MACH/MACL/PR */
    {
+    /* MACH and MACL: the fetch, then the read.  PR: the read, then the fetch. */
+    if(sri < 2) emit_fetch_intdis_in_body();
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 4);
     emit_mem_read(MEM_32, false);
     x86_mov_mr(g_cg, M_Z(SYSREG_OFF(sri)), EAX);
-    g_fetch_placement = FETCH_AFTER_INTDIS; g_body_touches_memory = true; return true;
+    g_fetch_placement = (sri < 2) ? FETCH_EMITTED_BY_BODY : FETCH_AFTER_INTDIS; g_body_touches_memory = true; return true;
    }
    return false;
   case 0x6:

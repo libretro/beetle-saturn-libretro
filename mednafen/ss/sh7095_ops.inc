@@ -1711,12 +1711,28 @@ switch(z->Pipe_ID >> 24)
 	{
 	 uint32_t ea;
 
+	 // MACH and MACL: the fetch first, as an ordinary load.  PR: the read, then the fetch.
+	 // Both orders share one fetch site, as the slave's resume points are a fixed, listed set.
+	 if(((instr >> 4) & 0x3) < 2)
+	  goto LDS_L_Fetch;
+
+	 LDS_L_Read:;
 	 ea = z->R[instr_nyb2];
 	 z->R[instr_nyb2] += 4;
 
 	 MemRead32(ea, z->SysRegs[(instr >> 4) & 0x3]);
+
+	 if(((instr >> 4) & 0x3) < 2)
+	  goto LDS_L_Done;
+
+	 LDS_L_Fetch:;
+	 PART_OP_INTDIS
+
+	 if(((instr >> 4) & 0x3) < 2)
+	  goto LDS_L_Read;
+
+	 LDS_L_Done:;
 	}
-	PART_OP_INTDIS
  END_OP
 
 
@@ -1879,16 +1895,30 @@ switch(z->Pipe_ID >> 24)
  //
  BEGIN_OP_DLYIDIF(STS_L)	// Pipeline same as ordinary store instruction
 	{
-	 CONST_VAR(unsigned, n) = instr_nyb2;
-	 CONST_VAR(unsigned, sri) = (instr >> 4) & 0x3;
 	 uint32_t ea;
 
-	 z->R[n] -= 4;
-	 ea = z->R[n];
+	 // MACH and MACL: the fetch first, as an ordinary store.  PR: the write, then the fetch.
+	 // Both orders share one fetch site, as the slave's resume points are a fixed, listed set.
+	 if(((instr >> 4) & 0x3) < 2)
+	  goto STS_L_Fetch;
 
-	 MemWrite32(ea, z->SysRegs[sri]);
+	 STS_L_Write:;
+	 z->R[instr_nyb2] -= 4;
+	 ea = z->R[instr_nyb2];
+
+	 MemWrite32(ea, z->SysRegs[(instr >> 4) & 0x3]);
+
+	 if(((instr >> 4) & 0x3) < 2)
+	  goto STS_L_Done;
+
+	 STS_L_Fetch:;
+	 PART_OP_INTDIS
+
+	 if(((instr >> 4) & 0x3) < 2)
+	  goto STS_L_Write;
+
+	 STS_L_Done:;
 	}
-	PART_OP_INTDIS
  END_OP
 
 
