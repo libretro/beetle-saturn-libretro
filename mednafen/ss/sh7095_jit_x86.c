@@ -1227,6 +1227,7 @@ static bool compile_sys(uint32_t instr)
    }
    if(low == 0xE || low == 0xF)                                                                                         /* MULU.W / MULS.W */
    {
+    emit_wb_check(n); emit_wb_check(m);
     emit_mul16_timing();
     if(low == 0xF) { x86_movsx_rm16(g_cg, EAX, M_Z(O_R(n))); x86_movsx_rm16(g_cg, ECX, M_Z(O_R(m))); }
     else           { x86_movzx_rm16(g_cg, EAX, M_Z(O_R(n))); x86_movzx_rm16(g_cg, ECX, M_Z(O_R(m))); }

@@ -1079,9 +1079,13 @@ switch(z->Pipe_ID >> 24)
  // MULS.W Rm,Rn
  //
  //  Pipeline: page 207
+ //  Unlike the 32-bit multiplies, it waits for an operand that a load has yet to write back.
  BEGIN_OP(MULS_W_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
+
+	WB_EX_CHECK(n)
+	WB_EX_CHECK(m)
 
 	{ sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
 	z->MM_until = z->MA_until + 2;
@@ -1094,9 +1098,13 @@ switch(z->Pipe_ID >> 24)
  // MULU.W Rm,Rn
  //
  //  Pipeline: page 207
+ //  As MULS.W.
  BEGIN_OP(MULU_W_REG_REG)
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
+
+	WB_EX_CHECK(n)
+	WB_EX_CHECK(m)
 
 	{ sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
 	z->MM_until = z->MA_until + 2;
