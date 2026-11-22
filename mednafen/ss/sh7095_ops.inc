@@ -95,6 +95,9 @@ switch(z->Pipe_ID >> 24)
  // (SH-1/SH-2 Programming Manual, section 7.7, Multiply/Accumulate and Multiplication)
  // MULT_MA_CHECK() is that stage of STS, STS.L, LDS, LDS.L and CLRMAC.
  #define MULT_MA_CHECK() { sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
+ // The slot of one of the two MA stages of DMULS.L, DMULU.L and MUL.L.  It is taken as a
+ // read takes it, with no bus access.
+ #define MULT_MA_STAGE() { sscpu_timestamp_t t__ = z->timestamp + 1; if(t__ > z->MA_until) z->MA_until = t__; }
  //
  //
  //
@@ -1001,14 +1004,19 @@ switch(z->Pipe_ID >> 24)
  //
  // DMULS.L Rm,Rn
  //
- //  Pipeline: page 215 (not implemented here totally correctly)
+ //  Pipeline: page 215
+ //  As MAC.L without its reads: EX, then two MA stages with the fetch beside the first.  The
+ //  second MA stage hands the operands to the multiplier, so it waits for it.
  BEGIN_OP_DLYIDIF(DMULS_L_REG_REG)
 	{
 	 z->timestamp++;
 
-	 { sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
-	 z->MM_until = z->MA_until + 4;
+	 MULT_MA_STAGE()
 	 PART_OP_NORMIDIF
+	 MULT_MA_STAGE()
+
+	 if(z->MM_until > z->MA_until) z->MA_until = z->MM_until;
+	 z->MM_until = z->MA_until + 4;
 	}
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
@@ -1022,14 +1030,18 @@ switch(z->Pipe_ID >> 24)
  //
  // DMULU.L Rm,Rn
  //
- //  Pipeline: page 215 (not implemented here totally correctly)
+ //  Pipeline: page 215
+ //  As DMULS.L.
  BEGIN_OP_DLYIDIF(DMULU_L_REG_REG)
 	{
 	 z->timestamp++;
 
-	 { sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
-	 z->MM_until = z->MA_until + 4;
+	 MULT_MA_STAGE()
 	 PART_OP_NORMIDIF
+	 MULT_MA_STAGE()
+
+	 if(z->MM_until > z->MA_until) z->MA_until = z->MM_until;
+	 z->MM_until = z->MA_until + 4;
 	}
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;
@@ -1043,14 +1055,18 @@ switch(z->Pipe_ID >> 24)
  //
  // MUL.L Rm,Rn
  //
- //  Pipeline: page 215 (not implemented here totally correctly)
+ //  Pipeline: page 215
+ //  As DMULS.L.
  BEGIN_OP_DLYIDIF(MUL_L_REG_REG)
 	{
 	 z->timestamp++;
 
-	 { sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
-	 z->MM_until = z->MA_until + 4;
+	 MULT_MA_STAGE()
 	 PART_OP_NORMIDIF
+	 MULT_MA_STAGE()
+
+	 if(z->MM_until > z->MA_until) z->MA_until = z->MM_until;
+	 z->MM_until = z->MA_until + 4;
 	}
 	CONST_VAR(unsigned, n) = instr_nyb2;
 	CONST_VAR(unsigned, m) = instr_nyb1;

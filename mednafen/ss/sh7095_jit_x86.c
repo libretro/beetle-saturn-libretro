@@ -1097,6 +1097,15 @@ static void emit_mult_ma_check(void)
  x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
 }
 
+/* MULT_MA_STAGE(): MA_until = max(MA_until, timestamp + 1).  Clobbers EAX and ECX. */
+static void emit_mult_ma_stage(void)
+{
+ x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
+ ts_load(ECX); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
+}
+
 /* The multiplier's start: MA_until = max(MA_until, MM_until); MM_until = MA_until + states */
 static void emit_mult_start(int32_t states)
 {
@@ -1108,20 +1117,16 @@ static void emit_mult_start(int32_t states)
  x86_mov_mr(g_cg, M_Z(O(MM_until)), EAX);
 }
 
-/* MUL.L / DMULS / DMULU pre-fetch timing:
- *   timestamp++; MA_until = max(MA_until, MM_until, timestamp + 1); MM_until = MA_until + 4 */
-static void emit_mul32_timing_then_fetch(void)
+/* MUL.L / DMULS / DMULU timing, the fetch between the two MA stages:
+ *   timestamp++; MULT_MA_STAGE; fetch; MULT_MA_STAGE;
+ *   MA_until = max(MA_until, MM_until); MM_until = MA_until + 4 */
+static void emit_mul32_timing_around_fetch(void)
 {
  ts_add_imm(1);
- x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
- x86_mov_rm(g_cg, ECX, M_Z(O(MM_until)));
- x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
- ts_load(ECX); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
- x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
- x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
- x86_alu_ri(g_cg, X86_ADD, EAX, 4);
- x86_mov_mr(g_cg, M_Z(O(MM_until)), EAX);
+ emit_mult_ma_stage();
  g_fetch_emitter();
+ emit_mult_ma_stage();
+ emit_mult_start(4);
 }
 
 /* MULS.W / MULU.W post-fetch timing: MA_until = max(MA_until, MM_until, ts + 1); MM_until = MA_until + 2 */
@@ -1203,7 +1208,7 @@ static bool compile_sys(uint32_t instr)
    }
    if(low == 0x7)                                                                                                       /* MUL.L Rm,Rn */
    {
-    emit_mul32_timing_then_fetch();
+    emit_mul32_timing_around_fetch();
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_imul_rm(g_cg, EAX, M_Z(O_R(m))); x86_mov_mr(g_cg, M_Z(O(MACL)), EAX);
     g_fetch_placement = FETCH_EMITTED_BY_BODY; return true;
    }
@@ -1270,7 +1275,7 @@ static bool compile_sys(uint32_t instr)
      return true;
     }
     case 0x5: case 0xD:                                                                                                /* DMULU.L / DMULS.L */
-     emit_mul32_timing_then_fetch();
+     emit_mul32_timing_around_fetch();
      x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
      if(low == 0xD) { x86_movsxd_rr(g_cg, EAX, EAX); x86_movsxd_rm(g_cg, ECX, M_Z(O_R(m))); x86_imul_rr64(g_cg, EAX, ECX); }
      else           { x86_mov_rm(g_cg, ECX, M_Z(O_R(m))); x86_imul_rr64(g_cg, EAX, ECX); }   /* both zero-extended: unsigned product fits */
