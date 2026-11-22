@@ -1063,10 +1063,11 @@ static bool g_body_touches_memory;
 
 /* Where the instruction's fetch goes relative to its body, set by
  * compile_body for the caller: most ops prefetch (BEGIN_OP); the
- * system/control register moves fetch afterwards with the interrupt bit
- * masked (BEGIN_OP_DLYIDIF + PART_OP_INTDIS), but for the MACH and MACL
- * forms of STS.L and LDS.L; those and the long multiplies have their
- * fetch inside the body, which compile_body emits itself. */
+ * control register moves and the PR forms of STS.L and LDS.L fetch
+ * afterwards with the interrupt bit masked (BEGIN_OP_DLYIDIF +
+ * PART_OP_INTDIS); the long multiplies, MAC.L, MAC.W, STS and LDS, and
+ * the MACH and MACL forms of STS.L and LDS.L have their fetch inside the
+ * body, which compile_body emits itself. */
 typedef enum { FETCH_BEFORE = 0, FETCH_AFTER_INTDIS = 1, FETCH_EMITTED_BY_BODY = 2 } FetchPlacement;
 static FetchPlacement g_fetch_placement;
 static void (*g_fetch_emitter)(void);          /* used by FETCH_EMITTED_BY_BODY */
@@ -1083,6 +1084,28 @@ static void emit_fetch_intdis_in_body(void)
  g_fetch_int_prevent = true;
  g_fetch_emitter();
  g_fetch_int_prevent = false;
+}
+
+/* MULT_MA_CHECK(): MA_until = max(MA_until, MM_until, timestamp + 1).  Leaves MA_until in EAX. */
+static void emit_mult_ma_check(void)
+{
+ x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
+ x86_mov_rm(g_cg, ECX, M_Z(O(MM_until)));
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ ts_load(ECX); x86_alu_ri(g_cg, X86_ADD, ECX, 1);
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
+}
+
+/* The multiplier's start: MA_until = max(MA_until, MM_until); MM_until = MA_until + states */
+static void emit_mult_start(int32_t states)
+{
+ x86_mov_rm(g_cg, EAX, M_Z(O(MA_until)));
+ x86_mov_rm(g_cg, ECX, M_Z(O(MM_until)));
+ x86_alu_rr(g_cg, X86_CMP, EAX, ECX); x86_cmov(g_cg, X86_CC_L, EAX, ECX);
+ x86_mov_mr(g_cg, M_Z(O(MA_until)), EAX);
+ x86_alu_ri(g_cg, X86_ADD, EAX, states);
+ x86_mov_mr(g_cg, M_Z(O(MM_until)), EAX);
 }
 
 /* MUL.L / DMULS / DMULU pre-fetch timing:
@@ -1140,23 +1163,38 @@ static bool compile_sys(uint32_t instr)
      * on the master but diverges when the slave runs it (Daytona USA's
      * race demo, frames 1221-1250); until that is traced the chain leaves
      * MAC.L to the interpreter. */
-    /* read m0 from R[m], R[m] += 4, read m1 from R[n], R[n] += 4 -- in that
-     * order (n == m reads the incremented address); operands parked in the
+    /* timestamp++, read m0 from R[m], R[m] += 4, the fetch, read m1 from
+     * R[n], R[n] += 4 -- in that order (n == m reads the incremented
+     * address), then the multiplier's start; operands parked in the
      * interpreter's own resume fields, arithmetic in the C helper. */
+    ts_add_imm(1);
     x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); emit_mem_read(MEM_32, false); x86_mov_mr(g_cg, M_Z(O(Resume_MAC_L_m0)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(m)), 4);
+    g_fetch_emitter();
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); emit_mem_read(MEM_32, false); x86_mov_mr(g_cg, M_Z(O(Resume_MAC_L_m1)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 4);
+    emit_mult_start(4);
     emit_call_z((const void*)&SH7095_JIT_MACL_Arith);
-    ts_add_imm(1);
-    g_body_touches_memory = true; return true;
+    g_fetch_placement = FETCH_EMITTED_BY_BODY; g_body_touches_memory = true; return true;
    }
-   if(instr == 0x0028) { x86_mov_mi32(g_cg, M_Z(O(MACH)), 0); x86_mov_mi32(g_cg, M_Z(O(MACL)), 0); return true; }   /* CLRMAC */
+   if(instr == 0x0028)                                                                                                  /* CLRMAC */
+   {
+    emit_mult_ma_check();
+    x86_mov_mi32(g_cg, M_Z(O(MACH)), 0); x86_mov_mi32(g_cg, M_Z(O(MACL)), 0); return true;
+   }
    if(instr == 0x0019) { x86_alu_mi32(g_cg, X86_AND, M_Z(O(SR)), ~(SR_Q | SR_M | SR_T)); return true; }               /* DIV0U */
    if((instr & 0xFF) == 0x0A || (instr & 0xFF) == 0x1A || (instr & 0xFF) == 0x2A)                                     /* STS MACH/MACL/PR,Rn */
    {
+    /* the fetch first; MACH and MACL wait for the multiplier and write back like a load */
+    emit_fetch_intdis_in_body();
+    if(sri < 2)
+    {
+     emit_mult_ma_check();
+     x86_alu_ri(g_cg, X86_ADD, EAX, 1);
+     x86_mov_mr(g_cg, M_Z(O_WB(n)), EAX);
+    }
     x86_mov_rm(g_cg, EAX, M_Z(SYSREG_OFF(sri))); x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
-    g_fetch_placement = FETCH_AFTER_INTDIS; return true;
+    g_fetch_placement = FETCH_EMITTED_BY_BODY; return true;
    }
    if((instr & 0xFF) == 0x02 || (instr & 0xFF) == 0x12 || (instr & 0xFF) == 0x22)                                     /* STC SR/GBR/VBR,Rn */
    {
@@ -1261,23 +1299,29 @@ static bool compile_sys(uint32_t instr)
   case 0x4:
    if(low == 0xF)                                                                                                       /* MAC.W @Rm+,@Rn+ */
    {
+    /* as MAC.L, with the multiplier busy for 2 states */
+    ts_add_imm(1);
     x86_mov_rm(g_cg, EAX, M_Z(O_R(m))); emit_mem_read(MEM_16, false); x86_mov_mr16(g_cg, M_Z(O(Resume_MAC_W_m0)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(m)), 2);
+    g_fetch_emitter();
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); emit_mem_read(MEM_16, false); x86_mov_mr16(g_cg, M_Z(O(Resume_MAC_W_m1)), EAX);
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 2);
+    emit_mult_start(2);
     emit_call_z((const void*)&SH7095_JIT_MACW_Arith);
-    ts_add_imm(1);
-    g_body_touches_memory = true; return true;
+    g_fetch_placement = FETCH_EMITTED_BY_BODY; g_body_touches_memory = true; return true;
    }
    if((instr & 0xFF) == 0x0A || (instr & 0xFF) == 0x1A || (instr & 0xFF) == 0x2A)                                     /* LDS Rm,MACH/MACL/PR */
    {
+    /* the fetch first; MACH and MACL wait for the multiplier */
+    emit_fetch_intdis_in_body();
+    if(sri < 2) emit_mult_ma_check();
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_mov_mr(g_cg, M_Z(SYSREG_OFF(sri)), EAX);
-    g_fetch_placement = FETCH_AFTER_INTDIS; return true;
+    g_fetch_placement = FETCH_EMITTED_BY_BODY; return true;
    }
    if((instr & 0xFF) == 0x02 || (instr & 0xFF) == 0x12 || (instr & 0xFF) == 0x22)                                     /* STS.L MACH/MACL/PR,@-Rn */
    {
-    /* MACH and MACL: the fetch, then the write.  PR: the write, then the fetch. */
-    if(sri < 2) emit_fetch_intdis_in_body();
+    /* MACH and MACL: the fetch, the wait for the multiplier, then the write.  PR: the write, then the fetch. */
+    if(sri < 2) { emit_fetch_intdis_in_body(); emit_mult_ma_check(); }
     x86_mov_rm(g_cg, EDX, M_Z(SYSREG_OFF(sri)));
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n))); x86_alu_ri(g_cg, X86_SUB, EAX, 4); x86_mov_mr(g_cg, M_Z(O_R(n)), EAX);
     emit_mem_write(MEM_32);
@@ -1285,8 +1329,8 @@ static bool compile_sys(uint32_t instr)
    }
    if((instr & 0xFF) == 0x06 || (instr & 0xFF) == 0x16 || (instr & 0xFF) == 0x26)                                     /* LDS.L @Rm+,MACH/MACL/PR */
    {
-    /* MACH and MACL: the fetch, then the read.  PR: the read, then the fetch. */
-    if(sri < 2) emit_fetch_intdis_in_body();
+    /* MACH and MACL: the fetch, the wait for the multiplier, then the read.  PR: the read, then the fetch. */
+    if(sri < 2) { emit_fetch_intdis_in_body(); emit_mult_ma_check(); }
     x86_mov_rm(g_cg, EAX, M_Z(O_R(n)));
     x86_alu_mi32(g_cg, X86_ADD, M_Z(O_R(n)), 4);
     emit_mem_read(MEM_32, false);

@@ -87,6 +87,14 @@ switch(z->Pipe_ID >> 24)
  #define WB_READ32(r, A) { uint32_t memrv; MemRead32(A, memrv); WB_WRITE((r), memrv); }
  #define WB_READ16_I(r, A) { uint16_t memrv; MemRead16_I(A, memrv); WB_WRITE((r), (int16_t)memrv); }
  #define WB_READ32_I(r, A) { uint32_t memrv; MemRead32_I(A, memrv); WB_WRITE((r), memrv); }
+
+ // The multiplier runs on by itself after a multiply: 4 states for MAC.L, DMULS.L, DMULU.L
+ // and MUL.L, 2 for MAC.W, MULS.W and MULU.W.  z->MM_until is when it is done.  An MA stage
+ // that reaches the multiplier ends no earlier than that: the next multiply's, and the one
+ // of STS, STS.L, LDS and LDS.L with MACH or MACL, and of CLRMAC.
+ // (SH-1/SH-2 Programming Manual, section 7.7, Multiply/Accumulate and Multiplication)
+ // MULT_MA_CHECK() is that stage of STS, STS.L, LDS, LDS.L and CLRMAC.
+ #define MULT_MA_CHECK() { sscpu_timestamp_t t__ = z->timestamp + 1; if(z->MM_until > z->MA_until) z->MA_until = z->MM_until; if(t__ > z->MA_until) z->MA_until = t__; }
  //
  //
  //
@@ -909,16 +917,24 @@ switch(z->Pipe_ID >> 24)
  //
  // MAC.L @Rm+,@Rn+
  //
- //  Pipeline: page 188(not implemented right here)
- BEGIN_OP(MAC_L)
+ //  Pipeline: page 188
+ //  EX, then a read in each of two MA stages, with the fetch beside the first.  The second
+ //  MA stage hands the operands to the multiplier, so it waits for it.
+ BEGIN_OP_DLYIDIF(MAC_L)
 	RESUME_VAR(int32_t, opexec_MAC_L_m0);
 	RESUME_VAR(int32_t, opexec_MAC_L_m1);
 	{
+	 z->timestamp++;
+
 	 // Order confirmed.
 	 MemRead32(z->R[instr_nyb1], opexec_MAC_L_m0);
 	 z->R[instr_nyb1] += 4;
+	 PART_OP_NORMIDIF
 	 MemRead32(z->R[instr_nyb2], opexec_MAC_L_m1);
 	 z->R[instr_nyb2] += 4;
+
+	 if(z->MM_until > z->MA_until) z->MA_until = z->MM_until;
+	 z->MM_until = z->MA_until + 4;
 	}
 	uint64_t a, b, sum;
 
@@ -935,24 +951,29 @@ switch(z->Pipe_ID >> 24)
 	}
 
 	SH7095_SetMAC64(z, sum);
-
-	z->timestamp++;
  END_OP
 
 
  //
  // MAC.W @Rm+,@Rn+
  //
- //  Pipeline: page 180(not implemented right here)
- BEGIN_OP(MAC_W)
+ //  Pipeline: page 180
+ //  As MAC.L, with the multiplier busy for 2 states.
+ BEGIN_OP_DLYIDIF(MAC_W)
 	RESUME_VAR(int16_t, opexec_MAC_W_m0);
 	RESUME_VAR(int16_t, opexec_MAC_W_m1);
 	{
+	 z->timestamp++;
+
 	 // Order confirmed.
 	 MemRead16(z->R[instr_nyb1], opexec_MAC_W_m0);
 	 z->R[instr_nyb1] += 2;
-         MemRead16(z->R[instr_nyb2], opexec_MAC_W_m1);
+	 PART_OP_NORMIDIF
+	 MemRead16(z->R[instr_nyb2], opexec_MAC_W_m1);
 	 z->R[instr_nyb2] += 2;
+
+	 if(z->MM_until > z->MA_until) z->MA_until = z->MM_until;
+	 z->MM_until = z->MA_until + 2;
 	}
 
 	if(SH7095_GetS(z))
@@ -974,8 +995,6 @@ switch(z->Pipe_ID >> 24)
 	}
 	else
 	 SH7095_SetMAC64(z, SH7095_GetMAC64(z) + (int64_t)opexec_MAC_W_m0 * opexec_MAC_W_m1);
-
-	z->timestamp++;
  END_OP
 
 
@@ -1642,6 +1661,8 @@ switch(z->Pipe_ID >> 24)
  // CLRMAC 
  //
  BEGIN_OP(CLRMAC)
+	MULT_MA_CHECK()
+
 	z->MACH = 0;
 	z->MACL = 0;
  END_OP
@@ -1694,13 +1715,17 @@ switch(z->Pipe_ID >> 24)
  // LDS 
  //
  BEGIN_OP_DLYIDIF(LDS)
+	PART_OP_INTDIS
 	{
 	 CONST_VAR(unsigned, m) = instr_nyb2;
 	 const unsigned sri = (instr >> 4) & 0x3;
 
+	 // MACH and MACL are written in an MA stage
+	 if(sri < 2)
+	  MULT_MA_CHECK()
+
 	 z->SysRegs[sri] = z->R[m];
 	}
-	PART_OP_INTDIS
  END_OP
 
 
@@ -1711,8 +1736,9 @@ switch(z->Pipe_ID >> 24)
 	{
 	 uint32_t ea;
 
-	 // MACH and MACL: the fetch first, as an ordinary load.  PR: the read, then the fetch.
-	 // Both orders share one fetch site, as the slave's resume points are a fixed, listed set.
+	 // MACH and MACL: the fetch first, as an ordinary load, and the read's MA stage waits
+	 // for the multiplier.  PR: the read, then the fetch.  Both orders share one fetch site,
+	 // as the slave's resume points are a fixed, listed set.
 	 if(((instr >> 4) & 0x3) < 2)
 	  goto LDS_L_Fetch;
 
@@ -1729,7 +1755,10 @@ switch(z->Pipe_ID >> 24)
 	 PART_OP_INTDIS
 
 	 if(((instr >> 4) & 0x3) < 2)
+	 {
+	  MULT_MA_CHECK()
 	  goto LDS_L_Read;
+	 }
 
 	 LDS_L_Done:;
 	}
@@ -1880,13 +1909,20 @@ switch(z->Pipe_ID >> 24)
  // STS 
  //
  BEGIN_OP_DLYIDIF(STS)
+	PART_OP_INTDIS
 	{
 	 CONST_VAR(unsigned, n) = instr_nyb2;
 	 const unsigned sri = (instr >> 4) & 0x3;
 
-	 z->R[n] = z->SysRegs[sri];
+	 // MACH and MACL are read in an MA stage and written back like a load
+	 if(sri < 2)
+	 {
+	  MULT_MA_CHECK()
+	  WB_WRITE(n, z->SysRegs[sri]);
+	 }
+	 else
+	  z->R[n] = z->SysRegs[sri];
 	}
-	PART_OP_INTDIS
  END_OP
 
 
@@ -1897,8 +1933,9 @@ switch(z->Pipe_ID >> 24)
 	{
 	 uint32_t ea;
 
-	 // MACH and MACL: the fetch first, as an ordinary store.  PR: the write, then the fetch.
-	 // Both orders share one fetch site, as the slave's resume points are a fixed, listed set.
+	 // MACH and MACL: the fetch first, as an ordinary store, and the write's MA stage waits
+	 // for the multiplier.  PR: the write, then the fetch.  Both orders share one fetch site,
+	 // as the slave's resume points are a fixed, listed set.
 	 if(((instr >> 4) & 0x3) < 2)
 	  goto STS_L_Fetch;
 
@@ -1915,7 +1952,10 @@ switch(z->Pipe_ID >> 24)
 	 PART_OP_INTDIS
 
 	 if(((instr >> 4) & 0x3) < 2)
+	 {
+	  MULT_MA_CHECK()
 	  goto STS_L_Write;
+	 }
 
 	 STS_L_Done:;
 	}
